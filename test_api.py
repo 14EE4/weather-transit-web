@@ -20,15 +20,15 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
 # 현재 폴더 또는 상위 폴더의 .env 파일을 자동으로 찾아 로드합니다.
 load_dotenv()
 
-KMA_AUTH_KEY = os.getenv("KMA_APIHUB_KEY") or os.getenv("KMA_API_KEY")
-SEOUL_BUS_KEY = os.getenv("SEOUL_BUS_API_KEY") or os.getenv("SEOUL_OPEN_KEY")
-SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY") or os.getenv("SEOUL_OPEN_KEY")
+KMA_AUTH_KEY = os.getenv("KMA_APIHUB_KEY")
+SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")
+DATA_GO_KR_BUS_KEY = os.getenv("DATA_GO_KR_API_KEY")
 
 # 키 로드 여부 검증 (누락 시 경고)
 missing_keys = []
 if not KMA_AUTH_KEY: missing_keys.append("KMA_APIHUB_KEY")
 if not SEOUL_SUBWAY_KEY: missing_keys.append("SEOUL_SUBWAY_API_KEY")
-if not SEOUL_BUS_KEY: missing_keys.append("SEOUL_BUS_API_KEY")
+if not DATA_GO_KR_BUS_KEY: missing_keys.append("DATA_GO_KR_API_KEY")
 
 if missing_keys:
     print(f"[경고] .env 파일에서 다음 API 키를 찾을 수 없습니다: {', '.join(missing_keys)}")
@@ -132,14 +132,22 @@ def test_seoul_bus(ars_id="23288"):
     print(f"[2] 서울 버스 도착 정보 API 테스트 (정류소 번호: {ars_id})")
     print("="*50)
 
-    url = f"http://ws.bus.go.kr/api/rest/arrive/getArrInfoByStnid?serviceKey={SEOUL_BUS_KEY}&arsId={ars_id}"
+    url = f"http://ws.bus.go.kr/api/rest/arrive/getArrInfoByStnid?serviceKey={DATA_GO_KR_BUS_KEY}&arsId={ars_id}"
 
     try:
         res = requests.get(url, timeout=5)
         if res.status_code != 200:
             print(f"[실패] HTTP 상태 코드: {res.status_code}")
+            try:
+                err_data = res.json()
+                msg = err_data.get("message") or err_data.get("error")
+                if msg:
+                    print(f"[안내] 버스 API 메시지: {msg}")
+            except Exception:
+                pass
             if res.status_code == 401:
-                print(">> [참고] ws.bus.go.kr 버스 API는 공공데이터포털(data.go.kr) 인증키가 필요합니다.")
+                print(">> [참고] 공공데이터포털 API 키는 신청/발급 직후 게이트웨이 동기화에 1~2시간가량 소요될 수 있습니다.")
+                print(">> [확인] 공공데이터포털(data.go.kr) 마이페이지에서 '서울특별시_버스도착정보조회' 서비스 활용신청 승인 여부를 확인해주세요.")
             return
 
         root = ET.fromstring(res.content)

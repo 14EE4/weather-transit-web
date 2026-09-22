@@ -41,10 +41,10 @@ KMA_APIHUB_KEY=your_kma_apihub_key_here
 # 서울 열린데이터광장 (https://data.seoul.go.kr - 지하철 실시간 도착 정보)
 SEOUL_SUBWAY_API_KEY=your_seoul_subway_key_here
 
-# 서울 버스 도착 정보 (공공데이터포털 또는 서울 열린데이터광장 버스 API)
-SEOUL_BUS_API_KEY=your_seoul_bus_key_here
+# 공공데이터포털 (https://www.data.go.kr - 버스 도착 정보)
+DATA_GO_KR_API_KEY=your_data_go_kr_key_here
 
-# 프론트엔드 연동용 백엔드 URL
+# 백엔드 서버 URL (프론트엔드 연동 시)
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
@@ -109,9 +109,9 @@ python test_api.py
    - **[서울시 지하철 실시간 도착정보]** 데이터셋 검색 후 **활용 신청** (실시간 서비스 사용 권한 획득)
    - 승인된 일반 인증키를 `.env`의 `SEOUL_SUBWAY_API_KEY`에 입력
 
-3. **서울 버스 도착 정보 (`SEOUL_BUS_API_KEY`)**
+3. **버스 도착 정보 (`DATA_GO_KR_API_KEY`)**
    - [공공데이터포털](https://www.data.go.kr/)에서 **'서울특별시_버스도착정보조회 서비스'** 활용 신청
-   - 발급된 Decoding 인증키를 `.env`의 `SEOUL_BUS_API_KEY`에 입력
+   - 발급된 일반 인증키(Decoding/Encoding)를 `.env`의 `DATA_GO_KR_API_KEY`에 입력 (발급 직후 1~2시간 동기화 소요될 수 있음)
 
 ---
 

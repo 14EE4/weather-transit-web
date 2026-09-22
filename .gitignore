@@ -1,0 +1,60 @@
+# ==========================================
+# 1. API 키 및 보안 파일 (절대 커밋 금지)
+# ==========================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ==========================================
+# 2. Node.js / Frontend (React, Vite 등)
+# ==========================================
+node_modules/
+dist/
+dist-ssr/
+build/
+*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# 3. Python / AI / Data
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 가상환경 (venv, conda)
+.venv/
+venv/
+ENV/
+env/
+
+# 대용량 데이터셋 및 가중치 파일 (CSV, 모델 파일)
+# ※ 100MB 이상 파일은 깃허브 업로드가 차단됩니다.
+*.csv
+*.xlsx
+*.parquet
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.h5
+data/
+raw_data/
+
+# Jupyter / Colab 임시 파일
+.ipynb_checkpoints/
+
+# ==========================================
+# 4. OS 및 IDE 설정 파일
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

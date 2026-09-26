@@ -121,56 +121,151 @@ def test_kma_weather(nx=61, ny=125):
 
 
 # ==========================================
-# 3. 서울시 버스 도착 정보 테스트
+# 3. 서울시 버스도착정보조회 API
+#    (참조: 공공데이터포털 서울특별시_버스도착정보조회)
 # ==========================================
-def test_seoul_bus(ars_id="23288"):
-    """
-    서울시 정류소 버스 도착 정보 조회
-    (주의: ws.bus.go.kr은 공공데이터포털(data.go.kr) 인증키를 요구함)
-    """
-    print("\n" + "="*50)
-    print(f"[2] 서울 버스 도착 정보 API 테스트 (정류소 번호: {ars_id})")
-    print("="*50)
+BUS_BASE_URL = "http://ws.bus.go.kr/api/rest/arrive"
 
-    url = f"http://ws.bus.go.kr/api/rest/arrive/getArrInfoByStnid?serviceKey={DATA_GO_KR_BUS_KEY}&arsId={ars_id}"
+def _request_bus_api(endpoint: str, extra_params: dict) -> list:
+    """
+    서울시 버스도착정보 API 공통 요청 함수
+    - resultType='json' 기본 설정
+    - requests 이중 인코딩 방지를 위한 urllib.parse.unquote 처리
+    - headerCd == '0' 검증 및 예외 처리
+    """
+    raw_key = os.getenv("DATA_GO_KR_API_KEY")
+    if not raw_key:
+        print("[오류] DATA_GO_KR_API_KEY 환경변수가 설정되지 않았습니다.")
+        return []
+
+    # requests.get(..., params=...)에 전달 시 requests 내부에서 쿼리스트링을 자동 인코딩하므로,
+    # 키가 이미 인코딩되어 있다면 unquote()하여 이중 인코딩(인증 실패)을 방지합니다.
+    decoded_service_key = urllib.parse.unquote(raw_key)
+
+    url = f"{BUS_BASE_URL}/{endpoint}"
+    params = {
+        "serviceKey": decoded_service_key,
+        "resultType": "json",
+        **extra_params
+    }
 
     try:
-        res = requests.get(url, timeout=5)
+        res = requests.get(url, params=params, timeout=10)
+
+        # HTTP 응답 코드 에러 처리
         if res.status_code != 200:
-            print(f"[실패] HTTP 상태 코드: {res.status_code}")
-            try:
-                err_data = res.json()
-                msg = err_data.get("message") or err_data.get("error")
-                if msg:
-                    print(f"[안내] 버스 API 메시지: {msg}")
-            except Exception:
-                pass
-            if res.status_code == 401:
+            print(f"[실패] HTTP 상태 코드: {res.status_code} ({endpoint})")
+            if res.status_code in (401, 403):
                 print(">> [참고] 공공데이터포털 API 키는 신청/발급 직후 게이트웨이 동기화에 1~2시간가량 소요될 수 있습니다.")
                 print(">> [확인] 공공데이터포털(data.go.kr) 마이페이지에서 '서울특별시_버스도착정보조회' 서비스 활용신청 승인 여부를 확인해주세요.")
-            return
+            else:
+                print(f"[응답 내용] {res.text[:200]}")
+            return []
 
-        root = ET.fromstring(res.content)
-        header_cd = root.findtext(".//headerCd")
-        header_msg = root.findtext(".//headerMsg")
-        if header_cd and header_cd != "0":
-            print(f"[안내] 버스 API 메시지 ({header_cd}): {header_msg}")
-            return
+        # JSON 파싱
+        try:
+            data = res.json()
+        except ValueError:
+            print(f"[실패] JSON 파싱 오류. 응답 내용: {res.text[:200]}")
+            return []
 
-        items = root.findall(".//itemList")
-        if not items:
-            print("[결과 없음] 해당 정류소에 운행 중인 버스가 없거나 정류소 번호 오류입니다.")
-            return
+        # API 자체 응답 헤더(msgHeader) 검증
+        msg_header = data.get("msgHeader", {})
+        header_cd = str(msg_header.get("headerCd", ""))
+        header_msg = msg_header.get("headerMsg", "메시지 없음")
 
-        congestion_map = {"3": "여유", "4": "보통", "5": "혼잡", "0": "정보없음"}
-        for item in items[:5]:
-            rt_nm = item.findtext("rtNm")
-            arrmsg1 = item.findtext("arrmsg1")
-            reride_num1 = item.findtext("reride_Num1", default="0")
-            print(f"- [{rt_nm}번] 도착: {arrmsg1} | 첫 번째 차량 혼잡도: {congestion_map.get(reride_num1, reride_num1)}")
+        if header_cd != "0":
+            print(f"[API 응답 오류] 코드: {header_cd} | 메시지: {header_msg} ({endpoint})")
+            if header_cd == "7":
+                print(">> [인증 오류] 서비스키가 등록되지 않았거나 동기화 지연 상태입니다. (최대 1~2시간 소요)")
+            elif header_cd == "3":
+                print(">> [정류소 오류] 정류소 ID(stId)를 다시 확인해주세요. (5자리 arsId가 아닌 9자리 stId 필요)")
+            elif header_cd == "4":
+                print(">> [노선 오류] 노선 ID(busRouteId)를 다시 확인해주세요.")
+            return []
 
+        # 데이터 목록 추출 (공공데이터 API는 항목이 1개일 경우 dict로 오는 경우가 있어 안전하게 변환)
+        msg_body = data.get("msgBody") or {}
+        items = msg_body.get("itemList", [])
+        if isinstance(items, dict):
+            items = [items]
+
+        return items
+
+    except requests.exceptions.RequestException as e:
+        print(f"[네트워크/통신 오류] {e}")
+        return []
     except Exception as e:
-        print(f"[오류 발생] {e}")
+        print(f"[예외 발생] {e}")
+        return []
+
+
+def get_arrival_by_route_all(bus_route_id: str) -> list:
+    """
+    1) 노선 전체 정류소의 도착 예정 정보 조회
+    - 오퍼레이션: getArrInfoByRouteAll
+    - 필수 파라미터: serviceKey, busRouteId
+    - 반환: 각 정류소별 첫차/막차 도착메시지(arrmsg1, arrmsg2), 정류소명(stNm) 등을 담은 리스트
+    """
+    items = _request_bus_api("getArrInfoByRouteAll", {"busRouteId": bus_route_id})
+    result = []
+    for item in items:
+        result.append({
+            "stNm": item.get("stNm"),
+            "stId": item.get("stId"),
+            "staOrd": item.get("staOrd"),
+            "arrmsg1": item.get("arrmsg1"),
+            "arrmsg2": item.get("arrmsg2"),
+            "rtNm": item.get("rtNm"),
+            "busRouteId": item.get("busRouteId")
+        })
+    return result
+
+
+def get_low_bus_arrival_by_stid(st_id: str) -> list:
+    """
+    2) 정류소별 저상버스 도착예정정보 목록 조회
+    - 오퍼레이션: getLowArrInfoByStId
+    - 필수 파라미터: serviceKey, stId (9자리 정류소 고유 ID)
+    - [주의] 이 API에는 arsId(5자리) 전용 엔드포인트가 없으므로 고유 ID(stId)를 전달해야 합니다.
+    - 반환: 해당 정류소에 도착하는 저상버스 도착 정보 목록
+    """
+    return _request_bus_api("getLowArrInfoByStId", {"stId": st_id})
+
+
+def test_seoul_bus():
+    """
+    서울 버스 도착 정보 API 기능 테스트
+    - 472번 버스 노선(ID: 100100118) 전체 정류소 도착 정보
+    - 구산동사거리 정류소(ID: 111000299) 저상버스 도착 정보
+    """
+    print("\n" + "="*50)
+    print("[2] 서울 버스 도착 정보 API 테스트")
+    print("="*50)
+
+    # 1. 노선 전체 정류소 도착 정보 조회 (예시: 472번 노선 ID 100100118)
+    sample_route_id = "100100118"
+    print(f"\n[기능 1] get_arrival_by_route_all(busRouteId='{sample_route_id}') 테스트:")
+    route_arrivals = get_arrival_by_route_all(sample_route_id)
+    if route_arrivals:
+        print(f">> 전체 {len(route_arrivals)}개 정류소 중 상위 3개 정류소 도착 현황:")
+        for stop in route_arrivals[:3]:
+            print(f"- [{stop['staOrd']}] {stop['stNm']}({stop['stId']}): 1번째={stop['arrmsg1']} | 2번째={stop['arrmsg2']}")
+
+    # 2. 정류소별 저상버스 도착 정보 조회 (예시: stId 111000299)
+    sample_st_id = "111000299"
+    print(f"\n[기능 2] get_low_bus_arrival_by_stid(stId='{sample_st_id}') 테스트:")
+    low_bus_arrivals = get_low_bus_arrival_by_stid(sample_st_id)
+    if low_bus_arrivals:
+        print(f">> 저상버스 도착 정보 {len(low_bus_arrivals)}건:")
+        for bus in low_bus_arrivals:
+            rt_nm = bus.get("rtNm")
+            st_nm = bus.get("stNm")
+            arrmsg1 = bus.get("arrmsg1")
+            arrmsg2 = bus.get("arrmsg2")
+            print(f"- [{rt_nm}번] @ {st_nm}: {arrmsg1} | {arrmsg2}")
+    elif not route_arrivals and not low_bus_arrivals:
+        print(">> 조회된 버스 도착 정보가 없습니다.")
 
 
 # ==========================================

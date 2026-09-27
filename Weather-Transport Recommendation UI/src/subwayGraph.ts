@@ -2595,6 +2595,61 @@ interface SearchState {
   path: PathNode[]
 }
 
+// ── 지선 분기 및 계통 환승 규칙 (동일 호선 내 분기역 필수 환승 처리) ──
+interface BranchTransferRule {
+  junction: string
+  branchA: string[]
+  branchB: string[]
+  lineAName: string
+  lineBName: string
+}
+
+const BRANCH_TRANSFER_RULES: BranchTransferRule[] = [
+  {
+    junction: '구로역',
+    branchA: ['구일역'],
+    branchB: ['가산디지털단지역'],
+    lineAName: '1호선(경인)',
+    lineBName: '1호선(경부)',
+  },
+  {
+    junction: '금천구청역',
+    branchA: ['석수역'],
+    branchB: ['광명역'],
+    lineAName: '1호선',
+    lineBName: '1호선(광명셔틀)',
+  },
+  {
+    junction: '병점역',
+    branchA: ['세마역'],
+    branchB: ['서동탄역'],
+    lineAName: '1호선',
+    lineBName: '1호선(서동탄지선)',
+  },
+  {
+    junction: '강동역',
+    branchA: ['길동역'],
+    branchB: ['둔촌동역'],
+    lineAName: '5호선(하남선)',
+    lineBName: '5호선(마천지선)',
+  },
+]
+
+function checkBranchTransfer(junction: string, prevStation: string | null, nextStation: string) {
+  if (!prevStation) return null
+  for (const r of BRANCH_TRANSFER_RULES) {
+    if (r.junction === junction) {
+      if (r.branchA.includes(prevStation) && r.branchB.includes(nextStation)) {
+        return { fromLine: r.lineAName, toLine: r.lineBName }
+      }
+      if (r.branchB.includes(prevStation) && r.branchA.includes(nextStation)) {
+        return { fromLine: r.lineBName, toLine: r.lineAName }
+      }
+    }
+  }
+  return null
+}
+
 // ── 최소 환승 우선(Minimum Transfer Priority) 지하철 경로 탐색 ──
 export function findSubwayRoute(fromName: string, toName: string): TransitRouteResult | null {
   if (!fromName || !toName) return null
@@ -2677,14 +2732,22 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
     const currLines = new Set(stationMap.get(curr)?.lines || [])
     const visitedStations = new Set(path.map(p => p.station))
     const neighbors = SUBWAY_GRAPH[curr] || []
+    const prevStation = path.length >= 2 ? path[path.length - 2].station : null
 
     for (const neighbor of neighbors) {
       if (visitedStations.has(neighbor)) continue
 
       const nbrLines = new Set(stationMap.get(neighbor)?.lines || [])
       const commonLines = [...currLines].filter(l => nbrLines.has(l))
+      const branchTransfer = checkBranchTransfer(curr, prevStation, neighbor)
 
-      if (currLine && commonLines.includes(currLine)) {
+      const isSameLine = !branchTransfer && currLine && (
+        commonLines.includes(currLine) ||
+        (currLine.startsWith('1호선') && commonLines.includes('1호선')) ||
+        (currLine.startsWith('5호선') && commonLines.includes('5호선'))
+      )
+
+      if (isSameLine) {
         // 동일 호선 계속 탑승 (환승 0회)
         const nextTransfers = transfers
         const nextStops = stops + 1
@@ -2703,8 +2766,16 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
           )
         }
       } else {
-        // 다른 호선으로 환승 필요 (환승 1회 발생)
-        const targetLines = commonLines.length > 0 ? commonLines : (nbrLines.size > 0 ? [...nbrLines] : [null])
+        // 다른 호선으로 환승 필요 (또는 지선 분기 계통 환승 필요)
+        const targetLines = branchTransfer
+          ? [branchTransfer.toLine]
+          : (commonLines.length > 0 ? commonLines : (nbrLines.size > 0 ? [...nbrLines] : [null]))
+
+        // 지선 분기 환승 시 이전 탑승 경로의 노선 표기를 fromLine으로 동기화하여 이전 구간 0환승 유지 및 curr역 환승 표출
+        const updatedPath = branchTransfer
+          ? path.map(p => (p.lineUsed === '1호선' || !p.lineUsed ? { ...p, lineUsed: branchTransfer.fromLine } : p))
+          : path
+
         for (const nextLine of targetLines) {
           const nextTransfers = transfers + 1
           const nextStops = stops + 1
@@ -2717,7 +2788,7 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
                 stops: nextStops,
                 curr: neighbor,
                 currLine: nextLine,
-                path: [...path, { station: neighbor, lineUsed: nextLine }],
+                path: [...updatedPath, { station: neighbor, lineUsed: nextLine }],
               },
               prio
             )

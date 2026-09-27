@@ -1,0 +1,10 @@
+{
+  "description": "This app recommends transportation options based on local weather conditions, helping users choose suitable travel methods and assisting businesses in optimizing transit resources.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

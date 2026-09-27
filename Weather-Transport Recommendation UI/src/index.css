@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Outfit', 'Noto Sans KR', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-bg: #0A1628;
+  --color-surface: #111D35;
+  --color-card: #162040;
+  --color-card2: #1C2B50;
+  --color-border: rgba(255,255,255,0.08);
+  --color-primary: #38BDF8;
+  --color-primary-dim: rgba(56,189,248,0.15);
+  --color-accent: #22D3EE;
+  --color-warm: #FB923C;
+  --color-green: #34D399;
+  --color-muted: rgba(255,255,255,0.4);
+  --color-subtle: rgba(255,255,255,0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+  background: #0A1628;
+  color: #F0F6FF;
+  margin: 0;
+  padding: 0;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); border-radius: 2px; }
+
+.glass {
+  background: rgba(22, 32, 64, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.glow-blue {
+  box-shadow: 0 0 24px rgba(56,189,248,0.2), 0 0 48px rgba(56,189,248,0.06);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 16px rgba(34,211,238,0.3);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 1; }
+  70% { transform: scale(1.15); opacity: 0; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.float-anim {
+  animation: float 4s ease-in-out infinite;
+}
+
+.weather-gradient-rain {
+  background: linear-gradient(135deg, #1a2a4a 0%, #0d2040 50%, #0a1830 100%);
+}
+
+.weather-gradient-sun {
+  background: linear-gradient(135deg, #1a2a4a 0%, #1a2060 50%, #0a1628 100%);
+}
+
+.gradient-card {
+  background: linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(34,211,238,0.05) 100%);
+}

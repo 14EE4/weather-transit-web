@@ -19,6 +19,12 @@
    - **정류소별 저상버스 도착 예정 정보 조회 (`getLowArrInfoByStId`)**: 정류소 고유 ID(`stId`, 9자리) 기준 저상버스 실시간 도착 정보 제공
    - `resultType="json"` 응답 처리 및 인증키 이중 인코딩(Double Encoding) 방지 적용
 
+4. **실시간 대화형 대시보드 & MapLibre GL 지도 (React)**
+   - OpenStreetMap(OSM) 래스터 타일 기반의 실시간 대화형 웹 지도
+   - 서울 주요 지하철역/버스정류소/따릉이대여소 실제 좌표 마커 및 AI 예측 혼잡도(여유/보통/혼잡) 시각화
+   - 가상 강수량(0~10mm/h) 조절에 따른 실시간 대중교통 수요 전이 시뮬레이터 제공
+   - 📖 **자세한 내용은 [프론트엔드 전용 README](Weather-Transport%20Recommendation%20UI/README.md)를 참조하세요.**
+
 ---
 
 ## 🛠️ 기술 스택 및 환경
@@ -110,6 +116,20 @@ python test_api.py
 - [광교행 - 양재방면] (일반) 현황: 전역 도착 (예정: 0초)
 ```
 
+### 3. 프론트엔드 웹 대시보드 실행 (React / Vite)
+```bash
+# 프론트엔드 디렉토리 이동
+cd "Weather-Transport Recommendation UI"
+
+# 의존성 패키지 설치
+npm install
+
+# 로컬 개발 서버 구동 (포트 8443)
+npm run dev
+```
+- 브라우저 접속: **`http://localhost:8443/`**
+- 상단 메뉴에서 **[지도]** 탭을 클릭하여 MapLibre GL JS + OSM 지도와 AI 예측 시뮬레이터를 확인하실 수 있습니다.
+
 ---
 
 ## 🔑 API 발급 및 활용 신청 안내
@@ -136,14 +156,27 @@ python test_api.py
 
 ## 📁 디렉토리 구조
 
-```
+```text
 weather-transit-web/
-├── .env                  # API 키 및 환경 변수 설정 파일 (git 제외)
-├── .gitignore            # Git 추적 제외 목록 (.env, venv 등)
-├── requirements.txt      # Python 의존성 라이브러리 목록
-├── test_api.py           # 날씨/버스/지하철 외부 API 연동 검증 스크립트
-├── README.md             # 프로젝트 안내 문서
-└── api_example/          # API 규격 및 공식 활용 가이드 문서
-    ├── 단기예보조회서비스_API활용가이드_260623.docx
-    └── 서울시+지하철+실시간+도착정보.xls
+├── .env                                # API 키 및 환경 변수 설정 파일 (git 제외)
+├── .gitignore                          # Git 추적 제외 목록 (.env, venv 등)
+├── requirements.txt                    # Python 의존성 라이브러리 목록
+├── test_api.py                         # 날씨/버스/지하철 외부 API 연동 검증 스크립트
+├── README.md                           # 프로젝트 전체 안내 문서
+├── map.html                            # MapLibre GL JS + OSM 단독 테스트 페이지
+├── docs/
+│   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서 (팀 선견지명)
+├── api_example/                        # API 규격 및 공식 활용 가이드 문서
+└── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드
+    ├── README.md                       # 프론트엔드 전용 안내 문서
+    ├── package.json                    # Node.js 패키지 의존성
+    ├── tsconfig.json                   # TypeScript 설정
+    ├── vite.config.ts                  # Vite 개발 서버 설정
+    ├── index.html                      # HTML 템플릿 (MapLibre GL CDN 연동)
+    └── src/
+        ├── App.tsx                     # 메인 대시보드 및 탭 레이아웃
+        ├── TransitMap.tsx              # MapLibre GL JS + OSM 지도 컴포넌트
+        ├── main.tsx                    # React 진입점
+        └── index.css                   # 글로벌 스타일
 ```
+

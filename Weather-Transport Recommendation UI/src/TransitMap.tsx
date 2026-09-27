@@ -59,10 +59,18 @@ interface TransitMapProps {
   onSelectStop?: (stop: TransitStop) => void
 }
 
+interface MarkerItem {
+  marker: any
+  stop: TransitStop
+  el: HTMLDivElement
+  priority: number
+}
+
 export default function TransitMap({ filterType, rainMm, selectedTime, focusedCoords, onSelectStop }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
-  const markersRef = useRef<any[]>([])
+  const markerItemsRef = useRef<MarkerItem[]>([])
+  const animFrameRef = useRef<number | null>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
 
@@ -187,19 +195,129 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     })
   }, [focusedCoords, mapLoaded])
 
+  // 역/정류소 중요도 가중치 계산 (환승역 및 주요 거점 역이 축소 시 우선 표시됨)
+  const calculateStationPriority = (stop: TransitStop): number => {
+    let score = 0
+    if (stop.type === 'subway') score += 120
+    else if (stop.type === 'bus') score += 50
+    else score += 20
+
+    const lineCount = stop.lineInfo ? stop.lineInfo.split(/[·,]/).length : 1
+    score += lineCount * 30
+    score += stop.baseCrowd * 0.2
+
+    const majorHubs = [
+      '서울역', '강남역', '신도림역', '구로역', '잠실역', '여의도역', '홍대입구역',
+      '시청역', '고속터미널역', '왕십리역', '용산역', '청량리역', '수원역', '판교역',
+      '사당역', '동대문역사문화공원역', '종로3가역', '가산디지털단지역', '교대역', '선릉역',
+      '건대입구역', '신림역', '노원역', '영등포역'
+    ]
+    if (majorHubs.includes(stop.name)) {
+      score += 200
+    }
+    return score
+  }
+
+  // 겹침 방지 및 줌 레벨 기반 마커 가시성 동적 필터링
+  const updateCollisions = () => {
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    const bounds = map.getBounds()
+    const container = map.getContainer()
+    if (!container) return
+    const width = container.clientWidth
+    const height = container.clientHeight
+    const currentZoom = map.getZoom()
+
+    const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = []
+
+    // 줌 레벨에 따라 겹침 감지 박스 크기 동적 조절 (확대할수록 간격 좁아져 많은 역 등장)
+    const halfW = currentZoom >= 16 ? 32 : (currentZoom >= 14 ? 44 : 54)
+    const halfH = currentZoom >= 16 ? 12 : (currentZoom >= 14 ? 16 : 20)
+
+    for (const item of markerItemsRef.current) {
+      const [lng, lat] = item.stop.coords
+
+      // 1. 지도 뷰포트 영역 외는 빠른 제외
+      if (!bounds.contains([lng, lat])) {
+        item.el.style.display = 'none'
+        continue
+      }
+
+      // 2. 화면 픽셀 좌표 투영
+      const pt = map.project([lng, lat])
+
+      // 화면 경계 밖 체크
+      if (pt.x < -halfW || pt.x > width + halfW || pt.y < -halfH || pt.y > height + halfH) {
+        item.el.style.display = 'none'
+        continue
+      }
+
+      // 3. 현재 검색되었거나 클릭하여 선택된 역은 무조건 1순위로 표시!
+      const isFocused = focusedCoords && Math.abs(lng - focusedCoords[0]) < 0.0002 && Math.abs(lat - focusedCoords[1]) < 0.0002
+      const isSelected = activeStop && activeStop.id === item.stop.id
+
+      if (isFocused || isSelected) {
+        item.el.style.display = 'flex'
+        item.el.style.zIndex = '9999'
+        placedBoxes.push({
+          x1: pt.x - halfW,
+          y1: pt.y - halfH,
+          x2: pt.x + halfW,
+          y2: pt.y + halfH,
+        })
+        continue
+      }
+
+      item.el.style.zIndex = '1'
+
+      // 4. 고배율(Zoom >= 17)에서는 겹침 없이 모두 표시
+      if (currentZoom >= 17) {
+        item.el.style.display = 'flex'
+        continue
+      }
+
+      // 5. 이미 배치된 상위 중요도 역과 겹치는지 충돌(Collision) 검사
+      const x1 = pt.x - halfW
+      const y1 = pt.y - halfH
+      const x2 = pt.x + halfW
+      const y2 = pt.y + halfH
+
+      let overlaps = false
+      for (const box of placedBoxes) {
+        if (x1 < box.x2 && x2 > box.x1 && y1 < box.y2 && y2 > box.y1) {
+          overlaps = true
+          break
+        }
+      }
+
+      // 겹치면 하나만 나오게 숨김, 여유가 생기면(확대 시) 표시
+      if (overlaps) {
+        item.el.style.display = 'none'
+      } else {
+        item.el.style.display = 'flex'
+        placedBoxes.push({ x1, y1, x2, y2 })
+      }
+    }
+  }
+
   // 2. 필터링 및 날씨에 따른 마커 동적 갱신
   useEffect(() => {
     if (!mapLoaded || !mapInstanceRef.current) return
 
     // 이전 마커 제거
-    markersRef.current.forEach(m => m.remove())
-    markersRef.current = []
+    markerItemsRef.current.forEach(item => item.marker.remove())
+    markerItemsRef.current = []
 
     const filtered = filterType === 'all'
       ? TRANSIT_STOPS
       : TRANSIT_STOPS.filter(s => s.type === filterType)
 
-    filtered.forEach(stop => {
+    // 우선순위 정렬 (환승역, 주요 거점 역이 우선적으로 지도에 표시됨)
+    const sortedStops = [...filtered].sort((a, b) => calculateStationPriority(b) - calculateStationPriority(a))
+
+    sortedStops.forEach(stop => {
       const crowd = calculateCrowd(stop)
       const { label, color } = getCrowdLevel(crowd)
 
@@ -299,9 +417,42 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         )
       })
 
-      markersRef.current.push(marker)
+      markerItemsRef.current.push({
+        marker,
+        stop,
+        el,
+        priority: calculateStationPriority(stop),
+      })
     })
+
+    // 초기 마커 겹침 필터링 실행
+    updateCollisions()
+
+    // 지도 조작(이동, 확대, 축소) 시 고속 겹침 재계산
+    const onMapMove = () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+      animFrameRef.current = requestAnimationFrame(() => {
+        updateCollisions()
+      })
+    }
+
+    const map = mapInstanceRef.current
+    map.on('move', onMapMove)
+    map.on('zoom', onMapMove)
+    map.on('resize', onMapMove)
+
+    return () => {
+      map.off('move', onMapMove)
+      map.off('zoom', onMapMove)
+      map.off('resize', onMapMove)
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+    }
   }, [filterType, rainMm, mapLoaded, selectedTime])
+
+  // focusedCoords 또는 activeStop 변경 시 즉시 표시 갱신 및 flyTo
+  useEffect(() => {
+    updateCollisions()
+  }, [focusedCoords, activeStop])
 
   // focusedCoords 변경 시 부드럽게 해당 거점으로 카메라 이동 (flyTo)
   useEffect(() => {
@@ -396,6 +547,29 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
             OpenStreetMap 래스터 타일 + MapLibre GL 실시간 연동
           </div>
         </div>
+      </div>
+
+      {/* 줌 확대 안내 배지 */}
+      <div style={{
+        position: 'absolute',
+        bottom: 24,
+        left: 120,
+        zIndex: 10,
+        background: 'rgba(17, 29, 53, 0.88)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(56, 189, 248, 0.25)',
+        borderRadius: 10,
+        padding: '6px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        pointerEvents: 'none',
+      }}>
+        <span style={{ fontSize: 12 }}>🔍</span>
+        <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
+          지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다
+        </span>
       </div>
 
       {/* 범례 */}

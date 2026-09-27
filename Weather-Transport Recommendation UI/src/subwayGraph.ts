@@ -3,7 +3,8 @@ import { SUBWAY_STATIONS, SubwayStation } from './subwayData'
 
 export const SUBWAY_GRAPH: Record<string, string[]> = {
   "소요산역": [
-    "동두천역"
+    "동두천역",
+    "청산역"
   ],
   "동두천역": [
     "보산역",
@@ -204,6 +205,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "영등포역"
   ],
   "구로역": [
+    "가산디지털단지역",
     "구일역",
     "신도림역"
   ],
@@ -289,11 +291,10 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   ],
   "인천역": [
     "동인천역",
-    "신포역",
-    "청산역"
+    "신포역"
   ],
   "청산역": [
-    "인천역",
+    "소요산역",
     "전곡역"
   ],
   "전곡역": [
@@ -301,15 +302,13 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "청산역"
   ],
   "연천역": [
-    "광명역",
     "전곡역"
   ],
   "광명역": [
-    "가산디지털단지역",
-    "연천역"
+    "금천구청역"
   ],
   "가산디지털단지역": [
-    "광명역",
+    "구로역",
     "남구로역",
     "독산역",
     "철산역"
@@ -319,6 +318,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "금천구청역"
   ],
   "금천구청역": [
+    "광명역",
     "독산역",
     "석수역"
   ],
@@ -375,6 +375,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "수원역"
   ],
   "병점역": [
+    "서동탄역",
     "세류역",
     "세마역"
   ],
@@ -451,11 +452,10 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "신창역"
   ],
   "신창역": [
-    "서동탄역",
     "온양온천역"
   ],
   "서동탄역": [
-    "신창역"
+    "병점역"
   ],
   "을지로입구역": [
     "시청역",

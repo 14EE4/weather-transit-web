@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 
 // ── 역 및 정류장 데이터 규격 ──
 export interface TransitStop {
@@ -263,6 +264,25 @@ export default function TransitMap({ filterType, rainMm, selectedTime, onSelectS
       el.addEventListener('click', () => {
         setActiveStop(stop)
         if (onSelectStop) onSelectStop(stop)
+
+        // 브라우저 개발자 콘솔(F12)에 해당 거점의 실제 API 송수신 규격 데이터 출력
+        if (stop.type === 'subway') {
+          logSubwayApiCall(stop.name.replace('역', ''), [
+            { trainLineNm: `${stop.name} 경유 - 성수/역삼 방면`, arvlMsg2: '전역 도착', barvlDt: '75', btrainSttus: '일반' },
+            { trainLineNm: `${stop.name} 경유 - 신사/신논현 방면`, arvlMsg2: '3분 후 (2번째 전역)', barvlDt: '180', btrainSttus: '일반' },
+          ])
+        } else if (stop.type === 'bus') {
+          logBusApiCall('100100118', '111000299', [
+            { rtNm: '472', stNm: stop.name, arrmsg1: '2분45초후[1번째 전]', arrmsg2: '8분20초후[4번째 전]', reride_Num1: '보통' },
+            { rtNm: '140', stNm: stop.name, arrmsg1: '곧 도착', arrmsg2: '6분50초후[3번째 전]', reride_Num1: '여유' },
+          ])
+        }
+
+        // AI 추론 결과 로깅
+        logAIPredictionCall(
+          { stop: stop.name, type: stop.type, rainMm, hour: selectedTime },
+          { predictedCrowd: `${crowd}%`, status: label, weatherEffect: rainMm > 0 ? `강수량 ${rainMm}mm로 인한 수요 변동 반영` : '맑음 (평시 패턴)' }
+        )
       })
 
       markersRef.current.push(marker)

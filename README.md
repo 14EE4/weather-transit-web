@@ -180,21 +180,14 @@ weather-transit-web/
 ├── docs/
 │   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서 (팀 선견지명)
 ├── api_example/                        # API 규격 및 공식 활용 가이드 문서
-└── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드
+└── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드 (세부 구조 및 변경 이력은 내부 README 참조)
     ├── README.md                       # 프론트엔드 전용 안내 문서
-    ├── data/                           # 📊 지하철역 원천 엑셀 및 JSON 데이터
-    │   ├── 실시간도착_역정보(20260902).xlsx
-    │   └── subway_stations.json
-    ├── package.json                    # Node.js 패키지 의존성
-    ├── tsconfig.json                   # TypeScript 설정
-    ├── vite.config.ts                  # Vite 개발 서버 설정
-    ├── index.html                      # HTML 템플릿 (MapLibre GL CDN 연동)
-    └── src/
-        ├── App.tsx                     # 메인 대시보드 및 탭 레이아웃
-        ├── TransitMap.tsx              # MapLibre GL JS + OSM 지도 컴포넌트
-        ├── subwayData.ts               # 수도권 563개 전체 역 마스터 데이터 & 검색 엔진
-        ├── apiLogger.ts                # 개발자 콘솔용 실시간 API 로거
-        ├── main.tsx                    # React 진입점
-        └── index.css                   # 글로벌 스타일
+    └── docs/                           # 📖 프론트엔드 상세 문서 (CHANGELOG.md 등)
 ```
+
+---
+
+## 📋 변경 이력 (Changelog)
+
+- **프론트엔드 변경 이력**: 기능별 상세 변경 내역 및 원인 분석은 **[`Weather-Transport Recommendation UI/docs/CHANGELOG.md`](Weather-Transport%20Recommendation%20UI/docs/CHANGELOG.md)**를 참조하세요.
 

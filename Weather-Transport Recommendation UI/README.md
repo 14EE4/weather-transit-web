@@ -68,6 +68,8 @@ Weather-Transport Recommendation UI/
 ├── data/                       # 📊 지하철역 마스터 데이터 폴더
 │   ├── 실시간도착_역정보(20260902).xlsx # 원본 엑셀 데이터
 │   └── subway_stations.json    # 파싱된 696개 전체 지하철역 JSON 데이터
+├── docs/                       # 📖 프론트엔드 상세 문서 폴더
+│   └── CHANGELOG.md            # 기능별/버전별 상세 변경 이력 및 트러블슈팅
 ├── index.html                  # HTML 진입점 (MapLibre GL JS CDN 연동)
 ├── package.json                # 의존성 및 스크립트 정의
 ├── tsconfig.json               # TypeScript 컴파일러 설정
@@ -102,3 +104,17 @@ npm run dev
 npm run build
 ```
 - 빌드 결과물은 `dist/` 디렉토리에 생성됩니다.
+
+---
+
+## 📋 최근 변경 이력 (Changelog)
+
+프론트엔드 상세 변경 이력 및 원인/해결 분석 문서는 **[`docs/CHANGELOG.md`](docs/CHANGELOG.md)**에 체계적으로 기록되어 있습니다.
+
+- **[2026-09-27] 주요 변경 사항 요약**:
+  1. **마커 호버 점프 버그 수정**: `MapLibre`의 `translate` 위치 CSS를 훼손하지 않도록 내부 뱃지(`.marker-pill`)에만 호버 스타일 격리 적용
+  2. **지도 마커 겹침 방지 (Collision Detection)**: 화면 픽셀 투영 기반 실시간 충돌 감지로 겹치는 역은 1개만 우선 노출, 확대 시 순차적 자동 노출
+  3. **지하철역 정밀 GPS 좌표 전수 갱신**: 서울 열린데이터광장 역사마스터 784개 역사 데이터를 연동하여 561개 전체 역 소수점 6자리 정밀 좌표 매핑 완료
+  4. **새로고침 시 탭 유지 (Tab State Persistence)**: `localStorage` 및 `window.location.hash` 연동으로 F5 새로고침 시에도 활성 탭 유지
+  5. **검색창 키보드 접근성 완벽 지원**: `Enter`, `Tab` + `Enter`, `방향키(↑/↓)` 조작 및 자동 스크롤 연동
+

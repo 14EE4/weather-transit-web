@@ -332,7 +332,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       const typeIcon = stop.type === 'subway' ? '🚇' : stop.type === 'bus' ? '🚌' : '🚲'
 
       el.innerHTML = `
-        <div style="
+        <div class="marker-pill" style="
           background: #111D35;
           border: 2px solid ${color};
           border-radius: 9999px;
@@ -341,7 +341,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
           display: flex;
           align-items: center;
           gap: 4px;
-          transition: transform 0.2s ease;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
         ">
           <span style="font-size: 13px;">${typeIcon}</span>
           <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; white-space: nowrap;">${stop.name}</span>
@@ -363,12 +363,20 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         "></div>
       `
 
-      el.addEventListener('mouseenter', () => {
-        el.style.transform = 'scale(1.12) translateY(-2px)'
-      })
-      el.addEventListener('mouseleave', () => {
-        el.style.transform = 'scale(1) translateY(0)'
-      })
+      // MapLibre Marker의 transform(translate 위치값)을 훼손하지 않도록 내부 뱃지(pill)에만 호버 확대 적용
+      const pill = el.querySelector('.marker-pill') as HTMLElement | null
+      if (pill) {
+        el.addEventListener('mouseenter', () => {
+          pill.style.transform = 'scale(1.1) translateY(-2px)'
+          pill.style.boxShadow = `0 6px 20px ${color}88`
+          el.style.zIndex = '1000'
+        })
+        el.addEventListener('mouseleave', () => {
+          pill.style.transform = 'scale(1) translateY(0)'
+          pill.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)'
+          el.style.zIndex = '1'
+        })
+      }
 
       // 팝업 설정
       const popupHtml = `

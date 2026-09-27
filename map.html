@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapLibre GL JS + OpenStreetMap 지도</title>
+    
+    <!-- MapLibre GL JS CSS -->
+    <link href="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- MapLibre GL JS JavaScript -->
+    <script src="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 상단 플로팅 정보 및 컨트롤 패널 */
+        .control-panel {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(8px);
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            max-width: 320px;
+            border: 1px solid rgba(220, 224, 230, 0.8);
+        }
+
+        .control-panel h1 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a202c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .control-panel p {
+            font-size: 13px;
+            color: #4a5568;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            color: #2b6cb0;
+            background: #ebf8ff;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            margin-bottom: 12px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: #3182ce;
+            color: #ffffff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #2b6cb0;
+            transform: translateY(-1px);
+        }
+
+        .info-box {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #edf2f7;
+            font-size: 12px;
+            color: #718096;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* 팝업 커스텀 스타일 */
+        .maplibregl-popup-content {
+            border-radius: 10px;
+            padding: 12px 14px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .popup-title {
+            font-weight: 700;
+            font-size: 14px;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .popup-desc {
+            font-size: 12px;
+            color: #718096;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 상단 대화형 컨트롤 패널 -->
+    <div class="control-panel">
+        <h1>🗺️ MapLibre + OSM</h1>
+        <div class="badge">OpenStreetMap Raster Tiles</div>
+        <p>MapLibre GL JS 라이브러리를 통해 오픈스트리트맵(OSM) 타일을 렌더링한 지도 페이지입니다.</p>
+        
+        <div class="btn-group">
+            <button class="btn" onclick="moveTo(126.9780, 37.5665, 14)">서울시청</button>
+            <button class="btn" onclick="moveTo(127.0276, 37.4979, 14)">강남역</button>
+            <button class="btn" onclick="moveTo(126.9242, 37.5219, 14)">여의도</button>
+        </div>
+
+        <div class="info-box">
+            <span>줌 레벨: <b id="zoom-level">12.0</b></span>
+            <span>중심: <b id="center-coords">126.98, 37.57</b></span>
+        </div>
+    </div>
+
+    <!-- 지도 컨테이너 -->
+    <div id="map"></div>
+
+    <script>
+        // 1. MapLibre GL 지도 인스턴스 초기화 (OSM 래스터 타일 소스 및 레이어 정의)
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm-tiles': {
+                        type: 'raster',
+                        tiles: [
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+                    }
+                },
+                layers: [
+                    {
+                        id: 'osm-tiles-layer',
+                        type: 'raster',
+                        source: 'osm-tiles',
+                        minzoom: 0,
+                        maxzoom: 19
+                    }
+                ]
+            },
+            center: [126.9780, 37.5665], // 서울시청 중심 경도, 위도 (MapLibre는 [경도, 위도] 순)
+            zoom: 12
+        });
+
+        // 2. 지도 컨트롤 추가 (확대/축소, 전체화면, 현재위치, 스케일바)
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+        map.addControl(new maplibregl.FullscreenControl(), 'top-right');
+        map.addControl(new maplibregl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true
+        }), 'top-right');
+        map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left');
+
+        // 3. 주요 거점 마커 및 팝업 추가
+        const locations = [
+            {
+                name: "서울시청",
+                coords: [126.9780, 37.5665],
+                desc: "서울특별시 중구 세종대로 110"
+            },
+            {
+                name: "강남역",
+                coords: [127.0276, 37.4979],
+                desc: "지하철 2호선 및 신분당선 환승역"
+            },
+            {
+                name: "여의도 한강공원",
+                coords: [126.9242, 37.5219],
+                desc: "영등포구 여의동로 330"
+            }
+        ];
+
+        locations.forEach(loc => {
+            const popup = new maplibregl.Popup({ offset: 25 })
+                .setHTML(`
+                    <div class="popup-title">${loc.name}</div>
+                    <div class="popup-desc">${loc.desc}</div>
+                `);
+
+            new maplibregl.Marker({ color: "#e53e3e" })
+                .setLngLat(loc.coords)
+                .setPopup(popup)
+                .addTo(map);
+        });
+
+        // 4. 지도 이동 헬퍼 함수
+        function moveTo(lng, lat, zoom) {
+            map.flyTo({
+                center: [lng, lat],
+                zoom: zoom,
+                essential: true
+            });
+        }
+
+        // 5. 지도 조작 시 하단 정보창 실시간 업데이트
+        function updateMapInfo() {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            document.getElementById('zoom-level').innerText = zoom.toFixed(1);
+            document.getElementById('center-coords').innerText = `${center.lng.toFixed(2)}, ${center.lat.toFixed(2)}`;
+        }
+
+        map.on('move', updateMapInfo);
+        map.on('zoom', updateMapInfo);
+    </script>
+</body>
+</html>

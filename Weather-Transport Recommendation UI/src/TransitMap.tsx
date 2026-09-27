@@ -303,6 +303,18 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     })
   }, [filterType, rainMm, mapLoaded, selectedTime])
 
+  // focusedCoords 변경 시 부드럽게 해당 거점으로 카메라 이동 (flyTo)
+  useEffect(() => {
+    if (focusedCoords && mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo({
+        center: focusedCoords,
+        zoom: 15,
+        pitch: 35,
+        essential: true,
+      })
+    }
+  }, [focusedCoords])
+
   // 권역 바로가기
   const flyToArea = (coords: [number, number], zoom = 14) => {
     if (!mapInstanceRef.current) return

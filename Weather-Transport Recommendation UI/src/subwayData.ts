@@ -3847,6 +3847,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 70
   },
   {
+    "id": "sub-1081037419",
+    "name": "세종왕릉역",
+    "lines": [
+      "경강선"
+    ],
+    "coords": [
+      127.570938,
+      37.295309
+    ],
+    "zone": "수도권/서울",
+    "baseCrowd": 70
+  },
+  {
     "id": "sub-1075075261",
     "name": "소래포구역",
     "lines": [

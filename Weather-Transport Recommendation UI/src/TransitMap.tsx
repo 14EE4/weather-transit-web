@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { SUBWAY_STATIONS } from './subwayData'
+import { TransitRouteResult } from './subwayGraph'
 
 // ── 역 및 정류장 데이터 규격 ──
 export interface TransitStop {
@@ -57,6 +58,8 @@ interface TransitMapProps {
   selectedTime: string
   focusedCoords?: [number, number] | null
   onSelectStop?: (stop: TransitStop) => void
+  activeRoute?: TransitRouteResult | null
+  onClearRoute?: () => void
 }
 
 interface MarkerItem {
@@ -66,10 +69,11 @@ interface MarkerItem {
   priority: number
 }
 
-export default function TransitMap({ filterType, rainMm, selectedTime, focusedCoords, onSelectStop }: TransitMapProps) {
+export default function TransitMap({ filterType, rainMm, selectedTime, focusedCoords, onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
+  const routeMarkersRef = useRef<any[]>([])
   const animFrameRef = useRef<number | null>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -174,6 +178,44 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         },
       })
 
+      // 검색된 경로(Active Transit Route) GeoJSON 소스 및 레이어 추가
+      map.addSource('active-route', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: [],
+          },
+        },
+      })
+
+      // 활성 경로 외곽선 (글로우 네온 효과)
+      map.addLayer({
+        id: 'active-route-glow',
+        type: 'line',
+        source: 'active-route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#06B6D4',
+          'line-width': 12,
+          'line-opacity': 0.7,
+        },
+      })
+
+      // 활성 경로 중심선 (선명한 흰/청빛 코어)
+      map.addLayer({
+        id: 'active-route-core',
+        type: 'line',
+        source: 'active-route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#F0F9FF',
+          'line-width': 5,
+        },
+      })
+
       setMapLoaded(true)
     })
 
@@ -254,13 +296,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         continue
       }
 
-      // 3. 현재 검색되었거나 클릭하여 선택된 역은 무조건 1순위로 표시!
+      // 3. 현재 검색되었거나 클릭하여 선택된 역, 또는 활성 경로 경유 역은 무조건 우선 표시!
       const isFocused = focusedCoords && Math.abs(lng - focusedCoords[0]) < 0.0002 && Math.abs(lat - focusedCoords[1]) < 0.0002
       const isSelected = activeStop && activeStop.id === item.stop.id
+      const isOnRoute = activeRoute && activeRoute.path.some(p => p.name === item.stop.name)
 
-      if (isFocused || isSelected) {
+      if (isFocused || isSelected || isOnRoute) {
         item.el.style.display = 'flex'
-        item.el.style.zIndex = '9999'
+        item.el.style.zIndex = isOnRoute ? '900' : '9999'
         placedBoxes.push({
           x1: pt.x - halfW,
           y1: pt.y - halfH,
@@ -457,10 +500,129 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     }
   }, [filterType, rainMm, mapLoaded, selectedTime])
 
-  // focusedCoords 또는 activeStop 변경 시 즉시 표시 갱신 및 flyTo
+  // focusedCoords, activeStop 또는 activeRoute 변경 시 즉시 마커 겹침 표시 갱신
   useEffect(() => {
     updateCollisions()
-  }, [focusedCoords, activeStop])
+  }, [focusedCoords, activeStop, activeRoute])
+
+  // activeRoute 변경 시 GeoJSON 경로선 렌더링, 출발/도착 마커 핀 표시, 카메라 영역 자동 맞춤
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current
+
+    // 기존 경로 마커 제거
+    routeMarkersRef.current.forEach(m => m.remove())
+    routeMarkersRef.current = []
+
+    const source = map.getSource('active-route')
+
+    if (!activeRoute || activeRoute.path.length < 2) {
+      if (source) {
+        source.setData({
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: [],
+          },
+        })
+      }
+      updateCollisions()
+      return
+    }
+
+    const coords = activeRoute.path.map(p => p.coords)
+    if (source) {
+      source.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: coords,
+        },
+      })
+    }
+
+    // 경로 전체를 한눈에 볼 수 있도록 카메라 바운드 자동 맞춤 (fitBounds)
+    const bounds = new maplibregl.LngLatBounds()
+    coords.forEach(c => bounds.extend(c))
+    map.fitBounds(bounds, {
+      padding: { top: 90, bottom: 90, left: 100, right: 100 },
+      maxZoom: 15,
+      duration: 1000,
+    })
+
+    // 출발지 마커 핀 (초록색 캡슐)
+    const startEl = document.createElement('div')
+    startEl.className = 'route-start-pin'
+    startEl.style.display = 'flex'
+    startEl.style.flexDirection = 'column'
+    startEl.style.alignItems = 'center'
+    startEl.style.cursor = 'pointer'
+    startEl.innerHTML = `
+      <div style="
+        background: #10B981;
+        color: #FFFFFF;
+        font-weight: 800;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        box-shadow: 0 4px 18px rgba(16,185,129,0.6);
+        border: 2px solid #FFFFFF;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+      ">
+        <span>🟢 출발</span>
+        <span>${activeRoute.from}</span>
+      </div>
+      <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #10B981;"></div>
+    `
+    const startMarker = new maplibregl.Marker({ element: startEl })
+      .setLngLat(coords[0])
+      .addTo(map)
+    routeMarkersRef.current.push(startMarker)
+
+    // 도착지 마커 핀 (로즈색 캡슐)
+    const endEl = document.createElement('div')
+    endEl.className = 'route-end-pin'
+    endEl.style.display = 'flex'
+    endEl.style.flexDirection = 'column'
+    endEl.style.alignItems = 'center'
+    endEl.style.cursor = 'pointer'
+    endEl.innerHTML = `
+      <div style="
+        background: #F43F5E;
+        color: #FFFFFF;
+        font-weight: 800;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        box-shadow: 0 4px 18px rgba(244,63,94,0.6);
+        border: 2px solid #FFFFFF;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+      ">
+        <span>🔴 도착</span>
+        <span>${activeRoute.to}</span>
+      </div>
+      <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
+    `
+    const endMarker = new maplibregl.Marker({ element: endEl })
+      .setLngLat(coords[coords.length - 1])
+      .addTo(map)
+    routeMarkersRef.current.push(endMarker)
+
+    updateCollisions()
+
+    return () => {
+      routeMarkersRef.current.forEach(m => m.remove())
+      routeMarkersRef.current = []
+    }
+  }, [activeRoute, mapLoaded])
 
   // focusedCoords 변경 시 부드럽게 해당 거점으로 카메라 이동 (flyTo)
   useEffect(() => {
@@ -529,6 +691,71 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
           📍 서울역·도심
         </button>
       </div>
+
+      {/* 활성 검색 경로 안내 플로팅 카드 */}
+      {activeRoute && (
+        <div style={{
+          position: 'absolute',
+          top: 68,
+          left: 16,
+          zIndex: 10,
+          background: 'rgba(17, 29, 53, 0.95)',
+          backdropFilter: 'blur(14px)',
+          border: '1px solid rgba(56, 189, 248, 0.45)',
+          borderRadius: 14,
+          padding: '10px 14px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+              출발
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.from}</span>
+            <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
+            <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+              도착
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.to}</span>
+          </div>
+
+          <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+              약 {activeRoute.estimatedMinutes}분
+            </span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+              ({activeRoute.stationCount}개 역 경유)
+            </span>
+          </div>
+
+          {onClearRoute && (
+            <button
+              onClick={onClearRoute}
+              title="경로 안내 닫기"
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: 'none',
+                color: 'rgba(255,255,255,0.7)',
+                borderRadius: 8,
+                padding: '4px 8px',
+                fontSize: 11,
+                cursor: 'pointer',
+                marginLeft: 4,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <span>✕</span>
+              <span>닫기</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 실시간 날씨 및 시뮬레이션 상태 오버레이 */}
       <div style={{

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import TransitMap, { TransitStop } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'
+import { findSubwayRoute, TransitRouteResult } from './subwayGraph'
 
 type Page = 'main' | 'route' | 'map'
 
@@ -250,10 +251,31 @@ export default function App() {
   const [showDepartureList, setShowDepartureList] = useState(false)
   const [showDestinationList, setShowDestinationList] = useState(false)
 
+  // 활성 경로 탐색 결과 상태
+  const [activeRoute, setActiveRoute] = useState<TransitRouteResult | null>(null)
+
   // 키보드(Arrow, Tab, Enter) 탐색용 인덱스 상태
   const [selectedSubwayIndex, setSelectedSubwayIndex] = useState(0)
   const [selectedDepartureIndex, setSelectedDepartureIndex] = useState(0)
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState(0)
+
+  // 경로 검색 실행 함수 (출발역-도착역 최단 경로 계산 후 지도 탭으로 전환)
+  const handleSearchRoute = (from = departure, to = destination) => {
+    if (!from.trim() || !to.trim()) {
+      alert('출발역과 도착역을 입력해주세요.')
+      return
+    }
+    const route = findSubwayRoute(from, to)
+    if (route) {
+      setActiveRoute(route)
+      setPage('map')
+      if (mapTransport === 'bus' || mapTransport === 'bike') {
+        setMapTransport('all')
+      }
+    } else {
+      alert(`'${from}'에서 '${to}'까지의 지하철 경로를 찾을 수 없습니다. 역 이름을 정확히 입력해주세요.`)
+    }
+  }
 
   // 탭 상태 로컬 스토리지 및 URL 해시 동기화 (새로고침 시 현재 탭 유지)
   useEffect(() => {
@@ -958,7 +980,7 @@ export default function App() {
               </div>
 
               <button
-                onClick={() => setPage('map')}
+                onClick={() => handleSearchRoute(departure, destination)}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 16, cursor: 'pointer', marginBottom: 20,
                   background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
@@ -976,13 +998,17 @@ export default function App() {
                 </div>
                 {[
                   { from: '강남역', to: '서울역', icon: '🚇', time: '35분', price: '1,400원' },
-                  { from: '홍대입구', to: '이태원역', icon: '🚌', time: '28분', price: '1,300원' },
-                  { from: '잠실역', to: '강동구청', icon: '🚇', time: '18분', price: '1,400원' },
-                  { from: '여의도역', to: '시청역', icon: '🚇', time: '12분', price: '1,400원' },
+                  { from: '홍대입구역', to: '이태원역', icon: '🚇', time: '24분', price: '1,400원' },
+                  { from: '잠실역', to: '강동구청역', icon: '🚇', time: '14분', price: '1,400원' },
+                  { from: '여의도역', to: '시청역', icon: '🚇', time: '16분', price: '1,400원' },
                 ].map(r => (
                   <button
                     key={r.from}
-                    onClick={() => { setDeparture(r.from); setDestination(r.to); }}
+                    onClick={() => {
+                      setDeparture(r.from)
+                      setDestination(r.to)
+                      handleSearchRoute(r.from, r.to)
+                    }}
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', gap: 12,
                       padding: '10px 14px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
@@ -1311,7 +1337,82 @@ export default function App() {
 
             {/* 경로 및 선택 정류장 상세 정보 */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-              {selectedStop ? (
+              {activeRoute ? (
+                <div style={{ background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
+                      🗺️ 추천 지하철 이동 경로
+                    </div>
+                    <button
+                      onClick={() => setActiveRoute(null)}
+                      style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}
+                    >
+                      초기화 ✕
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#F0F6FF' }}>
+                        {activeRoute.from} ➔ {activeRoute.to}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#38BDF8', marginTop: 2 }}>
+                        {activeRoute.summary}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 26, fontWeight: 900, color: '#38BDF8', fontFamily: 'JetBrains Mono', lineHeight: 1 }}>
+                        {activeRoute.estimatedMinutes}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }}>분 소요</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>경유 역</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.stationCount}개 역</div>
+                    </div>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>기본 요금</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>1,400원</div>
+                    </div>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>날씨 영향</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#10B981' }}>정시 운행</div>
+                    </div>
+                  </div>
+
+                  {/* 경유역 경로 리스트 */}
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginBottom: 6 }}>
+                    경유 역 목록 (클릭 시 해당 역 위치로 이동):
+                  </div>
+                  <div style={{
+                    maxHeight: 140, overflowY: 'auto', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '6px 10px',
+                    display: 'flex', flexDirection: 'column', gap: 4
+                  }}>
+                    {activeRoute.path.map((p, idx) => (
+                      <div
+                        key={p.name + idx}
+                        onClick={() => setFocusedCoords(p.coords)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, cursor: 'pointer', padding: '3px 0' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 10, color: idx === 0 ? '#10B981' : idx === activeRoute.path.length - 1 ? '#F43F5E' : 'rgba(255,255,255,0.3)' }}>
+                            {idx === 0 ? '🟢' : idx === activeRoute.path.length - 1 ? '🔴' : '○'}
+                          </span>
+                          <span style={{ color: idx === 0 || idx === activeRoute.path.length - 1 ? '#FFFFFF' : 'rgba(255,255,255,0.75)', fontWeight: idx === 0 || idx === activeRoute.path.length - 1 ? 700 : 400 }}>
+                            {p.name}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.1)', padding: '1px 5px', borderRadius: 4 }}>
+                          {p.lines[0] || '지하철'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : selectedStop ? (
                 <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
                   <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', marginBottom: 4 }}>선택된 거점 상세 정보</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#F0F6FF', marginBottom: 4 }}>
@@ -1364,12 +1465,24 @@ export default function App() {
 
             {/* 안내 시작 버튼 */}
             <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-              <button style={{
-                width: '100%', padding: '14px', borderRadius: 16, cursor: 'pointer',
-                background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
-                fontSize: 15, fontWeight: 800, border: 'none',
-                boxShadow: '0 8px 24px rgba(56,189,248,0.35)',
-              }}>
+              <button
+                onClick={() => {
+                  if (!activeRoute) {
+                    handleSearchRoute('강남역', '서울역')
+                  } else {
+                    const coords = activeRoute.path.map(p => p.coords)
+                    if (coords.length > 0) {
+                      setFocusedCoords(coords[0])
+                    }
+                  }
+                }}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: 16, cursor: 'pointer',
+                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
+                  fontSize: 15, fontWeight: 800, border: 'none',
+                  boxShadow: '0 8px 24px rgba(56,189,248,0.35)',
+                }}
+              >
                 🧭  실시간 대중교통 경로 안내
               </button>
             </div>
@@ -1383,6 +1496,8 @@ export default function App() {
               selectedTime={simulatedTime}
               focusedCoords={focusedCoords}
               onSelectStop={setSelectedStop}
+              activeRoute={activeRoute}
+              onClearRoute={() => setActiveRoute(null)}
             />
           </div>
         </div>

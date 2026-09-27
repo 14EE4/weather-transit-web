@@ -235,6 +235,8 @@ export default function App() {
   const [subwaySearchQuery, setSubwaySearchQuery] = useState('')
   const [focusedCoords, setFocusedCoords] = useState<[number, number] | null>(null)
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [showDepartureList, setShowDepartureList] = useState(false)
+  const [showDestinationList, setShowDestinationList] = useState(false)
 
   // ── 지하철역 선택 시 지도 카메라 이동 및 실시간 도착/AI 분석 로깅 ──
   const handleSelectStation = (station: SubwayStation) => {
@@ -699,39 +701,117 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 출발/도착 입력 */}
-              <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, overflow: 'hidden', marginBottom: 16 }}>
-                <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 6 }}>
-                    🟢  출발지
+              {/* 출발/도착 입력 (지하철역 실시간 자동완성 검색 연동) */}
+              <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, marginBottom: 16 }}>
+                {/* 출발지 */}
+                <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
+                  <div style={{ fontSize: 10, color: '#34D399', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 6 }}>
+                    🟢  출발지 (지하철역 검색)
                   </div>
                   <input
                     type="text"
                     value={departure}
-                    onChange={e => setDeparture(e.target.value)}
-                    placeholder="출발 장소를 입력하세요 (동 이름, 역명...)"
+                    onChange={e => {
+                      setDeparture(e.target.value)
+                      setShowDepartureList(true)
+                    }}
+                    onFocus={() => setShowDepartureList(true)}
+                    placeholder="출발역 이름 입력 (예: 구로역, 강남역, 시청역...)"
                     style={{
                       width: '100%', background: 'transparent', border: 'none', outline: 'none',
                       fontSize: 15, fontWeight: 500, color: '#F0F6FF',
                       fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
                     }}
                   />
+
+                  {/* 출발역 자동완성 드롭다운 */}
+                  {showDepartureList && departure.trim() && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                      background: '#111D35', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 12,
+                      boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 220, overflowY: 'auto',
+                    }}>
+                      {searchSubwayStations(departure).slice(0, 10).map(st => (
+                        <div
+                          key={`dep-${st.id}`}
+                          onClick={() => {
+                            setDeparture(st.name)
+                            setShowDepartureList(false)
+                            setFocusedCoords(st.coords)
+                          }}
+                          style={{
+                            padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(52,211,153,0.12)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 14 }}>🚇</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{st.name}</span>
+                            <span style={{ fontSize: 10, color: '#34D399', background: 'rgba(52,211,153,0.15)', padding: '2px 6px', borderRadius: 4 }}>
+                              {st.lines.join(', ')}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div style={{ padding: '12px 18px 16px' }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 6 }}>
-                    🔵  도착지
+
+                {/* 도착지 */}
+                <div style={{ padding: '12px 18px 16px', position: 'relative' }}>
+                  <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 6 }}>
+                    🔵  도착지 (지하철역 검색)
                   </div>
                   <input
                     type="text"
                     value={destination}
-                    onChange={e => setDestination(e.target.value)}
-                    placeholder="도착 장소를 입력하세요"
+                    onChange={e => {
+                      setDestination(e.target.value)
+                      setShowDestinationList(true)
+                    }}
+                    onFocus={() => setShowDestinationList(true)}
+                    placeholder="도착역 이름 입력 (예: 강남역, 여의도역, 판교역...)"
                     style={{
                       width: '100%', background: 'transparent', border: 'none', outline: 'none',
                       fontSize: 15, fontWeight: 500, color: '#F0F6FF',
                       fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
                     }}
                   />
+
+                  {/* 도착역 자동완성 드롭다운 */}
+                  {showDestinationList && destination.trim() && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                      background: '#111D35', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 12,
+                      boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 220, overflowY: 'auto',
+                    }}>
+                      {searchSubwayStations(destination).slice(0, 10).map(st => (
+                        <div
+                          key={`dest-${st.id}`}
+                          onClick={() => {
+                            setDestination(st.name)
+                            setShowDestinationList(false)
+                          }}
+                          style={{
+                            padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(56,189,248,0.12)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 14 }}>🚇</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{st.name}</span>
+                            <span style={{ fontSize: 10, color: '#38BDF8', background: 'rgba(56,189,248,0.15)', padding: '2px 6px', borderRadius: 4 }}>
+                              {st.lines.join(', ')}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

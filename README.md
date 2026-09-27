@@ -21,7 +21,9 @@
 
 4. **실시간 대화형 대시보드 & MapLibre GL 지도 (React)**
    - OpenStreetMap(OSM) 래스터 타일 기반의 실시간 대화형 웹 지도
-   - 서울 주요 지하철역/버스정류소/따릉이대여소 실제 좌표 마커 및 AI 예측 혼잡도(여유/보통/혼잡) 시각화
+   - **수도권 전체 563개 지하철역(구로역 등 포함) 초고속 검색 & 자동완성**:
+     - 지도 탭: 지하철역 검색 시 해당 역으로 부드러운 카메라 이동(`flyTo`) 및 실시간 도착/혼잡도 표출
+     - 경로 추천 탭: 출발지/도착지 입력창에 지하철역 실시간 자동완성 검색 연동
    - 가상 강수량(0~10mm/h) 조절에 따른 실시간 대중교통 수요 전이 시뮬레이터 제공
    - 📖 **자세한 내용은 [프론트엔드 전용 README](Weather-Transport%20Recommendation%20UI/README.md)를 참조하세요.**
 
@@ -164,11 +166,16 @@ weather-transit-web/
 ├── test_api.py                         # 날씨/버스/지하철 외부 API 연동 검증 스크립트
 ├── README.md                           # 프로젝트 전체 안내 문서
 ├── map.html                            # MapLibre GL JS + OSM 단독 테스트 페이지
+├── data/                               # 📊 정류장 및 교통 마스터 데이터 (Git 제외 관리)
+│   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋 (696개)
 ├── docs/
 │   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서 (팀 선견지명)
 ├── api_example/                        # API 규격 및 공식 활용 가이드 문서
 └── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드
     ├── README.md                       # 프론트엔드 전용 안내 문서
+    ├── data/                           # 📊 지하철역 원천 엑셀 및 JSON 데이터
+    │   ├── 실시간도착_역정보(20260902).xlsx
+    │   └── subway_stations.json
     ├── package.json                    # Node.js 패키지 의존성
     ├── tsconfig.json                   # TypeScript 설정
     ├── vite.config.ts                  # Vite 개발 서버 설정
@@ -176,6 +183,8 @@ weather-transit-web/
     └── src/
         ├── App.tsx                     # 메인 대시보드 및 탭 레이아웃
         ├── TransitMap.tsx              # MapLibre GL JS + OSM 지도 컴포넌트
+        ├── subwayData.ts               # 수도권 563개 전체 역 마스터 데이터 & 검색 엔진
+        ├── apiLogger.ts                # 개발자 콘솔용 실시간 API 로거
         ├── main.tsx                    # React 진입점
         └── index.css                   # 글로벌 스타일
 ```

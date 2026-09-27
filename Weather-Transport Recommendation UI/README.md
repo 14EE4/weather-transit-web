@@ -1,6 +1,5 @@
 # 🚇 Weather & Transit Web - Frontend Dashboard
 
-> **팀명**: 선견지명  
 > **상위 프로젝트 문서**: [`../../README.md`](../README.md)  
 > **요구사항 명세서**: [`../../docs/REQUIREMENTS.md`](../docs/REQUIREMENTS.md)  
 

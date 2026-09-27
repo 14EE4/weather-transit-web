@@ -300,6 +300,7 @@ export default function App() {
 
   // ── 지하철역 선택 시 지도 카메라 이동 및 실시간 도착/AI 분석 로깅 ──
   const handleSelectStation = (station: SubwayStation) => {
+    setActiveRoute(null)
     setSubwaySearchQuery(station.name)
     setFocusedCoords(station.coords)
     setShowSearchResults(false)

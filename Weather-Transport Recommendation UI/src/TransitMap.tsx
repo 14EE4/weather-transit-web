@@ -278,16 +278,32 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     const halfW = currentZoom >= 16 ? 32 : (currentZoom >= 14 ? 44 : 54)
     const halfH = currentZoom >= 16 ? 12 : (currentZoom >= 14 ? 16 : 20)
 
+    const hasActiveRoute = !!(activeRoute && activeRoute.path && activeRoute.path.length >= 2)
+    const routeStationNames = hasActiveRoute ? new Set(activeRoute.path.map(p => p.name)) : null
+
     for (const item of markerItemsRef.current) {
       const [lng, lat] = item.stop.coords
 
-      // 1. 지도 뷰포트 영역 외는 빠른 제외
+      // 1. 활성 경로가 있는 경우: 경로에 포함된 역 이외의 모든 역/정류소는 완전히 숨김
+      if (hasActiveRoute && routeStationNames) {
+        if (!routeStationNames.has(item.stop.name)) {
+          item.el.style.display = 'none'
+          continue
+        }
+        // 출발역과 도착역은 전용 '🟢 출발' / '🔴 도착' 핀 마커가 배치되므로 일반 알약 마커는 숨겨서 중복 방지
+        if (item.stop.name === activeRoute!.from || item.stop.name === activeRoute!.to) {
+          item.el.style.display = 'none'
+          continue
+        }
+      }
+
+      // 2. 지도 뷰포트 영역 외는 빠른 제외
       if (!bounds.contains([lng, lat])) {
         item.el.style.display = 'none'
         continue
       }
 
-      // 2. 화면 픽셀 좌표 투영
+      // 3. 화면 픽셀 좌표 투영
       const pt = map.project([lng, lat])
 
       // 화면 경계 밖 체크
@@ -296,10 +312,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         continue
       }
 
-      // 3. 현재 검색되었거나 클릭하여 선택된 역, 또는 활성 경로 경유 역은 무조건 우선 표시!
+      // 4. 현재 검색되었거나 클릭하여 선택된 역, 또는 활성 경로 경유 역은 무조건 우선 표시!
       const isFocused = focusedCoords && Math.abs(lng - focusedCoords[0]) < 0.0002 && Math.abs(lat - focusedCoords[1]) < 0.0002
       const isSelected = activeStop && activeStop.id === item.stop.id
-      const isOnRoute = activeRoute && activeRoute.path.some(p => p.name === item.stop.name)
+      const isOnRoute = hasActiveRoute && routeStationNames && routeStationNames.has(item.stop.name)
 
       if (isFocused || isSelected || isOnRoute) {
         item.el.style.display = 'flex'
@@ -553,6 +569,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     })
 
     // 출발지 마커 핀 (초록색 캡슐)
+    const startStop = TRANSIT_STOPS.find(s => s.name === activeRoute.from)
+    const startCrowd = startStop ? calculateCrowd(startStop) : 65
     const startEl = document.createElement('div')
     startEl.className = 'route-start-pin'
     startEl.style.display = 'flex'
@@ -571,20 +589,29 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         border: 2px solid #FFFFFF;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 5px;
         white-space: nowrap;
       ">
         <span>🟢 출발</span>
         <span>${activeRoute.from}</span>
+        <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${startCrowd}%</span>
       </div>
       <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #10B981;"></div>
     `
+    if (startStop) {
+      startEl.addEventListener('click', () => {
+        setActiveStop(startStop)
+        if (onSelectStop) onSelectStop(startStop)
+      })
+    }
     const startMarker = new maplibregl.Marker({ element: startEl })
       .setLngLat(coords[0])
       .addTo(map)
     routeMarkersRef.current.push(startMarker)
 
     // 도착지 마커 핀 (로즈색 캡슐)
+    const endStop = TRANSIT_STOPS.find(s => s.name === activeRoute.to)
+    const endCrowd = endStop ? calculateCrowd(endStop) : 75
     const endEl = document.createElement('div')
     endEl.className = 'route-end-pin'
     endEl.style.display = 'flex'
@@ -603,14 +630,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         border: 2px solid #FFFFFF;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 5px;
         white-space: nowrap;
       ">
         <span>🔴 도착</span>
         <span>${activeRoute.to}</span>
+        <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
       </div>
       <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
     `
+    if (endStop) {
+      endEl.addEventListener('click', () => {
+        setActiveStop(endStop)
+        if (onSelectStop) onSelectStop(endStop)
+      })
+    }
     const endMarker = new maplibregl.Marker({ element: endEl })
       .setLngLat(coords[coords.length - 1])
       .addTo(map)
@@ -784,7 +818,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         </div>
       </div>
 
-      {/* 줌 확대 안내 배지 */}
+      {/* 줌 확대 안내 배지 / 경로 집중 모드 배지 */}
       <div style={{
         position: 'absolute',
         bottom: 24,
@@ -801,9 +835,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
         pointerEvents: 'none',
       }}>
-        <span style={{ fontSize: 12 }}>🔍</span>
+        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : '🔍'}</span>
         <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
-          지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다
+          {activeRoute
+            ? '경로 집중 모드: 이동 경로 상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)'
+            : '지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다'}
         </span>
       </div>
 

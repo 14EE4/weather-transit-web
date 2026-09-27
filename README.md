@@ -51,7 +51,15 @@
 
 ## ⚙️ 환경 변수 설정 (`.env`)
 
-프로젝트 루트 경로에 `.env` 파일을 생성하고 발급받은 API 키를 설정합니다.
+저장소에 포함된 [`.env.example`](.env.example) 템플릿 파일을 복사하여 루트 경로에 `.env` 파일을 생성하고 발급받은 실제 API 키를 설정합니다.
+
+```bash
+# Windows PowerShell
+Copy-Item .env.example .env
+
+# Bash / Linux
+cp .env.example .env
+```
 
 ```env
 # 기상청 API허브 (https://apihub.kma.go.kr - 초단기실황조회)
@@ -169,7 +177,8 @@ npm run dev
 
 ```text
 weather-transit-web/
-├── .env                                # API 키 및 환경 변수 설정 파일 (git 제외)
+├── .env                                # API 키 및 환경 변수 설정 파일 (Git 추적 제외)
+├── .env.example                        # 환경 변수 예시 템플릿 (Git 포함, 참고용)
 ├── .gitignore                          # Git 추적 제외 목록 (.env, venv 등)
 ├── requirements.txt                    # Python 의존성 라이브러리 목록
 ├── test_api.py                         # 날씨/버스/지하철 외부 API 연동 검증 스크립트

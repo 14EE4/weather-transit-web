@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
+import { SUBWAY_STATIONS } from './subwayData'
 
 // ── 역 및 정류장 데이터 규격 ──
 export interface TransitStop {
@@ -12,17 +13,18 @@ export interface TransitStop {
   rainSensitivity: number // 강수 민감도 (지하철: +, 버스: +, 따릉이: -)
 }
 
-// ── 서울 주요 환승역, 버스 정류소, 따릉이 대여소 실제 GPS 좌표 ──
+// ── 서울 주요 지하철역(전체 확장) + 버스 정류소 + 따릉이 대여소 ──
 export const TRANSIT_STOPS: TransitStop[] = [
-  // 지하철역
-  { id: 'sub-gangnam', name: '강남역', type: 'subway', coords: [127.0276, 37.4979], lineInfo: '2호선·신분당선', baseCrowd: 85, rainSensitivity: 1.2 },
-  { id: 'sub-yeoksam', name: '역삼역', type: 'subway', coords: [127.0365, 37.5006], lineInfo: '2호선', baseCrowd: 78, rainSensitivity: 1.1 },
-  { id: 'sub-samseong', name: '삼성역', type: 'subway', coords: [127.0631, 37.5088], lineInfo: '2호선', baseCrowd: 72, rainSensitivity: 1.15 },
-  { id: 'sub-sports', name: '종합운동장역', type: 'subway', coords: [127.0737, 37.5109], lineInfo: '2호선·9호선', baseCrowd: 60, rainSensitivity: 1.1 },
-  { id: 'sub-jamsil', name: '잠실역', type: 'subway', coords: [127.1002, 37.5133], lineInfo: '2호선·8호선', baseCrowd: 88, rainSensitivity: 1.25 },
-  { id: 'sub-seoul', name: '서울역', type: 'subway', coords: [126.9706, 37.5547], lineInfo: '1·4호선·공항철도', baseCrowd: 82, rainSensitivity: 1.1 },
-  { id: 'sub-yeouido', name: '여의도역', type: 'subway', coords: [126.9242, 37.5219], lineInfo: '5호선·9호선', baseCrowd: 76, rainSensitivity: 1.2 },
-  { id: 'sub-hongdae', name: '홍대입구역', type: 'subway', coords: [126.9240, 37.5575], lineInfo: '2호선·공항·경의중앙', baseCrowd: 80, rainSensitivity: 1.1 },
+  // 지하철역 (SUBWAY_STATIONS 마스터 데이터 연동)
+  ...SUBWAY_STATIONS.map(s => ({
+    id: s.id,
+    name: s.name,
+    type: 'subway' as const,
+    coords: s.coords,
+    lineInfo: s.lines.join(' · '),
+    baseCrowd: s.baseCrowd,
+    rainSensitivity: 1.2
+  })),
 
   // 버스 정류소
   { id: 'bus-gn-center', name: '강남역(중앙차로)', type: 'bus', coords: [127.0282, 37.4988], lineInfo: '140, 472, 9408 등', baseCrowd: 75, rainSensitivity: 1.3 },
@@ -53,10 +55,11 @@ interface TransitMapProps {
   filterType: 'all' | 'subway' | 'bus' | 'bike'
   rainMm: number
   selectedTime: string
+  focusedCoords?: [number, number] | null
   onSelectStop?: (stop: TransitStop) => void
 }
 
-export default function TransitMap({ filterType, rainMm, selectedTime, onSelectStop }: TransitMapProps) {
+export default function TransitMap({ filterType, rainMm, selectedTime, focusedCoords, onSelectStop }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
@@ -172,6 +175,17 @@ export default function TransitMap({ filterType, rainMm, selectedTime, onSelectS
       map.remove()
     }
   }, [])
+
+  // 1-2. 검색 등으로 focusedCoords 지정 시 카메라 부드러운 이동 (flyTo)
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current || !focusedCoords) return
+    mapInstanceRef.current.flyTo({
+      center: focusedCoords,
+      zoom: 15,
+      pitch: 45,
+      essential: true,
+    })
+  }, [focusedCoords, mapLoaded])
 
   // 2. 필터링 및 날씨에 따른 마커 동적 갱신
   useEffect(() => {

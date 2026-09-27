@@ -2448,6 +2448,9 @@ export interface RouteStep {
   name: string
   coords: [number, number]
   lines: string[]
+  lineUsed?: string | null
+  isTransfer?: boolean
+  transferInfo?: string
 }
 
 export interface TransitRouteResult {
@@ -2456,9 +2459,88 @@ export interface TransitRouteResult {
   path: RouteStep[]
   stationCount: number
   estimatedMinutes: number
+  transferCount: number
+  transferStations: string[]
   summary: string
 }
 
+// ── 최소 힙 우선순위 큐 (Dijkstra용) ──
+class PriorityQueue<T> {
+  private heap: { priority: number; item: T }[] = []
+
+  push(item: T, priority: number) {
+    this.heap.push({ priority, item })
+    this.bubbleUp(this.heap.length - 1)
+  }
+
+  pop(): T | undefined {
+    if (this.heap.length === 0) return undefined
+    const top = this.heap[0].item
+    const bottom = this.heap.pop()!
+    if (this.heap.length > 0) {
+      this.heap[0] = bottom
+      this.sinkDown(0)
+    }
+    return top
+  }
+
+  get size(): number {
+    return this.heap.length
+  }
+
+  private bubbleUp(index: number) {
+    while (index > 0) {
+      const parentIdx = Math.floor((index - 1) / 2)
+      if (this.heap[index].priority < this.heap[parentIdx].priority) {
+        const tmp = this.heap[index]
+        this.heap[index] = this.heap[parentIdx]
+        this.heap[parentIdx] = tmp
+        index = parentIdx
+      } else {
+        break
+      }
+    }
+  }
+
+  private sinkDown(index: number) {
+    const length = this.heap.length
+    while (true) {
+      const left = index * 2 + 1
+      const right = index * 2 + 2
+      let smallest = index
+
+      if (left < length && this.heap[left].priority < this.heap[smallest].priority) {
+        smallest = left
+      }
+      if (right < length && this.heap[right].priority < this.heap[smallest].priority) {
+        smallest = right
+      }
+      if (smallest !== index) {
+        const tmp = this.heap[index]
+        this.heap[index] = this.heap[smallest]
+        this.heap[smallest] = tmp
+        index = smallest
+      } else {
+        break
+      }
+    }
+  }
+}
+
+interface PathNode {
+  station: string
+  lineUsed: string | null
+}
+
+interface SearchState {
+  transfers: number
+  stops: number
+  curr: string
+  currLine: string | null
+  path: PathNode[]
+}
+
+// ── 최소 환승 우선(Minimum Transfer Priority) 지하철 경로 탐색 ──
 export function findSubwayRoute(fromName: string, toName: string): TransitRouteResult | null {
   if (!fromName || !toName) return null
   const cleanFrom = fromName.trim().endsWith('역') ? fromName.trim() : fromName.trim() + '역'
@@ -2481,42 +2563,155 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
       path: [{ name: startSt.name, coords: startSt.coords, lines: startSt.lines }],
       stationCount: 1,
       estimatedMinutes: 2,
+      transferCount: 0,
+      transferStations: [],
       summary: `${startSt.name} (동일 역)`
     }
   }
 
-  // BFS 최단 경로 탐색
-  const queue: string[][] = [[startSt.name]]
-  const visited = new Set<string>([startSt.name])
-  let foundPathNames: string[] | null = null
+  // 다익스트라 기반 최소 환승 우선 탐색
+  // 비용 가중치: transfers * 10,000 + stops (환승 최소화가 무조건 1순위, 그 다음 정거장 수 최소화)
+  const pq = new PriorityQueue<SearchState>()
+  const startLines = startSt.lines || []
 
-  while (queue.length > 0) {
-    const path = queue.shift()!
-    const current = path[path.length - 1]
+  if (startLines.length > 0) {
+    for (const line of startLines) {
+      pq.push(
+        {
+          transfers: 0,
+          stops: 1,
+          curr: startSt.name,
+          currLine: line,
+          path: [{ station: startSt.name, lineUsed: line }],
+        },
+        1
+      )
+    }
+  } else {
+    pq.push(
+      {
+        transfers: 0,
+        stops: 1,
+        curr: startSt.name,
+        currLine: null,
+        path: [{ station: startSt.name, lineUsed: null }],
+      },
+      1
+    )
+  }
 
-    if (current === endSt.name) {
-      foundPathNames = path
+  const bestMap = new Map<string, number>()
+  let foundState: SearchState | null = null
+
+  while (pq.size > 0) {
+    const state = pq.pop()!
+    const { transfers, stops, curr, currLine, path } = state
+
+    if (curr === endSt.name) {
+      foundState = state
       break
     }
 
-    const neighbors = SUBWAY_GRAPH[current] || []
+    const stateKey = `${curr}|${currLine || ''}`
+    const cost = transfers * 10000 + stops
+    if (bestMap.has(stateKey) && bestMap.get(stateKey)! <= cost) {
+      continue
+    }
+    bestMap.set(stateKey, cost)
+
+    const currLines = new Set(stationMap.get(curr)?.lines || [])
+    const visitedStations = new Set(path.map(p => p.station))
+    const neighbors = SUBWAY_GRAPH[curr] || []
+
     for (const neighbor of neighbors) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor)
-        queue.push([...path, neighbor])
+      if (visitedStations.has(neighbor)) continue
+
+      const nbrLines = new Set(stationMap.get(neighbor)?.lines || [])
+      const commonLines = [...currLines].filter(l => nbrLines.has(l))
+
+      if (currLine && commonLines.includes(currLine)) {
+        // 동일 호선 계속 탑승 (환승 0회)
+        const nextTransfers = transfers
+        const nextStops = stops + 1
+        const prio = nextTransfers * 10000 + nextStops
+        const nbrKey = `${neighbor}|${currLine}`
+        if (!bestMap.has(nbrKey) || bestMap.get(nbrKey)! > prio) {
+          pq.push(
+            {
+              transfers: nextTransfers,
+              stops: nextStops,
+              curr: neighbor,
+              currLine,
+              path: [...path, { station: neighbor, lineUsed: currLine }],
+            },
+            prio
+          )
+        }
+      } else {
+        // 다른 호선으로 환승 필요 (환승 1회 발생)
+        const targetLines = commonLines.length > 0 ? commonLines : (nbrLines.size > 0 ? [...nbrLines] : [null])
+        for (const nextLine of targetLines) {
+          const nextTransfers = transfers + 1
+          const nextStops = stops + 1
+          const prio = nextTransfers * 10000 + nextStops
+          const nbrKey = `${neighbor}|${nextLine || ''}`
+          if (!bestMap.has(nbrKey) || bestMap.get(nbrKey)! > prio) {
+            pq.push(
+              {
+                transfers: nextTransfers,
+                stops: nextStops,
+                curr: neighbor,
+                currLine: nextLine,
+                path: [...path, { station: neighbor, lineUsed: nextLine }],
+              },
+              prio
+            )
+          }
+        }
       }
     }
   }
 
-  const resultPathNames = foundPathNames || [startSt.name, endSt.name]
-  const pathSteps: RouteStep[] = resultPathNames.map(name => {
-    const st = stationMap.get(name)
-    return st ? { name: st.name, coords: st.coords, lines: st.lines } : null
-  }).filter(Boolean) as RouteStep[]
+  if (!foundState) {
+    return null
+  }
+
+  const rawPath = foundState.path
+  const transferStations: string[] = []
+  const transferInfoMap = new Map<number, string>()
+
+  // 환승역 및 환승 노선 매핑 (이전 탑승 호선 ➔ 신규 호선)
+  for (let i = 1; i < rawPath.length; i++) {
+    const prevLine = rawPath[i - 1].lineUsed
+    const currLine = rawPath[i].lineUsed
+    if (prevLine && currLine && prevLine !== currLine) {
+      const transferStationName = rawPath[i - 1].station
+      transferStations.push(transferStationName)
+      transferInfoMap.set(i - 1, `${prevLine} ➔ ${currLine} 환승`)
+    }
+  }
+
+  const pathSteps: RouteStep[] = rawPath.map((item, idx) => {
+    const st = stationMap.get(item.station)
+    const isTransfer = transferInfoMap.has(idx)
+    return {
+      name: item.station,
+      coords: st ? st.coords : [127.0, 37.5],
+      lines: st ? st.lines : [],
+      lineUsed: item.lineUsed,
+      isTransfer,
+      transferInfo: transferInfoMap.get(idx),
+    }
+  })
 
   const stationCount = pathSteps.length
-  // 역 당 평균 2.5분 소요 추정
-  const estimatedMinutes = Math.max(5, Math.round(stationCount * 2.5))
+  const transferCount = transferStations.length
+  // 소요 시간: 역 당 2.5분 + 환승 1회당 4분 가산
+  const estimatedMinutes = Math.max(5, Math.round(stationCount * 2.5 + transferCount * 4))
+
+  const summary = transferCount === 0
+    ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분)`
+    : `${startSt.name} ➔ ${endSt.name} (최소 환승: ${transferCount}회 [${transferStations.join(', ')}], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분)`
 
   return {
     from: startSt.name,
@@ -2524,6 +2719,8 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
     path: pathSteps,
     stationCount,
     estimatedMinutes,
-    summary: `${startSt.name} ➔ ${endSt.name} (${stationCount}개 역 경유, 약 ${estimatedMinutes}분)`
+    transferCount,
+    transferStations,
+    summary,
   }
 }

@@ -989,7 +989,7 @@ export default function App() {
                   boxShadow: '0 8px 32px rgba(56,189,248,0.3)',
                 }}
               >
-                🔍  경로 검색 및 지도 보기
+                🔍  최소 환승 경로 검색 및 지도 보기
               </button>
 
               {/* 자주 찾는 경로 */}
@@ -1341,8 +1341,21 @@ export default function App() {
               {activeRoute ? (
                 <div style={{ background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
-                      🗺️ 추천 지하철 이동 경로
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 800 }}>
+                        ⚡ 최소 환승 우선 추천 경로
+                      </span>
+                      <span style={{
+                        background: activeRoute.transferCount === 0 ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)',
+                        border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
+                        color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        fontSize: 9,
+                        fontWeight: 700
+                      }}>
+                        {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `환승 ${activeRoute.transferCount}회`}
+                      </span>
                     </div>
                     <button
                       onClick={() => setActiveRoute(null)}
@@ -1371,16 +1384,18 @@ export default function App() {
 
                   <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
                     <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>환승 횟수</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24' }}>
+                        {activeRoute.transferCount === 0 ? '0회 (직통)' : `${activeRoute.transferCount}회`}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>경유 역</div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.stationCount}개 역</div>
                     </div>
                     <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>기본 요금</div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>1,400원</div>
-                    </div>
-                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>날씨 영향</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#10B981' }}>정시 운행</div>
                     </div>
                   </div>
 
@@ -1389,26 +1404,41 @@ export default function App() {
                     경유 역 목록 (클릭 시 해당 역 위치로 이동):
                   </div>
                   <div style={{
-                    maxHeight: 140, overflowY: 'auto', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '6px 10px',
+                    maxHeight: 150, overflowY: 'auto', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '6px 10px',
                     display: 'flex', flexDirection: 'column', gap: 4
                   }}>
                     {activeRoute.path.map((p, idx) => (
                       <div
                         key={p.name + idx}
                         onClick={() => setFocusedCoords(p.coords)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, cursor: 'pointer', padding: '3px 0' }}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, cursor: 'pointer', padding: '3px 4px',
+                          borderRadius: 6,
+                          background: p.isTransfer ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
+                          border: p.isTransfer ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid transparent'
+                        }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 10, color: idx === 0 ? '#10B981' : idx === activeRoute.path.length - 1 ? '#F43F5E' : 'rgba(255,255,255,0.3)' }}>
-                            {idx === 0 ? '🟢' : idx === activeRoute.path.length - 1 ? '🔴' : '○'}
+                          <span style={{ fontSize: 10 }}>
+                            {idx === 0 ? '🟢' : idx === activeRoute.path.length - 1 ? '🔴' : p.isTransfer ? '🔄' : '○'}
                           </span>
-                          <span style={{ color: idx === 0 || idx === activeRoute.path.length - 1 ? '#FFFFFF' : 'rgba(255,255,255,0.75)', fontWeight: idx === 0 || idx === activeRoute.path.length - 1 ? 700 : 400 }}>
+                          <span style={{
+                            color: idx === 0 || idx === activeRoute.path.length - 1 ? '#FFFFFF' : p.isTransfer ? '#FBBF24' : 'rgba(255,255,255,0.75)',
+                            fontWeight: idx === 0 || idx === activeRoute.path.length - 1 || p.isTransfer ? 700 : 400
+                          }}>
                             {p.name}
                           </span>
                         </div>
-                        <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.1)', padding: '1px 5px', borderRadius: 4 }}>
-                          {p.lines[0] || '지하철'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {p.isTransfer && p.transferInfo && (
+                            <span style={{ fontSize: 9, color: '#FBBF24', background: 'rgba(245,158,11,0.2)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                              {p.transferInfo}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.1)', padding: '1px 5px', borderRadius: 4 }}>
+                            {p.lineUsed || p.lines[0] || '지하철'}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>

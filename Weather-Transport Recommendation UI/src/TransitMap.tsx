@@ -316,10 +316,25 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       const isFocused = focusedCoords && Math.abs(lng - focusedCoords[0]) < 0.0002 && Math.abs(lat - focusedCoords[1]) < 0.0002
       const isSelected = activeStop && activeStop.id === item.stop.id
       const isOnRoute = hasActiveRoute && routeStationNames && routeStationNames.has(item.stop.name)
+      const isTransferStation = hasActiveRoute && activeRoute?.transferStations?.includes(item.stop.name)
 
       if (isFocused || isSelected || isOnRoute) {
         item.el.style.display = 'flex'
-        item.el.style.zIndex = isOnRoute ? '900' : '9999'
+        item.el.style.zIndex = isTransferStation ? '1500' : (isOnRoute ? '900' : '9999')
+
+        const pill = item.el.querySelector('.marker-pill') as HTMLElement | null
+        if (pill) {
+          if (isTransferStation) {
+            pill.style.borderColor = '#F59E0B'
+            pill.style.boxShadow = '0 4px 18px rgba(245, 158, 11, 0.75)'
+          } else {
+            const crowd = calculateCrowd(item.stop)
+            const { color } = getCrowdLevel(crowd)
+            pill.style.borderColor = color
+            pill.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)'
+          }
+        }
+
         placedBoxes.push({
           x1: pt.x - halfW,
           y1: pt.y - halfH,
@@ -758,11 +773,23 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
           <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+            <span style={{
+              background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+              border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
+              color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
+              borderRadius: 6,
+              padding: '2px 7px',
+              fontSize: 10,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+            }}>
+              {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `최소 환승: ${activeRoute.transferCount}회`}
+            </span>
+            <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
               약 {activeRoute.estimatedMinutes}분
             </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
-              ({activeRoute.stationCount}개 역 경유)
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+              ({activeRoute.stationCount}개 역)
             </span>
           </div>
 
@@ -838,7 +865,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : '🔍'}</span>
         <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
           {activeRoute
-            ? '경로 집중 모드: 이동 경로 상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)'
+            ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
             : '지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다'}
         </span>
       </div>

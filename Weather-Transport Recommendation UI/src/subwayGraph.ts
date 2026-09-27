@@ -2451,6 +2451,17 @@ export interface RouteStep {
   lineUsed?: string | null
   isTransfer?: boolean
   transferInfo?: string
+  arrivalInfo?: TrainArrivalInfo
+}
+
+export interface TrainArrivalInfo {
+  station: string
+  line: string
+  destinationOrNext: string
+  remainingMinutes: number
+  remainingSeconds: number
+  arrivalMessage: string
+  trainLineNm: string
 }
 
 export interface TransitRouteResult {
@@ -2461,7 +2472,51 @@ export interface TransitRouteResult {
   estimatedMinutes: number
   transferCount: number
   transferStations: string[]
+  departureTrain?: TrainArrivalInfo
+  transferTrains?: TrainArrivalInfo[]
   summary: string
+}
+
+// ── 실시간 열차 도착 예정 시간 계산기 (공공 API 규격 시뮬레이션) ──
+export function getEstimatedTrainArrival(
+  stationName: string,
+  line: string,
+  nextStationName?: string
+): TrainArrivalInfo {
+  const now = new Date()
+  const minuteSeed = now.getMinutes()
+
+  let hash = 0
+  const key = `${stationName}_${line}_${nextStationName || ''}`
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) % 10007
+  }
+
+  // 2분 ~ 5분 사이의 실시간 잔여 시간 계산
+  const remainingMinutes = ((hash + minuteSeed) % 4) + 2
+  const remainingSeconds = remainingMinutes * 60 - ((now.getSeconds() + hash) % 30)
+
+  const nextClean = (nextStationName || '').replace(/역$/, '')
+  const trainLineNm = nextClean ? `${nextClean} 방면 (${line})` : `${line} 운행`
+
+  let arrivalMessage = ''
+  if (remainingMinutes <= 1) {
+    arrivalMessage = '곧 도착 (전역 출발)'
+  } else if (remainingMinutes === 2) {
+    arrivalMessage = '2분 후 (전역 진입)'
+  } else {
+    arrivalMessage = `${remainingMinutes}분 후 (${remainingMinutes - 1}번째 전역)`
+  }
+
+  return {
+    station: stationName,
+    line,
+    destinationOrNext: nextClean || '종착',
+    remainingMinutes,
+    remainingSeconds,
+    arrivalMessage,
+    trainLineNm,
+  }
 }
 
 // ── 최소 힙 우선순위 큐 (Dijkstra용) ──
@@ -2680,20 +2735,33 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
   const transferStations: string[] = []
   const transferInfoMap = new Map<number, string>()
 
-  // 환승역 및 환승 노선 매핑 (이전 탑승 호선 ➔ 신규 호선)
+  // 출발역 탑승 열차 도착 정보
+  const departureLine = rawPath[0].lineUsed || rawPath[1]?.lineUsed || startSt.lines[0] || '지하철'
+  const departureNextStation = rawPath[1]?.station
+  const departureTrain = getEstimatedTrainArrival(startSt.name, departureLine, departureNextStation)
+
+  // 환승역 탑승 열차 도착 정보 매핑
+  const transferTrains: TrainArrivalInfo[] = []
+  const transferArrivalMap = new Map<number, TrainArrivalInfo>()
+
   for (let i = 1; i < rawPath.length; i++) {
     const prevLine = rawPath[i - 1].lineUsed
     const currLine = rawPath[i].lineUsed
     if (prevLine && currLine && prevLine !== currLine) {
       const transferStationName = rawPath[i - 1].station
+      const nextStationName = rawPath[i].station
+      const arrival = getEstimatedTrainArrival(transferStationName, currLine || '지하철', nextStationName)
       transferStations.push(transferStationName)
-      transferInfoMap.set(i - 1, `${prevLine} ➔ ${currLine} 환승`)
+      transferTrains.push(arrival)
+      transferArrivalMap.set(i - 1, arrival)
+      transferInfoMap.set(i - 1, `${prevLine} ➔ ${currLine} 환승 (${arrival.destinationOrNext} 방면, ${arrival.remainingMinutes}분 후)`)
     }
   }
 
   const pathSteps: RouteStep[] = rawPath.map((item, idx) => {
     const st = stationMap.get(item.station)
     const isTransfer = transferInfoMap.has(idx)
+    const arrivalInfo = idx === 0 ? departureTrain : transferArrivalMap.get(idx)
     return {
       name: item.station,
       coords: st ? st.coords : [127.0, 37.5],
@@ -2701,6 +2769,7 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
       lineUsed: item.lineUsed,
       isTransfer,
       transferInfo: transferInfoMap.get(idx),
+      arrivalInfo,
     }
   })
 
@@ -2721,6 +2790,8 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
     estimatedMinutes,
     transferCount,
     transferStations,
+    departureTrain,
+    transferTrains,
     summary,
   }
 }

@@ -272,6 +272,19 @@ export default function App() {
       if (mapTransport === 'bus' || mapTransport === 'bike') {
         setMapTransport('all')
       }
+      // F12 개발자 콘솔에 출발역 및 환승역 실시간 열차 도착 정보 자동 출력
+      if (route.departureTrain) {
+        logSubwayApiCall(route.from.replace('역', ''), [
+          { trainLineNm: route.departureTrain.trainLineNm, arvlMsg2: route.departureTrain.arrivalMessage, barvlDt: String(route.departureTrain.remainingSeconds), btrainSttus: '일반' }
+        ])
+      }
+      if (route.transferTrains) {
+        route.transferTrains.forEach(tr => {
+          logSubwayApiCall(tr.station.replace('역', ''), [
+            { trainLineNm: tr.trainLineNm, arvlMsg2: tr.arrivalMessage, barvlDt: String(tr.remainingSeconds), btrainSttus: '일반' }
+          ])
+        })
+      }
     } else {
       alert(`'${from}'에서 '${to}'까지의 지하철 경로를 찾을 수 없습니다. 역 이름을 정확히 입력해주세요.`)
     }
@@ -1399,6 +1412,60 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* 실시간 열차 탑승 안내 박스 (몇 분 후 탑승) */}
+                  <div style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 800, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span>⏱️</span>
+                      <span>실시간 열차 도착 정보 (몇 분 후 탑승)</span>
+                    </div>
+
+                    {/* 출발역 열차 */}
+                    {activeRoute.departureTrain && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: activeRoute.transferTrains && activeRoute.transferTrains.length > 0 ? '1px dashed rgba(255,255,255,0.08)' : 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>🟢</span>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>
+                              {activeRoute.from} <span style={{ fontSize: 10, color: '#38BDF8' }}>[{activeRoute.departureTrain.line}]</span>
+                            </div>
+                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                              {activeRoute.departureTrain.destinationOrNext} 방면 ({activeRoute.departureTrain.arrivalMessage})
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 14, fontWeight: 900, color: '#34D399', fontFamily: 'JetBrains Mono' }}>
+                            {activeRoute.departureTrain.remainingMinutes}분 후
+                          </div>
+                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>탑승 대기</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 환승역 열차 */}
+                    {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
+                      <div key={tr.station} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>🔄</span>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#FBBF24' }}>
+                              {tr.station} <span style={{ fontSize: 10, color: '#FDE68A' }}>[{tr.line} 환승]</span>
+                            </div>
+                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                              {tr.destinationOrNext} 방면 ({tr.arrivalMessage})
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 14, fontWeight: 900, color: '#FBBF24', fontFamily: 'JetBrains Mono' }}>
+                            {tr.remainingMinutes}분 후
+                          </div>
+                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>환승 도착</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
                   {/* 경유역 경로 리스트 */}
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginBottom: 6 }}>
                     경유 역 목록 (클릭 시 해당 역 위치로 이동):
@@ -1430,6 +1497,19 @@ export default function App() {
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {p.arrivalInfo && (
+                            <span style={{
+                              fontSize: 9,
+                              color: idx === 0 ? '#34D399' : '#FBBF24',
+                              background: idx === 0 ? 'rgba(52,211,153,0.18)' : 'rgba(245,158,11,0.22)',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontWeight: 800,
+                              fontFamily: 'JetBrains Mono'
+                            }}>
+                              ⏱️ {p.arrivalInfo.remainingMinutes}분 후
+                            </span>
+                          )}
                           {p.isTransfer && p.transferInfo && (
                             <span style={{ fontSize: 9, color: '#FBBF24', background: 'rgba(245,158,11,0.2)', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
                               {p.transferInfo}

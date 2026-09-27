@@ -290,8 +290,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
           item.el.style.display = 'none'
           continue
         }
-        // 출발역과 도착역은 전용 '🟢 출발' / '🔴 도착' 핀 마커가 배치되므로 일반 알약 마커는 숨겨서 중복 방지
-        if (item.stop.name === activeRoute!.from || item.stop.name === activeRoute!.to) {
+        // 출발역, 도착역, 환승역은 전용 핀 마커가 배치되므로 일반 알약 마커는 숨겨서 중복 방지
+        const isSpecialPinStation = item.stop.name === activeRoute!.from || 
+                                    item.stop.name === activeRoute!.to || 
+                                    (activeRoute!.transferStations && activeRoute!.transferStations.includes(item.stop.name))
+        if (isSpecialPinStation) {
           item.el.style.display = 'none'
           continue
         }
@@ -583,9 +586,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       duration: 1000,
     })
 
-    // 출발지 마커 핀 (초록색 캡슐)
+    // 출발지 마커 핀 (초록색 캡슐 + 탑승 열차 잔여 시간 표시)
     const startStop = TRANSIT_STOPS.find(s => s.name === activeRoute.from)
     const startCrowd = startStop ? calculateCrowd(startStop) : 65
+    const depTrain = activeRoute.departureTrain
     const startEl = document.createElement('div')
     startEl.className = 'route-start-pin'
     startEl.style.display = 'flex'
@@ -598,18 +602,28 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         color: #FFFFFF;
         font-weight: 800;
         font-size: 11px;
-        padding: 4px 10px;
+        padding: 5px 12px;
         border-radius: 9999px;
-        box-shadow: 0 4px 18px rgba(16,185,129,0.6);
+        box-shadow: 0 4px 18px rgba(16,185,129,0.65);
         border: 2px solid #FFFFFF;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 5px;
+        gap: 2px;
         white-space: nowrap;
       ">
-        <span>🟢 출발</span>
-        <span>${activeRoute.from}</span>
-        <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${startCrowd}%</span>
+        <div style="display: flex; align-items: center; gap: 5px;">
+          <span>🟢 출발</span>
+          <span>${activeRoute.from}</span>
+          ${depTrain ? `<span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${depTrain.line}</span>` : ''}
+          <span style="background: rgba(0,0,0,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${startCrowd}%</span>
+        </div>
+        ${depTrain ? `
+          <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+            <span>⏱️ ${depTrain.destinationOrNext} 방면</span>
+            <span style="background: #065F46; color: #6EE7B7; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${depTrain.remainingMinutes}분 후 도착</span>
+          </div>
+        ` : ''}
       </div>
       <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #10B981;"></div>
     `
@@ -623,6 +637,62 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       .setLngLat(coords[0])
       .addTo(map)
     routeMarkersRef.current.push(startMarker)
+
+    // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 표시)
+    if (activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {
+      activeRoute.transferTrains.forEach(tr => {
+        const trStep = activeRoute.path.find(p => p.name === tr.station)
+        if (!trStep) return
+        const trStop = TRANSIT_STOPS.find(s => s.name === tr.station)
+        const trCrowd = trStop ? calculateCrowd(trStop) : 70
+
+        const trEl = document.createElement('div')
+        trEl.className = 'route-transfer-pin'
+        trEl.style.display = 'flex'
+        trEl.style.flexDirection = 'column'
+        trEl.style.alignItems = 'center'
+        trEl.style.cursor = 'pointer'
+        trEl.innerHTML = `
+          <div style="
+            background: #D97706;
+            color: #FFFFFF;
+            font-weight: 800;
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 9999px;
+            box-shadow: 0 4px 18px rgba(217,119,6,0.65);
+            border: 2px solid #FFFFFF;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            white-space: nowrap;
+          ">
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <span>🔄 환승</span>
+              <span>${tr.station}</span>
+              <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${tr.line}</span>
+              <span style="background: rgba(0,0,0,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${trCrowd}%</span>
+            </div>
+            <div style="font-size: 10px; color: #FEF3C7; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+              <span>⏱️ ${tr.destinationOrNext} 방면</span>
+              <span style="background: #78350F; color: #FDE68A; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${tr.remainingMinutes}분 후 도착</span>
+            </div>
+          </div>
+          <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #D97706;"></div>
+        `
+        if (trStop) {
+          trEl.addEventListener('click', () => {
+            setActiveStop(trStop)
+            if (onSelectStop) onSelectStop(trStop)
+          })
+        }
+        const trMarker = new maplibregl.Marker({ element: trEl })
+          .setLngLat(trStep.coords)
+          .addTo(map)
+        routeMarkersRef.current.push(trMarker)
+      })
+    }
 
     // 도착지 마커 핀 (로즈색 캡슐)
     const endStop = TRANSIT_STOPS.find(s => s.name === activeRoute.to)
@@ -755,66 +825,96 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
           padding: '10px 14px',
           boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
           display: 'flex',
-          alignItems: 'center',
-          gap: 12,
+          flexDirection: 'column',
+          gap: 6,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
-              출발
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.from}</span>
-            <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
-            <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
-              도착
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.to}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+                출발
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.from}</span>
+              <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
+              <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+                도착
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.to}</span>
+            </div>
+
+            <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
+                color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
+                borderRadius: 6,
+                padding: '2px 7px',
+                fontSize: 10,
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
+              }}>
+                {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `최소 환승: ${activeRoute.transferCount}회`}
+              </span>
+              <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
+                약 {activeRoute.estimatedMinutes}분
+              </span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                ({activeRoute.stationCount}개 역)
+              </span>
+            </div>
+
+            {onClearRoute && (
+              <button
+                onClick={onClearRoute}
+                title="경로 안내 닫기"
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: 'none',
+                  color: 'rgba(255,255,255,0.7)',
+                  borderRadius: 8,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  marginLeft: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span>✕</span>
+                <span>닫기</span>
+              </button>
+            )}
           </div>
 
-          <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{
-              background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-              border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
-              color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
-              borderRadius: 6,
-              padding: '2px 7px',
-              fontSize: 10,
-              fontWeight: 800,
-              whiteSpace: 'nowrap',
-            }}>
-              {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `최소 환승: ${activeRoute.transferCount}회`}
-            </span>
-            <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
-              약 {activeRoute.estimatedMinutes}분
-            </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
-              ({activeRoute.stationCount}개 역)
-            </span>
+          {/* 출발역 & 환승역 탑승 열차 잔여 시간 실시간 안내 행 */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
+            paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap'
+          }}>
+            {activeRoute.departureTrain && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: '#34D399', fontWeight: 700 }}>🟢 {activeRoute.from}</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>[{activeRoute.departureTrain.line}]</span>
+                <span style={{ color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+                  {activeRoute.departureTrain.remainingMinutes}분 후 탑승
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
+              </div>
+            )}
+            {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
+              <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
+                <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>[{tr.line}]</span>
+                <span style={{ color: '#FBBF24', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+                  {tr.remainingMinutes}분 후 탑승
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>({tr.destinationOrNext} 방면)</span>
+              </div>
+            ))}
           </div>
-
-          {onClearRoute && (
-            <button
-              onClick={onClearRoute}
-              title="경로 안내 닫기"
-              style={{
-                background: 'rgba(255,255,255,0.08)',
-                border: 'none',
-                color: 'rgba(255,255,255,0.7)',
-                borderRadius: 8,
-                padding: '4px 8px',
-                fontSize: 11,
-                cursor: 'pointer',
-                marginLeft: 4,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              <span>✕</span>
-              <span>닫기</span>
-            </button>
-          )}
         </div>
       )}
 

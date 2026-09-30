@@ -34,7 +34,8 @@
      - 지도를 확대(Zoom-in)하면 인접한 세부 역 및 정류소가 부드럽게 순차적으로 모두 나타남
      - 사용자가 검색하거나 선택한 역은 항상 최우선으로 화면에 100% 표시됨
    - 가상 강수량(0~10mm/h) 조절에 따른 실시간 대중교통 수요 전이 시뮬레이터 제공
-   - 📖 **자세한 내용은 [프론트엔드 전용 README](Weather-Transport%20Recommendation%20UI/README.md)를 참조하세요.**
+   - 📖 **프론트엔드 상세 가이드**: [프론트엔드 README](Weather-Transport%20Recommendation%20UI/README.md)
+   - 🧠 **백엔드 AI 추론 모델 사양서**: [AI 추론 모델 개발 가이드](docs/AI_INFERENCE_MODEL_SPEC.md)
 
 ---
 

@@ -79,6 +79,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
   const animFrameRef = useRef<number | null>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState<number>(13)
 
   // 혼잡도 계산 헬퍼 (AI 시계열 예측 시뮬레이션: 역별 위계, 시간대별 출퇴근 첨두곡선, 날씨 강수 민감도 반영)
   const calculateCrowd = (stop: TransitStop) => {
@@ -304,14 +305,33 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     const height = container.clientHeight
     const currentZoom = map.getZoom()
 
-    const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = []
-
-    // 줌 레벨에 따라 겹침 감지 박스 크기 동적 조절 (확대할수록 간격 좁아져 많은 역 등장)
-    const halfW = currentZoom >= 16 ? 32 : (currentZoom >= 14 ? 44 : 54)
-    const halfH = currentZoom >= 16 ? 12 : (currentZoom >= 14 ? 16 : 20)
-
     const hasActiveRoute = !!(activeRoute && activeRoute.path && activeRoute.path.length >= 2)
     const routeStationNames = hasActiveRoute ? new Set(activeRoute.path.map(p => p.name)) : null
+
+    // 0. 일정 배율 이하로 많이 줌아웃한 경우 (currentZoom < 12.0):
+    // 광역 지도 탐색 시 화면이 수백 개의 역 마커로 가려지지 않도록 일반 역 마커를 완전 숨김 처리
+    if (currentZoom < 12.0) {
+      for (const item of markerItemsRef.current) {
+        const [lng, lat] = item.stop.coords
+        const isFocused = focusedCoords && Math.abs(lng - focusedCoords[0]) < 0.0002 && Math.abs(lat - focusedCoords[1]) < 0.0002
+        const isSelected = activeStop && activeStop.id === item.stop.id
+
+        // 사용자가 검색했거나 클릭하여 선택 중인 단일 역은 식별을 위해 유지
+        if (isFocused || isSelected) {
+          item.el.style.display = 'flex'
+          item.el.style.zIndex = '9999'
+        } else {
+          item.el.style.display = 'none'
+        }
+      }
+      return
+    }
+
+    const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = []
+
+    // 줌 레벨에 따라 겹침 감지 박스 크기 동적 조절 (확대할수록 간격 좁아져 많은 역 등장, 12~13구간은 넓혀 주요 거점만)
+    const halfW = currentZoom >= 16 ? 32 : (currentZoom >= 14 ? 44 : (currentZoom >= 13 ? 56 : 72))
+    const halfH = currentZoom >= 16 ? 12 : (currentZoom >= 14 ? 16 : (currentZoom >= 13 ? 20 : 26))
 
     for (const item of markerItemsRef.current) {
       const [lng, lat] = item.stop.coords
@@ -579,6 +599,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
       animFrameRef.current = requestAnimationFrame(() => {
         updateCollisions()
+        const z = map.getZoom()
+        setZoomLevel(prev => (Math.abs(prev - z) >= 0.2 ? z : prev))
       })
     }
 
@@ -1023,11 +1045,13 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
         pointerEvents: 'none',
       }}>
-        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : '🔍'}</span>
+        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 12.0 ? '🗺️' : '🔍')}</span>
         <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
           {activeRoute
             ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
-            : '지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다'}
+            : (zoomLevel < 12.0
+                ? '광역 지도 모드: 역 마커와 혼잡도를 확인하려면 지도를 확대(Zoom-in)해 주세요'
+                : '지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다')}
         </span>
       </div>
 

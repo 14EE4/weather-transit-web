@@ -3,7 +3,7 @@
 > **문서 버전**: v1.0.0  
 > **최종 수정일**: 2026-10-05  
 > **서버 파일**: `main.py`  
-> **검증 스크립트**: `test_inference.py`  
+> **검증 스크립트**: `tests/test_inference.py`  
 > **참조 사양서**: [`docs/AI_INFERENCE_MODEL_SPEC.md`](AI_INFERENCE_MODEL_SPEC.md)
 
 ---
@@ -269,7 +269,7 @@ pip install -r requirements.txt
 
 검증 테스트 스크립트 실행:
 ```bash
-.\venv\Scripts\python.exe test_inference.py
+.\venv\Scripts\python.exe tests/test_inference.py
 ```
 
 ### 벤치마크 결과 요약:

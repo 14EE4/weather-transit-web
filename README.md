@@ -94,7 +94,7 @@ pip install -r requirements.txt
 
 ### 2. API 연결 테스트 실행
   ```bash
-python test_api.py
+python tests/test_api.py
 ```
 
 정상 연동 시 터미널에서 다음과 같은 테스트 결과를 확인할 수 있습니다:
@@ -139,7 +139,7 @@ python test_api.py
 ### 3. 백엔드 AI 추론 서버 실행 및 검증 (FastAPI & ONNX)
 - **통합 검증 테스트 스위트 실행**:
   ```bash
-  python test_inference.py
+  python tests/test_inference.py
   ```
   *(ONNX 세션 웜업, 32차원 Feature Vector 정합성, 맑은 날/폭우 모달 시프트, 10회 연속 레이턴시 SLA 벤치마크 검증)*
 
@@ -198,8 +198,10 @@ weather-transit-web/
 ├── .gitignore                          # Git 추적 제외 목록 (.env, venv 등)
 ├── requirements.txt                    # Python 의존성 라이브러리 목록
 ├── main.py                             # ⚡ FastAPI 백엔드 AI 추론 서버 (ONNX 인메모리 로딩 & 서빙)
-├── test_inference.py                   # 🧪 ONNX 모델 및 추천 API 통합 검증 스크립트
-├── test_api.py                         # 날씨/버스/지하철 외부 공공 API 연동 검증 스크립트
+├── tests/                              # 🧪 테스트 및 검증 스위트 디렉토리
+│   ├── __init__.py                     # 테스트 패키지 초기화
+│   ├── test_inference.py               # ONNX 모델 및 추천 API 통합 검증 스크립트
+│   └── test_api.py                     # 날씨/버스/지하철 외부 공공 API 연동 검증 스크립트
 ├── README.md                           # 프로젝트 전체 안내 문서
 ├── map.html                            # MapLibre GL JS + OSM 단독 테스트 페이지
 ├── models/                             # 🧠 학습 완료된 ONNX 머신러닝 모델 가중치 파일

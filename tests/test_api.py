@@ -14,11 +14,15 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
     except Exception:
         pass
 
+from pathlib import Path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 # ==========================================
 # 1. API 키 설정 (.env 파일에서 환경변수 로드)
 # ==========================================
-# 현재 폴더 또는 상위 폴더의 .env 파일을 자동으로 찾아 로드합니다.
-load_dotenv()
+load_dotenv(ROOT_DIR / ".env")
 
 KMA_AUTH_KEY = os.getenv("KMA_APIHUB_KEY")
 SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")

@@ -19,23 +19,24 @@
 
 ## 1. 프론트엔드 목업 데이터 (Frontend Mock Data)
 
-### 1.1 시간대별 기상 및 이용자 데이터 (`HOURLY_DATA`)
-- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L20~30, L806~885)
+### 1.1 시간대별 기상 및 이용자 데이터 (`HOURLY_DATA`) 및 시간대별 시뮬레이션 UI
+- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L101~111, L860~923, L1141~1189)
 - **현황 및 조치**:
   - [x] **[완료] 중앙 [교통 이용자 현황] 카드 실시간 AI 연동**: 기존 고정 목업(`HOURLY_DATA`)을 참조하던 상단 카드를 실제 3개 ONNX 머신러닝 모델의 실시간 추론 이용객 수(`predicted_volume`, 지하철·버스·따릉이) 및 혼잡도(`crowd%`)로 100% 동기화 완료.
-  - [x] **[완료] 기상청 실시간 실황(Live) 모드 및 시뮬레이션 모드 토글 연동**: 상단 타임라인에 `🟢 실시간` 버튼을 신설하여 실제 기상청 실황 관측치(`liveWeather`)와 시간대별 시뮬레이션을 상호 전환할 수 있도록 구현 완료.
-  - [ ] **[TODO 잔여]**: 백엔드 `GET /api/v1/weather/forecast` 엔드포인트 신설 후 24시간 동네예보/초단기예보 데이터로 타임라인 차트 교체
-  - [ ] **[TODO 잔여]**: 시간대 변경 시 백엔드 24시간 추론 결과를 배열로 수신하여 동적 차트 바인딩
+  - [ ] **[TODO] 상단 시간대별 가상 시뮬레이션 버튼(`06시~14시`) 완전 삭제**:
+    - 버튼 클릭 시 `setWeatherMode('simulation')` 및 `setSelectedHour(i)`를 실행하여 가상 목업 기상(비 2.8mm 등)으로 전환하던 시간대 시뮬레이터 UI 전면 제거
+    - 지도 탭의 시뮬레이터 제거와 동일하게 메인 탭에서도 가상 시뮬레이션 버튼을 없애고 100% 실시간 기상청 관측(`liveWeather`) 상태만 항시 유지
+  - [ ] **[TODO] 하단 시간대별 이용자 추이 SVG 차트 실측 예보 바인딩 또는 정리**:
+    - 고정 목업(`HOURLY_DATA`)으로 그리던 꺾은선 차트를 기상청 단기예보(`getVilageFcst`) 24시간 실측 예보 및 백엔드 시계열 추론 결과로 교체하거나 목업 요소 완전 정리
 
 ### 1.2 동별 교통 혼잡 현황 (`DISTRICT_DATA`)
-- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L91~99)
-- **현황**: 역삼동, 삼성동, 서교동, 잠실동, 여의도동, 명동 6개 동만 임의 혼잡도(지하철 91%, 버스 82%, 따릉이 45% 등)로 기입.
-- **문제점**: 서울시 25개 자치구(426개 행정동)를 반영하지 못하며, 날씨 변화에 따른 동적 계산이 반영되지 않음.
+- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L173~182, L1198~1223)
+- **현황**: 역삼동, 명동, 여의도동, 서교동, 성수동, 가산, 잠실, 판교 8개 거점의 혼잡도(지하철 91%, 버스 82%, 따릉이 45% 등) 및 날씨('🌧', 14°C)가 고정 상수로 하드코딩된 완전한 목업.
 - **[TODO]**:
-  - [ ] 백엔드의 `POST /api/v1/simulate/weather-impact` 내 25개 자치구 실시간 예측 혼잡도(`district_congestion`) 데이터를 UI 리스트에 바인딩
+  - [ ] 백엔드의 `POST /api/v1/simulate/weather-impact` 내 25개 자치구 실시간 예측 혼잡도(`district_congestion`) 데이터를 UI 리스트에 바인딩하여 실측 날씨에 따라 실시간 갱신
 
 ### 1.3 강우량-이용률 상관관계 곡선 (`CORRELATION_DATA`)
-- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L81~89)
+- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L160~170)
 - **현황**: 강수량 0~5mm 구간에 따른 수단별 이용률 지수(100~4)가 정적 배열로 고정.
 - **[TODO]**:
   - [ ] 실제 학습 데이터셋(`seoul_transport_weather_merged.parquet` 20.9만건)의 강수량 구간별 평균 수요 감소율 통계치로 곡선 좌표 교정
@@ -53,13 +54,13 @@
   - [x] **[완료]** 사용자 선택 자치구를 브라우저 `localStorage`(`weather_transit_selected_district`)에 저장하여, 새로고침이나 재방문 시에도 직전에 선택한 자치구(서울시 25개 자치구 및 426개 행정동 연동)를 자동 복원하도록 구현 완료.
 
 ### 1.6 서비스 전역 가상 시뮬레이션 완전 제거 및 100% 실시간 공공 API 연동 전환
-- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (`HOURLY_DATA`, `weatherMode`, `simulatedTime`, `POST /api/v1/simulate/weather-impact`), 메인 탭 및 추천 대시보드
+- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (`HOURLY_DATA`, `weatherMode`, `selectedHour`, `simulatedTime`, `POST /api/v1/simulate/weather-impact`), 메인 탭 및 추천 대시보드
 - **현황**:
-  - 지도 탭의 시뮬레이터(슬라이더 등)는 이미 제거되었으나, 메인 페이지 상단 24시간 타임라인 예보(`HOURLY_DATA`), 시간대별 예측 버튼, 가상 시뮬레이션 모드 토글, What-If 강수량 시뮬레이션 코멘터리 등이 여전히 가상 데이터/시뮬레이션 로직을 일부 포함하고 있음.
-  - 사용자의 확고한 원칙("다른 곳 시뮬레이션도 없애고 전부 실제 API 정보로 통일")에 따라 시스템 전역에서 가상 모드를 전면 퇴출해야 함.
+  - 지도 탭의 시뮬레이터(슬라이더 등)는 이미 제거되었으나, 메인 페이지 상단 24시간 타임라인 예보(`HOURLY_DATA`), 시간대별 예측 버튼(`06시~14시`), 가상 시뮬레이션 모드(`weatherMode === 'simulation'`), What-If 강수량 시뮬레이션 코멘터리 등이 여전히 가상 데이터/시뮬레이션 로직을 일부 포함하고 있음.
+  - 사용자의 확고한 원칙("시간대별 시뮬레이션도 삭제하고 전부 실제 API 정보로 통일")에 따라 시스템 전역에서 가상 시뮬레이션 모드를 전면 퇴출해야 함.
 - **[TODO]**:
-  - [ ] **메인 탭 타임라인 기상청 예보 API 연동**: 가상 `HOURLY_DATA`를 기상청 단기예보(`getVilageFcst`) / 초단기예보(`getUltraSrtFcst`) 24시간 실측 예보 API로 전면 대체
-  - [ ] **가상 모드 토글 완전 삭제**: 상단 `[🟢 실시간 / ⚡ 시뮬레이션]` 토글 및 가상 시간 선택기 제거 -> 100% 실시간 기상청 관측 및 실제 예보만 제공
+  - [ ] **시간대별 시뮬레이션 버튼(`06시~14시`) 및 토글 완전 삭제**: 상단 타임라인의 가상 시간 버튼(`06시~14시`)을 제거하고 `weatherMode` 상태를 'live' 단일 모드로 고정
+  - [ ] **메인 탭 타임라인 기상청 예보 API 연동**: 가상 `HOURLY_DATA` 대신 기상청 단기예보(`getVilageFcst`) / 초단기예보(`getUltraSrtFcst`) 24시간 실측 예보 API로 전환
   - [ ] **What-If 가상 시뮬레이터 개편**: 임의 가상 강수량 What-If 분석 대신 실제 기상청 기상 특보(호우주의보, 강풍주의보, 대설주의보 등) 및 실시간 기상 변화에 따른 모달 시프트 분석으로 전환
 
 ---
@@ -231,6 +232,7 @@
   ├── [x] [완료] 서울 지하철 실시간 도착 API 연동 (Mock 도착시간 -> 실시간 열차)
   ├── [x] [완료] 서울 버스 실시간 도착 API 연동 (Mock 버스 -> 실시간 버스도착)
   ├── [네트워크 최적화] 새로고침 시 구산동사거리 버스 및 강남역 자동 조회 제거 (온디맨드 호출 전환)
+  ├── [UI 개편] 메인 상단 시간대별 가상 시뮬레이션 버튼(06시~14시) 및 simulation 모드 완전 삭제
   └── 서비스 전역 가상 시뮬레이션 완전 제거 및 100% 진본 공공 API 일원화
 
 [Phase 2: UI 및 알고리즘 정밀화 (P1)]

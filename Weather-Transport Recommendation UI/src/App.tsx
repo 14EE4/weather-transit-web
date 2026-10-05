@@ -1824,78 +1824,72 @@ export default function App() {
               ))}
             </div>
 
-            {/* AI 날씨-수요 시뮬레이터 (요구사항 FR-02-3 & FR-03-3) */}
+            {/* 기상청 실시간 관측 실황 카드 (100% 공공데이터 실측 실황 연동) */}
             <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(56,189,248,0.03)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', letterSpacing: '0.04em' }}>⚡ AI 수요 예측 시뮬레이터</span>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>실시간 연동</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34D399', boxShadow: '0 0 8px #34D399', display: 'inline-block' }}></span>
+                  기상청 실시간 관측 실황
+                </span>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontFamily: 'JetBrains Mono' }}>
+                  {liveWeather ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : '실시간 실측'}
+                </span>
               </div>
 
-              {/* 강수량 슬라이더 */}
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>가상 강수량 (Rainfall)</span>
-                  <b style={{ color: rainSimulation > 0 ? '#38BDF8' : '#34D399', fontFamily: 'JetBrains Mono' }}>
-                    {rainSimulation.toFixed(1)} mm/h
-                  </b>
+              {/* 기상 실황 데이터 정보 박스 */}
+              <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: '10px 12px', border: '1px solid rgba(56,189,248,0.15)', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 24 }}>{activeRain > 0 ? '🌧' : '☀️'}</span>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>
+                        {activeTemp}°C
+                      </div>
+                      <div style={{ fontSize: 11, color: activeRain > 0 ? '#38BDF8' : '#94A3B8', fontWeight: 600 }}>
+                        {activePtyDesc}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>
+                      {DISTRICTS[selectedDistrict] || '서울특별시'}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
+                      {liveWeather ? `격자 (${liveWeather.nx}, ${liveWeather.ny})` : 'KMA API'}
+                    </div>
+                  </div>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="0.5"
-                  value={rainSimulation}
-                  onChange={e => setRainSimulation(parseFloat(e.target.value))}
-                  style={{ width: '100%', accentColor: '#38BDF8', cursor: 'pointer' }}
-                />
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>강수량</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: activeRain > 0 ? '#38BDF8' : '#F0F6FF', fontFamily: 'JetBrains Mono' }}>
+                      {activeRain} mm
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>습도</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>
+                      {activeHumidity}%
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>풍속</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>
+                      {activeWind} m/s
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* 시간대 선택 버튼 */}
-              <div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 5 }}>시계열 예측 시간대</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {['07시', '08시', '09시', '12시', '18시', '21시'].map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setSimulatedTime(t)}
-                      style={{
-                        padding: '3px 8px', borderRadius: 6, fontSize: 10, cursor: 'pointer', border: 'none',
-                        background: simulatedTime === t ? '#38BDF8' : 'rgba(255,255,255,0.06)',
-                        color: simulatedTime === t ? '#0A1628' : 'rgba(255,255,255,0.6)',
-                        fontWeight: simulatedTime === t ? 700 : 500
-                      }}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+              {/* 실시간 기상 교통 영향 코멘트 */}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', lineHeight: 1.45, padding: '2px 2px' }}>
+                {activeRain > 0 ? (
+                  <span>🌧 기상청 실시간 강수로 인해 <b>지하철·버스 이용객 증가</b> 및 <b>따릉이 이용 주의</b>가 발효 중입니다.</span>
+                ) : (
+                  <span>☀️ 쾌적한 기상 상태로 지하철, 버스, 따릉이 등 전 대중교통이 원활하게 운행 중입니다.</span>
+                )}
               </div>
-
-              {/* AI 모델 실시간 분석 코멘터리 */}
-              {simulationSummary && (
-                <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(56,189,248,0.06)', borderRadius: 8, border: '1px solid rgba(56,189,248,0.18)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 10, color: '#38BDF8', fontWeight: 700 }}>🤖 AI 실시간 모달 시프트 분석</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>What-If ONNX</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#F0F6FF', lineHeight: 1.4, marginBottom: 4 }}>
-                    {simulationSummary.commentary}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, fontSize: 10, fontFamily: 'JetBrains Mono' }}>
-                    <span style={{ color: simulationSummary.bikeDemandChangeRate < 0 ? '#F43F5E' : '#34D399' }}>
-                      따릉이 {simulationSummary.bikeDemandChangeRate > 0 ? '+' : ''}{(simulationSummary.bikeDemandChangeRate * 100).toFixed(1)}%
-                    </span>
-                    <span style={{ color: 'rgba(255,255,255,0.3)' }}>·</span>
-                    <span style={{ color: simulationSummary.subwayDemandChangeRate > 0 ? '#38BDF8' : '#F43F5E' }}>
-                      지하철 {simulationSummary.subwayDemandChangeRate > 0 ? '+' : ''}{(simulationSummary.subwayDemandChangeRate * 100).toFixed(1)}%
-                    </span>
-                    <span style={{ color: 'rgba(255,255,255,0.3)' }}>·</span>
-                    <span style={{ color: simulationSummary.busDemandChangeRate > 0 ? '#FB923C' : '#94A3B8' }}>
-                      버스 {simulationSummary.busDemandChangeRate > 0 ? '+' : ''}{(simulationSummary.busDemandChangeRate * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* 경로 및 선택 정류장 상세 정보 */}
@@ -2101,8 +2095,8 @@ export default function App() {
                   </div>
                   <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>{selectedStop.lineInfo}</div>
                   <div style={{ fontSize: 11, color: '#F0F6FF', background: 'rgba(0,0,0,0.25)', padding: '8px 10px', borderRadius: 8, lineHeight: 1.5 }}>
-                    {rainSimulation > 0 ? (
-                      <>🌧 비({rainSimulation}mm)로 인해 <b>{selectedStop.type === 'bike' ? '따릉이 이용 위험 및 비추천' : '실내 환승 및 지하철 이용 집중'}</b> 상태입니다.</>
+                    {activeRain > 0 ? (
+                      <>🌧 실시간 비({activeRain}mm)로 인해 <b>{selectedStop.type === 'bike' ? '따릉이 이용 위험 및 비추천' : '실내 환승 및 지하철 이용 집중'}</b> 상태입니다.</>
                     ) : (
                       <>☀️ 맑은 날씨로 평시 쾌적한 출퇴근 흐름을 유지하고 있습니다.</>
                     )}
@@ -2127,7 +2121,7 @@ export default function App() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     {[
                       ['💰', mapTransport === 'subway' ? '1,550원~ (거리비례)' : mapTransport === 'bus' ? '1,300원' : '1,000원/h'],
-                      ['👥', rainSimulation > 3 ? (mapTransport === 'bike' ? '운행중단' : '매우혼잡') : (mapTransport === 'bike' ? '여유' : '보통')],
+                      ['👥', activeRain > 3 ? (mapTransport === 'bike' ? '운행중단' : '매우혼잡') : (mapTransport === 'bike' ? '여유' : '보통')],
                     ].map(([icon, val]) => (
                       <div key={val as string} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ fontSize: 13 }}>{icon}</span>
@@ -2169,12 +2163,13 @@ export default function App() {
             </div>
           </div>
 
-          {/* MapLibre GL JS + OpenStreetMap 실제 지도 컨테이너 (요구사항 FR-03-1, FR-03-2, FR-03-3) */}
+          {/* MapLibre GL JS + OpenStreetMap 실제 지도 컨테이너 (100% 기상청 실시간 API 연동) */}
           <div style={{ flex: 1, height: '100%', position: 'relative' }}>
             <TransitMap
               filterType={mapTransport}
-              rainMm={rainSimulation}
-              selectedTime={simulatedTime}
+              rainMm={activeRain}
+              selectedTime={liveWeather ? `${parseInt(liveWeather.base_time.slice(0, 2), 10)}시` : `${new Date().getHours()}시`}
+              liveWeather={liveWeather}
               focusedCoords={focusedCoords}
               onSelectStop={setSelectedStop}
               activeRoute={activeRoute}

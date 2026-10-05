@@ -58,6 +58,7 @@ interface TransitMapProps {
   filterType: 'all' | 'subway' | 'bus' | 'bike'
   rainMm: number
   selectedTime: string
+  liveWeather?: any
   focusedCoords?: [number, number] | null
   onSelectStop?: (stop: TransitStop) => void
   activeRoute?: TransitRouteResult | null
@@ -71,12 +72,14 @@ interface MarkerItem {
   priority: number
 }
 
-export default function TransitMap({ filterType, rainMm, selectedTime, focusedCoords, onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
+export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
   const routeMarkersRef = useRef<any[]>([])
   const animFrameRef = useRef<number | null>(null)
+  const activePopupRef = useRef<any>(null)
+  const popupOpenedZoomRef = useRef<number | null>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [zoomLevel, setZoomLevel] = useState<number>(13)
@@ -304,6 +307,19 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     const width = container.clientWidth
     const height = container.clientHeight
     const currentZoom = map.getZoom()
+
+    // 줌아웃(Zoom < 14.0 또는 팝업 오픈 시점 대비 0.5 이상 축소) 시 열려 있던 역 정보 팝업이 지도를 가리지 않도록 자동 닫기 (요청사항 반영)
+    const isZoomedOut = currentZoom < 14.0 || (popupOpenedZoomRef.current !== null && currentZoom < popupOpenedZoomRef.current - 0.5)
+    if (isZoomedOut) {
+      if (activePopupRef.current) {
+        activePopupRef.current.remove()
+        activePopupRef.current = null
+      }
+      if (activeStop) {
+        setActiveStop(null)
+      }
+      popupOpenedZoomRef.current = null
+    }
 
     const hasActiveRoute = !!(activeRoute && activeRoute.path && activeRoute.path.length >= 2)
     const routeStationNames = hasActiveRoute ? new Set(activeRoute.path.map(p => p.name)) : null
@@ -579,8 +595,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
 
       // 팝업 설정 (다크 테마 및 컴팩트 카드)
       const popupHtml = `
-        <div style="min-width: 200px; max-width: 270px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+        <div style="min-width: 210px; max-width: 280px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
+          <!-- 닫기(X) 버튼과 겹치지 않도록 padding-right: 36px 적용 -->
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
             <div style="display: flex; align-items: center; gap: 5px;">
               <span style="font-size: 15px;">${typeIcon}</span>
               <strong style="font-size: 14px; color: #F0F6FF; font-weight: 800;">${stop.name}</strong>
@@ -605,7 +622,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         maxWidth: '300px',
       }).setHTML(popupHtml)
 
+      popup.on('open', () => {
+        if (activePopupRef.current && activePopupRef.current !== popup) {
+          activePopupRef.current.remove()
+        }
+        activePopupRef.current = popup
+        if (mapInstanceRef.current) {
+          popupOpenedZoomRef.current = mapInstanceRef.current.getZoom()
+        }
+      })
+
       popup.on('close', () => {
+        if (activePopupRef.current === popup) {
+          activePopupRef.current = null
+          popupOpenedZoomRef.current = null
+        }
         setActiveStop(null)
       })
 
@@ -615,6 +646,15 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         .addTo(mapInstanceRef.current)
 
       el.addEventListener('click', () => {
+        // 다른 역 누르면 이전 열려 있던 역 정보 팝업 즉시 제거 (요청사항 반영)
+        if (activePopupRef.current && activePopupRef.current !== popup) {
+          activePopupRef.current.remove()
+        }
+        activePopupRef.current = popup
+        if (mapInstanceRef.current) {
+          popupOpenedZoomRef.current = mapInstanceRef.current.getZoom()
+        }
+
         setActiveStop(stop)
         if (onSelectStop) onSelectStop(stop)
 
@@ -809,6 +849,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     `
     if (startStop) {
       startEl.addEventListener('click', () => {
+        if (activePopupRef.current) {
+          activePopupRef.current.remove()
+          activePopupRef.current = null
+          popupOpenedZoomRef.current = null
+        }
         setActiveStop(startStop)
         if (onSelectStop) onSelectStop(startStop)
         if (mapInstanceRef.current) {
@@ -874,6 +919,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         `
         if (trStop) {
           trEl.addEventListener('click', () => {
+            if (activePopupRef.current) {
+              activePopupRef.current.remove()
+              activePopupRef.current = null
+              popupOpenedZoomRef.current = null
+            }
             setActiveStop(trStop)
             if (onSelectStop) onSelectStop(trStop)
             if (mapInstanceRef.current) {
@@ -928,6 +978,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
     `
     if (endStop) {
       endEl.addEventListener('click', () => {
+        if (activePopupRef.current) {
+          activePopupRef.current.remove()
+          activePopupRef.current = null
+          popupOpenedZoomRef.current = null
+        }
         setActiveStop(endStop)
         if (onSelectStop) onSelectStop(endStop)
         if (mapInstanceRef.current) {
@@ -1079,7 +1134,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
 
             {onClearRoute && (
               <button
-                onClick={onClearRoute}
+                onClick={() => {
+                  if (activePopupRef.current) {
+                    activePopupRef.current.remove()
+                    activePopupRef.current = null
+                    popupOpenedZoomRef.current = null
+                  }
+                  onClearRoute()
+                }}
                 title="경로 안내 닫기"
                 style={{
                   background: 'rgba(255,255,255,0.08)',
@@ -1131,29 +1193,31 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         </div>
       )}
 
-      {/* 실시간 날씨 및 시뮬레이션 상태 오버레이 */}
+      {/* 실시간 기상청 실황 관측치 오버레이 */}
       <div style={{
         position: 'absolute',
         top: 16,
         right: 56, // 지도 컨트롤러 피해서 배치
         zIndex: 10,
-        background: 'rgba(17, 29, 53, 0.92)',
+        background: 'rgba(17, 29, 53, 0.94)',
         backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(56, 189, 248, 0.3)',
+        border: '1px solid rgba(56, 189, 248, 0.35)',
         borderRadius: 14,
         padding: '10px 14px',
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
       }}>
         <span style={{ fontSize: 24 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>
-            기준 시각: {selectedTime} | {rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}
+            🟢 기상청 실시간 관측 실황 | {liveWeather ? `${liveWeather.temp}°C · ` : ''}{rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}
           </div>
-          <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2 }}>
-            OpenStreetMap 래스터 타일 + MapLibre GL 실시간 연동
+          <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{liveWeather ? `${liveWeather.district || '관측소'} (${liveWeather.base_time ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : selectedTime})` : '100% 공공데이터 실측 실황'}</span>
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>·</span>
+            <span>OpenStreetMap + MapLibre GL</span>
           </div>
         </div>
       </div>

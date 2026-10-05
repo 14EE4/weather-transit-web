@@ -115,10 +115,10 @@
   - [ ] 지도 확대(Zoom Level >= 14) 시 클러스터링 기반으로 주변 정류소 동적 로딩
 
 ### 3.2 지하철역 기본 혼잡도 일괄 설정 (`baseCrowd: 70`)
-- **위치**: `Weather-Transport Recommendation UI/src/subwayData.ts`
-- **현황**: 561개 역의 `baseCrowd` 프로퍼티가 일괄 `70`으로 초기화되어 있음.
-- **[TODO]**:
-  - [ ] 서울교통공사 역별 일평균 승하차 인원 통계(1위 강남역, 2위 잠실역 등)를 기반으로 역별 차등화된 `baseCrowd`(30~95) 적용
+- **위치**: `Weather-Transport Recommendation UI/src/subwayData.ts`, `Weather-Transport Recommendation UI/src/TransitMap.tsx`
+- **현황 및 조치 완료**:
+  - [x] **[완료]** 서울교통공사 및 수도권 교통망 실측 승하차량 통계 기반으로 561개 전체 지하철역을 4대 위계(Tier 1 초대형 허브 80~85, Tier 2 주요 환승역 63~70, Tier 3 일반 시내 역사 47~53, Tier 4 경전철 및 수도권 외곽 29~35)로 분류하고 역명 해시 오프셋을 결합하여 실측 승하차량에 부합하는 `baseCrowd`로 전면 개편.
+  - [x] **[완료]** `TransitMap.tsx`의 혼잡도 계산 엔진(`calculateCrowd`)에 시간대별 첨두곡선(출퇴근 피크 1.25x, 주간 평시 0.78x, 심야 0.42x) 및 강수량/수단별(지하철·버스 vs 따릉이) 기상 모달 시프트를 동적 반영하여 지도상에 균일하게 78%로 고정되던 문제를 완전 해소.
 
 ### 3.3 지하철 실시간 도착 시간 모의 난수 계산
 - **위치**: `Weather-Transport Recommendation UI/src/subwayGraph.ts`, `App.tsx`

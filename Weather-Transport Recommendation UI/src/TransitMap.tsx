@@ -80,17 +80,47 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
 
-  // 혼잡도 계산 헬퍼 (AI 시계열 예측 시뮬레이션: 비가 올수록 따릉이 급감, 지하철/버스 집중)
+  // 혼잡도 계산 헬퍼 (AI 시계열 예측 시뮬레이션: 역별 위계, 시간대별 출퇴근 첨두곡선, 날씨 강수 민감도 반영)
   const calculateCrowd = (stop: TransitStop) => {
-    let crowd = stop.baseCrowd
-    if (stop.type === 'bike') {
-      // 비가 오면 자전거 이용 급격히 감소
-      crowd = Math.max(5, Math.min(100, Math.round(crowd + stop.rainSensitivity * rainMm * 8)))
+    const base = stop.baseCrowd || 55
+
+    // 1. 시간대(selectedTime) 승하차 계수 반영 (출퇴근 피크 / 낮 시간 완화 / 심야 급감)
+    const hour = parseInt(selectedTime.replace(/[^0-9]/g, ''), 10) || 8
+    let timeMultiplier = 1.0
+    if (hour >= 8 && hour <= 9) {
+      timeMultiplier = 1.25 // 오전 출근 첨두시간 (Peak)
+    } else if (hour === 7) {
+      timeMultiplier = 1.15 // 출근 초입
+    } else if (hour >= 18 && hour <= 19) {
+      timeMultiplier = 1.22 // 퇴근 첨두시간 (Peak)
+    } else if (hour === 20) {
+      timeMultiplier = 1.12 // 퇴근 후반
+    } else if (hour >= 12 && hour <= 13) {
+      timeMultiplier = 1.02 // 점심시간 이동
+    } else if (hour >= 10 && hour <= 16) {
+      timeMultiplier = 0.78 // 평시 낮 시간대 (Off-peak)
+    } else if (hour >= 21 && hour <= 22) {
+      timeMultiplier = 0.70 // 늦은 저녁
     } else {
-      // 비가 오면 대중교통 이용 및 혼잡도 증가
-      crowd = Math.max(10, Math.min(99, Math.round(crowd + (stop.rainSensitivity * rainMm * 2.5))))
+      timeMultiplier = 0.42 // 심야 및 첫차 전 (23시~06시)
     }
-    return crowd
+
+    // 2. 고유 역 해시 미세 편차 (±3% 결정론적 분산으로 인접 역간 자연스러운 편차 부여)
+    const hash = stop.name.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)
+    const hashOffset = (Math.abs(hash) % 7) - 3
+
+    // 3. 기상(강수량 rainMm) 영향 반영
+    if (stop.type === 'bike') {
+      // 비가 오면 자전거(따릉이) 이용 급격히 감소
+      const bikeRainPenalty = Math.round(stop.rainSensitivity * rainMm * 7.5)
+      const crowd = Math.round(base * (hour >= 23 || hour <= 5 ? 0.35 : 1.0)) + bikeRainPenalty
+      return Math.max(5, Math.min(95, crowd))
+    } else {
+      // 비가 오면 대중교통(지하철/버스) 집중 및 환승 혼잡 증가
+      const rainBonus = Math.min(15, Math.round(stop.rainSensitivity * rainMm * 2.2))
+      const crowd = Math.round(base * timeMultiplier) + hashOffset + rainBonus
+      return Math.max(10, Math.min(99, crowd))
+    }
   }
 
   // 혼잡도 색상 및 라벨 헬퍼
@@ -772,7 +802,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       routeMarkersRef.current.forEach(m => m.remove())
       routeMarkersRef.current = []
     }
-  }, [activeRoute, mapLoaded])
+  }, [activeRoute, mapLoaded, rainMm, selectedTime])
 
   // focusedCoords 변경 시 부드럽게 해당 거점으로 카메라 이동 (flyTo)
   useEffect(() => {

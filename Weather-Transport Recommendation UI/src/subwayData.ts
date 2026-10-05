@@ -20,7 +20,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.649502
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1001000109",
@@ -33,7 +33,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.748577
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1003000350",
@@ -47,7 +47,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.492888
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1001080142",
@@ -61,7 +61,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.480338
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1009000907",
@@ -74,7 +74,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.561391
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1092004704",
@@ -87,7 +87,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.641537
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1063075315",
@@ -100,7 +100,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.568491
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075223",
@@ -113,7 +113,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.448605
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1067080134",
@@ -126,7 +126,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.814536
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001000155",
@@ -139,7 +139,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.464737
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1067080123",
@@ -152,7 +152,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.634118
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1007000730",
@@ -166,7 +166,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.517179
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1002000222",
@@ -180,7 +180,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.496837
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 84
   },
   {
     "id": "sub-1008000812",
@@ -193,7 +193,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.530341
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1005000548",
@@ -206,7 +206,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.535804
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1063075319",
@@ -219,7 +219,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.612314
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1002000214",
@@ -232,7 +232,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.535095
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1005000554",
@@ -245,7 +245,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.55749
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1067080137",
@@ -258,7 +258,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.805723
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1005080553",
@@ -271,7 +271,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.498079
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000143",
@@ -284,7 +284,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.494594
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075219",
@@ -297,7 +297,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.489116
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1005000511",
@@ -310,7 +310,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.572399
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1009000901",
@@ -323,7 +323,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.578608
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1005080554",
@@ -336,7 +336,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.493105
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1002000212",
@@ -350,7 +350,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.540786
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 84
   },
   {
     "id": "sub-1065006507",
@@ -363,7 +363,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.569098
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1081037413",
@@ -376,7 +376,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.399907
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1004000436",
@@ -389,7 +389,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.443885
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1003000327",
@@ -402,7 +402,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.575762
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1003000351",
@@ -415,7 +415,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.495918
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1065006506",
@@ -428,7 +428,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.571662
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1005000552",
@@ -441,7 +441,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.555004
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1006000640",
@@ -454,7 +454,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.590508
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1075075246",
@@ -467,7 +467,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.24963
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1003000339",
@@ -482,7 +482,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50598
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 81
   },
   {
     "id": "sub-1004000451",
@@ -496,7 +496,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.316784
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1063075323",
@@ -510,7 +510,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.645676
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1081037415",
@@ -523,7 +523,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.351315
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1005000529",
@@ -539,7 +539,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.54253
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1007000716",
@@ -552,7 +552,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.625742
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1009000903",
@@ -565,7 +565,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.563726
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1065006509",
@@ -578,7 +578,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.459041
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1004000438",
@@ -591,7 +591,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.433021
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1094000411",
@@ -604,7 +604,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.469102
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1001080146",
@@ -617,7 +617,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.419232
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1077006819",
@@ -630,7 +630,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.30211
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1077006818",
@@ -643,7 +643,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.288617
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1005000546",
@@ -656,7 +656,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.545303
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1007000748",
@@ -669,7 +669,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.479252
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001075410",
@@ -682,7 +682,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.416182
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000119",
@@ -696,7 +696,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.623632
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1005000533",
@@ -709,7 +709,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.571525
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1006000624",
@@ -722,7 +722,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.547456
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1002000223",
@@ -736,7 +736,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.493025
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1002000232",
@@ -749,7 +749,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.485266
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1001000141",
@@ -762,7 +762,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.503039
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1075075218",
@@ -775,7 +775,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.486839
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1008000807",
@@ -789,7 +789,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.60262
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1009000921",
@@ -802,7 +802,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.501364
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1006000615",
@@ -815,7 +815,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.611377
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1032000355",
@@ -829,7 +829,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.29913
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1002000213",
@@ -842,7 +842,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.537077
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1001000142",
@@ -855,7 +855,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.496756
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1003000320",
@@ -868,7 +868,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.636763
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1063075132",
@@ -881,7 +881,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.516169
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1009000914",
@@ -894,7 +894,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.528105
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1005000544",
@@ -908,7 +908,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.556897
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001080150",
@@ -921,7 +921,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.35356
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1067080135",
@@ -934,7 +934,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.832067
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1007000758",
@@ -947,7 +947,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50681
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1005000550",
@@ -960,7 +960,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.545477
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1067080127",
@@ -973,7 +973,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.637382
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1063075330",
@@ -986,7 +986,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.751322
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1001080149",
@@ -1000,7 +1000,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.372221
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1001080144",
@@ -1013,7 +1013,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.455626
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1063075331",
@@ -1026,7 +1026,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.766217
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1003000334",
@@ -1039,7 +1039,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.548034
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1075075237",
@@ -1052,7 +1052,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.275449
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1005000549",
@@ -1065,7 +1065,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.537801
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1004000417",
@@ -1078,7 +1078,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.603407
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1067080138",
@@ -1091,7 +1091,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.818466
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1005000512",
@@ -1107,7 +1107,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.56236
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1002002344",
@@ -1121,7 +1121,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.531768
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1007000751",
@@ -1134,7 +1134,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50613
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1002000227",
@@ -1147,7 +1147,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.47693
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1007000745",
@@ -1160,7 +1160,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.486056
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1075075264",
@@ -1173,7 +1173,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.407722
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1003000341",
@@ -1186,7 +1186,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.485013
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1007000737",
@@ -1199,7 +1199,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.484596
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001000134",
@@ -1212,7 +1212,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.541021
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1008000821",
@@ -1225,7 +1225,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.4624
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1067080139",
@@ -1238,7 +1238,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.864007
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1004000434",
@@ -1251,7 +1251,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.463873
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1008000823",
@@ -1264,7 +1264,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.451535
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1007000735",
@@ -1277,7 +1277,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.487618
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1009000918",
@@ -1290,7 +1290,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.512887
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1001000136",
@@ -1304,7 +1304,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.513534
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1004000411",
@@ -1318,7 +1318,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.654836
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 83
   },
   {
     "id": "sub-1003000323",
@@ -1331,7 +1331,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.600927
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1006000629",
@@ -1344,7 +1344,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.534675
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001000108",
@@ -1357,7 +1357,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.75938
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1001000117",
@@ -1370,7 +1370,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.644799
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000732",
@@ -1384,7 +1384,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.511093
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1063075321",
@@ -1398,7 +1398,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.618808
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1008000805",
@@ -1411,7 +1411,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.62429
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1008000824",
@@ -1424,7 +1424,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.44521
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1093004018",
@@ -1437,7 +1437,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.348847
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1075075259",
@@ -1450,7 +1450,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.379681
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1005000542",
@@ -1463,7 +1463,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.566747
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1094000407",
@@ -1476,7 +1476,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.4903
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1002000237",
@@ -1490,7 +1490,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.533406
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1001080151",
@@ -1503,7 +1503,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.344285
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1003000314",
@@ -1519,7 +1519,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.63191
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1004000437",
@@ -1532,7 +1532,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.435675
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1002000233",
@@ -1546,7 +1546,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.493013
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1075075220",
@@ -1559,7 +1559,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.491373
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000137",
@@ -1573,7 +1573,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.513306
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1067080131",
@@ -1586,7 +1586,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.684071
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1004000446",
@@ -1599,7 +1599,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.328467
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1003000347",
@@ -1612,7 +1612,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.493514
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1003000345",
@@ -1625,7 +1625,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.494612
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1003000309",
@@ -1638,7 +1638,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.676087
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1006000625",
@@ -1651,7 +1651,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.547771
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000106",
@@ -1664,7 +1664,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.818486
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1063075126",
@@ -1677,7 +1677,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.586781
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1001000105",
@@ -1690,7 +1690,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.843188
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1003000344",
@@ -1704,7 +1704,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.491224
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1063075124",
@@ -1717,7 +1717,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.608806
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1002002341",
@@ -1730,7 +1730,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.514287
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000113",
@@ -1744,7 +1744,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.689241
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1001000114",
@@ -1757,7 +1757,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.679563
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1063075127",
@@ -1770,7 +1770,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.579622
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1001000159",
@@ -1783,7 +1783,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.468446
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1001000157",
@@ -1796,7 +1796,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.46607
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1003000326",
@@ -1809,7 +1809,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.574571
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1006000613",
@@ -1822,7 +1822,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.618456
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001080143",
@@ -1835,7 +1835,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.466613
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1006000643",
@@ -1848,7 +1848,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.610537
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1008000806",
@@ -1861,7 +1861,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.61105
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001000128",
@@ -1875,7 +1875,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.57093
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1002000205",
@@ -1890,7 +1890,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.564665
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 80
   },
   {
     "id": "sub-1003000332",
@@ -1903,7 +1903,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.559052
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000101",
@@ -1916,7 +1916,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.927878
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1001000103",
@@ -1929,7 +1929,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.901885
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001000127",
@@ -1943,7 +1943,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.572279
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1001000154",
@@ -1956,7 +1956,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.471408
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1001000160",
@@ -1969,7 +1969,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.475276
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1004000431",
@@ -1983,7 +1983,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.502878
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1077006814",
@@ -1996,7 +1996,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.337928
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1032000356",
@@ -2009,7 +2009,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.20034
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001080168",
@@ -2022,7 +2022,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.833705
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1005080549",
@@ -2035,7 +2035,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.527788
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1009000937",
@@ -2048,7 +2048,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.519683
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1009000909",
@@ -2061,7 +2061,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.550632
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1006000618",
@@ -2076,7 +2076,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.576958
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1002000210",
@@ -2089,7 +2089,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.547184
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1007000728",
@@ -2102,7 +2102,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.53154
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1009000905",
@@ -2116,7 +2116,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.565543
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1005000514",
@@ -2129,7 +2129,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.560183
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1003000312",
@@ -2142,7 +2142,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.652206
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000712",
@@ -2155,7 +2155,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.66494
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1067080130",
@@ -2168,7 +2168,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.652782
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1005000541",
@@ -2181,7 +2181,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.5661
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1005080555",
@@ -2194,7 +2194,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.49499
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1006000620",
@@ -2207,7 +2207,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.563515
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1005000528",
@@ -2220,7 +2220,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.539574
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1063075121",
@@ -2234,7 +2234,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.59955
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1006000621",
@@ -2247,7 +2247,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.556094
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001000112",
@@ -2260,7 +2260,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.709914
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1075075241",
@@ -2273,7 +2273,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.245795
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075244",
@@ -2286,7 +2286,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.265481
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1003000343",
@@ -2299,7 +2299,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.486947
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075242",
@@ -2312,7 +2312,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.252759
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1007000718",
@@ -2325,7 +2325,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.610637
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1007000721",
@@ -2338,7 +2338,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.588579
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1004000424",
@@ -2351,7 +2351,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.560989
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1005000551",
@@ -2364,7 +2364,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.55137
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1001080148",
@@ -2377,7 +2377,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.384653
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1008000827",
@@ -2391,7 +2391,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.433824
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1005000520",
@@ -2404,7 +2404,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.526065
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1008000813",
@@ -2417,7 +2417,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.517409
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1003000325",
@@ -2430,7 +2430,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.582299
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1002000235",
@@ -2443,7 +2443,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.517933
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1063075335",
@@ -2456,7 +2456,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.854619
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1008000818",
@@ -2469,7 +2469,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.485855
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1075075231",
@@ -2483,7 +2483,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.349982
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1005000555",
@@ -2496,7 +2496,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.560927
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1004000416",
@@ -2509,7 +2509,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.613292
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1004000415",
@@ -2522,7 +2522,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.62667
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1004000447",
@@ -2535,7 +2535,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.312212
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1007000733",
@@ -2548,7 +2548,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.508178
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1005000515",
@@ -2561,7 +2561,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.558598
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1002000225",
@@ -2574,7 +2574,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.481426
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1005080551",
@@ -2587,7 +2587,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.508857
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000115",
@@ -2600,7 +2600,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.667503
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1005000510",
@@ -2613,7 +2613,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.577446
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001080174",
@@ -2626,7 +2626,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.777629
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1063075324",
@@ -2640,7 +2640,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.658239
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1003000313",
@@ -2653,7 +2653,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.643114
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1067080136",
@@ -2666,7 +2666,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.830779
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1001000153",
@@ -2679,7 +2679,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.483664
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1006000632",
@@ -2692,7 +2692,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.548013
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1004000442",
@@ -2705,7 +2705,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.389793
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1008000804",
@@ -2719,7 +2719,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.64232
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1001080157",
@@ -2732,7 +2732,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.207503
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1094000405",
@@ -2745,7 +2745,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.495569
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1094000406",
@@ -2758,7 +2758,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.49296
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1007000742",
@@ -2772,7 +2772,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.500274
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1006000638",
@@ -2786,7 +2786,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.585286
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1001000102",
@@ -2799,7 +2799,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.913702
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1075075234",
@@ -2812,7 +2812,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.312752
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1008000820",
@@ -2826,7 +2826,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.471052
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1001080170",
@@ -2839,7 +2839,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.801215
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1009000929",
@@ -2852,7 +2852,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.514219
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1002000229",
@@ -2865,7 +2865,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.482362
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1006000647",
@@ -2878,7 +2878,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.617283
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1001000151",
@@ -2891,7 +2891,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.488418
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1081037418",
@@ -2904,7 +2904,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.260192
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1007000755",
@@ -2917,7 +2917,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50444
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1001000148",
@@ -2930,7 +2930,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.48405
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1007000752",
@@ -2944,7 +2944,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50502
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1007000759",
@@ -2957,7 +2957,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50848
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001000152",
@@ -2970,7 +2970,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.490535
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1092004709",
@@ -2983,7 +2983,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.612072
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1092004701",
@@ -2996,7 +2996,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.662909
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1003000322",
@@ -3010,7 +3010,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.610873
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1004000409",
@@ -3023,7 +3023,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.670272
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1007000722",
@@ -3036,7 +3036,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.580894
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1002000226",
@@ -3050,7 +3050,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.476955
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1067080126",
@@ -3063,7 +3063,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.65108
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075250",
@@ -3076,7 +3076,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.28998
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1009000924",
@@ -3089,7 +3089,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.504206
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000760",
@@ -3102,7 +3102,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.5086
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1004000444",
@@ -3115,7 +3115,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.358101
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1008000822",
@@ -3128,7 +3128,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.457122
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1004000428",
@@ -3142,7 +3142,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.535534
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1081037412",
@@ -3155,7 +3155,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.409522
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1007000757",
@@ -3168,7 +3168,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50724
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1002000219",
@@ -3181,7 +3181,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50887
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 82
   },
   {
     "id": "sub-1009000928",
@@ -3194,7 +3194,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.513011
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1003000318",
@@ -3207,7 +3207,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.653083
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1092004707",
@@ -3220,7 +3220,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.621337
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1092004706",
@@ -3233,7 +3233,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.626914
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1009000931",
@@ -3246,7 +3246,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.504738
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1075075238",
@@ -3259,7 +3259,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.26181
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1004000410",
@@ -3272,7 +3272,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.660878
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1007000739",
@@ -3285,7 +3285,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.502834
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000756",
@@ -3298,7 +3298,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.505814
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1004000448",
@@ -3311,7 +3311,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.302795
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000720",
@@ -3326,7 +3326,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.595577
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1006000623",
@@ -3339,7 +3339,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.547716
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1002000207",
@@ -3352,7 +3352,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.564354
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1006000642",
@@ -3365,7 +3365,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.606377
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1005000553",
@@ -3378,7 +3378,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.556712
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1067080133",
@@ -3391,7 +3391,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.770246
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1077006817",
@@ -3404,7 +3404,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.297664
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1006000616",
@@ -3417,7 +3417,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.591148
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1009000916",
@@ -3431,7 +3431,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.517097
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1063075313",
@@ -3444,7 +3444,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.551881
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1005000532",
@@ -3457,7 +3457,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.565773
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1001801571",
@@ -3470,7 +3470,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.195504
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1063075112",
@@ -3483,7 +3483,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.519594
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1094000410",
@@ -3496,7 +3496,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.472002
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1002000228",
@@ -3509,7 +3509,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.481247
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1075075211",
@@ -3522,7 +3522,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.543617
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1001000133",
@@ -3539,7 +3539,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.55569
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 81
   },
   {
     "id": "sub-1094000403",
@@ -3552,7 +3552,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.506046
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1094000409",
@@ -3565,7 +3565,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.478234
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1001080163",
@@ -3578,7 +3578,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.056496
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1002000224",
@@ -3591,7 +3591,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.491897
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1075075228",
@@ -3604,7 +3604,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.385126
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1001000120",
@@ -3618,7 +3618,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.614872
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1007000761",
@@ -3631,7 +3631,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.506228
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1001080145",
@@ -3644,7 +3644,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.435047
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1009000932",
@@ -3657,7 +3657,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.502558
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1008000815",
@@ -3671,7 +3671,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.505208
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1002000220",
@@ -3685,7 +3685,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.504856
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 79
   },
   {
     "id": "sub-1004000435",
@@ -3698,7 +3698,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.451673
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1093004019",
@@ -3711,7 +3711,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.334353
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1009000912",
@@ -3724,7 +3724,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.53802
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1009000927",
@@ -3738,7 +3738,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.510297
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001080153",
@@ -3751,7 +3751,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.300349
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1032000354",
@@ -3765,7 +3765,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.39467
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1077006816",
@@ -3778,7 +3778,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.313335
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1002000211",
@@ -3791,7 +3791,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.544581
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1004000418",
@@ -3805,7 +3805,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.592467
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1001080166",
@@ -3818,7 +3818,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.916076
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1001080156",
@@ -3831,7 +3831,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.245025
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001080158",
@@ -3844,7 +3844,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.187533
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1081037419",
@@ -3857,7 +3857,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.295309
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1075075261",
@@ -3870,7 +3870,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.40095
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1001000147",
@@ -3884,7 +3884,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.483279
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1093004011",
@@ -3897,7 +3897,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.468467
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1001000100",
@@ -3910,7 +3910,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.9481
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1092004702",
@@ -3923,7 +3923,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.65603
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1092004708",
@@ -3936,7 +3936,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.620238
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1001000150",
@@ -3949,7 +3949,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.4876
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1075075267",
@@ -3962,7 +3962,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.428514
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1005000513",
@@ -3975,7 +3975,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.561184
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001080162",
@@ -3988,7 +3988,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.075696
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1009000934",
@@ -4001,7 +4001,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.510372
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1008000816",
@@ -4014,7 +4014,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.499703
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075229",
@@ -4027,7 +4027,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.378455
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000711",
@@ -4040,7 +4040,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.67785
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1004000445",
@@ -4053,7 +4053,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.349801
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1063075317",
@@ -4066,7 +4066,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.580842
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1003000349",
@@ -4081,7 +4081,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.48637
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1075075243",
@@ -4094,7 +4094,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.261911
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001080155",
@@ -4108,7 +4108,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.265917
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 83
   },
   {
     "id": "sub-1004000414",
@@ -4121,7 +4121,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.638052
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1077006815",
@@ -4134,7 +4134,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.322702
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1008000826",
@@ -4147,7 +4147,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.437428
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1004000427",
@@ -4160,7 +4160,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.54456
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000738",
@@ -4173,7 +4173,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.496029
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1075075269",
@@ -4186,7 +4186,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.460789
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1093004021",
@@ -4199,7 +4199,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.31321
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001000132",
@@ -4213,7 +4213,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.563588
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1093004017",
@@ -4226,7 +4226,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.369864
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1093004012",
@@ -4239,7 +4239,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.450145
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1093004016",
@@ -4252,7 +4252,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.382223
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1075075236",
@@ -4265,7 +4265,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.286102
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1005000538",
@@ -4278,7 +4278,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.554548
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001000138",
@@ -4292,7 +4292,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.517623
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1004000454",
@@ -4306,7 +4306,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.338212
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1006000648",
@@ -4320,7 +4320,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.613174
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1009000925",
@@ -4334,7 +4334,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.504598
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1002002112",
@@ -4347,7 +4347,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.57004
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1002000206",
@@ -4361,7 +4361,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.566154
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1007000741",
@@ -4374,7 +4374,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.499701
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1002000231",
@@ -4387,7 +4387,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.487462
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001000140",
@@ -4401,7 +4401,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.508787
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1081037416",
@@ -4414,7 +4414,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.317185
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1002000230",
@@ -4428,7 +4428,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.484927
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1009000911",
@@ -4441,7 +4441,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.544277
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1009000922",
@@ -4454,7 +4454,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.503415
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1009000904",
@@ -4467,7 +4467,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.567532
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1003000337",
@@ -4481,7 +4481,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.516334
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001000126",
@@ -4496,7 +4496,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.576095
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1004000429",
@@ -4509,7 +4509,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.52917
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1063075131",
@@ -4522,7 +4522,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.525545
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1001000121",
@@ -4535,7 +4535,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.601854
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1002002343",
@@ -4548,7 +4548,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.520074
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1005000519",
@@ -4561,7 +4561,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.524997
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1007000754",
@@ -4574,7 +4574,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50282
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001080176",
@@ -4587,7 +4587,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.769502
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1093004013",
@@ -4600,7 +4600,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.439066
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1002000240",
@@ -4614,7 +4614,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.559733
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 84
   },
   {
     "id": "sub-1075075270",
@@ -4627,7 +4627,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.46874
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1007000743",
@@ -4640,7 +4640,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50008
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1093004014",
@@ -4653,7 +4653,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.409008
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1008000825",
@@ -4666,7 +4666,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.440918
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1004000413",
@@ -4679,7 +4679,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.648627
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001080171",
@@ -4692,7 +4692,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.793759
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001080172",
@@ -4705,7 +4705,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.792053
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1063075133",
@@ -4718,7 +4718,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.51382
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1005000545",
@@ -4731,7 +4731,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.551691
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1002000242",
@@ -4744,7 +4744,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.557345
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1003000328",
@@ -4757,7 +4757,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.576477
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1004000453",
@@ -4771,7 +4771,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.327082
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1006000639",
@@ -4784,7 +4784,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.586272
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1001080147",
@@ -4797,7 +4797,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.401592
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1008000810",
@@ -4810,7 +4810,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.55021
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1008000809",
@@ -4823,7 +4823,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.55695
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1075075212",
@@ -4836,7 +4836,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.527381
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1003000336",
@@ -4849,7 +4849,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.527072
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1005000530",
@@ -4862,7 +4862,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.553736
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1063075328",
@@ -4875,7 +4875,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.712327
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1075075249",
@@ -4888,7 +4888,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.264179
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1075075226",
@@ -4901,7 +4901,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.411185
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1003000333",
@@ -4915,7 +4915,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.554263
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1063075130",
@@ -4928,7 +4928,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.545981
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1063075122",
@@ -4941,7 +4941,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.606596
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1077000689",
@@ -4954,7 +4954,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.470023
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1003000342",
@@ -4968,7 +4968,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.483809
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1063075125",
@@ -4981,7 +4981,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.60533
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001000107",
@@ -4994,7 +4994,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.774381
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1002002342",
@@ -5007,7 +5007,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.512398
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1009000906",
@@ -5020,7 +5020,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.568381
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1005000522",
@@ -5034,7 +5034,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.525569
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1007000726",
@@ -5047,7 +5047,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.548014
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1075075248",
@@ -5060,7 +5060,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.250102
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1009000926",
@@ -5073,7 +5073,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.507287
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1005000527",
@@ -5086,7 +5086,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.527098
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1005000526",
@@ -5100,7 +5100,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.52176
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 83
   },
   {
     "id": "sub-1081037420",
@@ -5113,7 +5113,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.282308
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001000146",
@@ -5126,7 +5126,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.485178
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1002000221",
@@ -5139,7 +5139,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.500622
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 79
   },
   {
     "id": "sub-1006000611",
@@ -5152,7 +5152,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.606021
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075266",
@@ -5165,7 +5165,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.417804
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1003000321",
@@ -5180,7 +5180,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.61878
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1001001003",
@@ -5193,7 +5193,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       38.10073
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1009000910",
@@ -5206,7 +5206,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.546936
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1002000236",
@@ -5220,7 +5220,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.5242
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1005000524",
@@ -5233,7 +5233,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.522669
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1001000139",
@@ -5246,7 +5246,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.515504
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 83
   },
   {
     "id": "sub-1065065072",
@@ -5259,7 +5259,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.51202
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075240",
@@ -5272,7 +5272,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.251568
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1003000352",
@@ -5286,7 +5286,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.502057
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1001000144",
@@ -5299,7 +5299,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.494526
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1075075232",
@@ -5312,7 +5312,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.339824
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1005000521",
@@ -5325,7 +5325,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.524496
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075247",
@@ -5338,7 +5338,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.24304
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1063075134",
@@ -5351,7 +5351,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.506062
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1001080159",
@@ -5364,7 +5364,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.168953
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1001080160",
@@ -5377,7 +5377,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.145885
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1004000456",
@@ -5391,7 +5391,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.362357
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1003000335",
@@ -5405,7 +5405,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.540446
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1001000145",
@@ -5419,7 +5419,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.492092
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001080175",
@@ -5432,7 +5432,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.780483
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1005080550",
@@ -5446,7 +5446,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.516269
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1002000208",
@@ -5462,7 +5462,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.56184
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 82
   },
   {
     "id": "sub-1001000122",
@@ -5475,7 +5475,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.596073
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1002002111",
@@ -5488,7 +5488,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.561904
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1002002113",
@@ -5501,7 +5501,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.574028
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000723",
@@ -5514,7 +5514,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.573647
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1063075137",
@@ -5527,7 +5527,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.48223
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1001000135",
@@ -5541,7 +5541,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.529849
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 83
   },
   {
     "id": "sub-1005000516",
@@ -5554,7 +5554,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.548768
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1063075129",
@@ -5567,7 +5567,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.554669
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1065006508",
@@ -5580,7 +5580,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.492904
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1063075329",
@@ -5593,7 +5593,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.71614
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1032000346",
@@ -5606,7 +5606,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.71614
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1063075336",
@@ -5619,7 +5619,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.879942
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1003000316",
@@ -5632,7 +5632,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.653324
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1063075136",
@@ -5645,7 +5645,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.468672
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1093004022",
@@ -5658,7 +5658,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.302371
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1075075265",
@@ -5671,7 +5671,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.412333
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1093004008",
@@ -5684,7 +5684,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.5239
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1003000317",
@@ -5697,7 +5697,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.650658
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1001000118",
@@ -5710,7 +5710,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.633212
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1006000641",
@@ -5723,7 +5723,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.601948
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1075075260",
@@ -5736,7 +5736,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.391769
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1006000619",
@@ -5749,7 +5749,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.569532
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1063075333",
@@ -5762,7 +5762,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.796188
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1002000203",
@@ -5776,7 +5776,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.566672
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1002000204",
@@ -5790,7 +5790,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.567352
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1002000202",
@@ -5803,7 +5803,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.566014
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 80
   },
   {
     "id": "sub-1063075115",
@@ -5816,7 +5816,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.549946
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1006000610",
@@ -5829,7 +5829,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.5986
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1001080152",
@@ -5842,7 +5842,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.320852
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000110",
@@ -5855,7 +5855,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.738415
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1002000241",
@@ -5868,7 +5868,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.556733
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1075075227",
@@ -5882,7 +5882,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.395371
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1081037417",
@@ -5895,7 +5895,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.265579
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1004000430",
@@ -5909,7 +5909,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.522427
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1006000630",
@@ -5922,7 +5922,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.534488
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1004000440",
@@ -5935,7 +5935,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.401553
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1065006510",
@@ -5948,7 +5948,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.447464
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1065006511",
@@ -5961,7 +5961,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.460699
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1075075262",
@@ -5974,7 +5974,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.400614
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1001000161",
@@ -5988,7 +5988,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.476403
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 68
   },
   {
     "id": "sub-1075075268",
@@ -6001,7 +6001,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.448493
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1063075326",
@@ -6015,7 +6015,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.682077
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1003000348",
@@ -6028,7 +6028,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.483681
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1063075337",
@@ -6041,7 +6041,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.888421
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1002000215",
@@ -6054,7 +6054,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.520733
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1002000217",
@@ -6067,7 +6067,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.511687
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 66
   },
   {
     "id": "sub-1002000216",
@@ -6081,7 +6081,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.514692
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1003000338",
@@ -6094,7 +6094,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.512759
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1007000740",
@@ -6107,7 +6107,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.504898
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1007000709",
@@ -6120,7 +6120,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.700109
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1008000808",
@@ -6133,7 +6133,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.58738
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1008000819",
@@ -6146,7 +6146,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.478703
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1005000543",
@@ -6159,7 +6159,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.56144
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1001001002",
@@ -6172,7 +6172,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       38.02458
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1092004710",
@@ -6185,7 +6185,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.603133
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1003000311",
@@ -6198,7 +6198,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.659477
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1004000439",
@@ -6211,7 +6211,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.426513
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1004000455",
@@ -6225,7 +6225,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.351735
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1075075230",
@@ -6239,7 +6239,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.367098
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1001000125",
@@ -6252,7 +6252,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.578103
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1001000158",
@@ -6265,7 +6265,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.466769
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1001000131",
@@ -6278,7 +6278,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.570161
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 81
   },
   {
     "id": "sub-1001000130",
@@ -6293,7 +6293,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.57254
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 82
   },
   {
     "id": "sub-1001000129",
@@ -6306,7 +6306,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.570926
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1002000218",
@@ -6320,7 +6320,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.511426
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1001000156",
@@ -6333,7 +6333,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.464992
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1003000310",
@@ -6346,7 +6346,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.670072
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1075075233",
@@ -6359,7 +6359,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.324753
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000714",
@@ -6372,7 +6372,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.644583
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1007000724",
@@ -6385,7 +6385,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.565923
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1001000149",
@@ -6398,7 +6398,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.486562
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1063075119",
@@ -6412,7 +6412,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.594917
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1009000938",
@@ -6425,7 +6425,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.529191
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1004000450",
@@ -6439,7 +6439,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.315941
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1007000719",
@@ -6452,7 +6452,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.602545
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1009000908",
@@ -6465,7 +6465,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.557402
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1006000617",
@@ -6478,7 +6478,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.583876
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001080164",
@@ -6491,7 +6491,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.0188
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1003000319",
@@ -6504,7 +6504,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.648017
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1063075138",
@@ -6517,7 +6517,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.476393
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001000104",
@@ -6530,7 +6530,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.892334
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001080167",
@@ -6543,7 +6543,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.870593
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1001080161",
@@ -6556,7 +6556,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.109447
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 29
   },
   {
     "id": "sub-1001000116",
@@ -6570,7 +6570,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.653088
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1006000637",
@@ -6583,7 +6583,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.579661
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1067080129",
@@ -6596,7 +6596,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.658978
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1001080169",
@@ -6609,7 +6609,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.810005
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1007000749",
@@ -6622,7 +6622,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.486637
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1005000547",
@@ -6636,7 +6636,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.538113
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1007000747",
@@ -6649,7 +6649,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.47605
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1077006810",
@@ -6662,7 +6662,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.447211
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1005000537",
@@ -6676,7 +6676,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.560608
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1007000729",
@@ -6689,7 +6689,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.519365
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1065065071",
@@ -6702,7 +6702,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.556409
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1001000124",
@@ -6718,7 +6718,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.580759
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1075075239",
@@ -6731,7 +6731,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.259489
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001001001",
@@ -6744,7 +6744,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.98172
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1067080132",
@@ -6757,7 +6757,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.735488
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1081037414",
@@ -6770,7 +6770,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.374419
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1004000452",
@@ -6785,7 +6785,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.319619
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1004000432",
@@ -6799,7 +6799,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.486263
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1007000753",
@@ -6812,7 +6812,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50365
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 47
   },
   {
     "id": "sub-1067080140",
@@ -6825,7 +6825,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.885054
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1003000331",
@@ -6839,7 +6839,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.561207
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1002000243",
@@ -6853,7 +6853,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.560236
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1032000347",
@@ -6866,7 +6866,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.66532
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1063075327",
@@ -6879,7 +6879,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.694023
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 34
   },
   {
     "id": "sub-1001080173",
@@ -6892,7 +6892,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.78866
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1006000645",
@@ -6906,7 +6906,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.618294
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 65
   },
   {
     "id": "sub-1075075224",
@@ -6919,7 +6919,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.440019
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1067080125",
@@ -6932,7 +6932,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.648311
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1063075334",
@@ -6945,7 +6945,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.815298
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1077006811",
@@ -6959,7 +6959,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.394761
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 79
   },
   {
     "id": "sub-1063075128",
@@ -6972,7 +6972,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.547371
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 30
   },
   {
     "id": "sub-1067080128",
@@ -6985,7 +6985,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.653225
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 32
   },
   {
     "id": "sub-1004000441",
@@ -6998,7 +6998,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.394287
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001080165",
@@ -7011,7 +7011,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       36.990726
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 31
   },
   {
     "id": "sub-1063075325",
@@ -7025,7 +7025,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.672346
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 33
   },
   {
     "id": "sub-1007000715",
@@ -7038,7 +7038,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.636352
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1005000558",
@@ -7051,7 +7051,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.53972
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1005000557",
@@ -7064,7 +7064,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.54205
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1005000556",
@@ -7077,7 +7077,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.552034
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1007000731",
@@ -7090,7 +7090,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.514229
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 48
   },
   {
     "id": "sub-1003000346",
@@ -7103,7 +7103,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.496663
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1006000631",
@@ -7116,7 +7116,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.539631
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 52
   },
   {
     "id": "sub-1063075318",
@@ -7129,7 +7129,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.602888
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1063075113",
@@ -7142,7 +7142,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.52943
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1004000449",
@@ -7156,7 +7156,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.309689
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 64
   },
   {
     "id": "sub-1004000419",
@@ -7169,7 +7169,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.588458
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1009000935",
@@ -7182,7 +7182,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.516404
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 50
   },
   {
     "id": "sub-1002000209",
@@ -7195,7 +7195,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.555273
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1075075216",
@@ -7208,7 +7208,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.496237
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1002000238",
@@ -7222,7 +7222,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.549209
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 84
   },
   {
     "id": "sub-1005000539",
@@ -7235,7 +7235,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.557322
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1063075320",
@@ -7248,7 +7248,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.612102
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1004000420",
@@ -7261,7 +7261,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.582336
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 85
   },
   {
     "id": "sub-1075075263",
@@ -7274,7 +7274,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.401637
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1002000239",
@@ -7289,7 +7289,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.557438
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 84
   },
   {
     "id": "sub-1003000324",
@@ -7302,7 +7302,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.589066
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1092004705",
@@ -7315,7 +7315,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.634133
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 35
   },
   {
     "id": "sub-1005000517",
@@ -7328,7 +7328,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.541513
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 49
   },
   {
     "id": "sub-1006000646",
@@ -7341,7 +7341,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.620064
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   },
   {
     "id": "sub-1001080154",
@@ -7354,7 +7354,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.283862
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1003000315",
@@ -7367,7 +7367,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.634592
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 53
   },
   {
     "id": "sub-1001000123",
@@ -7382,7 +7382,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.58946
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1001000111",
@@ -7395,7 +7395,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.725006
     ],
     "zone": "서울 도심권",
-    "baseCrowd": 70
+    "baseCrowd": 69
   },
   {
     "id": "sub-1004000425",
@@ -7408,7 +7408,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.558514
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 67
   },
   {
     "id": "sub-1006000627",
@@ -7422,7 +7422,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.539233
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 63
   },
   {
     "id": "sub-1009000919",
@@ -7435,7 +7435,7 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.50877
     ],
     "zone": "수도권/서울",
-    "baseCrowd": 70
+    "baseCrowd": 51
   }
 ];
 

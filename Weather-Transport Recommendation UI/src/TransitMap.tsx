@@ -374,6 +374,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       const isTransferStation = hasActiveRoute && activeRoute?.transferStations?.includes(item.stop.name)
 
       if (isFocused || isSelected || isOnRoute) {
+        const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
+        const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
+        if (pillView) pillView.style.display = 'flex'
+        if (dotView) dotView.style.display = 'none'
+
         item.el.style.display = 'flex'
         item.el.style.zIndex = isSelected ? '99999' : (isTransferStation ? '1500' : (isOnRoute ? '900' : '9999'))
 
@@ -412,11 +417,24 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
 
       item.el.style.zIndex = '1'
 
-      // 5. 이미 배치된 상위 중요도 역과 겹치는지 충돌(Collision) 검사
+      // 5. 충돌(Collision) 검사
       const x1 = pt.x - halfW
       const y1 = pt.y - halfH
       const x2 = pt.x + halfW
       const y2 = pt.y + halfH
+
+      // 만약 선택된 역의 상단 팝업 창 영역과 직접 겹치면 팝업 가림 방지를 위해 완전히 숨김
+      if (activeStop) {
+        const activePt = map.project(activeStop.coords)
+        const popX1 = activePt.x - 130
+        const popY1 = activePt.y - 150
+        const popX2 = activePt.x + 130
+        const popY2 = activePt.y - 5
+        if (x1 < popX2 && x2 > popX1 && y1 < popY2 && y2 > popY1) {
+          item.el.style.display = 'none'
+          continue
+        }
+      }
 
       let overlaps = false
       for (const box of placedBoxes) {
@@ -426,11 +444,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         }
       }
 
-      // 겹치면 하나만 나오게 숨김, 여유가 생기면(확대 시) 표시
+      const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
+      const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
+
+      // 겹치면 완전히 숨기지 않고 혼잡도 색상의 원형 점(Dot) 마커로 전환 표출!
       if (overlaps) {
-        item.el.style.display = 'none'
-      } else {
+        if (pillView) pillView.style.display = 'none'
+        if (dotView) dotView.style.display = 'flex'
         item.el.style.display = 'flex'
+        item.el.style.zIndex = '5'
+      } else {
+        // 여유 공간이 확보되면 알약 마커(이름 + 아이콘 + 혼잡도%)로 온전히 표시
+        if (pillView) pillView.style.display = 'flex'
+        if (dotView) dotView.style.display = 'none'
+        item.el.style.display = 'flex'
+        item.el.style.zIndex = '10'
         placedBoxes.push({ x1, y1, x2, y2 })
       }
     }
@@ -466,51 +494,88 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       const typeIcon = stop.type === 'subway' ? '🚇' : stop.type === 'bus' ? '🚌' : '🚲'
 
       el.innerHTML = `
-        <div class="marker-pill" style="
-          background: #111D35;
-          border: 2px solid ${color};
-          border-radius: 9999px;
-          padding: 3px 8px;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.5);
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-        ">
-          <span style="font-size: 13px;">${typeIcon}</span>
-          <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; white-space: nowrap;">${stop.name}</span>
-          <span style="
-            background: ${color};
-            color: #FFFFFF;
-            font-size: 9px;
-            font-weight: 800;
-            padding: 1px 5px;
-            border-radius: 6px;
-            margin-left: 2px;
-          ">${crowd}%</span>
+        <!-- 1. 알약 마커 뷰 (이름 + 아이콘 + 혼잡도% 표시) -->
+        <div class="marker-pill-view" style="display: flex; flex-direction: column; align-items: center;">
+          <div class="marker-pill" style="
+            background: #111D35;
+            border: 2px solid ${color};
+            border-radius: 9999px;
+            padding: 3px 8px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+          ">
+            <span style="font-size: 13px;">${typeIcon}</span>
+            <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; white-space: nowrap;">${stop.name}</span>
+            <span style="
+              background: ${color};
+              color: #FFFFFF;
+              font-size: 9px;
+              font-weight: 800;
+              padding: 1px 5px;
+              border-radius: 6px;
+              margin-left: 2px;
+            ">${crowd}%</span>
+          </div>
+          <div style="
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid ${color};
+          "></div>
         </div>
-        <div style="
-          width: 0; height: 0;
-          border-left: 5px solid transparent;
-          border-right: 5px solid transparent;
-          border-top: 6px solid ${color};
-        "></div>
+
+        <!-- 2. 점 마커 뷰 (이름 겹침 시 대체 표출되는 미니 원형 점) -->
+        <div class="marker-dot-view" style="
+          display: none;
+          align-items: center;
+          justify-content: center;
+          padding: 3px;
+        " title="${stop.name} (${label} ${crowd}%)">
+          <div class="marker-dot-circle" style="
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: ${color};
+            border: 2px solid #FFFFFF;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 0 10px ${color}bb;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+          "></div>
+        </div>
       `
 
-      // MapLibre Marker의 transform(translate 위치값)을 훼손하지 않도록 내부 뱃지(pill)에만 호버 확대 적용
+      // 호버 인터랙션 (알약 또는 점 마커 상태에 따라 부드러운 하이라이트)
       const pill = el.querySelector('.marker-pill') as HTMLElement | null
-      if (pill) {
-        el.addEventListener('mouseenter', () => {
+      const dotView = el.querySelector('.marker-dot-view') as HTMLElement | null
+      const dotCircle = el.querySelector('.marker-dot-circle') as HTMLElement | null
+
+      el.addEventListener('mouseenter', () => {
+        if (dotView && dotView.style.display !== 'none') {
+          if (dotCircle) {
+            dotCircle.style.transform = 'scale(1.6)'
+            dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px rgba(0,0,0,0.8)`
+          }
+          el.style.zIndex = '5000'
+        } else if (pill) {
           pill.style.transform = 'scale(1.1) translateY(-2px)'
           pill.style.boxShadow = `0 6px 20px ${color}88`
-          el.style.zIndex = '1000'
-        })
-        el.addEventListener('mouseleave', () => {
+          el.style.zIndex = '5000'
+        }
+      })
+
+      el.addEventListener('mouseleave', () => {
+        if (dotCircle) {
+          dotCircle.style.transform = 'scale(1)'
+          dotCircle.style.boxShadow = `0 2px 8px rgba(0,0,0,0.7), 0 0 10px ${color}bb`
+        }
+        if (pill) {
           pill.style.transform = 'scale(1) translateY(0)'
           pill.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)'
-          el.style.zIndex = '1'
-        })
-      }
+        }
+        el.style.zIndex = '1'
+      })
 
       // 팝업 설정 (다크 테마 및 컴팩트 카드)
       const popupHtml = `
@@ -1150,6 +1215,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
             <span style={{ fontSize: 11, color: '#F0F6FF' }}>혼잡 (&gt; 75%)</span>
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid #FFFFFF', boxShadow: '0 0 6px #38BDF8' }} />
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>밀집 구간 역 (점 마커)</span>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 16, height: 3, background: '#38BDF8', borderRadius: 2 }} />
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>지하철 2호선 권역 경로</span>

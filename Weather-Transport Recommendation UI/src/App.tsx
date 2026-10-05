@@ -222,6 +222,8 @@ function CorrelationChart() {
   )
 }
 
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
+
 const getInitialPage = (): Page => {
   if (typeof window !== 'undefined') {
     const hash = window.location.hash.replace(/^#/, '') as Page
@@ -250,6 +252,18 @@ export default function App() {
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showDepartureList, setShowDepartureList] = useState(false)
   const [showDestinationList, setShowDestinationList] = useState(false)
+
+  // ── AI 추론 백엔드 서버 연동 상태 ──
+  const [transportScores, setTransportScores] = useState(TRANSPORT_SCORES)
+  const [aiLatency, setAiLatency] = useState<number | null>(null)
+  const [aiStatus, setAiStatus] = useState<'connected' | 'loading' | 'offline'>('loading')
+  const [aiWeatherSummary, setAiWeatherSummary] = useState<{ condition: string; description: string } | null>(null)
+  const [simulationSummary, setSimulationSummary] = useState<{
+    bikeDemandChangeRate: number
+    subwayDemandChangeRate: number
+    busDemandChangeRate: number
+    commentary: string
+  } | null>(null)
 
   // 활성 경로 탐색 결과 상태
   const [activeRoute, setActiveRoute] = useState<TransitRouteResult | null>(null)
@@ -365,10 +379,115 @@ export default function App() {
     )
   }
 
+  // ── 실시간 AI 대중교통 수요 예측 및 MCDA 추천 API 호출 ──
+  const fetchAIPrediction = async (districtName: string, hourVal: number, weather: typeof HOURLY_DATA[0]) => {
+    setAiStatus('loading')
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/predict/recommendation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          district: districtName,
+          hour: hourVal,
+          weather: {
+            temp: weather.temp,
+            rain: weather.rain,
+            humidity: weather.humidity,
+            wind: weather.wind
+          }
+        })
+      })
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+
+      if (data.status === 'success' && Array.isArray(data.recommendations)) {
+        const mapped = data.recommendations.map((r: any) => ({
+          id: r.id,
+          icon: r.icon,
+          name: r.name,
+          score: r.score,
+          scoreLabel: r.scoreLabel,
+          scoreColor: r.scoreColor,
+          reasons: r.reasons,
+          time: `${r.estimated_time_min}분`,
+          price: `${r.fare_krw.toLocaleString()}원${r.id === 'bike' ? '/시간' : ''}`,
+          crowd: r.crowd,
+          crowdLabel: r.crowdLabel,
+          crowdColor: r.crowdColor,
+          dataset: r.id === 'subway'
+            ? '지하철 호선별 역별 시간대별 승하차 (AI 추론)'
+            : r.id === 'bus'
+            ? '버스노선별 정류장별 시간대별 승하차 (AI 추론)'
+            : '공공자전거 따릉이 대여이력 (AI 추론)',
+          predicted_volume: r.predicted_volume
+        }))
+
+        setTransportScores(mapped)
+        setAiLatency(data.latency_ms)
+        setAiWeatherSummary(data.weather_summary)
+        setAiStatus('connected')
+
+        logAIPredictionCall(
+          {
+            location: districtName,
+            rain: `${weather.rain}mm`,
+            temp: `${weather.temp}°C`,
+            hour: `${hourVal}시`,
+            latency: `${data.latency_ms}ms (ONNX Engine)`
+          },
+          data.recommendations
+        )
+      }
+    } catch (err) {
+      console.warn('[AI Engine] 백엔드 연결 불가, 기본 목데이터 유지:', err)
+      setAiStatus('offline')
+    }
+  }
+
   // 첫 진입 시 자동으로 콘솔에 API 데이터 스트림 기록
   useEffect(() => {
     triggerApiConsoleLog()
   }, [])
+
+  // 자치구 또는 시간대 변경 시 실시간 AI 모델 추론 자동 실행
+  useEffect(() => {
+    const hourNum = parseInt(currentHour.hour.replace('시', '')) || 8
+    const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
+    fetchAIPrediction(districtName, hourNum, currentHour)
+  }, [selectedDistrict, selectedHour])
+
+  // 가상 기상 시뮬레이터(슬라이더) 조작 시 백엔드 What-If 시뮬레이션 연동 (디바운스 150ms)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const hourNum = parseInt(simulatedTime.replace('시', '')) || 8
+        const res = await fetch(`${API_BASE_URL}/api/v1/simulate/weather-impact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            simulated_rain_mm: rainSimulation,
+            simulated_temp: currentHour.temp,
+            hour: hourNum
+          })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.status === 'success' && data.modal_shift_summary) {
+            setSimulationSummary({
+              bikeDemandChangeRate: data.modal_shift_summary.bike_demand_change_rate,
+              subwayDemandChangeRate: data.modal_shift_summary.subway_demand_change_rate,
+              busDemandChangeRate: data.modal_shift_summary.bus_demand_change_rate,
+              commentary: data.modal_shift_summary.commentary
+            })
+          }
+        }
+      } catch (err) {
+        // 백엔드 미연결 시 fallback
+      }
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [rainSimulation, simulatedTime, currentHour.temp])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", color: '#F0F6FF' }}>
@@ -582,10 +701,27 @@ export default function App() {
 
             {/* AI 추천 카드 */}
             <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 16 }}>
-                모델 추천 결과 · {currentHour.hour}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                  모델 추천 결과 · {currentHour.hour}
+                </div>
+                {/* 실시간 AI 연결 배지 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: aiStatus === 'connected' ? '#10B981' : aiStatus === 'loading' ? '#FBBF24' : '#64748B',
+                    boxShadow: aiStatus === 'connected' ? '0 0 8px #10B981' : 'none'
+                  }} />
+                  <span style={{
+                    fontSize: 10,
+                    color: aiStatus === 'connected' ? '#34D399' : 'rgba(255,255,255,0.4)',
+                    fontFamily: 'JetBrains Mono', fontWeight: 600
+                  }}>
+                    {aiStatus === 'connected' ? `ONNX AI (${aiLatency}ms)` : aiStatus === 'loading' ? '추론 중...' : '오프라인'}
+                  </span>
+                </div>
               </div>
-              {TRANSPORT_SCORES.map((t, i) => (
+              {transportScores.map((t, i) => (
                 <div
                   key={t.id}
                   style={{
@@ -1047,11 +1183,18 @@ export default function App() {
 
             {/* 추천 결과 */}
             <div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em', marginBottom: 16 }}>
-                날씨 기반 교통수단 추천 결과
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>
+                  날씨 기반 교통수단 추천 결과
+                </div>
+                {aiStatus === 'connected' && (
+                  <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', background: 'rgba(56,189,248,0.1)', padding: '2px 8px', borderRadius: 999 }}>
+                    ⚡ ONNX AI 추론 ({aiLatency}ms)
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {TRANSPORT_SCORES.map((t, i) => (
+                {transportScores.map((t, i) => (
                   <div
                     key={t.id}
                     style={{
@@ -1347,6 +1490,32 @@ export default function App() {
                   ))}
                 </div>
               </div>
+
+              {/* AI 모델 실시간 분석 코멘터리 */}
+              {simulationSummary && (
+                <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(56,189,248,0.06)', borderRadius: 8, border: '1px solid rgba(56,189,248,0.18)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <span style={{ fontSize: 10, color: '#38BDF8', fontWeight: 700 }}>🤖 AI 실시간 모달 시프트 분석</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>What-If ONNX</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#F0F6FF', lineHeight: 1.4, marginBottom: 4 }}>
+                    {simulationSummary.commentary}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, fontSize: 10, fontFamily: 'JetBrains Mono' }}>
+                    <span style={{ color: simulationSummary.bikeDemandChangeRate < 0 ? '#F43F5E' : '#34D399' }}>
+                      따릉이 {simulationSummary.bikeDemandChangeRate > 0 ? '+' : ''}{(simulationSummary.bikeDemandChangeRate * 100).toFixed(1)}%
+                    </span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)' }}>·</span>
+                    <span style={{ color: simulationSummary.subwayDemandChangeRate > 0 ? '#38BDF8' : '#F43F5E' }}>
+                      지하철 {simulationSummary.subwayDemandChangeRate > 0 ? '+' : ''}{(simulationSummary.subwayDemandChangeRate * 100).toFixed(1)}%
+                    </span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)' }}>·</span>
+                    <span style={{ color: simulationSummary.busDemandChangeRate > 0 ? '#FB923C' : '#94A3B8' }}>
+                      버스 {simulationSummary.busDemandChangeRate > 0 ? '+' : ''}{(simulationSummary.busDemandChangeRate * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 경로 및 선택 정류장 상세 정보 */}

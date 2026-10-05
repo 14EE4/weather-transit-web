@@ -84,3 +84,43 @@ html, body {
 .gradient-card {
   background: linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(34,211,238,0.05) 100%);
 }
+
+/* MapLibre Popup z-index & styling: Always render above all station markers */
+.maplibregl-popup {
+  z-index: 100000 !important;
+  pointer-events: auto !important;
+}
+
+.maplibregl-popup-content {
+  background: #111D35 !important;
+  color: #F0F6FF !important;
+  border: 1px solid rgba(56, 189, 248, 0.45) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 24px rgba(56, 189, 248, 0.25) !important;
+  padding: 12px 14px !important;
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #111D35 !important;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: #111D35 !important;
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #111D35 !important;
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #111D35 !important;
+}
+
+.maplibregl-popup-close-button {
+  color: #94A3B8 !important;
+  font-size: 16px !important;
+  padding: 4px 8px !important;
+  top: 4px !important;
+  right: 6px !important;
+}
+.maplibregl-popup-close-button:hover {
+  color: #FFFFFF !important;
+  background: transparent !important;
+}

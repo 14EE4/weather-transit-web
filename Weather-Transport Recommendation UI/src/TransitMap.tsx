@@ -375,7 +375,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
 
       if (isFocused || isSelected || isOnRoute) {
         item.el.style.display = 'flex'
-        item.el.style.zIndex = isTransferStation ? '1500' : (isOnRoute ? '900' : '9999')
+        item.el.style.zIndex = isSelected ? '99999' : (isTransferStation ? '1500' : (isOnRoute ? '900' : '9999'))
 
         const pill = item.el.querySelector('.marker-pill') as HTMLElement | null
         if (pill) {
@@ -386,7 +386,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
             const crowd = calculateCrowd(item.stop)
             const { color } = getCrowdLevel(crowd)
             pill.style.borderColor = color
-            pill.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)'
+            pill.style.boxShadow = isSelected ? `0 0 20px ${color}` : '0 4px 14px rgba(0,0,0,0.5)'
           }
         }
 
@@ -396,16 +396,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
           x2: pt.x + halfW,
           y2: pt.y + halfH,
         })
+
+        // 클릭하여 선택된 역의 상단에 열리는 정보 팝업 영역을 충돌 박스로 등록!
+        // 팝업 창 앞/주변을 가리는 다른 역/정류소 알약 마커를 충돌 감지로 자동 배제하여 가림 현상 원천 차단
+        if (isSelected) {
+          placedBoxes.push({
+            x1: pt.x - 130,
+            y1: pt.y - 150,
+            x2: pt.x + 130,
+            y2: pt.y - 5,
+          })
+        }
         continue
       }
 
       item.el.style.zIndex = '1'
-
-      // 4. 고배율(Zoom >= 17)에서는 겹침 없이 모두 표시
-      if (currentZoom >= 17) {
-        item.el.style.display = 'flex'
-        continue
-      }
 
       // 5. 이미 배치된 상위 중요도 역과 겹치는지 충돌(Collision) 검사
       const x1 = pt.x - halfW

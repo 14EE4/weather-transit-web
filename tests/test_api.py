@@ -352,8 +352,16 @@ def test_seongnam_weather():
     print("="*50)
     test_kma_weather(nx=62, ny=123)
 
+def test_incheon_weather():
+    """인천시(부평·송도·구월) 실시간 날씨 관측 테스트 (격자: nx=55, ny=124)"""
+    print("\n" + "="*50)
+    print("[1-2] 수도권 광역 연계축: 인천시(부평·송도·구월) 실시간 날씨 테스트")
+    print("="*50)
+    test_kma_weather(nx=55, ny=124)
+
 if __name__ == "__main__":
     test_kma_weather()
     test_seongnam_weather()
+    test_incheon_weather()
     test_seoul_bus()
     test_seoul_subway()

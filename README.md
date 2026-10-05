@@ -54,7 +54,7 @@
 
 저장소에 포함된 [`.env.example`](.env.example) 템플릿 파일을 복사하여 루트 경로에 `.env` 파일을 생성하고 발급받은 실제 API 키를 설정합니다.
 
-```bash
+  ```bash
 # Windows PowerShell
 Copy-Item .env.example .env
 
@@ -81,7 +81,7 @@ VITE_API_BASE_URL=http://localhost:8000
 ## 🚀 설치 및 테스트 방법
 
 ### 1. 가상환경 활성화 및 패키지 설치
-```bash
+  ```bash
 # 가상환경 생성 (최초 1회)
 python -m venv venv
 
@@ -93,7 +93,7 @@ pip install -r requirements.txt
 ```
 
 ### 2. API 연결 테스트 실행
-```bash
+  ```bash
 python test_api.py
 ```
 
@@ -136,8 +136,23 @@ python test_api.py
 - [광교행 - 양재방면] (일반) 현황: 전역 도착 (예정: 0초)
 ```
 
-### 3. 프론트엔드 웹 대시보드 실행 (React / Vite)
-```bash
+### 3. 백엔드 AI 추론 서버 실행 및 검증 (FastAPI & ONNX)
+- **통합 검증 테스트 스위트 실행**:
+  ```bash
+  python test_inference.py
+  ```
+  *(ONNX 세션 웜업, 32차원 Feature Vector 정합성, 맑은 날/폭우 모달 시프트, 10회 연속 레이턴시 SLA 벤치마크 검증)*
+
+- **FastAPI 백엔드 서버 실행**:
+  ```bash
+  uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  ```
+  - Swagger 대화형 API 문서: http://localhost:8000/docs
+  - 서버 헬스체크: http://localhost:8000/health
+  - 📖 **상세 엔드포인트 및 서빙 가이드**: [AI 추론 백엔드 서버 구축 가이드](docs/BACKEND_INFERENCE_SERVER.md)
+
+### 4. 프론트엔드 웹 대시보드 실행 (React / Vite)
+  ```bash
 # 프론트엔드 디렉토리 이동
 cd "Weather-Transport Recommendation UI"
 
@@ -182,13 +197,21 @@ weather-transit-web/
 ├── .env.example                        # 환경 변수 예시 템플릿 (Git 포함, 참고용)
 ├── .gitignore                          # Git 추적 제외 목록 (.env, venv 등)
 ├── requirements.txt                    # Python 의존성 라이브러리 목록
-├── test_api.py                         # 날씨/버스/지하철 외부 API 연동 검증 스크립트
+├── main.py                             # ⚡ FastAPI 백엔드 AI 추론 서버 (ONNX 인메모리 로딩 & 서빙)
+├── test_inference.py                   # 🧪 ONNX 모델 및 추천 API 통합 검증 스크립트
+├── test_api.py                         # 날씨/버스/지하철 외부 공공 API 연동 검증 스크립트
 ├── README.md                           # 프로젝트 전체 안내 문서
 ├── map.html                            # MapLibre GL JS + OSM 단독 테스트 페이지
+├── models/                             # 🧠 학습 완료된 ONNX 머신러닝 모델 가중치 파일
+│   ├── lgb_bike_demand.onnx            # 따릉이 대여 수요 예측 ONNX 모델
+│   ├── lgb_bus_demand.onnx             # 버스 승차 수요 예측 ONNX 모델
+│   └── lgb_subway_demand.onnx          # 지하철 승하차 수요 예측 ONNX 모델
 ├── data/                               # 📊 정류장 및 교통 마스터 데이터 (Git 제외 관리)
 │   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋 (696개)
 ├── docs/
-│   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서 (팀 선견지명)
+│   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
+│   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
+│   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서
 ├── api_example/                        # API 규격 및 공식 활용 가이드 문서
 └── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드 (세부 구조 및 변경 이력은 내부 README 참조)
     ├── README.md                       # 프론트엔드 전용 안내 문서

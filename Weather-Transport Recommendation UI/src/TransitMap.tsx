@@ -512,23 +512,37 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
         })
       }
 
-      // 팝업 설정
+      // 팝업 설정 (다크 테마 및 컴팩트 카드)
       const popupHtml = `
-        <div style="color: #1a202c; font-family: sans-serif; padding: 4px;">
+        <div style="min-width: 200px; max-width: 270px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
-            <strong style="font-size: 14px; color: #1e293b;">${typeIcon} ${stop.name}</strong>
-            <span style="font-size: 10px; font-weight: 700; color: ${color}; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">${label} (${crowd}%)</span>
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <span style="font-size: 15px;">${typeIcon}</span>
+              <strong style="font-size: 14px; color: #F0F6FF; font-weight: 800;">${stop.name}</strong>
+            </div>
+            <span style="font-size: 10px; font-weight: 800; color: #FFFFFF; background: ${color}; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">
+              ${label} (${crowd}%)
+            </span>
           </div>
-          <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">${stop.lineInfo}</div>
-          <div style="font-size: 11px; color: #475569; background: #f8fafc; padding: 6px 8px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.4;">
+          <div style="font-size: 11px; color: #94A3B8; margin-bottom: 6px; font-family: monospace;">${stop.lineInfo}</div>
+          <div style="font-size: 11px; color: #E2E8F0; background: rgba(255, 255, 255, 0.07); padding: 7px 9px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.45;">
             ${rainMm > 0 
-              ? `🌧 강수(${rainMm}mm) 영향으로 ${stop.type === 'bike' ? '이용률 70% 이상 급감' : '평소 대비 승객 18% 증가 예상'}` 
-              : '☀️ 맑은 날씨로 평시 출퇴근 패턴 유지'}
+              ? `🌧 강수(${rainMm.toFixed(1)}mm) 영향으로 ${stop.type === 'bike' ? '따릉이 이용 위험 및 급감' : '지하철·버스 환승 승객 증가'}` 
+              : '☀️ 맑은 날씨로 평시 이동 패턴 유지'}
           </div>
         </div>
       `
 
-      const popup = new maplibregl.Popup({ offset: 20 }).setHTML(popupHtml)
+      const popup = new maplibregl.Popup({ 
+        offset: 25,
+        closeButton: true,
+        closeOnClick: false,
+        maxWidth: '300px',
+      }).setHTML(popupHtml)
+
+      popup.on('close', () => {
+        setActiveStop(null)
+      })
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat(stop.coords)
@@ -538,6 +552,19 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       el.addEventListener('click', () => {
         setActiveStop(stop)
         if (onSelectStop) onSelectStop(stop)
+
+        // 1. 역 클릭 시 중심 이동 및 부드러운 줌인 (기본 15.5 배율로 확대)
+        if (mapInstanceRef.current) {
+          const currentZ = mapInstanceRef.current.getZoom()
+          const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
+          mapInstanceRef.current.flyTo({
+            center: stop.coords,
+            zoom: targetZoom,
+            pitch: 35,
+            duration: 700,
+            essential: true,
+          })
+        }
 
         // 브라우저 개발자 콘솔(F12)에 해당 거점의 실제 API 송수신 규격 데이터 출력
         if (stop.type === 'subway') {
@@ -719,6 +746,17 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       startEl.addEventListener('click', () => {
         setActiveStop(startStop)
         if (onSelectStop) onSelectStop(startStop)
+        if (mapInstanceRef.current) {
+          const currentZ = mapInstanceRef.current.getZoom()
+          const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
+          mapInstanceRef.current.flyTo({
+            center: startStop.coords,
+            zoom: targetZoom,
+            pitch: 35,
+            duration: 700,
+            essential: true,
+          })
+        }
       })
     }
     const startMarker = new maplibregl.Marker({ element: startEl })
@@ -773,6 +811,17 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
           trEl.addEventListener('click', () => {
             setActiveStop(trStop)
             if (onSelectStop) onSelectStop(trStop)
+            if (mapInstanceRef.current) {
+              const currentZ = mapInstanceRef.current.getZoom()
+              const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
+              mapInstanceRef.current.flyTo({
+                center: trStop.coords,
+                zoom: targetZoom,
+                pitch: 35,
+                duration: 700,
+                essential: true,
+              })
+            }
           })
         }
         const trMarker = new maplibregl.Marker({ element: trEl })
@@ -816,6 +865,17 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
       endEl.addEventListener('click', () => {
         setActiveStop(endStop)
         if (onSelectStop) onSelectStop(endStop)
+        if (mapInstanceRef.current) {
+          const currentZ = mapInstanceRef.current.getZoom()
+          const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
+          mapInstanceRef.current.flyTo({
+            center: endStop.coords,
+            zoom: targetZoom,
+            pitch: 35,
+            duration: 700,
+            essential: true,
+          })
+        }
       })
     }
     const endMarker = new maplibregl.Marker({ element: endEl })

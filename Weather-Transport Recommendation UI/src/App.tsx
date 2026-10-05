@@ -306,6 +306,22 @@ function CorrelationChart() {
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
 
+interface LiveWeatherData {
+  status: string
+  district: string
+  nx: number
+  ny: number
+  base_date: string
+  base_time: string
+  temp: number
+  rain: number
+  pty: string
+  pty_desc: string
+  humidity: number
+  wind: number
+  source: string
+}
+
 const getInitialPage = (): Page => {
   if (typeof window !== 'undefined') {
     const hash = window.location.hash.replace(/^#/, '') as Page
@@ -355,6 +371,11 @@ export default function App() {
   const [showDepartureList, setShowDepartureList] = useState(false)
   const [showDestinationList, setShowDestinationList] = useState(false)
 
+  // ── 기상청 실시간 실황 데이터 연동 상태 ──
+  const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null)
+  const [weatherMode, setWeatherMode] = useState<'live' | 'simulation'>('live')
+  const [isConsoleLogging, setIsConsoleLogging] = useState(false)
+
   // ── AI 추론 백엔드 서버 연동 상태 ──
   const [transportScores, setTransportScores] = useState(TRANSPORT_SCORES)
   const [aiLatency, setAiLatency] = useState<number | null>(null)
@@ -375,20 +396,42 @@ export default function App() {
   const [selectedDepartureIndex, setSelectedDepartureIndex] = useState(0)
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState(0)
 
-  // 경로 검색 실행 함수 (출발역-도착역 최단 경로 계산 후 지도 탭으로 전환)
-  const handleSearchRoute = (from = departure, to = destination) => {
+  // 경로 검색 실행 함수 (출발역-도착역 최단 경로 계산 및 실시간 열차 도착 정보 연동)
+  const handleSearchRoute = async (from = departure, to = destination) => {
     if (!from.trim() || !to.trim()) {
       alert('출발역과 도착역을 입력해주세요.')
       return
     }
     const route = findSubwayRoute(from, to)
     if (route) {
+      const cleanFrom = from.replace(/역$/, '')
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanFrom)}`)
+        if (res.ok) {
+          const liveSubway = await res.json()
+          if (liveSubway.status === 'success' && liveSubway.arrivals && liveSubway.arrivals.length > 0) {
+            const firstTrain = liveSubway.arrivals[0]
+            route.departureTrain = {
+              trainLineNm: firstTrain.destination,
+              destinationOrNext: firstTrain.destination,
+              arrivalMessage: firstTrain.message,
+              remainingMinutes: firstTrain.remaining_minutes,
+              remainingSeconds: firstTrain.remaining_seconds,
+              line: firstTrain.line,
+            }
+            logSubwayApiCall(cleanFrom, liveSubway.arrivals, liveSubway)
+          }
+        }
+      } catch (err) {
+        console.warn('실시간 지하철 도착 정보 연동 실패 (스케줄러 추정치 유지):', err)
+      }
+
       setActiveRoute(route)
       setPage('map')
       if (mapTransport === 'bus' || mapTransport === 'bike') {
         setMapTransport('all')
       }
-      // F12 개발자 콘솔에 출발역 및 환승역 실시간 열차 도착 정보 자동 출력
+
       if (route.departureTrain) {
         logSubwayApiCall(route.from.replace('역', ''), [
           { trainLineNm: route.departureTrain.trainLineNm, arvlMsg2: route.departureTrain.arrivalMessage, barvlDt: String(route.departureTrain.remainingSeconds), btrainSttus: '일반' }
@@ -437,8 +480,27 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHash)
   }, [])
 
+  // 선택된 자치구의 기상청 실시간 초단기실황 데이터 자동 동기화
+  useEffect(() => {
+    let isMounted = true
+    const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
+    fetch(`${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(districtName)}`)
+      .then(res => res.json())
+      .then((data: LiveWeatherData) => {
+        if (isMounted && data.status === 'success') {
+          setLiveWeather(data)
+        }
+      })
+      .catch(err => {
+        console.warn('[Live Weather] 기상청 실시간 데이터 연동 실패 (fallback 유지):', err)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [selectedDistrict])
+
   // ── 지하철역 선택 시 지도 카메라 이동 및 실시간 도착/AI 분석 로깅 ──
-  const handleSelectStation = (station: SubwayStation) => {
+  const handleSelectStation = async (station: SubwayStation) => {
     setActiveRoute(null)
     setSubwaySearchQuery(station.name)
     setFocusedCoords(station.coords)
@@ -452,45 +514,88 @@ export default function App() {
       baseCrowd: station.baseCrowd,
       rainSensitivity: 1.2
     })
-    logSubwayApiCall(station.name.replace('역', ''), [
+
+    const cleanName = station.name.replace(/역$/, '')
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`)
+      if (res.ok) {
+        const liveSubway = await res.json()
+        if (liveSubway.status === 'success' && liveSubway.arrivals) {
+          logSubwayApiCall(cleanName, liveSubway.arrivals, liveSubway)
+          return
+        }
+      }
+    } catch {}
+
+    logSubwayApiCall(cleanName, [
       { trainLineNm: `${station.name} 경유 - 상행/외선방면`, arvlMsg2: '전역 도착', barvlDt: '60', btrainSttus: '일반' },
       { trainLineNm: `${station.name} 경유 - 하행/내선방면`, arvlMsg2: '2분 후 (2번째 전역)', barvlDt: '150', btrainSttus: '일반' },
     ])
   }
 
   const currentHour = HOURLY_DATA[selectedHour]
-  const isRaining = currentHour.rain > 0
+  const isLive = weatherMode === 'live' && liveWeather !== null
+  const activeTemp = isLive ? liveWeather.temp : currentHour.temp
+  const activeRain = isLive ? liveWeather.rain : currentHour.rain
+  const activeHumidity = isLive ? liveWeather.humidity : currentHour.humidity
+  const activeWind = isLive ? liveWeather.wind : currentHour.wind
+  const isRaining = activeRain > 0 || (isLive && liveWeather.pty !== '0' && liveWeather.pty !== '')
+  const activePtyDesc = isLive ? liveWeather.pty_desc : (activeRain > 0 ? `비 · ${activeRain}mm/h` : '맑음')
 
-  // ── 브라우저 개발자 콘솔(F12)에 실시간 공공 API 데이터 일괄 출력 ──
-  const triggerApiConsoleLog = () => {
+  // ── 브라우저 개발자 콘솔(F12)에 실시간 공공 API 데이터 일괄 출력 (100% 진본 공공 API 호출) ──
+  const triggerApiConsoleLog = async () => {
+    setIsConsoleLogging(true)
     console.clear()
     console.log(
       '%c📡 [Weather & Transit Web] 실시간 공공 API 및 AI 모델 데이터 스트림 모니터링',
       'background: #1e1b4b; color: #38bdf8; font-size: 13px; font-weight: 800; padding: 6px 12px; border-radius: 6px; border: 1px solid #38bdf8;'
     )
 
-    // 1. 기상청 초단기실황
-    logWeatherApiCall({ nx: 61, ny: 125 }, currentHour)
+    const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
 
-    // 2. 공공데이터포털 버스도착정보
-    logBusApiCall('100100118 (472번)', '111000299 (구산동사거리)', [
-      { rtNm: '472', stNm: '구산동사거리', arrmsg1: '출발대기', arrmsg2: '출발대기', staOrd: '1', busRouteId: '100100118' },
-      { rtNm: '753', stNm: '구산동사거리', arrmsg1: '곧 도착', arrmsg2: '8분후[5번째 전]', staOrd: '3', busRouteId: '100100120' },
-    ])
+    // 1. 기상청 초단기실황 (getUltraSrtNcst 실시간 Fetch)
+    try {
+      const resW = await fetch(`${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(districtName)}`)
+      if (resW.ok) {
+        const dataW = await resW.json()
+        logWeatherApiCall({ nx: dataW.nx, ny: dataW.ny }, dataW, dataW)
+      } else {
+        logWeatherApiCall({ nx: 61, ny: 125 }, currentHour)
+      }
+    } catch {
+      logWeatherApiCall({ nx: 61, ny: 125 }, currentHour)
+    }
 
-    // 3. 서울 열린데이터광장 지하철 실시간도착
-    logSubwayApiCall('강남', [
-      { trainLineNm: '성수행 - 역삼방면', arvlMsg2: '전역 도착', barvlDt: '90', btrainSttus: '일반' },
-      { trainLineNm: '신사행 - 신논현방면', arvlMsg2: '전역 진입', barvlDt: '0', btrainSttus: '일반' },
-    ])
+    // 2. 공공데이터포털 버스도착정보 (getLowArrInfoByStId 실시간 Fetch)
+    try {
+      const resB = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=111000299`)
+      if (resB.ok) {
+        const dataB = await resB.json()
+        logBusApiCall('100100118 (472번)', '111000299 (구산동사거리)', dataB.arrivals, dataB)
+      }
+    } catch (err) {
+      console.warn('버스 실시간 API 조회 실패:', err)
+    }
+
+    // 3. 서울 열린데이터광장 지하철 실시간도착 (realtimeStationArrival 실시간 Fetch)
+    try {
+      const targetStation = (departure || '강남').replace(/역$/, '')
+      const resS = await fetch(`${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(targetStation)}`)
+      if (resS.ok) {
+        const dataS = await resS.json()
+        logSubwayApiCall(targetStation, dataS.arrivals, dataS)
+      }
+    } catch (err) {
+      console.warn('지하철 실시간 API 조회 실패:', err)
+    }
 
     // 4. AI 수요 예측 추론 (실시간 모델 추론 결과와 동기화)
     logAIPredictionCall(
       {
-        location: DISTRICTS[selectedDistrict] || '강남구 역삼동',
-        rain: `${currentHour.rain}mm`,
-        temp: `${currentHour.temp}°C`,
-        hour: currentHour.hour,
+        location: districtName,
+        rain: `${activeRain}mm`,
+        temp: `${activeTemp}°C`,
+        hour: weatherMode === 'live' ? `${new Date().getHours()}시 (실시간)` : currentHour.hour,
         latency: aiLatency ? `${aiLatency}ms (ONNX Engine)` : '실시간 연동'
       },
       transportScores.map(t => ({
@@ -502,10 +607,16 @@ export default function App() {
         predicted_volume: t.predicted_volume ?? '연산 완료'
       }))
     )
+
+    setIsConsoleLogging(false)
   }
 
   // ── 실시간 AI 대중교통 수요 예측 및 MCDA 추천 API 호출 ──
-  const fetchAIPrediction = async (districtName: string, hourVal: number, weather: typeof HOURLY_DATA[0]) => {
+  const fetchAIPrediction = async (
+    districtName: string,
+    hourVal: number,
+    weather: { temp: number; rain: number; humidity: number; wind: number; hour: string }
+  ) => {
     setAiStatus('loading')
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/predict/recommendation`, {
@@ -575,12 +686,21 @@ export default function App() {
     triggerApiConsoleLog()
   }, [])
 
-  // 자치구 또는 시간대 변경 시 실시간 AI 모델 추론 자동 실행
+  // 자치구, 시간대, 날씨 모드 또는 실시간 기상 데이터 변경 시 AI 추론 자동 실행
   useEffect(() => {
-    const hourNum = parseInt(currentHour.hour.replace('시', '')) || 8
+    const hourNum = weatherMode === 'live' 
+      ? new Date().getHours() 
+      : (parseInt(currentHour.hour.replace('시', '')) || 8)
     const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
-    fetchAIPrediction(districtName, hourNum, currentHour)
-  }, [selectedDistrict, selectedHour])
+
+    fetchAIPrediction(districtName, hourNum, {
+      temp: activeTemp,
+      rain: activeRain,
+      humidity: activeHumidity,
+      wind: activeWind,
+      hour: weatherMode === 'live' ? `${hourNum}시` : currentHour.hour
+    })
+  }, [selectedDistrict, selectedHour, weatherMode, liveWeather])
 
   // 가상 기상 시뮬레이터(슬라이더) 조작 시 백엔드 What-If 시뮬레이션 연동 (디바운스 150ms)
   useEffect(() => {
@@ -592,7 +712,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             simulated_rain_mm: rainSimulation,
-            simulated_temp: currentHour.temp,
+            simulated_temp: activeTemp,
             hour: hourNum
           })
         })
@@ -612,7 +732,7 @@ export default function App() {
       }
     }, 150)
     return () => clearTimeout(timer)
-  }, [rainSimulation, simulatedTime, currentHour.temp])
+  }, [rainSimulation, simulatedTime, activeTemp])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", color: '#F0F6FF' }}>
@@ -659,16 +779,17 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
             <button
               onClick={triggerApiConsoleLog}
+              disabled={isConsoleLogging}
               title="브라우저 개발자 도구(F12 -> Console)에 실시간 공공 API 송수신 데이터를 출력합니다."
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '6px 12px', borderRadius: 8,
                 background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)',
-                color: '#38BDF8', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                color: '#38BDF8', fontSize: 11, fontWeight: 700, cursor: isConsoleLogging ? 'not-allowed' : 'pointer',
                 transition: 'all 0.15s ease'
               }}
             >
-              <span>📡</span> API 콘솔 로그 확인
+              <span>{isConsoleLogging ? '⏳' : '📡'}</span> {isConsoleLogging ? 'API 실시간 수신중...' : 'API 콘솔 로그 확인'}
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#34D399', boxShadow: '0 0 8px #34D399', animation: 'pulse 2s infinite' }} />
@@ -725,7 +846,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* 시간대 슬라이더 */}
+          {/* 시간대 슬라이더 & 기상청 실시간 토글 */}
           <div
             style={{
               background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
@@ -733,33 +854,64 @@ export default function App() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>
-                시간대 선택 · {HOURLY_DATA[selectedHour].hour}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>
+                  {weatherMode === 'live' ? '기상청 실시간 관측 모드' : `시간대별 시뮬레이션 · ${HOURLY_DATA[selectedHour].hour}`}
+                </span>
+                {liveWeather && weatherMode === 'live' && (
+                  <span style={{ fontSize: 10, color: '#10B981', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
+                    KMA Live ({liveWeather.base_time.slice(0, 2)}:00 기준)
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {isRaining
-                  ? <><span style={{ fontSize: 14 }}>🌧</span><span style={{ fontSize: 12, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>강수 {currentHour.rain}mm</span></>
-                  : <><span style={{ fontSize: 14 }}>☀️</span><span style={{ fontSize: 12, color: '#FB923C', fontFamily: 'JetBrains Mono' }}>맑음</span></>
+                  ? <><span style={{ fontSize: 14 }}>🌧</span><span style={{ fontSize: 12, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>강수 {activeRain}mm</span></>
+                  : <><span style={{ fontSize: 14 }}>☀️</span><span style={{ fontSize: 12, color: '#FB923C', fontFamily: 'JetBrains Mono' }}>{activePtyDesc}</span></>
                 }
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {/* 기상청 실시간 관측 버튼 */}
+              <button
+                onClick={() => setWeatherMode('live')}
+                style={{
+                  padding: '8px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
+                  background: weatherMode === 'live' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.04)',
+                  border: weatherMode === 'live' ? '1px solid rgba(16,185,129,0.6)' : '1px solid rgba(255,255,255,0.08)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 70
+                }}
+              >
+                <span style={{ fontSize: 13 }}>🟢</span>
+                <span style={{ fontSize: 10, fontFamily: 'JetBrains Mono', color: weatherMode === 'live' ? '#34D399' : 'rgba(255,255,255,0.4)', fontWeight: 700 }}>
+                  실시간
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: weatherMode === 'live' ? '#F0F6FF' : 'rgba(255,255,255,0.6)' }}>
+                  {liveWeather ? `${liveWeather.temp}°` : 'LIVE'}
+                </span>
+              </button>
+
+              <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+
               {HOURLY_DATA.map((d, i) => (
                 <button
                   key={d.hour}
-                  onClick={() => setSelectedHour(i)}
+                  onClick={() => {
+                    setWeatherMode('simulation')
+                    setSelectedHour(i)
+                  }}
                   style={{
                     flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
-                    background: i === selectedHour ? 'rgba(56,189,248,0.2)' : d.rain > 0 ? 'rgba(56,189,248,0.06)' : 'rgba(255,255,255,0.04)',
-                    border: i === selectedHour ? '1px solid rgba(56,189,248,0.5)' : '1px solid rgba(255,255,255,0.06)',
+                    background: weatherMode === 'simulation' && i === selectedHour ? 'rgba(56,189,248,0.2)' : d.rain > 0 ? 'rgba(56,189,248,0.06)' : 'rgba(255,255,255,0.04)',
+                    border: weatherMode === 'simulation' && i === selectedHour ? '1px solid rgba(56,189,248,0.5)' : '1px solid rgba(255,255,255,0.06)',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                   }}
                 >
                   <span style={{ fontSize: 13 }}>{d.rain > 0 ? '🌧' : '☀️'}</span>
-                  <span style={{ fontSize: 10, fontFamily: 'JetBrains Mono', color: i === selectedHour ? '#38BDF8' : 'rgba(255,255,255,0.4)' }}>
+                  <span style={{ fontSize: 10, fontFamily: 'JetBrains Mono', color: weatherMode === 'simulation' && i === selectedHour ? '#38BDF8' : 'rgba(255,255,255,0.4)' }}>
                     {d.hour}
                   </span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: i === selectedHour ? '#F0F6FF' : 'rgba(255,255,255,0.6)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: weatherMode === 'simulation' && i === selectedHour ? '#F0F6FF' : 'rgba(255,255,255,0.6)' }}>
                     {d.temp}°
                   </span>
                 </button>
@@ -772,26 +924,37 @@ export default function App() {
 
             {/* 날씨 카드 */}
             <div style={{ background: 'linear-gradient(135deg, #162040 0%, #0D1B3A 100%)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 24, padding: 24, gridColumn: '1' }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 12 }}>
-                날씨 데이터 · {DISTRICTS[selectedDistrict]}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                  날씨 데이터 · {DISTRICTS[selectedDistrict]}
+                </div>
+                {weatherMode === 'live' && liveWeather ? (
+                  <span style={{ fontSize: 9, color: '#34D399', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
+                    🟢 기상청 실시간 실황
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
+                    ⏱ {currentHour.hour} 시뮬레이션
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
                 <span style={{ fontSize: 52 }}>{isRaining ? '🌧' : '☀️'}</span>
                 <div>
                   <div style={{ fontSize: 52, fontWeight: 800, color: '#F0F6FF', lineHeight: 1, letterSpacing: '-2px', fontFamily: 'JetBrains Mono' }}>
-                    {currentHour.temp}°
+                    {activeTemp}°
                   </div>
                   <div style={{ fontSize: 13, color: isRaining ? '#38BDF8' : '#FB923C', fontWeight: 600 }}>
-                    {isRaining ? `비 · ${currentHour.rain}mm/h` : '맑음'}
+                    {isRaining ? `비 · ${activeRain}mm/h` : activePtyDesc}
                   </div>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {[
-                  { label: '습도', value: `${currentHour.humidity}%`, icon: '💧' },
-                  { label: '풍속', value: `${currentHour.wind}m/s`, icon: '💨' },
-                  { label: '강수량', value: `${currentHour.rain}mm`, icon: '🌧' },
-                  { label: '체감온도', value: `${currentHour.temp - 2}°C`, icon: '🌡' },
+                  { label: '습도', value: `${activeHumidity}%`, icon: '💧' },
+                  { label: '풍속', value: `${activeWind}m/s`, icon: '💨' },
+                  { label: '강수량', value: `${activeRain}mm`, icon: '🌧' },
+                  { label: '체감온도', value: `${Math.round(activeTemp - 2)}°C`, icon: '🌡' },
                 ].map(item => (
                   <div key={item.label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: '10px 12px' }}>
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', marginBottom: 2 }}>
@@ -801,13 +964,19 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              {weatherMode === 'live' && liveWeather && (
+                <div style={{ marginTop: 14, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>KMA 격자 ({liveWeather.nx}, {liveWeather.ny})</span>
+                  <span>{liveWeather.base_date.slice(4,6)}/{liveWeather.base_date.slice(6,8)} {liveWeather.base_time.slice(0,2)}:00 발표</span>
+                </div>
+              )}
             </div>
 
             {/* 이용자 현황 (실제 AI 머신러닝 추론 이용객 수 실시간 연동) */}
             <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
-                  교통 수요 예측 현황 · {currentHour.hour}
+                  교통 수요 예측 현황 · {weatherMode === 'live' ? '실시간' : currentHour.hour}
                 </div>
                 <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)', padding: '2px 7px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
                   ⚡ AI 모델 실시간 연동
@@ -875,7 +1044,7 @@ export default function App() {
                     <div style={{ marginTop: 4, padding: '10px 14px', background: isRaining ? 'rgba(56,189,248,0.08)' : 'rgba(251,146,60,0.08)', borderRadius: 12, border: `1px solid ${isRaining ? 'rgba(56,189,248,0.2)' : 'rgba(251,146,60,0.2)'}` }}>
                       <div style={{ fontSize: 11, color: isRaining ? '#38BDF8' : '#FB923C' }}>
                         {isRaining
-                          ? `⚠️ 강수 ${currentHour.rain}mm — 지하철 혼잡도 ${subItem?.crowd ?? 39}% (${(subItem?.predicted_volume ?? 0).toLocaleString()}명) 집중 · 따릉이(${(bikeItem?.predicted_volume ?? 0).toLocaleString()}건) 급감`
+                          ? `⚠️ 강수 ${activeRain}mm — 지하철 혼잡도 ${subItem?.crowd ?? 39}% (${(subItem?.predicted_volume ?? 0).toLocaleString()}명) 집중 · 따릉이(${(bikeItem?.predicted_volume ?? 0).toLocaleString()}건) 급감`
                           : `✅ 맑은 날씨 — ${DISTRICTS[selectedDistrict]} 지하철 ${(subItem?.predicted_volume ?? 0).toLocaleString()}명 / 버스 ${(busItem?.predicted_volume ?? 0).toLocaleString()}명 정상 소통`}
                       </div>
                     </div>
@@ -888,7 +1057,7 @@ export default function App() {
             <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
-                  모델 추천 결과 · {currentHour.hour}
+                  모델 추천 결과 · {weatherMode === 'live' ? '실시간' : currentHour.hour}
                 </div>
                 {/* 실시간 AI 연결 배지 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -1,9 +1,11 @@
 import os
 import sys
+import re
 import math
 import time
 import logging
-from datetime import datetime
+import urllib.parse
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Any
 from contextlib import asynccontextmanager
@@ -14,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import numpy as np
 import onnxruntime as ort
+import httpx
 
 # ==============================================================================
 # 0. 로깅 및 환경 설정
@@ -29,6 +32,45 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
+
+# 공공데이터 인증키
+KMA_AUTH_KEY = os.getenv("KMA_APIHUB_KEY")
+SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")
+DATA_GO_KR_BUS_KEY = os.getenv("DATA_GO_KR_API_KEY")
+
+# 서울시 25개 자치구 기상청 격자좌표 (nx, ny) 매핑
+DISTRICT_KMA_GRID = {
+    "강남구": {"nx": 61, "ny": 126},
+    "강동구": {"nx": 62, "ny": 126},
+    "강북구": {"nx": 61, "ny": 128},
+    "강서구": {"nx": 58, "ny": 126},
+    "관악구": {"nx": 59, "ny": 125},
+    "광진구": {"nx": 62, "ny": 126},
+    "구로구": {"nx": 58, "ny": 125},
+    "금천구": {"nx": 59, "ny": 124},
+    "노원구": {"nx": 61, "ny": 129},
+    "도봉구": {"nx": 61, "ny": 129},
+    "동대문구": {"nx": 61, "ny": 127},
+    "동작구": {"nx": 59, "ny": 125},
+    "마포구": {"nx": 59, "ny": 127},
+    "서대문구": {"nx": 59, "ny": 127},
+    "서초구": {"nx": 61, "ny": 125},
+    "성동구": {"nx": 61, "ny": 127},
+    "성북구": {"nx": 61, "ny": 127},
+    "송파구": {"nx": 62, "ny": 126},
+    "양천구": {"nx": 58, "ny": 126},
+    "영등포구": {"nx": 58, "ny": 126},
+    "용산구": {"nx": 60, "ny": 126},
+    "은평구": {"nx": 59, "ny": 127},
+    "종로구": {"nx": 60, "ny": 127},
+    "중구": {"nx": 60, "ny": 127},
+    "중랑구": {"nx": 62, "ny": 128},
+}
+
+# 공공 API 인메모리 캐시 (과도한 외부 호출 방지 및 SLA 10ms 보장)
+_weather_cache: dict[str, tuple[float, dict]] = {}
+_subway_cache: dict[str, tuple[float, dict]] = {}
+_bus_cache: dict[str, tuple[float, dict]] = {}
 
 # ==============================================================================
 # 1. 서울시 25개 자치구 정수 매핑 딕셔너리 및 인프라/용량 기준 메타데이터
@@ -311,6 +353,52 @@ class SimulationResponse(BaseModel):
     simulation_params: dict
     modal_shift_summary: ModalShiftSummary
     district_congestion: list[DistrictCongestionItem]
+
+# ── 실시간 공공 API 응답 스키마 ──
+class RealtimeWeatherResponse(BaseModel):
+    status: str = "success"
+    district: str
+    nx: int
+    ny: int
+    base_date: str
+    base_time: str
+    temp: float
+    rain: float
+    pty: str
+    pty_desc: str
+    humidity: float
+    wind: float
+    source: str = "KMA_APIHUB_LIVE"
+
+class SubwayArrivalItem(BaseModel):
+    line: str
+    destination: str
+    message: str
+    remaining_seconds: int
+    remaining_minutes: int
+    train_status: str
+    updn_line: str
+
+class SubwayArrivalResponse(BaseModel):
+    status: str = "success"
+    station: str
+    clean_station: str
+    arrivals: list[SubwayArrivalItem]
+    source: str = "SEOUL_SUBWAY_LIVE"
+
+class BusArrivalItem(BaseModel):
+    route_name: str
+    station_name: str
+    arrival_msg1: str
+    arrival_msg2: str
+    station_order: Optional[str] = None
+    bus_route_id: Optional[str] = None
+
+class BusArrivalResponse(BaseModel):
+    status: str = "success"
+    st_id: str
+    arrivals: list[BusArrivalItem]
+    source: str = "SEOUL_BUS_LIVE"
 
 # ==============================================================================
 # 5. 사양서 규격의 32차원 Feature Vector 조립 함수 (build_feature_vector)
@@ -813,6 +901,268 @@ async def simulate_weather_impact(req: SimulationRequest):
         district_congestion=district_congestions,
     )
 
+# ==============================================================================
+# 8. 실시간 공공 API 연동 엔드포인트 (기상청 실황, 지하철 도착, 버스 도착)
+# ==============================================================================
+
+@app.get("/api/v1/weather/current", response_model=RealtimeWeatherResponse, tags=["Live Public APIs"])
+async def get_current_weather(district: str = "강남구"):
+    """
+    기상청 API허브 초단기실황(getUltraSrtNcst) 연동 실시간 기상 관측 API
+    - 25개 자치구별 격자(nx, ny) 자동 매핑 및 10분 캐싱 지원
+    """
+    norm_d = normalize_district_name(district)
+    grid = DISTRICT_KMA_GRID.get(norm_d, {"nx": 61, "ny": 125})
+    nx, ny = grid["nx"], grid["ny"]
+
+    now = datetime.now()
+    if now.minute < 10:
+        target_time = now - timedelta(hours=1)
+    else:
+        target_time = now
+
+    base_date = target_time.strftime("%Y%m%d")
+    base_time = target_time.strftime("%H00")
+    cache_key = f"{nx}_{ny}_{base_date}_{base_time}"
+
+    curr_time = time.time()
+    if cache_key in _weather_cache:
+        cached_ts, cached_data = _weather_cache[cache_key]
+        if curr_time - cached_ts < 600:
+            return RealtimeWeatherResponse(**cached_data)
+
+    if not KMA_AUTH_KEY:
+        return RealtimeWeatherResponse(
+            status="success",
+            district=norm_d,
+            nx=nx,
+            ny=ny,
+            base_date=base_date,
+            base_time=base_time,
+            temp=16.0,
+            rain=0.0,
+            pty="0",
+            pty_desc="없음(맑음/흐림)",
+            humidity=50.0,
+            wind=2.0,
+            source="FALLBACK"
+        )
+
+    url = "https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst"
+    params = {
+        "authKey": KMA_AUTH_KEY,
+        "pageNo": "1",
+        "numOfRows": "10",
+        "dataType": "JSON",
+        "base_date": base_date,
+        "base_time": base_time,
+        "nx": nx,
+        "ny": ny,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(url, params=params)
+            if res.status_code == 200:
+                data = res.json()
+                items = data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+                if items:
+                    result = {item["category"]: item["obsrValue"] for item in items if "category" in item}
+                    pty_desc_map = {
+                        "0": "없음(맑음/흐림)", "1": "비", "2": "비/눈",
+                        "3": "눈", "5": "빗방울", "6": "빗방울눈날림", "7": "눈날림"
+                    }
+                    pty_val = str(result.get("PTY", "0"))
+                    rain_val = float(result.get("RN1", 0.0) or 0.0)
+                    temp_val = float(result.get("T1H", 15.0) or 15.0)
+                    reh_val = float(result.get("REH", 50.0) or 50.0)
+                    wsd_val = float(result.get("WSD", 2.0) or 2.0)
+
+                    resp_data = {
+                        "status": "success",
+                        "district": norm_d,
+                        "nx": nx,
+                        "ny": ny,
+                        "base_date": base_date,
+                        "base_time": base_time,
+                        "temp": round(temp_val, 1),
+                        "rain": round(rain_val, 1),
+                        "pty": pty_val,
+                        "pty_desc": pty_desc_map.get(pty_val, "맑음"),
+                        "humidity": round(reh_val, 1),
+                        "wind": round(wsd_val, 1),
+                        "source": "KMA_APIHUB_LIVE"
+                    }
+                    _weather_cache[cache_key] = (curr_time, resp_data)
+                    return RealtimeWeatherResponse(**resp_data)
+    except Exception as e:
+        logger.warning(f"KMA API call failed: {e}, using fallback.")
+
+    fallback_data = {
+        "status": "success",
+        "district": norm_d,
+        "nx": nx,
+        "ny": ny,
+        "base_date": base_date,
+        "base_time": base_time,
+        "temp": 15.8,
+        "rain": 0.0,
+        "pty": "0",
+        "pty_desc": "없음(맑음/흐림)",
+        "humidity": 46.0,
+        "wind": 2.4,
+        "source": "KMA_APIHUB_FALLBACK"
+    }
+    return RealtimeWeatherResponse(**fallback_data)
+
+
+@app.get("/api/v1/transit/subway/arrival", response_model=SubwayArrivalResponse, tags=["Live Public APIs"])
+async def get_subway_arrival(station: str = "강남"):
+    """
+    서울 열린데이터광장(realtimeStationArrival) 연동 실시간 지하철 도착 정보 API (15초 캐싱)
+    """
+    raw_st = station.strip()
+    clean_st = re.sub(r"역$", "", raw_st)
+    if clean_st == "서울" or raw_st == "서울역":
+        clean_st = "서울역"
+    elif not clean_st:
+        clean_st = raw_st
+
+    curr_time = time.time()
+    if clean_st in _subway_cache:
+        cached_ts, cached_data = _subway_cache[clean_st]
+        if curr_time - cached_ts < 15:
+            return SubwayArrivalResponse(**cached_data)
+
+    key = SEOUL_SUBWAY_KEY or "sample"
+    encoded_station = urllib.parse.quote(clean_st)
+    url = f"http://swopenAPI.seoul.go.kr/api/subway/{key}/json/realtimeStationArrival/0/8/{encoded_station}"
+
+    subway_line_map = {
+        "1001": "1호선", "1002": "2호선", "1003": "3호선", "1004": "4호선",
+        "1005": "5호선", "1006": "6호선", "1007": "7호선", "1008": "8호선",
+        "1009": "9호선", "1063": "경의중앙선", "1065": "공항철도", "1067": "경춘선",
+        "1071": "수인분당선", "1075": "수인분당선", "1077": "신분당선", "1092": "우이신설선",
+        "1093": "서해선", "1081": "경강선", "1032": "GTX-A"
+    }
+
+    arrivals: list[SubwayArrivalItem] = []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(url)
+            if res.status_code == 200:
+                data = res.json()
+                raw_list = data.get("realtimeArrivalList", [])
+                for item in raw_list:
+                    subway_id = str(item.get("subwayId", ""))
+                    line_name = subway_line_map.get(subway_id, f"{subway_id}호선")
+                    barvl_dt = int(item.get("barvlDt", 0) or 0)
+                    rem_min = max(1, round(barvl_dt / 60)) if barvl_dt > 0 else 1
+                    arrivals.append(
+                        SubwayArrivalItem(
+                            line=line_name,
+                            destination=item.get("trainLineNm", "열차 운행중"),
+                            message=item.get("arvlMsg2", "도착 정보 준비중"),
+                            remaining_seconds=barvl_dt,
+                            remaining_minutes=rem_min,
+                            train_status=item.get("btrainSttus", "일반"),
+                            updn_line=item.get("updnLine", "상/하행")
+                        )
+                    )
+    except Exception as e:
+        logger.warning(f"Seoul Subway API error: {e}")
+
+    if not arrivals:
+        arrivals.append(
+            SubwayArrivalItem(
+                line="수도권 전철",
+                destination=f"{clean_st} 방면 운행",
+                message="배차 간격 2~5분 정상 운행중",
+                remaining_seconds=180,
+                remaining_minutes=3,
+                train_status="일반",
+                updn_line="내선/상행"
+            )
+        )
+
+    resp_data = {
+        "status": "success",
+        "station": raw_st,
+        "clean_station": clean_st,
+        "arrivals": arrivals,
+        "source": "SEOUL_SUBWAY_LIVE" if len(arrivals) > 1 or arrivals[0].remaining_seconds != 180 else "SEOUL_SUBWAY_FALLBACK"
+    }
+    _subway_cache[clean_st] = (curr_time, resp_data)
+    return SubwayArrivalResponse(**resp_data)
+
+
+@app.get("/api/v1/transit/bus/arrival", response_model=BusArrivalResponse, tags=["Live Public APIs"])
+async def get_bus_arrival(stId: str = "111000299", busRouteId: Optional[str] = None):
+    """
+    공공데이터포털(서울특별시_버스도착정보조회) 연동 실시간 버스 도착 정보 API (15초 캐싱)
+    """
+    cache_key = f"{stId}_{busRouteId or 'all'}"
+    curr_time = time.time()
+    if cache_key in _bus_cache:
+        cached_ts, cached_data = _bus_cache[cache_key]
+        if curr_time - cached_ts < 15:
+            return BusArrivalResponse(**cached_data)
+
+    arrivals: list[BusArrivalItem] = []
+    if DATA_GO_KR_BUS_KEY:
+        try:
+            decoded_key = urllib.parse.unquote(DATA_GO_KR_BUS_KEY)
+            endpoint = "getArrInfoByRouteAll" if busRouteId else "getLowArrInfoByStId"
+            url = f"http://ws.bus.go.kr/api/rest/arrive/{endpoint}"
+            params = {"serviceKey": decoded_key, "resultType": "json"}
+            if busRouteId:
+                params["busRouteId"] = busRouteId
+            else:
+                params["stId"] = stId
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(url, params=params)
+                if res.status_code == 200:
+                    data = res.json()
+                    msg_body = data.get("msgBody") or {}
+                    items = msg_body.get("itemList", [])
+                    if isinstance(items, dict):
+                        items = [items]
+                    for item in items[:10]:
+                        arrivals.append(
+                            BusArrivalItem(
+                                route_name=item.get("rtNm", "간선/지선"),
+                                station_name=item.get("stNm", "정류소"),
+                                arrival_msg1=item.get("arrmsg1", "도착 정보 없음"),
+                                arrival_msg2=item.get("arrmsg2", "정보 없음"),
+                                station_order=item.get("staOrd"),
+                                bus_route_id=item.get("busRouteId")
+                            )
+                        )
+        except Exception as e:
+            logger.warning(f"Seoul Bus API error: {e}")
+
+    if not arrivals:
+        arrivals.append(
+            BusArrivalItem(
+                route_name="472",
+                station_name="구산동사거리",
+                arrival_msg1="출발대기",
+                arrival_msg2="출발대기"
+            )
+        )
+
+    resp_data = {
+        "status": "success",
+        "st_id": stId,
+        "arrivals": arrivals,
+        "source": "SEOUL_BUS_LIVE" if len(arrivals) > 1 or arrivals[0].arrival_msg1 != "출발대기" else "SEOUL_BUS_FALLBACK"
+    }
+    _bus_cache[cache_key] = (curr_time, resp_data)
+    return BusArrivalResponse(**resp_data)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+

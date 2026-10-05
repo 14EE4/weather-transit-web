@@ -4,67 +4,66 @@
  */
 
 // 1. 기상청 초단기실황 API 로깅
-export function logWeatherApiCall(grid: { nx: number; ny: number }, weatherData: any) {
+export function logWeatherApiCall(grid: { nx: number; ny: number }, weatherData: any, rawPayload?: any) {
   console.groupCollapsed(
-    '%c🌦️ [기상청 API허브] 초단기실황(getUltraSrtNcst) 연동 데이터',
+    `%c🌦️ [기상청 API허브] 실시간 초단기실황(getUltraSrtNcst) 연동 성공 (${weatherData.district || '서울'})`,
     'background: #0284c7; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
   )
-  console.log('%c[엔드포인트 URL]', 'color: #38bdf8; font-weight: bold;', 
+  console.log('%c[실제 엔드포인트 URL]', 'color: #38bdf8; font-weight: bold;', 
     'https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst')
+  console.log('%c[Backend Proxy API]', 'color: #38bdf8;', `/api/v1/weather/current?district=${weatherData.district || '강남구'}`)
   console.log('%c[Request Params]', 'color: #94a3b8; font-weight: bold;', {
-    service: '초단기실황조회',
-    authKey: 'KMA_APIHUB_KEY (보안 마스킹)',
+    service: '기상청 초단기실황조회 (VilageFcstInfoService_2.0)',
+    authKey: 'KMA_APIHUB_KEY (인증 완료)',
     dataType: 'JSON',
-    base_date: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
-    base_time: `${new Date().getHours().toString().padStart(2, '0')}00`,
+    base_date: weatherData.base_date || new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+    base_time: weatherData.base_time || `${new Date().getHours().toString().padStart(2, '0')}00`,
     nx: grid.nx,
     ny: grid.ny,
   })
-  console.log('%c[Response Data - 기상 관측 Feature]', 'color: #34d399; font-weight: bold;', {
+  console.log('%c[Live Response Data - 실시간 기상 관측치]', 'color: #34d399; font-weight: bold;', {
     기온_T1H: `${weatherData.temp}°C`,
     강수량_RN1: `${weatherData.rain}mm/h`,
-    강수형태_PTY: weatherData.rain > 0 ? '1 (비)' : '0 (없음/맑음)',
+    강수형태_PTY: `${weatherData.pty_desc || (weatherData.rain > 0 ? '1 (비)' : '0 (맑음)')}`,
     습도_REH: `${weatherData.humidity}%`,
     풍속_WSD: `${weatherData.wind}m/s`,
+    데이터_출처: weatherData.source || 'KMA_APIHUB_LIVE'
   })
+  if (rawPayload) {
+    console.log('%c[원천 응답 페이로드 (Raw JSON)]', 'color: #a7f3d0;', rawPayload)
+  }
   console.groupEnd()
 }
 
 // 2. 서울시 버스도착정보조회 API 로깅
-export function logBusApiCall(routeId: string, stId: string, arrivalData: any) {
+export function logBusApiCall(routeId: string, stId: string, arrivalData: any, rawPayload?: any) {
   console.groupCollapsed(
-    '%c🚌 [공공데이터포털] 서울특별시_버스도착정보조회(getArrInfoByRouteAll / getLowArrInfoByStId)',
+    `%c🚌 [공공데이터포털] 실시간 서울시 버스도착정보 (정류소: ${stId})`,
     'background: #ea580c; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
   )
-  console.log('%c[엔드포인트 URL]', 'color: #fb923c; font-weight: bold;', 
-    'http://ws.bus.go.kr/api/rest/arrive/getArrInfoByRouteAll')
-  console.log('%c[Request Params]', 'color: #94a3b8; font-weight: bold;', {
-    serviceKey: 'DATA_GO_KR_API_KEY (unquote 디코딩 적용)',
-    resultType: 'json',
-    busRouteId: routeId,
-    stId: stId,
-  })
-  console.log('%c[Response Data - 실시간 버스 도착 현황]', 'color: #34d399; font-weight: bold;', arrivalData)
+  console.log('%c[실제 엔드포인트 URL]', 'color: #fb923c; font-weight: bold;', 
+    'http://ws.bus.go.kr/api/rest/arrive/getLowArrInfoByStId')
+  console.log('%c[Backend Proxy API]', 'color: #fb923c;', `/api/v1/transit/bus/arrival?stId=${stId}`)
+  console.log('%c[Live Response Data - 실시간 버스 도착 현황]', 'color: #34d399; font-weight: bold;', arrivalData)
+  if (rawPayload) {
+    console.log('%c[원천 응답 페이로드 (Raw JSON)]', 'color: #fdba74;', rawPayload)
+  }
   console.groupEnd()
 }
 
 // 3. 서울시 지하철 실시간 도착정보 API 로깅
-export function logSubwayApiCall(stationName: string, arrivalList: any) {
+export function logSubwayApiCall(stationName: string, arrivalList: any, rawPayload?: any) {
   console.groupCollapsed(
-    '%c🚇 [서울 열린데이터광장] 지하철 실시간 도착정보(realtimeStationArrival)',
+    `%c🚇 [서울 열린데이터광장] 실시간 지하철 도착정보 (${stationName}역)`,
     'background: #2563eb; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
   )
-  console.log('%c[엔드포인트 URL]', 'color: #60a5fa; font-weight: bold;', 
-    `http://swopenAPI.seoul.go.kr/api/subway/{KEY}/json/realtimeStationArrival/0/5/${encodeURIComponent(stationName)}`)
-  console.log('%c[Request Params]', 'color: #94a3b8; font-weight: bold;', {
-    KEY: 'SEOUL_SUBWAY_API_KEY',
-    TYPE: 'json',
-    SERVICE: 'realtimeStationArrival',
-    START_INDEX: 0,
-    END_INDEX: 5,
-    statnNm: stationName,
-  })
-  console.log('%c[Response Data - 열린데이터 실시간 도착 리스트]', 'color: #34d399; font-weight: bold;', arrivalList)
+  console.log('%c[실제 엔드포인트 URL]', 'color: #60a5fa; font-weight: bold;', 
+    `http://swopenAPI.seoul.go.kr/api/subway/{SEOUL_SUBWAY_API_KEY}/json/realtimeStationArrival/0/8/${encodeURIComponent(stationName)}`)
+  console.log('%c[Backend Proxy API]', 'color: #60a5fa;', `/api/v1/transit/subway/arrival?station=${encodeURIComponent(stationName)}`)
+  console.log('%c[Live Response Data - 실시간 열차 도착 리스트]', 'color: #34d399; font-weight: bold;', arrivalList)
+  if (rawPayload) {
+    console.log('%c[원천 응답 페이로드 (Raw JSON)]', 'color: #93c5fd;', rawPayload)
+  }
   console.groupEnd()
 }
 

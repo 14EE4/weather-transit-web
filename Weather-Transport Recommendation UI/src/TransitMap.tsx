@@ -3,6 +3,8 @@ import { logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogge
 import { SUBWAY_STATIONS } from './subwayData'
 import { TransitRouteResult } from './subwayGraph'
 
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
+
 // ── 역 및 정류장 데이터 규격 ──
 export interface TransitStop {
   id: string
@@ -484,15 +486,44 @@ export default function TransitMap({ filterType, rainMm, selectedTime, focusedCo
 
         // 브라우저 개발자 콘솔(F12)에 해당 거점의 실제 API 송수신 규격 데이터 출력
         if (stop.type === 'subway') {
-          logSubwayApiCall(stop.name.replace('역', ''), [
-            { trainLineNm: `${stop.name} 경유 - 성수/역삼 방면`, arvlMsg2: '전역 도착', barvlDt: '75', btrainSttus: '일반' },
-            { trainLineNm: `${stop.name} 경유 - 신사/신논현 방면`, arvlMsg2: '3분 후 (2번째 전역)', barvlDt: '180', btrainSttus: '일반' },
-          ])
+          const cleanName = stop.name.replace(/역$/, '')
+          fetch(`${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.status === 'success' && data.arrivals) {
+                logSubwayApiCall(cleanName, data.arrivals, data)
+              } else {
+                logSubwayApiCall(cleanName, [
+                  { trainLineNm: `${stop.name} 경유 - 성수/역삼 방면`, arvlMsg2: '전역 도착', barvlDt: '75', btrainSttus: '일반' },
+                  { trainLineNm: `${stop.name} 경유 - 신사/신논현 방면`, arvlMsg2: '3분 후 (2번째 전역)', barvlDt: '180', btrainSttus: '일반' },
+                ])
+              }
+            })
+            .catch(() => {
+              logSubwayApiCall(cleanName, [
+                { trainLineNm: `${stop.name} 경유 - 성수/역삼 방면`, arvlMsg2: '전역 도착', barvlDt: '75', btrainSttus: '일반' },
+                { trainLineNm: `${stop.name} 경유 - 신사/신논현 방면`, arvlMsg2: '3분 후 (2번째 전역)', barvlDt: '180', btrainSttus: '일반' },
+              ])
+            })
         } else if (stop.type === 'bus') {
-          logBusApiCall('100100118', '111000299', [
-            { rtNm: '472', stNm: stop.name, arrmsg1: '2분45초후[1번째 전]', arrmsg2: '8분20초후[4번째 전]', reride_Num1: '보통' },
-            { rtNm: '140', stNm: stop.name, arrmsg1: '곧 도착', arrmsg2: '6분50초후[3번째 전]', reride_Num1: '여유' },
-          ])
+          fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=111000299`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.status === 'success' && data.arrivals) {
+                logBusApiCall('100100118', '111000299', data.arrivals, data)
+              } else {
+                logBusApiCall('100100118', '111000299', [
+                  { rtNm: '472', stNm: stop.name, arrmsg1: '2분45초후[1번째 전]', arrmsg2: '8분20초후[4번째 전]', reride_Num1: '보통' },
+                  { rtNm: '140', stNm: stop.name, arrmsg1: '곧 도착', arrmsg2: '6분50초후[3번째 전]', reride_Num1: '여유' },
+                ])
+              }
+            })
+            .catch(() => {
+              logBusApiCall('100100118', '111000299', [
+                { rtNm: '472', stNm: stop.name, arrmsg1: '2분45초후[1번째 전]', arrmsg2: '8분20초후[4번째 전]', reride_Num1: '보통' },
+                { rtNm: '140', stNm: stop.name, arrmsg1: '곧 도착', arrmsg2: '6분50초후[3번째 전]', reride_Num1: '여유' },
+              ])
+            })
         }
 
         // AI 추론 결과 로깅

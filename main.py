@@ -38,8 +38,9 @@ KMA_AUTH_KEY = os.getenv("KMA_APIHUB_KEY")
 SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")
 DATA_GO_KR_BUS_KEY = os.getenv("DATA_GO_KR_API_KEY")
 
-# 서울시 25개 자치구 기상청 격자좌표 (nx, ny) 매핑
+# 서울시 25개 자치구 및 수도권 주요 인접 도시 기상청 격자좌표 (nx, ny) 매핑
 DISTRICT_KMA_GRID = {
+    # 서울시 25개 자치구
     "강남구": {"nx": 61, "ny": 126},
     "강동구": {"nx": 62, "ny": 126},
     "강북구": {"nx": 61, "ny": 128},
@@ -65,6 +66,16 @@ DISTRICT_KMA_GRID = {
     "종로구": {"nx": 60, "ny": 127},
     "중구": {"nx": 60, "ny": 127},
     "중랑구": {"nx": 62, "ny": 128},
+
+    # 수도권 주요 인접 광역 관문 도시 (출퇴근 연계축)
+    "성남시": {"nx": 62, "ny": 123},  # 분당구 / 판교 테크노밸리
+    "광명시": {"nx": 58, "ny": 125},  # 철산 / 광명역
+    "부천시": {"nx": 57, "ny": 125},  # 부천역 / 중동
+    "고양시": {"nx": 57, "ny": 128},  # 일산 / 삼송
+    "하남시": {"nx": 64, "ny": 126},  # 미사강변도시
+    "수원시": {"nx": 60, "ny": 121},  # 수원역 / 광교
+    "안양시": {"nx": 59, "ny": 123},  # 평촌 / 인덕원
+    "남양주시": {"nx": 64, "ny": 128}, # 다산 / 별내
 }
 
 # 공공 API 인메모리 캐시 (과도한 외부 호출 방지 및 SLA 10ms 보장)
@@ -217,6 +228,47 @@ def normalize_district_name(district: str) -> str:
         if dong_key in district:
             return d_name
     return "강남구"
+
+def resolve_weather_target(district_str: str) -> tuple[str, int, int]:
+    """
+    기상청 관측소 격자 좌표(nx, ny) 및 표출 지역명 판별
+    - 서울시 25개 자치구
+    - 수도권 주요 인접 도시 (성남시, 광명시, 부천시, 고양시, 하남시, 수원시, 안양시, 남양주시 등)
+    """
+    d_clean = district_str.strip()
+
+    # 수도권 인접 광역 관문 거점 및 행정동/랜드마크 매핑
+    satellite_cities: dict[str, tuple[str, int, int]] = {
+        "성남": ("성남시", 62, 123),
+        "분당": ("성남시", 62, 123),
+        "판교": ("성남시", 62, 123),
+        "광명": ("광명시", 58, 125),
+        "철산": ("광명시", 58, 125),
+        "부천": ("부천시", 57, 125),
+        "중동": ("부천시", 57, 125),
+        "고양": ("고양시", 57, 128),
+        "일산": ("고양시", 57, 128),
+        "삼송": ("고양시", 57, 128),
+        "하남": ("하남시", 64, 126),
+        "미사": ("하남시", 64, 126),
+        "수원": ("수원시", 60, 121),
+        "광교": ("수원시", 60, 121),
+        "안양": ("안양시", 59, 123),
+        "평촌": ("안양시", 59, 123),
+        "인덕원": ("안양시", 59, 123),
+        "남양주": ("남양주시", 64, 128),
+        "다산": ("남양주시", 64, 128),
+        "별내": ("남양주시", 64, 128),
+    }
+
+    for key, (city_name, nx, ny) in satellite_cities.items():
+        if key in d_clean:
+            return city_name, nx, ny
+
+    # 서울 25개 자치구 정규화
+    norm_d = normalize_district_name(d_clean)
+    grid = DISTRICT_KMA_GRID.get(norm_d, {"nx": 61, "ny": 126})
+    return norm_d, grid["nx"], grid["ny"]
 
 # ==============================================================================
 # 2. ONNX 세션 관리 및 Cold Start 방지 인메모리 로더
@@ -909,11 +961,9 @@ async def simulate_weather_impact(req: SimulationRequest):
 async def get_current_weather(district: str = "강남구"):
     """
     기상청 API허브 초단기실황(getUltraSrtNcst) 연동 실시간 기상 관측 API
-    - 25개 자치구별 격자(nx, ny) 자동 매핑 및 10분 캐싱 지원
+    - 서울시 25개 자치구 및 수도권 주요 8대 광역 거점 격자(nx, ny) 자동 매핑 및 10분 캐싱 지원
     """
-    norm_d = normalize_district_name(district)
-    grid = DISTRICT_KMA_GRID.get(norm_d, {"nx": 61, "ny": 125})
-    nx, ny = grid["nx"], grid["ny"]
+    target_name, nx, ny = resolve_weather_target(district)
 
     now = datetime.now()
     if now.minute < 10:
@@ -929,12 +979,14 @@ async def get_current_weather(district: str = "강남구"):
     if cache_key in _weather_cache:
         cached_ts, cached_data = _weather_cache[cache_key]
         if curr_time - cached_ts < 600:
-            return RealtimeWeatherResponse(**cached_data)
+            res = dict(cached_data)
+            res["district"] = target_name
+            return RealtimeWeatherResponse(**res)
 
     if not KMA_AUTH_KEY:
         return RealtimeWeatherResponse(
             status="success",
-            district=norm_d,
+            district=target_name,
             nx=nx,
             ny=ny,
             base_date=base_date,
@@ -980,7 +1032,7 @@ async def get_current_weather(district: str = "강남구"):
 
                     resp_data = {
                         "status": "success",
-                        "district": norm_d,
+                        "district": target_name,
                         "nx": nx,
                         "ny": ny,
                         "base_date": base_date,
@@ -1000,7 +1052,7 @@ async def get_current_weather(district: str = "강남구"):
 
     fallback_data = {
         "status": "success",
-        "district": norm_d,
+        "district": target_name,
         "nx": nx,
         "ny": ny,
         "base_date": base_date,

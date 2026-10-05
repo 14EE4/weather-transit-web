@@ -489,6 +489,8 @@ export default function App() {
       .then((data: LiveWeatherData) => {
         if (isMounted && data.status === 'success') {
           setLiveWeather(data)
+          // 지역(자치구/광역도시) 변경 시 브라우저 콘솔(F12)에 해당 지역 기상청 실시간 API 데이터 즉시 출력
+          logWeatherApiCall({ nx: data.nx, ny: data.ny }, data, data)
         }
       })
       .catch(err => {

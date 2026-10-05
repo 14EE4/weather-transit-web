@@ -6,12 +6,12 @@
 // 1. 기상청 초단기실황 API 로깅
 export function logWeatherApiCall(grid: { nx: number; ny: number }, weatherData: any, rawPayload?: any) {
   console.groupCollapsed(
-    `%c🌦️ [기상청 API허브] 실시간 초단기실황(getUltraSrtNcst) 연동 성공 (${weatherData.district || '서울'})`,
+    `%c🌦️ [기상청 API허브] 실시간 초단기실황(getUltraSrtNcst) 연동: ${weatherData.district || '서울'} (${weatherData.temp ?? '--'}°C, 격자: ${grid.nx}, ${grid.ny})`,
     'background: #0284c7; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
   )
   console.log('%c[실제 엔드포인트 URL]', 'color: #38bdf8; font-weight: bold;', 
     'https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst')
-  console.log('%c[Backend Proxy API]', 'color: #38bdf8;', `/api/v1/weather/current?district=${weatherData.district || '강남구'}`)
+  console.log('%c[Backend Proxy API]', 'color: #38bdf8;', `/api/v1/weather/current?district=${encodeURIComponent(weatherData.district || '강남구')}`)
   console.log('%c[Request Params]', 'color: #94a3b8; font-weight: bold;', {
     service: '기상청 초단기실황조회 (VilageFcstInfoService_2.0)',
     authKey: 'KMA_APIHUB_KEY (인증 완료)',

@@ -372,10 +372,23 @@ export default function App() {
       { trainLineNm: '신사행 - 신논현방면', arvlMsg2: '전역 진입', barvlDt: '0', btrainSttus: '일반' },
     ])
 
-    // 4. AI 수요 예측 추론
+    // 4. AI 수요 예측 추론 (실시간 모델 추론 결과와 동기화)
     logAIPredictionCall(
-      { location: '강남구 역삼동', rain: `${currentHour.rain}mm`, temp: `${currentHour.temp}°C`, hour: currentHour.hour },
-      { subwayScore: 97, busScore: 68, bikeScore: currentHour.rain > 0 ? 14 : 85, recommendation: isRaining ? '지하철 최우선 추천 (정시성 99%)' : '따릉이 및 대중교통 원활' }
+      {
+        location: DISTRICTS[selectedDistrict] || '강남구 역삼동',
+        rain: `${currentHour.rain}mm`,
+        temp: `${currentHour.temp}°C`,
+        hour: currentHour.hour,
+        latency: aiLatency ? `${aiLatency}ms (ONNX Engine)` : '실시간 연동'
+      },
+      transportScores.map(t => ({
+        id: t.id,
+        name: t.name,
+        score: t.score,
+        scoreLabel: t.scoreLabel,
+        crowd: `${t.crowd}% (${t.crowdLabel})`,
+        predicted_volume: t.predicted_volume ?? '연산 완료'
+      }))
     )
   }
 

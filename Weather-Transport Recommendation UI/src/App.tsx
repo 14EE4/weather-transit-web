@@ -6,15 +6,95 @@ import { findSubwayRoute, TransitRouteResult } from './subwayGraph'
 
 type Page = 'main' | 'route' | 'map'
 
-// ── 서울 행정동 데이터 (샘플) ──
-const DISTRICTS = [
-  '강남구 역삼동', '강남구 삼성동', '강남구 논현동',
-  '서초구 서초동', '서초구 반포동',
-  '마포구 서교동', '마포구 합정동',
-  '송파구 잠실동', '송파구 방이동',
-  '영등포구 여의도동', '영등포구 당산동',
-  '중구 명동', '중구 을지로동',
+// ── 서울 25개 자치구 및 수도권 주요 거점 권역별 데이터 ──
+export const DISTRICT_GROUPS = [
+  {
+    zone: '🏢 동남권 (강남·서초·송파·강동)',
+    items: [
+      '강남구 역삼·삼성동',
+      '강남구 논현·압구정동',
+      '강남구 대치·수서동',
+      '서초구 서초·교대역',
+      '서초구 반포·고속터미널',
+      '서초구 양재·시민의숲',
+      '송파구 잠실·롯데월드',
+      '송파구 문정·가락시장',
+      '강동구 천호·길동',
+      '강동구 명일·고덕동',
+    ]
+  },
+  {
+    zone: '🏛️ 도심권 (종로·중구·용산)',
+    items: [
+      '종로구 광화문·종로1가',
+      '종로구 혜화·대학로',
+      '중구 명동·을지로',
+      '중구 서울역·회현동',
+      '중구 동대문·신당동',
+      '용산구 이태원·한남동',
+      '용산구 용산역·이촌동',
+    ]
+  },
+  {
+    zone: '🏭 서남권 (영등포·구로·금천·동작·관악·강서·양천)',
+    items: [
+      '영등포구 여의도동',
+      '영등포구 당산·영등포동',
+      '구로구 신도림·구로디지털',
+      '금천구 가산디지털단지',
+      '동작구 노량진·사당동',
+      '관악구 신림·서울대입구',
+      '강서구 마곡·가양동',
+      '강서구 화곡·발산동',
+      '양천구 목동·오목교',
+    ]
+  },
+  {
+    zone: '🎨 서북권 (마포·서대문·은평)',
+    items: [
+      '마포구 홍대·서교동',
+      '마포구 합정·망원동',
+      '마포구 상암DMC·공덕동',
+      '서대문구 신촌·연희동',
+      '서대문구 홍제·독립문',
+      '은평구 연신내·불광동',
+      '은평구 응암·녹번동',
+    ]
+  },
+  {
+    zone: '🌲 동북권 (성동·광진·동대문·중랑·성북·강북·도봉·노원)',
+    items: [
+      '성동구 성수동 카페거리',
+      '성동구 왕십리·행당동',
+      '광진구 건대입구·화양동',
+      '광진구 구의·강변역',
+      '동대문구 청량리·회기동',
+      '동대문구 장안·답십리동',
+      '중랑구 상봉·면목동',
+      '성북구 안암·고려대',
+      '성북구 길음·성북동',
+      '강북구 수유·미아사거리',
+      '도봉구 창동·쌍문동',
+      '노원구 상계·노원역',
+      '노원구 공릉·태릉입구',
+    ]
+  },
+  {
+    zone: '🚆 수도권 인접 광역권 (출퇴근 연계축)',
+    items: [
+      '성남시 분당·판교 테크노밸리',
+      '광명시 철산·광명역',
+      '부천시 부천역·중동',
+      '고양시 일산·삼송',
+      '하남시 미사강변도시',
+      '수원시 수원역·광교',
+      '안양시 평촌·인덕원',
+      '남양주시 다산·별내',
+    ]
+  }
 ]
+
+const DISTRICTS = DISTRICT_GROUPS.flatMap(g => g.items)
 
 // ── 시간대별 날씨 + 교통 통합 데이터 ──
 const HOURLY_DATA = [
@@ -88,14 +168,16 @@ const CORRELATION_DATA = [
   { rain: 5.0, subway: 98, bus: 42, bike: 4 },
 ]
 
-// ── 동별 교통 혼잡 현황 ──
+// ── 권역별 주요 거점 교통 혼잡 현황 ──
 const DISTRICT_DATA = [
-  { name: '역삼동', bus: 82, subway: 91, bike: 45, weather: '🌧', temp: 14 },
-  { name: '삼성동', bus: 65, subway: 78, bike: 38, weather: '🌧', temp: 14 },
-  { name: '서교동', bus: 71, subway: 63, bike: 88, weather: '🌧', temp: 13 },
-  { name: '잠실동', bus: 55, subway: 94, bike: 31, weather: '🌦', temp: 15 },
+  { name: '강남 역삼동', bus: 82, subway: 91, bike: 45, weather: '🌧', temp: 14 },
+  { name: '도심 명동', bus: 92, subway: 85, bike: 18, weather: '🌧', temp: 13 },
   { name: '여의도동', bus: 88, subway: 72, bike: 24, weather: '🌧', temp: 14 },
-  { name: '명동', bus: 92, subway: 85, bike: 18, weather: '🌧', temp: 13 },
+  { name: '홍대 서교동', bus: 71, subway: 63, bike: 88, weather: '🌧', temp: 13 },
+  { name: '성수동 카페거리', bus: 68, subway: 84, bike: 52, weather: '🌧', temp: 14 },
+  { name: '가산디지털단지', bus: 79, subway: 88, bike: 30, weather: '🌧', temp: 14 },
+  { name: '잠실 롯데월드', bus: 55, subway: 94, bike: 31, weather: '🌦', temp: 15 },
+  { name: '판교 테크노밸리', bus: 74, subway: 86, bike: 42, weather: '🌧', temp: 13 },
 ]
 
 function CrowdBar({ value, color }: { value: number; color: string }) {
@@ -585,17 +667,30 @@ export default function App() {
 
             {/* 동 선택 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>지역</span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>지역</span>
               <select
                 value={selectedDistrict}
                 onChange={e => setSelectedDistrict(Number(e.target.value))}
                 style={{
-                  background: '#162040', border: '1px solid rgba(255,255,255,0.12)',
+                  background: '#162040', border: '1px solid rgba(56,189,248,0.3)',
                   color: '#F0F6FF', borderRadius: 12, padding: '8px 14px', fontSize: 13,
                   fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", outline: 'none', cursor: 'pointer',
+                  maxWidth: 280, textOverflow: 'ellipsis',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.3)'
                 }}
               >
-                {DISTRICTS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+                {DISTRICT_GROUPS.map(group => (
+                  <optgroup key={group.zone} label={group.zone} style={{ background: '#0D1B3A', color: '#38BDF8', fontWeight: 700 }}>
+                    {group.items.map(d => {
+                      const globalIdx = DISTRICTS.indexOf(d)
+                      return (
+                        <option key={d} value={globalIdx} style={{ background: '#162040', color: '#F0F6FF', fontWeight: 400 }}>
+                          {d}
+                        </option>
+                      )
+                    })}
+                  </optgroup>
+                ))}
               </select>
             </div>
           </div>

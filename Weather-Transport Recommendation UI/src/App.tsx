@@ -318,9 +318,29 @@ const getInitialPage = (): Page => {
   return 'main'
 }
 
+const getInitialDistrict = (): number => {
+  if (typeof window !== 'undefined') {
+    try {
+      const savedName = localStorage.getItem('weather_transit_district_name')
+      if (savedName) {
+        const idx = DISTRICTS.indexOf(savedName)
+        if (idx !== -1) return idx
+        const partialIdx = DISTRICTS.findIndex(d => d.includes(savedName) || savedName.includes(d))
+        if (partialIdx !== -1) return partialIdx
+      }
+      const savedIdx = localStorage.getItem('weather_transit_district')
+      if (savedIdx !== null) {
+        const num = Number(savedIdx)
+        if (!isNaN(num) && num >= 0 && num < DISTRICTS.length) return num
+      }
+    } catch {}
+  }
+  return 0
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>(getInitialPage)
-  const [selectedDistrict, setSelectedDistrict] = useState(0)
+  const [selectedDistrict, setSelectedDistrict] = useState<number>(getInitialDistrict)
   const [selectedHour, setSelectedHour] = useState(4) // 10시 기본
   const [departure, setDeparture] = useState('')
   const [destination, setDestination] = useState('')
@@ -395,6 +415,16 @@ export default function App() {
       window.location.hash = page
     }
   }, [page])
+
+  // 선택된 자치구 브라우저 로컬 스토리지에 동기화 (새로고침 및 재방문 시 자동 복원)
+  useEffect(() => {
+    try {
+      localStorage.setItem('weather_transit_district', String(selectedDistrict))
+      if (DISTRICTS[selectedDistrict]) {
+        localStorage.setItem('weather_transit_district_name', DISTRICTS[selectedDistrict])
+      }
+    } catch {}
+  }, [selectedDistrict])
 
   useEffect(() => {
     const handleHash = () => {

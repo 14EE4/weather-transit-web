@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import TransitMap, { TransitStop } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'
-import { findSubwayRoute, TransitRouteResult } from './subwayGraph'
+import { findSubwayRoute, calculateSubwayFare, TransitRouteResult } from './subwayGraph'
 
 type Page = 'main' | 'route' | 'map'
 
@@ -120,7 +120,7 @@ const TRANSPORT_SCORES = [
     scoreColor: '#38BDF8',
     reasons: ['날씨 영향 없음', '정시성 99.2%', '배차 간격 2~5분'],
     time: '28분',
-    price: '1,400원',
+    price: '1,550원',
     crowd: 52,
     crowdLabel: '보통',
     crowdColor: '#34D399',
@@ -803,38 +803,85 @@ export default function App() {
               </div>
             </div>
 
-            {/* 이용자 현황 */}
+            {/* 이용자 현황 (실제 AI 머신러닝 추론 이용객 수 실시간 연동) */}
             <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 16 }}>
-                교통 이용자 현황 · {currentHour.hour}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                  교통 수요 예측 현황 · {currentHour.hour}
+                </div>
+                <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)', padding: '2px 7px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
+                  ⚡ AI 모델 실시간 연동
+                </span>
               </div>
-              {[
-                { icon: '🚇', name: '지하철', value: currentHour.subway, color: '#38BDF8', max: 95000 },
-                { icon: '🚌', name: '버스', value: currentHour.bus, color: '#FB923C', max: 18400 },
-                { icon: '🚲', name: '따릉이', value: currentHour.bike, color: '#34D399', max: 780 },
-              ].map(t => (
-                <div key={t.name} style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 18 }}>{t.icon}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#F0F6FF' }}>{t.name}</span>
+              {(() => {
+                const subItem = transportScores.find(t => t.id === 'subway')
+                const busItem = transportScores.find(t => t.id === 'bus')
+                const bikeItem = transportScores.find(t => t.id === 'bike')
+
+                const liveItems = [
+                  {
+                    icon: '🚇',
+                    name: '지하철',
+                    value: subItem?.predicted_volume ?? currentHour.subway,
+                    crowd: subItem?.crowd ?? 52,
+                    crowdLabel: subItem?.crowdLabel ?? '보통',
+                    crowdColor: subItem?.crowdColor ?? '#38BDF8',
+                    color: '#38BDF8',
+                    unit: '명'
+                  },
+                  {
+                    icon: '🚌',
+                    name: '버스',
+                    value: busItem?.predicted_volume ?? currentHour.bus,
+                    crowd: busItem?.crowd ?? 78,
+                    crowdLabel: busItem?.crowdLabel ?? '혼잡',
+                    crowdColor: busItem?.crowdColor ?? '#FB923C',
+                    color: '#FB923C',
+                    unit: '명'
+                  },
+                  {
+                    icon: '🚲',
+                    name: '따릉이',
+                    value: bikeItem?.predicted_volume ?? currentHour.bike,
+                    crowd: bikeItem?.crowd ?? 8,
+                    crowdLabel: bikeItem?.crowdLabel ?? '여유',
+                    crowdColor: bikeItem?.crowdColor ?? '#34D399',
+                    color: '#34D399',
+                    unit: '건'
+                  },
+                ]
+
+                return (
+                  <>
+                    {liveItems.map(t => (
+                      <div key={t.name} style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 18 }}>{t.icon}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#F0F6FF' }}>{t.name}</span>
+                            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${t.crowdColor}22`, color: t.crowdColor, fontWeight: 700, fontFamily: 'JetBrains Mono' }}>
+                              {t.crowdLabel} {t.crowd}%
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: t.color, fontFamily: 'JetBrains Mono' }}>
+                            {t.value.toLocaleString()}{t.unit}
+                          </span>
+                        </div>
+                        <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.min(100, Math.max(5, t.crowd))}%`, background: t.color, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 4, padding: '10px 14px', background: isRaining ? 'rgba(56,189,248,0.08)' : 'rgba(251,146,60,0.08)', borderRadius: 12, border: `1px solid ${isRaining ? 'rgba(56,189,248,0.2)' : 'rgba(251,146,60,0.2)'}` }}>
+                      <div style={{ fontSize: 11, color: isRaining ? '#38BDF8' : '#FB923C' }}>
+                        {isRaining
+                          ? `⚠️ 강수 ${currentHour.rain}mm — 지하철 혼잡도 ${subItem?.crowd ?? 39}% (${(subItem?.predicted_volume ?? 0).toLocaleString()}명) 집중 · 따릉이(${(bikeItem?.predicted_volume ?? 0).toLocaleString()}건) 급감`
+                          : `✅ 맑은 날씨 — ${DISTRICTS[selectedDistrict]} 지하철 ${(subItem?.predicted_volume ?? 0).toLocaleString()}명 / 버스 ${(busItem?.predicted_volume ?? 0).toLocaleString()}명 정상 소통`}
+                      </div>
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: t.color, fontFamily: 'JetBrains Mono' }}>
-                      {t.value.toLocaleString()}명
-                    </span>
-                  </div>
-                  <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(t.value / t.max) * 100}%`, background: t.color, borderRadius: 3, transition: 'width 0.5s ease' }} />
-                  </div>
-                </div>
-              ))}
-              <div style={{ marginTop: 4, padding: '10px 14px', background: isRaining ? 'rgba(56,189,248,0.08)' : 'rgba(251,146,60,0.08)', borderRadius: 12, border: `1px solid ${isRaining ? 'rgba(56,189,248,0.2)' : 'rgba(251,146,60,0.2)'}` }}>
-                <div style={{ fontSize: 11, color: isRaining ? '#38BDF8' : '#FB923C' }}>
-                  {isRaining
-                    ? `⚠️ 비 ${currentHour.rain}mm — 지하철 수요 ${Math.round((currentHour.subway / 95000) * 100)}% · 따릉이 급감`
-                    : '✅ 맑은 날씨 — 전 교통수단 정상 운행'}
-                </div>
-              </div>
+                  </>
+                )
+              })()}
             </div>
 
             {/* AI 추천 카드 */}
@@ -1285,37 +1332,45 @@ export default function App() {
                   자주 찾는 경로
                 </div>
                 {[
-                  { from: '강남역', to: '서울역', icon: '🚇', time: '35분', price: '1,400원' },
-                  { from: '홍대입구역', to: '이태원역', icon: '🚇', time: '24분', price: '1,400원' },
-                  { from: '잠실역', to: '강동구청역', icon: '🚇', time: '14분', price: '1,400원' },
-                  { from: '여의도역', to: '시청역', icon: '🚇', time: '16분', price: '1,400원' },
-                ].map(r => (
-                  <button
-                    key={r.from}
-                    onClick={() => {
-                      setDeparture(r.from)
-                      setDestination(r.to)
-                      handleSearchRoute(r.from, r.to)
-                    }}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 14px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
-                      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
-                      textAlign: 'left', transition: 'all 0.15s',
-                    }}
-                  >
-                    <span style={{ fontSize: 18 }}>{r.icon}</span>
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#F0F6FF' }}>{r.from}</span>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '0 6px' }}>→</span>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#F0F6FF' }}>{r.to}</span>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>{r.time}</div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{r.price}</div>
-                    </div>
-                  </button>
-                ))}
+                  { from: '강남역', to: '서울역', icon: '🚇' },
+                  { from: '홍대입구역', to: '이태원역', icon: '🚇' },
+                  { from: '잠실역', to: '강동구청역', icon: '🚇' },
+                  { from: '여의도역', to: '시청역', icon: '🚇' },
+                ].map(item => {
+                  const r = findSubwayRoute(item.from, item.to)
+                  const timeStr = r ? `${r.estimatedMinutes}분` : '25분'
+                  const fareStr = r ? `${r.fareKrw.toLocaleString()}원` : '1,550원'
+                  const distStr = r ? `(${r.distanceKm}km)` : ''
+                  return (
+                    <button
+                      key={item.from + item.to}
+                      onClick={() => {
+                        setDeparture(item.from)
+                        setDestination(item.to)
+                        handleSearchRoute(item.from, item.to)
+                      }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 14px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                        textAlign: 'left', transition: 'all 0.15s',
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>{item.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#F0F6FF' }}>{item.from}</span>
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '0 6px' }}>→</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#F0F6FF' }}>{item.to}</span>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>{timeStr}</div>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }} title={r?.fareBreakdown}>
+                          {fareStr} <span style={{ fontSize: 9, color: 'rgba(56,189,248,0.7)' }}>{distStr}</span>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -1368,12 +1423,27 @@ export default function App() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
                       {[
-                        { label: '예상 소요', value: t.time },
-                        { label: '예상 요금', value: t.price },
+                        {
+                          label: '예상 소요',
+                          value: (t.id === 'subway' && activeRoute) ? `${activeRoute.estimatedMinutes}분` : t.time
+                        },
+                        {
+                          label: '예상 요금',
+                          value: (t.id === 'subway' && activeRoute)
+                            ? `${activeRoute.fareKrw.toLocaleString()}원`
+                            : (t.id === 'subway' ? '1,550원~' : t.price)
+                        },
                         { label: '혼잡도', value: t.crowdLabel },
                       ].map(item => (
                         <div key={item.label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>{item.label}</div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>
+                            {item.label}
+                            {item.label === '예상 요금' && t.id === 'subway' && activeRoute && (
+                              <span style={{ fontSize: 9, color: 'rgba(56,189,248,0.7)', marginLeft: 4 }}>
+                                ({activeRoute.distanceKm}km)
+                              </span>
+                            )}
+                          </div>
                           <div style={{ fontSize: 14, fontWeight: 700, color: item.label === '혼잡도' ? t.crowdColor : '#F0F6FF' }}>{item.value}</div>
                         </div>
                       ))}
@@ -1714,10 +1784,31 @@ export default function App() {
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.stationCount}개 역</div>
                     </div>
                     <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>기본 요금</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>1,400원</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>이동 요금 ({activeRoute.distanceKm}km)</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }} title={activeRoute.fareBreakdown}>
+                        {activeRoute.fareKrw.toLocaleString()}원
+                      </div>
                     </div>
                   </div>
+
+                  {/* 수도권 거리비례 운임 산정 내역 */}
+                  {activeRoute.fareBreakdown && (
+                    <div style={{
+                      fontSize: 10,
+                      color: 'rgba(255,255,255,0.7)',
+                      background: 'rgba(56,189,248,0.08)',
+                      border: '1px solid rgba(56,189,248,0.2)',
+                      borderRadius: 8,
+                      padding: '5px 10px',
+                      marginBottom: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}>
+                      <span style={{ fontSize: 11 }}>💳</span>
+                      <span><b>거리비례 운임</b>: {activeRoute.fareBreakdown}</span>
+                    </div>
+                  )}
 
                   {/* 실시간 열차 탑승 안내 박스 (몇 분 후 탑승) */}
                   <div style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -1863,7 +1954,7 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {[
-                      ['💰', mapTransport === 'subway' ? '1,400원' : mapTransport === 'bus' ? '1,300원' : '1,000원/h'],
+                      ['💰', mapTransport === 'subway' ? '1,550원~ (거리비례)' : mapTransport === 'bus' ? '1,300원' : '1,000원/h'],
                       ['👥', rainSimulation > 3 ? (mapTransport === 'bike' ? '운행중단' : '매우혼잡') : (mapTransport === 'bike' ? '여유' : '보통')],
                     ].map(([icon, val]) => (
                       <div key={val as string} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>

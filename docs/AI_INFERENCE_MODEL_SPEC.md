@@ -191,7 +191,7 @@ FEATURE_SCHEMA = {
         "출근 시간대 배차 간격 2.5분 유지"
       ],
       "estimated_time_min": 28,
-      "fare_krw": 1400,
+      "fare_krw": 1550,
       "crowd": 88,
       "crowdLabel": "혼잡",
       "crowdColor": "#F43F5E",

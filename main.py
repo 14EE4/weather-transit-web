@@ -674,7 +674,7 @@ async def predict_recommendation(req: PredictionRequest):
             scoreColor=subway_score_col,
             reasons=subway_reasons,
             estimated_time_min=28,
-            fare_krw=1400,
+            fare_krw=1550,
             crowd=subway_crowd,
             crowdLabel=get_crowd_label(subway_crowd),
             crowdColor=get_crowd_color(subway_crowd),

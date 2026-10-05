@@ -150,7 +150,7 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
         "출퇴근 배차 간격 2.5~3분 유지로 신속한 이동"
       ],
       "estimated_time_min": 28,
-      "fare_krw": 1400,
+      "fare_krw": 1550,
       "crowd": 39,
       "crowdLabel": "여유",
       "crowdColor": "#10B981",

@@ -2475,6 +2475,155 @@ export interface TransitRouteResult {
   departureTrain?: TrainArrivalInfo
   transferTrains?: TrainArrivalInfo[]
   summary: string
+  fareKrw: number
+  distanceKm: number
+  innerDistanceKm?: number
+  outerDistanceKm?: number
+  fareBreakdown: string
+}
+
+// ── 수도권 외 구간 정의 (코레일 / 수도권 전철 운임 규정) ──
+// 1호선: 평택역 초과 ~ 신창역 (경계: 평택역)
+// 경춘선: 가평역 초과 ~ 춘천역 (경계: 가평역)
+export const OUTER_SECTION_STATIONS = new Set([
+  // 1호선 평택 남쪽 구간
+  '성환역', '직산역', '두정역', '천안역', '봉명역', '쌍용역', '쌍용(나사렛대)역',
+  '아산역', '탕정역', '배방역', '온양온천역', '신창역', '신창(순천향대)역',
+  // 경춘선 가평 동쪽 구간
+  '굴봉산역', '백양리역', '강촌역', '김유정역', '남춘천역', '춘천역',
+])
+
+export const BOUNDARY_STATIONS = new Set(['평택역', '가평역'])
+
+export function isOuterEdge(stA?: string, stB?: string): boolean {
+  if (!stA || !stB) return false
+  const cleanA = stA.trim().endsWith('역') ? stA.trim() : stA.trim() + '역'
+  const cleanB = stB.trim().endsWith('역') ? stB.trim() : stB.trim() + '역'
+
+  const aOuter = OUTER_SECTION_STATIONS.has(cleanA)
+  const bOuter = OUTER_SECTION_STATIONS.has(cleanB)
+  const aBoundary = BOUNDARY_STATIONS.has(cleanA)
+  const bBoundary = BOUNDARY_STATIONS.has(cleanB)
+
+  // 둘 다 외구간이거나, 한쪽이 경계역(평택, 가평)이고 다른 한쪽이 외구간인 경우
+  return (aOuter && bOuter) || (aBoundary && bOuter) || (bBoundary && aOuter)
+}
+
+/**
+ * 위도, 경도 간 Haversine 구면 거리 계산 (단위: km)
+ */
+function calculateHaversineDistanceKm(coord1: [number, number], coord2: [number, number]): number {
+  const [lng1, lat1] = coord1
+  const [lng2, lat2] = coord2
+  const R = 6371 // 지구 반지름 (km)
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+/**
+ * 수도권 전철 공식 거리비례제 운임 계산기 (최신 운임제도 기준)
+ * 1) 기본운임 : 10km까지 1,550원 (교통카드 일반 기준)
+ * 2) 추가운임 : 10km∼50km까지 5km 마다 100원, 50km 초과 시 8km 마다 100원
+ * 3) 수도권 외 구간 특례 (평택역∼신창역, 가평역∼춘천역):
+ *    수도권 내 구간과 수도권 외 구간을 연속하여 이용하는 경우
+ *    수도권 외 구간은 4km 마다 100원 (수도권 내 구간 운임을 먼저 계산)
+ */
+export function calculateSubwayFare(
+  pathCoords: [number, number][],
+  stationNames?: string[]
+): {
+  fareKrw: number
+  distanceKm: number
+  innerDistanceKm: number
+  outerDistanceKm: number
+  fareBreakdown: string
+} {
+  if (pathCoords.length <= 1) {
+    return {
+      fareKrw: 1550,
+      distanceKm: 1.0,
+      innerDistanceKm: 1.0,
+      outerDistanceKm: 0.0,
+      fareBreakdown: '기본 운임 1,550원 (10km 이내)'
+    }
+  }
+
+  let innerKm = 0
+  let outerKm = 0
+
+  for (let i = 0; i < pathCoords.length - 1; i++) {
+    const d = calculateHaversineDistanceKm(pathCoords[i], pathCoords[i + 1])
+    const edgeKm = Math.max(0.8, d * 1.08)
+    const stA = stationNames?.[i]
+    const stB = stationNames?.[i + 1]
+
+    if (stA && stB && isOuterEdge(stA, stB)) {
+      outerKm += edgeKm
+    } else {
+      innerKm += edgeKm
+    }
+  }
+
+  const roundedInner = Math.round(innerKm * 10) / 10
+  const roundedOuter = Math.round(outerKm * 10) / 10
+  const totalDist = Math.round((roundedInner + roundedOuter) * 10) / 10
+
+  let innerFare = 0
+  let outerFare = 0
+  let breakdown = ''
+
+  // 1. 수도권 내 구간 운임 계산
+  if (roundedInner > 0) {
+    innerFare = 1550 // 10km까지 기본운임
+
+    if (roundedInner > 50) {
+      // 10km ~ 50km (40km): 40 / 5 = 8구간 * 100원 = 800원
+      const section40 = 800
+      // 50km 초과: 8km 마다 100원
+      const over50 = roundedInner - 50
+      const sectionOver50 = Math.ceil(over50 / 8) * 100
+      innerFare += section40 + sectionOver50
+    } else if (roundedInner > 10) {
+      // 10km ~ 50km: 5km 마다 100원
+      innerFare += Math.ceil((roundedInner - 10) / 5) * 100
+    }
+
+    // 2. 수도권 외 구간을 연속하여 이용하는 경우 (4km 마다 100원 가산)
+    if (roundedOuter > 0) {
+      outerFare = Math.ceil(roundedOuter / 4) * 100
+      breakdown = `수도권 내 ${roundedInner}km (${innerFare.toLocaleString()}원) + 수도권 외 ${roundedOuter}km (${outerFare.toLocaleString()}원)`
+    } else {
+      breakdown = totalDist <= 10
+        ? `기본 운임 1,550원 (${totalDist}km, 10km 이내)`
+        : `기본 1,550원 + 거리 가산 ${(innerFare - 1550).toLocaleString()}원 (${totalDist}km)`
+    }
+  } else {
+    // 3. 수도권 외 구간만 단독 이용하는 경우
+    // 10km까지 기본운임 1,550원, 10km 초과 시 4km 마다 100원
+    outerFare = 1550
+    if (roundedOuter > 10) {
+      outerFare += Math.ceil((roundedOuter - 10) / 4) * 100
+    }
+    breakdown = roundedOuter <= 10
+      ? `수도권 외 기본 운임 1,550원 (${roundedOuter}km, 10km 이내)`
+      : `수도권 외 기본 1,550원 + 가산 ${(outerFare - 1550).toLocaleString()}원 (${roundedOuter}km)`
+  }
+
+  const totalFare = innerFare + outerFare
+
+  return {
+    fareKrw: totalFare,
+    distanceKm: totalDist,
+    innerDistanceKm: roundedInner,
+    outerDistanceKm: roundedOuter,
+    fareBreakdown: breakdown,
+  }
 }
 
 // ── 실시간 열차 도착 예정 시간 계산기 (공공 API 규격 시뮬레이션) ──
@@ -2849,9 +2998,14 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
   // 소요 시간: 역 당 2.5분 + 환승 1회당 4분 가산
   const estimatedMinutes = Math.max(5, Math.round(stationCount * 2.5 + transferCount * 4))
 
+  // 거리 비례제 운임 및 실연장 거리(km) 계산
+  const pathCoords: [number, number][] = pathSteps.map(p => p.coords)
+  const pathNames: string[] = pathSteps.map(p => p.name)
+  const { fareKrw, distanceKm, innerDistanceKm, outerDistanceKm, fareBreakdown } = calculateSubwayFare(pathCoords, pathNames)
+
   const summary = transferCount === 0
-    ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분)`
-    : `${startSt.name} ➔ ${endSt.name} (최소 환승: ${transferCount}회 [${transferStations.join(', ')}], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분)`
+    ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
+    : `${startSt.name} ➔ ${endSt.name} (최소 환승: ${transferCount}회 [${transferStations.join(', ')}], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
 
   return {
     from: startSt.name,
@@ -2864,5 +3018,10 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
     departureTrain,
     transferTrains,
     summary,
+    fareKrw,
+    distanceKm,
+    innerDistanceKm,
+    outerDistanceKm,
+    fareBreakdown,
   }
 }

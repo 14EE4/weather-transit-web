@@ -18,6 +18,8 @@ import numpy as np
 import onnxruntime as ort
 import httpx
 
+from timeseries_cache import timeseries_cache
+
 # ==============================================================================
 # 0. 로깅 및 환경 설정
 # ==============================================================================
@@ -532,23 +534,23 @@ def build_feature_vector(
     district_bike_racks = float(infra["bike_racks"])
     commercial_density = float(infra["commercial_density"])
 
-    # 4. 시계열 래그 및 이동통계 피처 (11)
+    # 4. 시계열 래그 및 이동통계 피처 (11) - 실시간 시계열 캐시 및 동적 집계 파이프라인
     stats = DISTRICT_STATS.get(norm_district, DISTRICT_STATS["강남구"])
-    bike_base = float(stats["bike_mean"])
-    bus_base = float(stats["bus_mean"])
-    subway_base = float(stats["subway_mean"])
+    transit_lags = timeseries_cache.get_transit_lags(norm_district, hour, dt, stats)
 
-    bike_lag_1h = bike_base
-    bus_lag_1h = bus_base
-    subway_lag_1h = subway_base
-    bike_roll_mean_3h = bike_base
-    bus_roll_mean_3h = bus_base
-    subway_roll_mean_3h = subway_base
-    same_day_last_week_bike = bike_base
-    same_day_last_week_bus = bus_base
-    same_day_last_week_sub = subway_base
-    temp_diff_1h = 0.0
-    rain_diff_1h = 0.0
+    bike_lag_1h = float(transit_lags["bike_lag_1h"])
+    bus_lag_1h = float(transit_lags["bus_lag_1h"])
+    subway_lag_1h = float(transit_lags["subway_lag_1h"])
+    bike_roll_mean_3h = float(transit_lags["bike_roll_mean_3h"])
+    bus_roll_mean_3h = float(transit_lags["bus_roll_mean_3h"])
+    subway_roll_mean_3h = float(transit_lags["subway_roll_mean_3h"])
+    same_day_last_week_bike = float(transit_lags["same_day_last_week_bike"])
+    same_day_last_week_bus = float(transit_lags["same_day_last_week_bus"])
+    same_day_last_week_sub = float(transit_lags["same_day_last_week_sub"])
+
+    temp_diff_1h, rain_diff_1h = timeseries_cache.get_weather_diff_1h(
+        norm_district, current_temp=t, current_rain=rain, dt=dt
+    )
 
     vector_32 = [
         # [0..7] 시계열 및 캘린더 피처
@@ -740,6 +742,27 @@ async def health_check():
         "timestamp": datetime.now().astimezone().isoformat()
     }
 
+@app.get("/api/v1/cache/timeseries-status", tags=["System"])
+async def get_timeseries_cache_status(district: Optional[str] = None):
+    """
+    시계열 래그 및 기상 차분 캐시 레이어 상태 진단 API
+    - 자치구 파라미터 전달 시 해당 자치구의 실시간 11차원 시계열 피처 즉시 반환
+    """
+    status_info = timeseries_cache.get_status()
+    if district:
+        norm_d = normalize_district_name(district)
+        now = datetime.now()
+        stats = DISTRICT_STATS.get(norm_d, DISTRICT_STATS["강남구"])
+        lags = timeseries_cache.get_transit_lags(norm_d, now.hour, now, stats)
+        diff_temp, diff_rain = timeseries_cache.get_weather_diff_1h(norm_d, current_temp=15.0, current_rain=0.0, dt=now)
+        status_info["query_district"] = norm_d
+        status_info["current_lags_and_diffs"] = {
+            **lags,
+            "temp_diff_1h": diff_temp,
+            "rain_diff_1h": diff_rain
+        }
+    return status_info
+
 @app.post("/api/v1/predict/recommendation", response_model=PredictionResponse, tags=["Inference"])
 async def predict_recommendation(req: PredictionRequest):
     """
@@ -780,6 +803,21 @@ async def predict_recommendation(req: PredictionRequest):
     bike_demand = max(0.0, bike_pred)
     bus_demand = max(0.0, bus_pred)
     subway_demand = max(0.0, subway_pred)
+
+    # 실시간 관측 기상 및 추론 수요 스냅샷을 시계열 캐시에 동적 적재
+    timeseries_cache.record_weather(
+        norm_district,
+        temp=weather.temp,
+        rain=weather.rain,
+        humidity=weather.humidity,
+        wind=weather.wind
+    )
+    timeseries_cache.record_demand(
+        norm_district,
+        bike_vol=bike_demand,
+        bus_vol=bus_demand,
+        subway_vol=subway_demand
+    )
 
     # 3. 혼잡도 지수 및 MCDA 추천 스코어링 계산
     subway_crowd, subway_score, subway_reasons = evaluate_subway(subway_demand, weather.rain, norm_district)
@@ -1052,6 +1090,13 @@ async def get_current_weather(district: str = "강남구"):
                         "source": "KMA_APIHUB_LIVE"
                     }
                     _weather_cache[cache_key] = (curr_time, resp_data)
+                    timeseries_cache.record_weather(
+                        target_name,
+                        temp=resp_data["temp"],
+                        rain=resp_data["rain"],
+                        humidity=resp_data["humidity"],
+                        wind=resp_data["wind"]
+                    )
                     return RealtimeWeatherResponse(**resp_data)
     except Exception as e:
         logger.warning(f"KMA API call failed: {e}, using fallback.")
@@ -1071,6 +1116,13 @@ async def get_current_weather(district: str = "강남구"):
         "wind": 2.4,
         "source": "KMA_APIHUB_FALLBACK"
     }
+    timeseries_cache.record_weather(
+        target_name,
+        temp=fallback_data["temp"],
+        rain=fallback_data["rain"],
+        humidity=fallback_data["humidity"],
+        wind=fallback_data["wind"]
+    )
     return RealtimeWeatherResponse(**fallback_data)
 
 

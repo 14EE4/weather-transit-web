@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { SUBWAY_STATIONS } from './subwayData'
+import { BUS_STOPS } from './busStopData'
+import { BIKE_STATIONS } from './bikeStopData'
 import { TransitRouteResult } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
 
@@ -15,11 +17,18 @@ export interface TransitStop {
   lineInfo: string
   baseCrowd: number // 기본 혼잡도 (0~100)
   rainSensitivity: number // 강수 민감도 (지하철: +, 버스: +, 따릉이: -)
+  district?: string
+  stId?: string // 버스 정류소 고유 ID (공공 API 연동)
+  arsId?: string // 버스 정류소 5자리 번호
+  isHub?: boolean // 환승센터 등 메이저 거점
+  stationNo?: string // 따릉이 대여소 번호
+  rackCount?: number // 따릉이 총 거치대 수
+  isPopularSpot?: boolean // 따릉이 인기 핫스팟
 }
 
-// ── 서울 주요 지하철역(전체 확장) + 버스 정류소 + 따릉이 대여소 ──
+// ── 서울 및 수도권 전체 지하철역(561개) + 버스 환승센터(55개) + 따릉이 거점(52개) ──
 export const TRANSIT_STOPS: TransitStop[] = [
-  // 지하철역 (SUBWAY_STATIONS 마스터 데이터 연동)
+  // 1. 지하철역 (SUBWAY_STATIONS 마스터 데이터 561개 연동)
   ...SUBWAY_STATIONS.map(s => ({
     id: s.id,
     name: s.name,
@@ -30,18 +39,35 @@ export const TRANSIT_STOPS: TransitStop[] = [
     rainSensitivity: 1.2
   })),
 
-  // 버스 정류소
-  { id: 'bus-gn-center', name: '강남역(중앙차로)', type: 'bus', coords: [127.0282, 37.4988], lineInfo: '140, 472, 9408 등', baseCrowd: 75, rainSensitivity: 1.3 },
-  { id: 'bus-sinnonhyeon', name: '신논현역.구보건소', type: 'bus', coords: [127.0252, 37.5045], lineInfo: '144, 360, 6411 등', baseCrowd: 68, rainSensitivity: 1.25 },
-  { id: 'bus-samseong', name: '무역센터(삼성역)', type: 'bus', coords: [127.0601, 37.5097], lineInfo: '143, 301, 3412 등', baseCrowd: 64, rainSensitivity: 1.2 },
-  { id: 'bus-yeouido-tc', name: '여의도환승센터', type: 'bus', coords: [126.9255, 37.5248], lineInfo: '160, 260, 8600 등', baseCrowd: 70, rainSensitivity: 1.35 },
-  { id: 'bus-seoul-tc', name: '서울역버스환승센터', type: 'bus', coords: [126.9723, 37.5562], lineInfo: '150, 503, 702 등', baseCrowd: 78, rainSensitivity: 1.3 },
+  // 2. 버스 정류소 및 주요 환승센터 (BUS_STOPS 55개 연동)
+  ...BUS_STOPS.map(b => ({
+    id: b.id,
+    name: b.name,
+    type: 'bus' as const,
+    coords: b.coords,
+    lineInfo: b.lineInfo,
+    baseCrowd: b.baseCrowd,
+    rainSensitivity: b.rainSensitivity,
+    district: b.district,
+    stId: b.stId,
+    arsId: b.arsId,
+    isHub: b.isHub
+  })),
 
-  // 따릉이 대여소
-  { id: 'bike-gn-exit9', name: '따릉이: 강남역 9번출구', type: 'bike', coords: [127.0264, 37.4984], lineInfo: '거치대 20대 (대여가능)', baseCrowd: 80, rainSensitivity: -2.5 },
-  { id: 'bike-samseong', name: '따릉이: 삼성역 5번출구', type: 'bike', coords: [127.0612, 37.5090], lineInfo: '거치대 15대 (대여가능)', baseCrowd: 65, rainSensitivity: -2.2 },
-  { id: 'bike-yeouinaru', name: '따릉이: 여의나루역 앞', type: 'bike', coords: [126.9328, 37.5271], lineInfo: '거치대 30대 (대여가능)', baseCrowd: 88, rainSensitivity: -3.0 },
-  { id: 'bike-jamsil', name: '따릉이: 잠실역 8번출구', type: 'bike', coords: [127.1015, 37.5142], lineInfo: '거치대 25대 (대여가능)', baseCrowd: 70, rainSensitivity: -2.4 },
+  // 3. 따릉이 거점 대여소 (BIKE_STATIONS 52개 연동)
+  ...BIKE_STATIONS.map(k => ({
+    id: k.id,
+    name: k.name,
+    type: 'bike' as const,
+    coords: k.coords,
+    lineInfo: k.lineInfo,
+    baseCrowd: k.baseCrowd,
+    rainSensitivity: k.rainSensitivity,
+    district: k.district,
+    stationNo: k.stationNo,
+    rackCount: k.rackCount,
+    isPopularSpot: k.isPopularSpot
+  }))
 ]
 
 
@@ -248,25 +274,29 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     })
   }, [focusedCoords, mapLoaded])
 
-  // 역/정류소 중요도 가중치 계산 (환승역 및 주요 거점 역이 축소 시 우선 표시됨)
+  // 역/정류소 중요도 가중치 계산 (환승역 및 주요 환승센터/대형 거점 우선 노출)
   const calculateStationPriority = (stop: TransitStop): number => {
     let score = 0
-    if (stop.type === 'subway') score += 120
-    else if (stop.type === 'bus') score += 50
-    else score += 20
-
-    const lineCount = stop.lineInfo ? stop.lineInfo.split(/[·,]/).length : 1
-    score += lineCount * 30
-    score += stop.baseCrowd * 0.2
-
-    const majorHubs = [
-      '서울역', '강남역', '신도림역', '구로역', '잠실역', '여의도역', '홍대입구역',
-      '시청역', '고속터미널역', '왕십리역', '용산역', '청량리역', '수원역', '판교역',
-      '사당역', '동대문역사문화공원역', '종로3가역', '가산디지털단지역', '교대역', '선릉역',
-      '건대입구역', '신림역', '노원역', '영등포역'
-    ]
-    if (majorHubs.includes(stop.name)) {
-      score += 200
+    if (stop.type === 'subway') {
+      score += 120
+      const lineCount = stop.lineInfo ? stop.lineInfo.split(/[·,]/).length : 1
+      score += lineCount * 30
+      score += stop.baseCrowd * 0.2
+      const majorHubs = [
+        '서울역', '강남역', '신도림역', '구로역', '잠실역', '여의도역', '홍대입구역',
+        '시청역', '고속터미널역', '왕십리역', '용산역', '청량리역', '수원역', '판교역',
+        '사당역', '동대문역사문화공원역', '종로3가역', '가산디지털단지역', '교대역', '선릉역',
+        '건대입구역', '신림역', '노원역', '영등포역'
+      ]
+      if (majorHubs.includes(stop.name)) score += 200
+    } else if (stop.type === 'bus') {
+      score += 70
+      if (stop.isHub) score += 180 // 대형 광역환승센터(서울역, 잠실, 여의도, 사당, 강변 등)
+      score += stop.baseCrowd * 0.25
+    } else {
+      score += 40
+      if (stop.isPopularSpot) score += 160 // 한강공원/대형공원 핫스팟
+      score += (stop.rackCount || 20) * 1.5
     }
     return score
   }
@@ -307,7 +337,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     const routeStationNames = hasActiveRoute ? new Set(currentRoute.path.map(p => p.name)) : null
 
     // 0. 일정 배율 이하로 많이 줌아웃한 경우 (currentZoom < 11.0, 활성 경로가 없을 때만):
-    // 광역 지도 탐색 시 화면이 수백 개의 역 마커로 가려지지 않도록 주요 거점(환승역) 및 선택된 역 위주로 표출
+    // 광역 지도 탐색 시 화면이 수백 개의 마커로 가려지지 않도록 주요 거점(지하철 환승역) 위주로 표출
     if (currentZoom < 11.0 && !hasActiveRoute) {
       for (const item of markerItemsRef.current) {
         const [lng, lat] = item.stop.coords
@@ -324,6 +354,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       }
       return
     }
+
+    // 0-1. 중거리 도심 탐색 구간 (11.0 <= currentZoom < 13.0, 전체 모드 시):
+    // 일반 지엽 버스/따릉이는 상세 배율(13.0+)에서 띄우고, 주요 환승센터/대형공원 거점 위주로 단계적 노출
+    const isMidRangeZoom = currentZoom < 13.0 && !hasActiveRoute && filterType === 'all'
 
     const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = []
 
@@ -347,6 +381,22 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         if (isSpecialPinStation) {
           item.el.style.display = 'none'
           continue
+        }
+      }
+
+      // 1-1. 중거리 뷰(11.0~13.0)에서 전체 모드일 경우 지엽 정류소 필터링
+      if (isMidRangeZoom) {
+        const isSelectedOrFocused = (currentFocused && Math.abs(lng - currentFocused[0]) < 0.0002 && Math.abs(lat - currentFocused[1]) < 0.0002) ||
+                                    (currentActiveStop && currentActiveStop.id === item.stop.id)
+        if (!isSelectedOrFocused) {
+          if (item.stop.type === 'bus' && !item.stop.isHub) {
+            item.el.style.display = 'none'
+            continue
+          }
+          if (item.stop.type === 'bike' && !item.stop.isPopularSpot) {
+            item.el.style.display = 'none'
+            continue
+          }
         }
       }
 
@@ -788,6 +838,32 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               </div>
             `
           }
+        } else if (stop.type === 'bike') {
+          const rackTotal = stop.rackCount || 20
+          // 혼잡도와 강수량에 따른 실시간 대여 가능 잔여 대수 추정
+          const crowdRatio = (displayCrowd || 60) / 100
+          const availableBikes = rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65)))
+          arrivalSection = `
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+                <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
+                  <span>🚲</span> 따릉이 실시간 거치 현황
+                </span>
+                <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">
+                  ${stop.stationNo ? `대여소 #${stop.stationNo}` : '거점 대여소'}
+                </span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.35); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
+                <span style="color: #E2E8F0;">대여 가능 자전거</span>
+                <span style="color: #34D399; font-weight: 800; font-family: monospace;">약 ${availableBikes}대 / 총 ${rackTotal}대</span>
+              </div>
+              ${rainMm > 0 ? `
+                <div style="margin-top: 4px; font-size: 9px; color: #FCA5A5; text-align: center;">
+                  🌧️ 우천 감속 및 안전모 착용 필수 (우천 시 대여 자제 권고)
+                </div>
+              ` : ''}
+            </div>
+          `
         }
 
         return `
@@ -944,22 +1020,26 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               logSubwayApiCall(cleanName, arrivals)
             }
           } else if (stop.type === 'bus') {
+            const targetStId = stop.stId || '111000299'
+            const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : ['간선']
+            const r1 = defaultRoutes[0] || '140'
+            const r2 = defaultRoutes[1] || '472'
             try {
-              const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=111000299`)
+              const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
               const busData = await busRes.json()
               arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
                 ? busData.arrivals
                 : [
-                    { route_name: '472', arrival_msg1: '곧 도착' },
-                    { route_name: '140', arrival_msg1: '3분 후' }
+                    { route_name: r1, arrival_msg1: '곧 도착' },
+                    { route_name: r2, arrival_msg1: '3분 후' }
                   ]
-              logBusApiCall('100100118', '111000299', arrivals, busData)
+              logBusApiCall(r1, targetStId, arrivals, busData)
             } catch {
               arrivals = [
-                { route_name: '472', arrival_msg1: '곧 도착' },
-                { route_name: '140', arrival_msg1: '3분 후' }
+                { route_name: r1, arrival_msg1: '곧 도착' },
+                { route_name: r2, arrival_msg1: '3분 후' }
               ]
-              logBusApiCall('100100118', '111000299', arrivals)
+              logBusApiCall(r1, targetStId, arrivals)
             }
           }
 
@@ -1577,13 +1657,13 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
         pointerEvents: 'none',
       }}>
-        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.0 ? '🗺️' : '🔍')}</span>
+        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.5 ? '🗺️' : '🔍')}</span>
         <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
           {activeRoute
             ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
-            : (zoomLevel < 11.0
-                ? '광역 지도 모드: 주요 거점 역 위주로 표시 중입니다 (지도를 확대하면 모든 역 표시)'
-                : '지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다')}
+            : (zoomLevel < 11.5
+                ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
+                : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')}
         </span>
       </div>
 
@@ -1601,7 +1681,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
       }}>
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
-          수요/혼잡도 범례
+          대중교통 인프라 & 혼잡도
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1619,11 +1699,12 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid #FFFFFF', boxShadow: '0 0 6px #38BDF8' }} />
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>밀집 구간 역 (점 마커)</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>밀집 구간 정류소 (점 마커)</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 16, height: 3, background: '#38BDF8', borderRadius: 2 }} />
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>지하철 2호선 권역 경로</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono' }}>
+              🚇 561역 · 🚌 55개소 · 🚲 52개소
+            </span>
           </div>
         </div>
       </div>

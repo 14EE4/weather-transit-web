@@ -440,6 +440,8 @@ class PredictionResponse(BaseModel):
     status: str = "success"
     timestamp: str
     district: str
+    station: Optional[str] = None
+    corridor_district: Optional[str] = None
     latency_ms: float
     weather_summary: WeatherSummary
     recommendations: list[RecommendationItem]
@@ -793,6 +795,8 @@ def calculate_station_crowd(base: int, hour: int, rain: float, stop_type: str, s
         time_mult = 1.15
     elif 18 <= hour <= 19:
         time_mult = 1.22
+    elif hour == 17:
+        time_mult = 1.15  # 퇴근 초입 (17시)
     elif hour == 20:
         time_mult = 1.12
     elif 12 <= hour <= 13:
@@ -1022,7 +1026,9 @@ async def predict_recommendation(req: PredictionRequest):
     return PredictionResponse(
         status="success",
         timestamp=datetime.now().astimezone().isoformat(),
-        district=norm_district,
+        district=req.district,
+        station=req.station,
+        corridor_district=norm_district if norm_district != req.district else None,
         latency_ms=round(latency_ms, 2),
         weather_summary=WeatherSummary(condition=cond, description=desc),
         recommendations=recommendations,

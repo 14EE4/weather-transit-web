@@ -69,8 +69,10 @@ export function logSubwayApiCall(stationName: string, arrivalList: any, rawPaylo
 
 // 4. AI 수요 예측 머신러닝 모델 추론 로깅
 export function logAIPredictionCall(inputFeatures: any, predictionResults: any) {
+  const targetName = inputFeatures.station || inputFeatures.district || '서울'
+  const corridorText = predictionResults?.corridor_district ? ` (광역 진입축: ${predictionResults.corridor_district})` : ''
   console.groupCollapsed(
-    '%c⚡ [AI 머신러닝 엔진] 기상 및 시간대별 대중교통 이용 수요 추론 (Inference)',
+    `%c⚡ [AI 머신러닝 엔진] 기상 및 시간대별 대중교통 이용 수요 추론: ${targetName}${corridorText}`,
     'background: #7c3aed; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
   )
   console.log('%c[Model Input Features (입력 변수)]', 'color: #c084fc; font-weight: bold;', inputFeatures)

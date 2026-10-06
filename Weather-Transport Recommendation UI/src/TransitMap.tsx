@@ -101,6 +101,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       timeMultiplier = 1.15 // 출근 초입
     } else if (hour >= 18 && hour <= 19) {
       timeMultiplier = 1.22 // 퇴근 첨두시간 (Peak)
+    } else if (hour === 17) {
+      timeMultiplier = 1.15 // 퇴근 초입 (17시)
     } else if (hour === 20) {
       timeMultiplier = 1.12 // 퇴근 후반
     } else if (hour >= 12 && hour <= 13) {

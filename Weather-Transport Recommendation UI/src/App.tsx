@@ -1988,7 +1988,10 @@ export default function App() {
                       </span>
                     </div>
                     <button
-                      onClick={() => setActiveRoute(null)}
+                      onClick={() => {
+                        setActiveRoute(null)
+                        setFocusedCoords(null)
+                      }}
                       style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}
                     >
                       초기화 ✕
@@ -2467,7 +2470,10 @@ export default function App() {
               focusedCoords={focusedCoords}
               onSelectStop={setSelectedStop}
               activeRoute={activeRoute}
-              onClearRoute={() => setActiveRoute(null)}
+              onClearRoute={() => {
+                setActiveRoute(null)
+                setFocusedCoords(null)
+              }}
             />
           </div>
         </div>

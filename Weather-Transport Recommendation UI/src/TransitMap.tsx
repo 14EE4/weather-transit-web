@@ -76,6 +76,18 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const [mapLoaded, setMapLoaded] = useState(false)
   const [zoomLevel, setZoomLevel] = useState<number>(13)
 
+  // 클로저 트랩 방지용 최신 상태 참조 Refs
+  const activeRouteRef = useRef<TransitRouteResult | null>(activeRoute || null)
+  activeRouteRef.current = activeRoute || null
+
+  const focusedCoordsRef = useRef<[number, number] | null>(focusedCoords || null)
+  focusedCoordsRef.current = focusedCoords || null
+
+  const activeStopRef = useRef<TransitStop | null>(activeStop || null)
+  activeStopRef.current = activeStop || null
+
+  const updateCollisionsRef = useRef<() => void>(() => {})
+
   // 혼잡도 계산 헬퍼 (AI 시계열 예측 시뮬레이션: 역별 위계, 시간대별 출퇴근 첨두곡선, 날씨 강수 민감도 반영)
   const calculateCrowd = (stop: TransitStop) => {
     const base = stop.baseCrowd || 55
@@ -262,9 +274,13 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     const height = container.clientHeight
     const currentZoom = map.getZoom()
 
-    // 줌아웃(Zoom < 12.0 또는 팝업 오픈 시점 대비 1.2 이상 축소) 시 열려 있던 역 정보 팝업 자동 닫기 (비행 애니메이션 중에는 닫지 않음)
+    const currentRoute = activeRouteRef.current
+    const currentFocused = focusedCoordsRef.current
+    const currentActiveStop = activeStopRef.current
+
+    // 줌아웃(Zoom < 11.0 또는 팝업 오픈 시점 대비 1.2 이상 축소) 시 열려 있던 역 정보 팝업 자동 닫기 (비행 애니메이션 중에는 닫지 않음)
     const isZoomedOut = !isFlyingRef.current && (
-      currentZoom < 12.0 || 
+      currentZoom < 11.0 || 
       (popupOpenedZoomRef.current !== null && currentZoom < popupOpenedZoomRef.current - 1.2)
     )
     if (isZoomedOut) {
@@ -278,19 +294,19 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       popupOpenedZoomRef.current = null
     }
 
-    const hasActiveRoute = !!(activeRoute && activeRoute.path && activeRoute.path.length >= 2)
-    const routeStationNames = hasActiveRoute ? new Set(activeRoute.path.map(p => p.name)) : null
+    const hasActiveRoute = !!(currentRoute && currentRoute.path && currentRoute.path.length >= 2)
+    const routeStationNames = hasActiveRoute ? new Set(currentRoute.path.map(p => p.name)) : null
 
-    // 0. 일정 배율 이하로 많이 줌아웃한 경우 (currentZoom < 12.0):
-    // 광역 지도 탐색 시 화면이 수백 개의 역 마커로 가려지지 않도록 일반 역 마커를 완전 숨김 처리
-    if (currentZoom < 12.0) {
+    // 0. 일정 배율 이하로 많이 줌아웃한 경우 (currentZoom < 11.0, 활성 경로가 없을 때만):
+    // 광역 지도 탐색 시 화면이 수백 개의 역 마커로 가려지지 않도록 주요 거점(환승역) 및 선택된 역 위주로 표출
+    if (currentZoom < 11.0 && !hasActiveRoute) {
       for (const item of markerItemsRef.current) {
         const [lng, lat] = item.stop.coords
-        const isFocused = focusedCoords && Math.abs(lng - focusedCoords[0]) < 0.0002 && Math.abs(lat - focusedCoords[1]) < 0.0002
-        const isSelected = activeStop && activeStop.id === item.stop.id
+        const isFocused = currentFocused && Math.abs(lng - currentFocused[0]) < 0.0002 && Math.abs(lat - currentFocused[1]) < 0.0002
+        const isSelected = currentActiveStop && currentActiveStop.id === item.stop.id
+        const isMajorHub = item.priority >= 250 // Tier 1, Tier 2 거점 역
 
-        // 사용자가 검색했거나 클릭하여 선택 중인 단일 역은 식별을 위해 유지
-        if (isFocused || isSelected) {
+        if (isFocused || isSelected || isMajorHub) {
           item.el.style.display = 'flex'
           item.el.style.zIndex = '9999'
         } else {
@@ -310,15 +326,15 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       const [lng, lat] = item.stop.coords
 
       // 1. 활성 경로가 있는 경우: 경로에 포함된 역 이외의 모든 역/정류소는 완전히 숨김
-      if (hasActiveRoute && routeStationNames) {
+      if (hasActiveRoute && routeStationNames && currentRoute) {
         if (!routeStationNames.has(item.stop.name)) {
           item.el.style.display = 'none'
           continue
         }
         // 출발역, 도착역, 환승역은 전용 핀 마커가 배치되므로 일반 알약 마커는 숨겨서 중복 방지
-        const isSpecialPinStation = item.stop.name === activeRoute!.from || 
-                                    item.stop.name === activeRoute!.to || 
-                                    (activeRoute!.transferStations && activeRoute!.transferStations.includes(item.stop.name))
+        const isSpecialPinStation = item.stop.name === currentRoute.from || 
+                                    item.stop.name === currentRoute.to || 
+                                    (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name))
         if (isSpecialPinStation) {
           item.el.style.display = 'none'
           continue
@@ -341,10 +357,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       }
 
       // 4. 현재 검색되었거나 클릭하여 선택된 역, 또는 활성 경로 경유 역은 무조건 우선 표시!
-      const isFocused = focusedCoords && Math.abs(lng - focusedCoords[0]) < 0.0002 && Math.abs(lat - focusedCoords[1]) < 0.0002
-      const isSelected = activeStop && activeStop.id === item.stop.id
+      const isFocused = currentFocused && Math.abs(lng - currentFocused[0]) < 0.0002 && Math.abs(lat - currentFocused[1]) < 0.0002
+      const isSelected = currentActiveStop && currentActiveStop.id === item.stop.id
       const isOnRoute = hasActiveRoute && routeStationNames && routeStationNames.has(item.stop.name)
-      const isTransferStation = hasActiveRoute && activeRoute?.transferStations?.includes(item.stop.name)
+      const isTransferStation = hasActiveRoute && currentRoute?.transferStations?.includes(item.stop.name)
 
       if (isFocused || isSelected || isOnRoute) {
         const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
@@ -376,7 +392,6 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         })
 
         // 클릭하여 선택된 역의 상단에 열리는 정보 팝업 영역을 충돌 박스로 등록!
-        // 팝업 창 앞/주변을 가리는 다른 역/정류소 알약 마커를 충돌 감지로 자동 배제하여 가림 현상 원천 차단
         if (isSelected) {
           placedBoxes.push({
             x1: pt.x - 130,
@@ -397,8 +412,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       const y2 = pt.y + halfH
 
       // 만약 선택된 역의 상단 팝업 창 영역과 직접 겹치면 팝업 가림 방지를 위해 완전히 숨김
-      if (activeStop) {
-        const activePt = map.project(activeStop.coords)
+      if (currentActiveStop) {
+        const activePt = map.project(currentActiveStop.coords)
         const popX1 = activePt.x - 130
         const popY1 = activePt.y - 150
         const popX2 = activePt.x + 130
@@ -436,6 +451,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       }
     }
   }
+
+  updateCollisionsRef.current = updateCollisions
 
   // 2. 필터링 및 날씨에 따른 마커 동적 갱신
   useEffect(() => {
@@ -964,13 +981,15 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     // 초기 마커 겹침 필터링 실행
     updateCollisions()
 
-    // 지도 조작(이동, 확대, 축소) 시 고속 겹침 재계산
+    // 지도 조작(이동, 확대, 축소) 시 고속 겹침 재계산 (최신 클로저 Refs 호출)
     const onMapMove = () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
       animFrameRef.current = requestAnimationFrame(() => {
-        updateCollisions()
-        const z = map.getZoom()
-        setZoomLevel(prev => (Math.abs(prev - z) >= 0.2 ? z : prev))
+        updateCollisionsRef.current()
+        if (mapInstanceRef.current) {
+          const z = mapInstanceRef.current.getZoom()
+          setZoomLevel(prev => (Math.abs(prev - z) >= 0.2 ? z : prev))
+        }
       })
     }
 
@@ -1014,7 +1033,23 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           },
         })
       }
+      // 경로 닫기 시 모든 마커의 display를 원상 복원하고 충돌 필터링 재계산
+      markerItemsRef.current.forEach(item => {
+        item.el.style.display = 'flex'
+      })
       updateCollisions()
+
+      // 경로 핏바운즈로 인해 줌이 너무 축소되어 있다면 (zoom < 12.8) 일반 시야각(13.0)으로 부드럽게 복귀
+      const currentZ = map.getZoom()
+      if (currentZ < 12.8) {
+        map.easeTo({
+          zoom: 13.0,
+          duration: 600,
+        })
+        map.once('idle', () => {
+          updateCollisionsRef.current()
+        })
+      }
       return
     }
 
@@ -1391,6 +1426,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                     activePopupRef.current = null
                     popupOpenedZoomRef.current = null
                   }
+                  markerItemsRef.current.forEach(item => {
+                    item.el.style.display = 'flex'
+                  })
                   onClearRoute()
                 }}
                 title="경로 안내 닫기"
@@ -1490,12 +1528,12 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
         pointerEvents: 'none',
       }}>
-        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 12.0 ? '🗺️' : '🔍')}</span>
+        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.0 ? '🗺️' : '🔍')}</span>
         <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
           {activeRoute
             ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
-            : (zoomLevel < 12.0
-                ? '광역 지도 모드: 역 마커와 혼잡도를 확인하려면 지도를 확대(Zoom-in)해 주세요'
+            : (zoomLevel < 11.0
+                ? '광역 지도 모드: 주요 거점 역 위주로 표시 중입니다 (지도를 확대하면 모든 역 표시)'
                 : '지도를 확대하면 겹쳤던 주변 세부 역이 자동으로 모두 표시됩니다')}
         </span>
       </div>

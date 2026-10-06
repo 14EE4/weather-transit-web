@@ -476,9 +476,17 @@ function CorrelationChart() {
   )
 }
 
-const API_BASE_URL = typeof (import.meta as any).env?.VITE_API_BASE_URL === 'string'
-  ? (import.meta as any).env.VITE_API_BASE_URL
-  : (import.meta.env?.DEV ? 'http://localhost:8000' : '')
+const getApiBaseUrl = (): string => {
+  const envVal = (import.meta as any).env?.VITE_API_BASE_URL
+  if (typeof envVal === 'string') return envVal
+  if (typeof window !== 'undefined' && window.location) {
+    const proto = window.location.protocol || 'http:'
+    const host = window.location.hostname || 'localhost'
+    return `${proto}//${host}:8000`
+  }
+  return 'http://localhost:8000'
+}
+const API_BASE_URL = getApiBaseUrl()
 
 interface LiveWeatherData {
   status: string

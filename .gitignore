@@ -35,18 +35,21 @@ venv/
 ENV/
 env/
 
-# 대용량 데이터셋 및 가중치 파일 (CSV, 모델 파일)
+# 대용량 데이터셋 및 가중치 파일 (CSV, 엑셀, 대용량 파일)
 # ※ 100MB 이상 파일은 깃허브 업로드가 차단됩니다.
 *.csv
 *.xlsx
 *.parquet
 *.pt
 *.pth
-*.onnx
 *.pkl
 *.h5
-data/
 raw_data/
+
+# 서빙용 경량 ONNX 추론 모델(각 4.7MB) 및 지하철/시계열 데이터셋은 배포를 위해 Git 추적 허용
+!models/*.onnx
+!data/*.json
+!data/*.db
 
 # Jupyter / Colab 임시 파일
 .ipynb_checkpoints/

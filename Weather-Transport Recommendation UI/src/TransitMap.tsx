@@ -378,32 +378,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     const hasActiveRoute = !!(currentRoute && currentRoute.path && currentRoute.path.length >= 2)
     const routeStationNames = hasActiveRoute ? new Set(currentRoute.path.map(p => p.name)) : null
 
-    // 0. 일정 배율 이하로 많이 줌아웃한 경우 (currentZoom < 11.0, 활성 경로가 없을 때만):
-    // 광역 지도 탐색 시 화면이 수백 개의 마커로 가려지지 않도록 주요 거점(지하철 환승역) 위주로 표출
-    if (currentZoom < 11.0 && !hasActiveRoute) {
-      for (const item of markerItemsRef.current) {
-        const [lng, lat] = item.stop.coords
-        const isFocused = currentFocused && Math.abs(lng - currentFocused[0]) < 0.0002 && Math.abs(lat - currentFocused[1]) < 0.0002
-        const isSelected = currentActiveStop && currentActiveStop.id === item.stop.id
-        const isMajorHub = item.priority >= 250 // Tier 1, Tier 2 거점 역
+    // ── 줌 레벨별 단계적 가시성 (Multi-tier Zoom Visibility) 정책 ──
+    // 1. 광역 뷰 (Zoom < 11.5): 버스/따릉이 100% 숨김, 지하철 Tier 1 메이저 허브만 미니 점(Dot) 표출
+    const isWideAreaZoom = currentZoom < 11.5 && !hasActiveRoute
 
-        if (isFocused || isSelected || isMajorHub) {
-          item.el.style.display = 'flex'
-          item.el.style.zIndex = '9999'
-        } else {
-          item.el.style.display = 'none'
-        }
-      }
-      return
-    }
+    // 2. 중거리 도심 원경 (11.5 <= Zoom < 12.5):
+    //    버스는 주요 환승센터(isHub), 따릉이는 주요 인기거점(isPopularSpot)만 '점(Dot)'으로 표출
+    const isMidRangeFar = currentZoom >= 11.5 && currentZoom < 12.5 && !hasActiveRoute
 
-    // 0-1. 중거리 도심 탐색 구간 (11.0 <= currentZoom < 13.0, 전체 모드 시):
-    // 일반 지엽 버스/따릉이는 상세 배율(13.0+)에서 띄우고, 주요 환승센터/대형공원 거점 위주로 단계적 노출
-    const isMidRangeZoom = currentZoom < 13.0 && !hasActiveRoute && filterType === 'all'
+    // 3. 중거리 도심 근경 (12.5 <= Zoom < 13.5):
+    //    전체 버스/따릉이가 지도에 등장하되, 글자 가림 방지를 위해 무조건 '점(Dot)' 마커로만 정갈하게 표출!
+    const isMidRangeNear = currentZoom >= 12.5 && currentZoom < 13.5 && !hasActiveRoute
 
     const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = []
 
-    // 줌 레벨에 따라 겹침 감지 박스 크기 동적 조절 (확대할수록 간격 좁아져 많은 역 등장, 12~13구간은 넓혀 주요 거점만)
+    // 줌 레벨에 따라 겹침 감지 박스 크기 동적 조절 (확대할수록 간격 좁아져 많은 역 등장)
     const halfW = currentZoom >= 16 ? 32 : (currentZoom >= 14 ? 44 : (currentZoom >= 13 ? 56 : 72))
     const halfH = currentZoom >= 16 ? 12 : (currentZoom >= 14 ? 16 : (currentZoom >= 13 ? 20 : 26))
 
@@ -426,22 +415,6 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         }
       }
 
-      // 1-1. 중거리 뷰(11.0~13.0)에서 전체 모드일 경우 지엽 정류소 필터링
-      if (isMidRangeZoom) {
-        const isSelectedOrFocused = (currentFocused && Math.abs(lng - currentFocused[0]) < 0.0002 && Math.abs(lat - currentFocused[1]) < 0.0002) ||
-                                    (currentActiveStop && currentActiveStop.id === item.stop.id)
-        if (!isSelectedOrFocused) {
-          if (item.stop.type === 'bus' && !item.stop.isHub) {
-            item.el.style.display = 'none'
-            continue
-          }
-          if (item.stop.type === 'bike' && !item.stop.isPopularSpot) {
-            item.el.style.display = 'none'
-            continue
-          }
-        }
-      }
-
       // 2. 지도 뷰포트 영역 외는 빠른 제외
       if (!bounds.contains([lng, lat])) {
         item.el.style.display = 'none'
@@ -457,7 +430,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         continue
       }
 
-      // 4. 현재 검색되었거나 클릭하여 선택된 역, 또는 활성 경로 경유 역은 무조건 우선 표시!
+      // 4. 현재 검색되었거나 클릭하여 선택된 역, 또는 활성 경로 경유 역은 줌 레벨 무관 무조건 우선 알약 표시!
       const isFocused = currentFocused && Math.abs(lng - currentFocused[0]) < 0.0002 && Math.abs(lat - currentFocused[1]) < 0.0002
       const isSelected = currentActiveStop && currentActiveStop.id === item.stop.id
       const isOnRoute = hasActiveRoute && routeStationNames && routeStationNames.has(item.stop.name)
@@ -504,6 +477,53 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         continue
       }
 
+      // ── [줌 레벨별 단계적 가시성 필터링] ──
+
+      // [규칙 1] 광역 뷰 (Zoom < 11.5):
+      // - 버스와 따릉이는 100% 완전히 숨김 (화면 난잡함 방지)
+      // - 지하철도 Tier 1 메이저 허브(priority >= 250)만 점(Dot) 마커로 표출, 일반 역 숨김
+      if (isWideAreaZoom) {
+        if (item.stop.type === 'bus' || item.stop.type === 'bike') {
+          item.el.style.display = 'none'
+          continue
+        }
+        if (item.priority < 250) {
+          item.el.style.display = 'none'
+          continue
+        }
+        // 광역 메이저 허브는 점 마커로 표출
+        const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
+        const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
+        if (pillView) pillView.style.display = 'none'
+        if (dotView) dotView.style.display = 'flex'
+        item.el.style.display = 'flex'
+        item.el.style.zIndex = '5'
+        continue
+      }
+
+      // [규칙 2] 중거리 도심 원경 (11.5 <= Zoom < 12.5):
+      // - 버스: 대형 광역환승센터(isHub)만 점(Dot) 마커로 표출, 일반 정류소 숨김
+      // - 따릉이: 대형공원 인기 거점(isPopularSpot)만 점(Dot) 마커로 표출, 일반 대여소 숨김
+      // - 지하철: 환승역(priority >= 180)만 표출, 일반 지엽 역은 숨김
+      if (isMidRangeFar) {
+        if (item.stop.type === 'bus' && !item.stop.isHub) {
+          item.el.style.display = 'none'
+          continue
+        }
+        if (item.stop.type === 'bike' && !item.stop.isPopularSpot) {
+          item.el.style.display = 'none'
+          continue
+        }
+        if (item.stop.type === 'subway' && item.priority < 180 && currentZoom < 12.0) {
+          item.el.style.display = 'none'
+          continue
+        }
+      }
+
+      // [규칙 3] 중거리 뷰 (11.5 <= Zoom < 13.5)에서 버스와 따릉이는 거대한 알약 마커 금지!
+      // 오직 원형 점(Dot) 마커로만 단정하게 찍혀서 도로와 도시 가림을 원천 방지
+      const forceDotForNonSubway = (isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike')
+
       item.el.style.zIndex = '1'
 
       // 5. 충돌(Collision) 검사
@@ -536,14 +556,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
       const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
 
-      // 겹치면 완전히 숨기지 않고 혼잡도 색상의 원형 점(Dot) 마커로 전환 표출!
-      if (overlaps) {
+      // 겹치거나 forceDotForNonSubway(중거리 뷰의 버스/따릉이)인 경우 ➔ 혼잡도 색상의 원형 점(Dot) 마커로 표출!
+      if (overlaps || forceDotForNonSubway) {
         if (pillView) pillView.style.display = 'none'
         if (dotView) dotView.style.display = 'flex'
         item.el.style.display = 'flex'
         item.el.style.zIndex = '5'
       } else {
-        // 여유 공간이 확보되면 알약 마커(이름 + 아이콘 + 혼잡도%)로 온전히 표시
+        // 상세 배율(Zoom >= 13.5)에서 여유 공간 확보 시 온전한 알약 마커(이름 + 아이콘 + 혼잡도%)로 표시
         if (pillView) pillView.style.display = 'flex'
         if (dotView) dotView.style.display = 'none'
         item.el.style.display = 'flex'
@@ -631,13 +651,13 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           "></div>
         </div>
 
-        <!-- 2. 점 마커 뷰 (이름 겹침 시 대체 표출되는 미니 원형 점) -->
+        <!-- 2. 점 마커 뷰 (이름 겹침 및 중거리 줌아웃 시 대체 표출되는 미니 원형 점) -->
         <div class="marker-dot-view" style="
           display: none;
           align-items: center;
           justify-content: center;
           padding: 3px;
-        " title="${stop.name} (${label} ${crowd}%)">
+        " title="${typeIcon} ${stop.name} (${label} ${crowd}%)">
           <div class="marker-dot-circle" style="
             width: 10px;
             height: 10px;
@@ -1718,7 +1738,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
             : (zoomLevel < 11.5
                 ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
-                : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')}
+                : (zoomLevel < 13.5
+                    ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
+                    : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다'))}
         </span>
       </div>
 

@@ -412,6 +412,9 @@ class PredictionRequest(BaseModel):
     district: str = Field(default="강남구", description="서울시 자치구 명칭", example="강남구")
     hour: int = Field(default=8, ge=0, le=24, description="시간대 (0~24시)", example=8)
     weather: Optional[WeatherInput] = Field(default=None, description="기상 관측 데이터")
+    station: Optional[str] = Field(default=None, description="특정 역사 또는 정류소 명칭", example="강남역")
+    stop_type: Optional[str] = Field(default=None, description="교통수단 유형 (subway, bus, bike)", example="subway")
+    base_crowd: Optional[int] = Field(default=None, description="역/정류소 기준 혼잡도 (0~100)", example=88)
 
 class RecommendationItem(BaseModel):
     id: str
@@ -781,6 +784,43 @@ def get_score_meta(mode_id: str, score: int) -> tuple[str, str]:
             return "주의", "#FB923C"
         return "비추천", "#94A3B8"
 
+def calculate_station_crowd(base: int, hour: int, rain: float, stop_type: str, station_name: str) -> int:
+    """특정 지하철역/정류소의 시간대 첨두곡선, 기상 강수 민감도 및 고유 분산 반영 혼잡도 계산 (지도 마커와 100% 동기화)"""
+    time_mult = 1.0
+    if 8 <= hour <= 9:
+        time_mult = 1.25
+    elif hour == 7:
+        time_mult = 1.15
+    elif 18 <= hour <= 19:
+        time_mult = 1.22
+    elif hour == 20:
+        time_mult = 1.12
+    elif 12 <= hour <= 13:
+        time_mult = 1.02
+    elif 10 <= hour <= 16:
+        time_mult = 0.78
+    elif 21 <= hour <= 22:
+        time_mult = 0.70
+    else:
+        time_mult = 0.42
+
+    st_hash = 0
+    for ch in station_name:
+        st_hash = ((st_hash << 5) - st_hash) + ord(ch)
+        st_hash = st_hash & 0xFFFFFFFF
+        if st_hash >= 0x80000000:
+            st_hash -= 0x100000000
+    hash_offset = (abs(st_hash) % 7) - 3
+
+    if stop_type == "bike":
+        bike_rain_penalty = int(round(-2.5 * rain * 7.5))
+        crowd = int(round(base * (0.35 if (hour >= 23 or hour <= 5) else 1.0))) + bike_rain_penalty
+        return max(5, min(95, crowd))
+    else:
+        rain_bonus = min(15, int(round(1.2 * rain * 2.2)))
+        crowd = int(round(base * time_mult)) + hash_offset + rain_bonus
+        return max(10, min(99, crowd))
+
 # ==============================================================================
 # 7. 엔드포인트 구현
 # ==============================================================================
@@ -950,6 +990,29 @@ async def predict_recommendation(req: PredictionRequest):
             predicted_demand=int(round(bike_demand)),
         ),
     ]
+
+    # 특정 역사/정류소에 대한 정밀 추론 요청인 경우 역 특성 및 가중치 반영 (알약 UI 및 팝업 일치화)
+    target_stop_type = req.stop_type or ("subway" if "역" in (req.station or "") else None)
+    if req.station and req.base_crowd is not None:
+        station_crowd = calculate_station_crowd(
+            base=req.base_crowd,
+            hour=req.hour,
+            rain=weather.rain,
+            stop_type=target_stop_type or "subway",
+            station_name=req.station
+        )
+        for r in recommendations:
+            if target_stop_type and r.id == target_stop_type:
+                r.crowd = station_crowd
+                r.crowdLabel = get_crowd_label(station_crowd)
+                r.crowdColor = get_crowd_color(station_crowd)
+                if r.id == "subway":
+                    r.predicted_volume = int(round(station_crowd * 110))
+                elif r.id == "bus":
+                    r.predicted_volume = int(round(station_crowd * 18))
+                elif r.id == "bike":
+                    r.predicted_volume = int(round(station_crowd * 0.45))
+                r.reasons.insert(0, f"{req.station} 역사 고유 특성 및 실시간 기상 관측({weather.temp:.1f}°C, 강수 {weather.rain}mm) 반영 AI 추론")
 
     # 추천 점수 내림차순 정렬
     recommendations.sort(key=lambda x: x.score, reverse=True)

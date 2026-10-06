@@ -499,7 +499,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           ">
             <span style="font-size: 13px;">${typeIcon}</span>
             <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; white-space: nowrap;">${stop.name}</span>
-            <span style="
+            <span class="marker-crowd-badge" style="
               background: ${color};
               color: #FFFFFF;
               font-size: 9px;
@@ -509,7 +509,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               margin-left: 2px;
             ">${crowd}%</span>
           </div>
-          <div style="
+          <div class="marker-pill-arrow" style="
             width: 0; height: 0;
             border-left: 5px solid transparent;
             border-right: 5px solid transparent;
@@ -891,6 +891,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
 
           const aiPayload = {
             district,
+            station: stop.name,
+            stop_type: stop.type,
+            base_crowd: stop.baseCrowd,
             hour: currentHour,
             weather: {
               temp: weatherData.temp,
@@ -958,6 +961,24 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               arrivalsList: arrivals,
               isLoadingArrivals: false
             }))
+          }
+
+          // 클릭된 역 알약 마커 UI도 AI 추론 혼잡도 수치와 100% 동일하게 실시간 동기화
+          const targetRec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
+          if (targetRec) {
+            const pillBadge = el.querySelector('.marker-crowd-badge') as HTMLElement | null
+            const pillBox = el.querySelector('.marker-pill') as HTMLElement | null
+            const pillArrow = el.querySelector('.marker-pill-arrow') as HTMLElement | null
+            if (pillBadge) {
+              pillBadge.textContent = `${targetRec.crowd}%`
+              pillBadge.style.background = targetRec.crowdColor
+            }
+            if (pillBox) {
+              pillBox.style.borderColor = targetRec.crowdColor
+            }
+            if (pillArrow) {
+              pillArrow.style.borderTopColor = targetRec.crowdColor
+            }
           }
         } catch (err) {
           console.error('역 정보 파이프라인 조회 실패:', err)

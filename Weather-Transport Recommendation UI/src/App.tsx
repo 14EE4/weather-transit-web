@@ -556,6 +556,9 @@ export default function App() {
         const currentHour = liveWeather ? parseInt(liveWeather.base_time.slice(0, 2), 10) : new Date().getHours()
         const aiPayload = {
           district,
+          station: stop.name,
+          stop_type: stop.type,
+          base_crowd: stop.baseCrowd,
           hour: currentHour,
           weather: {
             temp: weatherJson.temp,

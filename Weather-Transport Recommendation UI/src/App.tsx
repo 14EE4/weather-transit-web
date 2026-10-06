@@ -140,44 +140,6 @@ export const DEFAULT_24H_DATA: HourlyTransitData[] = Array.from({ length: 24 }, 
 
 const HOURLY_DATA = DEFAULT_24H_DATA
 
-// ── 25개 자치구 및 수도권 주요 거점 랜드마크 추천 경로 ──
-export const DISTRICT_LANDMARK_ROUTES: Record<string, { from: string; to: string; label: string }> = {
-  '강남구': { from: '강남역', to: '삼성역', label: '테헤란로 비즈니스 축' },
-  '서초구': { from: '고속터미널역', to: '양재역', label: '서초 중심 연결축' },
-  '송파구': { from: '잠실역', to: '가락시장역', label: '송파 핵심 상업축' },
-  '강동구': { from: '천호역', to: '강동역', label: '천호 로데오 생활축' },
-  '마포구': { from: '홍대입구역', to: '공덕역', label: '경의선 문화비즈니스축' },
-  '영등포구': { from: '여의도역', to: '당산역', label: '여의도 금융-환승축' },
-  '종로구': { from: '광화문역', to: '종로3가역', label: '종로 도심 역사축' },
-  '중구': { from: '명동역', to: '서울역', label: '명동-서울역 관문축' },
-  '용산구': { from: '용산역', to: '이태원역', label: '용산 중심 연결축' },
-  '성동구': { from: '왕십리역', to: '성수역', label: '성수 밸리 트렌드축' },
-  '광진구': { from: '건대입구역', to: '강변역', label: '광진 캠퍼스-터미널축' },
-  '동대문구': { from: '청량리역', to: '회기역', label: '동대문 대학-환승축' },
-  '중랑구': { from: '상봉역', to: '면목역', label: '중랑 중심 생활축' },
-  '성북구': { from: '성신여대입구역', to: '안암역', label: '성북 대학 캠퍼스축' },
-  '강북구': { from: '수유역', to: '미아사거리역', label: '강북 도심 관문축' },
-  '도봉구': { from: '창동역', to: '쌍문역', label: '도봉 역세권 연결축' },
-  '노원구': { from: '노원역', to: '태릉입구역', label: '노원 핵심 중심축' },
-  '은평구': { from: '연신내역', to: '불광역', label: '은평 북부 환승축' },
-  '서대문구': { from: '신촌역', to: '충정로역', label: '신촌-도심 연결축' },
-  '양천구': { from: '목동역', to: '오목교역', label: '목동 업무-교육축' },
-  '강서구': { from: '발산역', to: '마곡나루역', label: '마곡 R&D 클러스터축' },
-  '구로구': { from: '신도림역', to: '구로디지털단지역', label: '구로 G밸리 첨단축' },
-  '금천구': { from: '가산디지털단지역', to: '독산역', label: '가산 벤처 비즈니스축' },
-  '동작구': { from: '노량진역', to: '사당역', label: '동작 도심 관문축' },
-  '관악구': { from: '신림역', to: '서울대입구역', label: '관악 청년 활력축' },
-  '성남시': { from: '판교역', to: '정자역', label: '판교 IT 테크노축' },
-  '인천시': { from: '부평역', to: '송도역', label: '인천 광역 비즈니스축' },
-  '수원시': { from: '수원역', to: '광교역', label: '수원 관문-행정축' },
-  '부천시': { from: '부천역', to: '송내역', label: '경인 광역 진입축' },
-  '안양시': { from: '안양역', to: '범계역', label: '평촌 비즈니스축' },
-  '고양시': { from: '대곡역', to: '백석역', label: '일산 환승 연결축' },
-  '광명시': { from: '철산역', to: '광명역', label: '광명 KTX 관문축' },
-  '하남시': { from: '미사역', to: '하남검단산역', label: '하남 미사 한강축' },
-  '남양주시': { from: '다산역', to: '별내역', label: '남양주 광역 연계축' },
-}
-
 // ── 교통수단 추천 스코어 (비 오는 날 기준) ──
 const TRANSPORT_SCORES = [
   {
@@ -1112,16 +1074,6 @@ export default function App() {
     fetchDistrictCongestion(activeRain, activeTemp, hourNum)
     fetchHourlyForecast(districtName, activeRain, activeTemp)
   }, [selectedDistrict, liveWeather, activeRain, activeTemp])
-
-  // 자치구 변경 시 해당 자치구 대표 랜드마크 경로 프리필 (입력창이 비어있거나 기본값일 때)
-  useEffect(() => {
-    const curDist = (DISTRICTS[selectedDistrict] || '강남구').split(' ')[0]
-    const route = DISTRICT_LANDMARK_ROUTES[curDist]
-    if (route && (!departure.trim() || !destination.trim())) {
-      setDeparture(route.from)
-      setDestination(route.to)
-    }
-  }, [selectedDistrict])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", color: '#F0F6FF' }}>
@@ -2081,57 +2033,6 @@ export default function App() {
                   })()}
                 </div>
               </div>
-
-              {/* 현재 자치구 랜드마크 추천 경로 퀵 칩 */}
-              {(() => {
-                const currentDistName = (DISTRICTS[selectedDistrict] || '강남구').split(' ')[0]
-                const landmark = DISTRICT_LANDMARK_ROUTES[currentDistName] || { from: '강남역', to: '삼성역', label: '테헤란로 비즈니스 축' }
-                return (
-                  <div style={{
-                    marginBottom: 14,
-                    padding: '11px 13px',
-                    borderRadius: 14,
-                    background: 'rgba(56, 189, 248, 0.08)',
-                    border: '1px solid rgba(56, 189, 248, 0.22)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span>✨</span> [{currentDistName}] 랜드마크 추천 경로
-                      </span>
-                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono' }}>
-                        {landmark.label}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setDeparture(landmark.from)
-                        setDestination(landmark.to)
-                        handleSearchRoute(landmark.from, landmark.to)
-                      }}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '9px 12px',
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                        background: 'rgba(56, 189, 248, 0.14)',
-                        border: '1px solid rgba(56, 189, 248, 0.35)',
-                        color: '#F0F6FF',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <span style={{ fontSize: 12, fontWeight: 700 }}>
-                        🚇 {landmark.from} → {landmark.to}
-                      </span>
-                      <span style={{ fontSize: 11, color: '#38BDF8', fontWeight: 800 }}>
-                        원클릭 완성 & 탐색 ➔
-                      </span>
-                    </button>
-                  </div>
-                )
-              })()}
 
               <button
                 onClick={() => handleSearchRoute(departure, destination)}

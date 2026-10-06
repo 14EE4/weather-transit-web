@@ -78,7 +78,46 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ---
 
-## 🚀 설치 및 테스트 방법
+## 🐳 Docker 컨테이너 원클릭 실행 (권장 / 프로덕션 & 미니 PC)
+
+본 프로젝트는 **FastAPI 백엔드 (32차원 ONNX AI 추론 & 공공 API 중계)**와 **Nginx + React 프론트엔드 (MapLibre GL 대화형 지도)**가 완전한 멀티 컨테이너 아키텍처(`docker-compose.yml`)로 패키징되어 있어, OS 환경(Windows, macOS, Linux, 미니 PC 등)에 관계없이 명령어 한 줄로 즉시 빌드 및 실행할 수 있습니다.
+
+### 1. 환경 변수 파일 준비
+```bash
+# .env 파일 생성 및 공공 API 키 입력
+cp .env.example .env
+```
+
+### 2. 컨테이너 빌드 및 백그라운드 기동
+```bash
+docker compose up --build -d
+```
+
+### 3. 서비스 접속 안내
+| 서비스 | 접속 URL | 설명 |
+|---|---|---|
+| **🌐 웹 대시보드 (Frontend)** | **`http://localhost:3000`** | Nginx 리버스 프록시 연동 SPA (포트 3000) |
+| **⚡ AI 추론 API (Backend)** | **`http://localhost:8000/docs`** | FastAPI Swagger 대화형 API 문서 (포트 8000) |
+| **🩺 시스템 헬스체크** | `http://localhost:8000/health` | ONNX 세션 인메모리 웜업 및 서킷 브레이커 상태 |
+
+### 4. 주요 컨테이너 관리 명령어
+```bash
+# 컨테이너 구동 상태 및 헬스체크 확인
+docker compose ps
+
+# 실시간 AI 추론 및 대중교통 도착 로그 모니터링
+docker compose logs -f
+
+# 서비스 중지
+docker compose down
+```
+
+> 💡 **리눅스 미니 PC 및 사설 네트워크 배포 팁**:
+> 미니 PC에 배포 후 동일 공유기(Wi-Fi) 내의 노트북, 태블릿, 스마트폰 브라우저에서 **`http://<미니PC_IP>:3000`**으로 접속하시면 별도의 추가 설정 없이 대시보드와 지도를 즉시 이용하실 수 있습니다. Nginx 리버스 프록시가 내부 백엔드로 API를 자동 라우팅하므로 CORS 문제가 발생하지 않습니다.
+
+---
+
+## 💻 로컬 개발 환경 직접 실행 (Local Development)
 
 ### 1. 가상환경 활성화 및 패키지 설치
   ```bash
@@ -193,31 +232,38 @@ npm run dev
 
 ```text
 weather-transit-web/
+├── docker-compose.yml                  # 🐳 Docker Compose 멀티 컨테이너 오케스트레이션
+├── Dockerfile.backend                  # 🐍 FastAPI 백엔드 (Python 3.11-slim + ONNX) 이미지 빌드 명세
+├── Dockerfile.frontend                 # ⚛️ React 프론트엔드 (Node 20 Multi-stage + Nginx) 빌드 명세
+├── nginx.conf                          # 🌐 Nginx SPA 라우팅 & 백엔드 API 리버스 프록시 설정
 ├── .env                                # API 키 및 환경 변수 설정 파일 (Git 추적 제외)
 ├── .env.example                        # 환경 변수 예시 템플릿 (Git 포함, 참고용)
 ├── .gitignore                          # Git 추적 제외 목록 (.env, venv 등)
 ├── requirements.txt                    # Python 의존성 라이브러리 목록
 ├── main.py                             # ⚡ FastAPI 백엔드 AI 추론 서버 (ONNX 인메모리 로딩 & 서빙)
+├── timeseries_cache.py                 # ⏱️ 시계열 AI 추론 인메모리 캐싱 레이어
+├── scripts/                            # 🛠️ 데이터 빌드 및 역사 좌표 검증 스크립트 모음
+│   ├── build_full_subway_data.py       # 수도권 전철 마스터 데이터 빌더
+│   └── update_station_coords.py        # 역사 GPS 좌표 전수 캘리브레이션 도구
 ├── tests/                              # 🧪 테스트 및 검증 스위트 디렉토리
 │   ├── __init__.py                     # 테스트 패키지 초기화
 │   ├── test_inference.py               # ONNX 모델 및 추천 API 통합 검증 스크립트
 │   └── test_api.py                     # 날씨/버스/지하철 외부 공공 API 연동 검증 스크립트
 ├── README.md                           # 프로젝트 전체 안내 문서
-├── map.html                            # MapLibre GL JS + OSM 단독 테스트 페이지
 ├── models/                             # 🧠 학습 완료된 ONNX 머신러닝 모델 가중치 파일
 │   ├── lgb_bike_demand.onnx            # 따릉이 대여 수요 예측 ONNX 모델
 │   ├── lgb_bus_demand.onnx             # 버스 승차 수요 예측 ONNX 모델
 │   └── lgb_subway_demand.onnx          # 지하철 승하차 수요 예측 ONNX 모델
-├── data/                               # 📊 정류장 및 교통 마스터 데이터 (Git 제외 관리)
-│   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋 (696개)
-├── docs/
+├── data/                               # 📊 정류장 및 교통 마스터 데이터
+│   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋
+├── docs/                               # 📖 시스템 아키텍처 및 요구사항 명세서
+│   ├── CHANGELOG.md                    # 통합 변경 이력
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
 │   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서
-├── api_example/                        # API 규격 및 공식 활용 가이드 문서
-└── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드 (세부 구조 및 변경 이력은 내부 README 참조)
+└── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드
     ├── README.md                       # 프론트엔드 전용 안내 문서
-    └── docs/                           # 📖 프론트엔드 상세 문서 (CHANGELOG.md 등)
+    └── docs/                           # 📖 프론트엔드 상세 문서
 ```
 
 ---

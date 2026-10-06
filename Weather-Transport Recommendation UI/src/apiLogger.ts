@@ -3,8 +3,30 @@
  * 브라우저 개발자 콘솔(F12 -> Console)에 컬러풀하고 구조화된 형태로 API 송수신 데이터를 출력합니다.
  */
 
+// 동일한 API 호출 로그가 단시간(1.2초) 내 중복 출력되는 것을 방지하는 캐시
+const recentLogs = new Map<string, number>()
+const DEDUPE_WINDOW_MS = 1200
+
+function shouldLog(key: string): boolean {
+  const now = Date.now()
+  const last = recentLogs.get(key)
+  if (last && now - last < DEDUPE_WINDOW_MS) {
+    return false
+  }
+  recentLogs.set(key, now)
+  if (recentLogs.size > 100) {
+    for (const [k, time] of recentLogs) {
+      if (now - time > 10000) recentLogs.delete(k)
+    }
+  }
+  return true
+}
+
 // 1. 기상청 초단기실황 API 로깅
 export function logWeatherApiCall(grid: { nx: number; ny: number }, weatherData: any, rawPayload?: any) {
+  const key = `weather_${grid.nx}_${grid.ny}_${weatherData?.district || ''}_${weatherData?.temp}`
+  if (!shouldLog(key)) return
+
   console.groupCollapsed(
     `%c🌦️ [기상청 API허브] 실시간 초단기실황(getUltraSrtNcst) 연동: ${weatherData.district || '서울'} (${weatherData.temp ?? '--'}°C, 격자: ${grid.nx}, ${grid.ny})`,
     'background: #0284c7; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
@@ -37,6 +59,9 @@ export function logWeatherApiCall(grid: { nx: number; ny: number }, weatherData:
 
 // 2. 서울시 버스도착정보조회 API 로깅
 export function logBusApiCall(routeId: string, stId: string, arrivalData: any, rawPayload?: any) {
+  const key = `bus_${stId}`
+  if (!shouldLog(key)) return
+
   console.groupCollapsed(
     `%c🚌 [공공데이터포털] 실시간 서울시 버스도착정보 (정류소: ${stId})`,
     'background: #ea580c; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
@@ -53,6 +78,9 @@ export function logBusApiCall(routeId: string, stId: string, arrivalData: any, r
 
 // 3. 서울시 지하철 실시간 도착정보 API 로깅
 export function logSubwayApiCall(stationName: string, arrivalList: any, rawPayload?: any) {
+  const key = `subway_${stationName}`
+  if (!shouldLog(key)) return
+
   console.groupCollapsed(
     `%c🚇 [서울 열린데이터광장] 실시간 지하철 도착정보 (${stationName}역)`,
     'background: #2563eb; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
@@ -69,7 +97,10 @@ export function logSubwayApiCall(stationName: string, arrivalList: any, rawPaylo
 
 // 4. AI 수요 예측 머신러닝 모델 추론 로깅
 export function logAIPredictionCall(inputFeatures: any, predictionResults: any) {
-  const targetName = inputFeatures.station || inputFeatures.district || '서울'
+  const targetName = inputFeatures.station || inputFeatures.district || inputFeatures.location || '서울'
+  const key = `ai_${targetName}_${inputFeatures.hour}_${inputFeatures.weather?.temp ?? inputFeatures.temp ?? ''}`
+  if (!shouldLog(key)) return
+
   const corridorText = predictionResults?.corridor_district ? ` (광역 진입축: ${predictionResults.corridor_district})` : ''
   console.groupCollapsed(
     `%c⚡ [AI 머신러닝 엔진] 기상 및 시간대별 대중교통 이용 수요 추론: ${targetName}${corridorText}`,

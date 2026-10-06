@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import TransitMap, { TransitStop } from './TransitMap'
+import { useState, useEffect, useRef } from 'react'
+import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult } from './subwayGraph'
@@ -433,11 +433,6 @@ export default function App() {
         setMapTransport('all')
       }
 
-      if (route.departureTrain) {
-        logSubwayApiCall(route.from.replace('역', ''), [
-          { trainLineNm: route.departureTrain.trainLineNm, arvlMsg2: route.departureTrain.arrivalMessage, barvlDt: String(route.departureTrain.remainingSeconds), btrainSttus: '일반' }
-        ])
-      }
       if (route.transferTrains) {
         route.transferTrains.forEach(tr => {
           logSubwayApiCall(tr.station.replace('역', ''), [
@@ -481,10 +476,17 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHash)
   }, [])
 
+  const lastFetchedDistrictRef = useRef<number | null>(null)
+
   // 선택된 자치구의 기상청 실시간 초단기실황 데이터 자동 동기화
   useEffect(() => {
     let isMounted = true
     const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
+    if (lastFetchedDistrictRef.current === selectedDistrict && liveWeather) {
+      return
+    }
+    lastFetchedDistrictRef.current = selectedDistrict
+
     fetch(`${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(districtName)}`)
       .then(res => res.json())
       .then((data: LiveWeatherData) => {
@@ -506,17 +508,42 @@ export default function App() {
   const handleSelectStation = (station: SubwayStation) => {
     setActiveRoute(null)
     setSubwaySearchQuery(station.name)
-    setFocusedCoords(station.coords)
     setShowSearchResults(false)
-    setSelectedStop({
-      id: station.id,
-      name: station.name,
-      type: 'subway',
-      coords: station.coords,
-      lineInfo: station.lines.join(' · '),
-      baseCrowd: station.baseCrowd,
-      rainSensitivity: 1.2
-    })
+    setMapTransport('subway')
+    setFocusedCoords(station.coords)
+  }
+
+  const lastFetchedStopIdRef = useRef<string | null>(null)
+
+  // ── 지도(TransitMap)에서 거점 클릭 시 수신되는 통합 데이터 핸들러 (중복 Fetch 원천 방지) ──
+  const handleSelectStop = (stop: TransitStop | null, details?: StopDetailData) => {
+    if (!stop) {
+      lastFetchedStopIdRef.current = null
+      setSelectedStop(null)
+      setStopWeatherData(null)
+      setStopAIData(null)
+      setStopArrivalData({ loading: false })
+      setStopDataLoading(false)
+      return
+    }
+
+    lastFetchedStopIdRef.current = stop.id
+    setSelectedStop(stop)
+
+    if (details?.loading) {
+      setStopDataLoading(true)
+      setStopArrivalData({ loading: true })
+    } else if (details && !details.loading) {
+      setStopDataLoading(false)
+      setStopWeatherData(details.weather || null)
+      setStopAIData(details.aiPrediction || null)
+      setStopArrivalData({
+        loading: false,
+        subwayArrivals: stop.type === 'subway' ? (details.arrivals || []) : [],
+        busArrivals: stop.type === 'bus' ? (details.arrivals || []) : [],
+        lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      })
+    }
   }
 
   // ── 선택된 거점(지하철역 또는 버스 정류소)의 실시간 국지 기상, AI 모델 추론, 실시간 도착 정보 연동 파이프라인 ──
@@ -526,6 +553,11 @@ export default function App() {
       setStopWeatherData(null)
       setStopAIData(null)
       setStopDataLoading(false)
+      return
+    }
+
+    // TransitMap에서 이미 데이터를 수신 및 동기화한 경우 중복 Fetch 방지
+    if (lastFetchedStopIdRef.current === selectedStop.id && (stopWeatherData || stopAIData)) {
       return
     }
 
@@ -639,7 +671,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [selectedStop, liveWeather])
+  }, [selectedStop])
 
   const isLive = liveWeather !== null
   const activeTemp = liveWeather ? liveWeather.temp : 14.0
@@ -776,6 +808,8 @@ export default function App() {
 
         logAIPredictionCall(
           {
+            district: districtName,
+            station: districtName,
             location: districtName,
             rain: `${weather.rain}mm`,
             temp: `${weather.temp}°C`,
@@ -791,10 +825,18 @@ export default function App() {
     }
   }
 
+  const lastAIFetchKeyRef = useRef<string>('')
+
   // 자치구 또는 실시간 기상 데이터 변경 시 AI 추론 자동 실행 (100% 실시간 시간대 반영)
   useEffect(() => {
+    if (!liveWeather) return // 기상청 실시간 데이터가 로드된 후 실제 기상 관측치로 1회만 AI 추론 실행
+
     const hourNum = new Date().getHours()
     const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
+    const fetchKey = `${districtName}_${liveWeather.temp}_${liveWeather.rain}_${liveWeather.pty}_${hourNum}`
+
+    if (lastAIFetchKeyRef.current === fetchKey) return
+    lastAIFetchKeyRef.current = fetchKey
 
     fetchAIPrediction(districtName, hourNum, {
       temp: activeTemp,
@@ -2172,7 +2214,7 @@ export default function App() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                     <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>선택된 거점 상세 정보</div>
                     <button
-                      onClick={() => setSelectedStop(null)}
+                      onClick={() => handleSelectStop(null)}
                       style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 14, padding: 0 }}
                       title="선택 해제"
                     >
@@ -2471,7 +2513,7 @@ export default function App() {
               selectedTime={liveWeather ? `${parseInt(liveWeather.base_time.slice(0, 2), 10)}시` : `${new Date().getHours()}시`}
               liveWeather={liveWeather}
               focusedCoords={focusedCoords}
-              onSelectStop={setSelectedStop}
+              onSelectStop={handleSelectStop}
               activeRoute={activeRoute}
               onClearRoute={() => {
                 setActiveRoute(null)

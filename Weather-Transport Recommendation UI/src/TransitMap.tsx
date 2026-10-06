@@ -45,13 +45,20 @@ export const TRANSIT_STOPS: TransitStop[] = [
 ]
 
 
+export interface StopDetailData {
+  loading?: boolean
+  weather?: any
+  aiPrediction?: any
+  arrivals?: any[]
+}
+
 interface TransitMapProps {
   filterType: 'all' | 'subway' | 'bus' | 'bike'
   rainMm: number
   selectedTime: string
   liveWeather?: any
   focusedCoords?: [number, number] | null
-  onSelectStop?: (stop: TransitStop) => void
+  onSelectStop?: (stop: TransitStop | null, details?: StopDetailData) => void
   activeRoute?: TransitRouteResult | null
   onClearRoute?: () => void
 }
@@ -827,6 +834,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           popupOpenedZoomRef.current = null
         }
         setActiveStop(null)
+        if (onSelectStop) onSelectStop(null)
       })
 
       const marker = new maplibregl.Marker({ element: el })
@@ -845,7 +853,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         }
 
         setActiveStop(stop)
-        if (onSelectStop) onSelectStop(stop)
+        if (onSelectStop) onSelectStop(stop, { loading: true })
 
         // 1. 역 클릭 시 중심 이동 및 부드러운 줌인 (기본 15.5 배율로 확대, 비행 애니메이션 중 팝업 유지)
         if (mapInstanceRef.current) {
@@ -982,6 +990,16 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               pillArrow.style.borderTopColor = targetRec.crowdColor
             }
           }
+
+          // 상위 App 컴포넌트에 실시간 기상/AI예측/도착정보 일괄 전달 (중복 API Fetch 방지)
+          if (onSelectStop) {
+            onSelectStop(stop, {
+              loading: false,
+              weather: weatherData,
+              aiPrediction: aiData,
+              arrivals,
+            })
+          }
         } catch (err) {
           console.error('역 정보 파이프라인 조회 실패:', err)
           if (activePopupRef.current === popup) {
@@ -989,6 +1007,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               arrivalsList: [],
               isLoadingArrivals: false
             }))
+          }
+          if (onSelectStop) {
+            onSelectStop(stop, {
+              loading: false,
+              weather: null,
+              aiPrediction: null,
+              arrivals: [],
+            })
           }
         }
       })

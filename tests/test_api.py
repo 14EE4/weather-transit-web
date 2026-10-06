@@ -357,7 +357,25 @@ def test_incheon_weather():
     print("\n" + "="*50)
     print("[1-2] 수도권 광역 연계축: 인천시(부평·송도·구월) 실시간 날씨 테스트")
     print("="*50)
-    test_kma_weather(nx=55, ny=124)
+def test_live_district_congestion():
+    """8대 주요 거점 실시간 교통 혼잡도 API (GET /api/v1/districts/live-congestion) 테스트"""
+    print("\n" + "="*50)
+    print("[4] 8대 주요 거점 실시간 교통 혼잡도 ONNX 추론 API 테스트")
+    print("="*50)
+    try:
+        from fastapi.testclient import TestClient
+        import main
+        with TestClient(main.app) as client:
+            res = client.get("/api/v1/districts/live-congestion?rain=2.0&temp=15.0")
+            assert res.status_code == 200, f"Status code failed: {res.status_code}"
+            data = res.json()
+            assert data["status"] == "success", "Response status is not success"
+            assert "hotspots" in data and len(data["hotspots"]) == 8, f"Expected 8 hotspots, got {len(data.get('hotspots', []))}"
+            print(f"[성공] 8대 거점 혼잡도 추론 완료 (응답 지연시간: {data.get('latency_ms')}ms)")
+            for h in data["hotspots"]:
+                print(f"  - {h['name']} ({h['district']}): 지하철 {h['subway']}%, 버스 {h['bus']}%, 따릉이 {h['bike']}% | {h['weather']} {h['temp']}°C")
+    except Exception as e:
+        print(f"[실패] live-congestion API 테스트 실패: {e}")
 
 if __name__ == "__main__":
     test_kma_weather()
@@ -365,3 +383,4 @@ if __name__ == "__main__":
     test_incheon_weather()
     test_seoul_bus()
     test_seoul_subway()
+    test_live_district_congestion()

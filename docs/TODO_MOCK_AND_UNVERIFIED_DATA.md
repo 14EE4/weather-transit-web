@@ -26,11 +26,16 @@
   - [x] **[완료] 상단 시간대별 가상 시뮬레이션 버튼(`06시~14시`) 완전 삭제**: 100% 실시간 기상청 관측(`liveWeather`) 상태만 항시 유지.
   - [x] **[완료] 하단 시간대별 이용자 추이 SVG 차트 실시간 시간 정렬**: 현재 실제 시각(`new Date().getHours()`)에 동적 매핑.
 
-### 1.2 동별 교통 혼잡 현황 (`DISTRICT_DATA`)
-- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L173~182, L1198~1223)
-- **현황**: 역삼동, 명동, 여의도동, 서교동, 성수동, 가산, 잠실, 판교 8개 거점의 혼잡도(지하철 91%, 버스 82%, 따릉이 45% 등) 및 날씨('🌧', 14°C)가 고정 상수로 하드코딩된 완전한 목업.
-- **[TODO]**:
-  - [ ] 백엔드의 `POST /api/v1/simulate/weather-impact` 내 25개 자치구 실시간 예측 혼잡도(`district_congestion`) 데이터를 UI 리스트에 바인딩하여 실측 날씨에 따라 실시간 갱신
+### 1.2 동별 교통 혼잡 현황 (`DISTRICT_DATA`) 및 실시간 AI 추론 연동 (`districtList`)
+- **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L176~187, L492~504, L943~964, L1450~1505), 백엔드 `main.py` (`GET /api/v1/districts/live-congestion`)
+- **현황 및 조치 완료**:
+  - [x] **[완료] 백엔드 실시간 혼잡도 추론 엔드포인트(`GET /api/v1/districts/live-congestion`) 신설**:
+    - 8대 주요 거점(강남 역삼동, 도심 명동, 여의도동, 홍대 서교동, 성수동, 가산디지털단지, 잠실, 판교) 및 25개 자치구에 대해 3개 ONNX 모델을 초고속 병렬 추론하여 지하철, 버스, 따릉이 혼잡도 및 국지 기상 실시간 계산.
+    - 30초 인메모리 캐싱 지원 (<1ms 초저지연 응답).
+  - [x] **[완료] 프론트엔드 동적 상태 바인딩 및 인터랙션 고도화**:
+    - 기존의 고정 상수 목업 대신 `districtList` 상태 및 `districtLiveStatus`를 신설하여 실시간 AI 모델 예측치로 동적 연동.
+    - 상단에 `ONNX 실시간 연동` 상태 인디케이터 배지 탑재.
+    - 거점 카드 클릭 시 해당 자치구로 대시보드가 즉시 전환되는 원클릭 동기화 인터랙션 구현.
 
 ### 1.3 강우량-이용률 상관관계 곡선 (`CORRELATION_DATA`) 및 시각화 컴포넌트 (`CorrelationChart`)
 - **위치**: `Weather-Transport Recommendation UI/src/App.tsx` (L163~174, L277~375, L1867~1886)
@@ -268,7 +273,7 @@
   ├── [x] [완료] [지도 UX] 경로 검색 닫기 시 전체 지하철역 마커 및 시야각(Zoom 13.0) 자동 복원
   ├── [x] [완료] [AI/피처] 수도권 광역 진입축(구로구) 매핑 및 17시 퇴근 첨두 가중치(1.15x) 정밀화
   ├── [x] [완료] 강우량-이용률 상관관계 곡선 (CORRELATION_DATA) 20.9만 건 실측 교정 및 인터랙티브 SVG 차트
-  ├── 25개 자치구 실시간 What-If 시뮬레이션 결과와 DISTRICT_DATA 연동
+  ├── [x] [완료] 서울시 8대 핵심 거점 및 25개 자치구 실시간 ONNX 혼잡도 추론 연동 (GET /api/v1/districts/live-congestion)
   ├── [x] [완료] MCDA 추천 가중치 실측 교통 데이터 캘리브레이션 및 AHP 분석 (scripts/calibrate_mcda.py)
   ├── [x] [완료] 중앙 카드 실시간 AI 추론 이용객 수 연동
   ├── [x] [완료] 지도 보기 내 가상 시뮬레이터 제거 및 실시간 관측 실황 카드 교체

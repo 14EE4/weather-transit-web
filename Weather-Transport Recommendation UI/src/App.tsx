@@ -492,6 +492,20 @@ export default function App() {
   const [aiStatus, setAiStatus] = useState<'connected' | 'loading' | 'offline'>('loading')
   const [aiWeatherSummary, setAiWeatherSummary] = useState<{ condition: string; description: string } | null>(null)
 
+  // ── 동별 실시간 교통 혼잡도 상태 (8대 거점 ONNX 실시간 추론 연동) ──
+  const [districtList, setDistrictList] = useState<Array<{
+    name: string
+    district?: string
+    bus: number
+    subway: number
+    bike: number
+    weather: string
+    temp: number
+    rain?: number
+  }>>(DISTRICT_DATA)
+  const [districtLiveStatus, setDistrictLiveStatus] = useState<'idle' | 'loading' | 'live'>('idle')
+  const lastDistrictCongestionKeyRef = useRef<string>('')
+
   // 활성 경로 탐색 결과 상태
   const [activeRoute, setActiveRoute] = useState<TransitRouteResult | null>(null)
 
@@ -928,6 +942,28 @@ export default function App() {
     }
   }
 
+  // ── 8대 주요 거점 실시간 교통 혼잡도 ONNX 추론 조회 ──
+  const fetchDistrictCongestion = async (rainVal: number, tempVal: number, hourVal: number) => {
+    const fetchKey = `${rainVal}_${tempVal}_${hourVal}`
+    if (lastDistrictCongestionKeyRef.current === fetchKey) return
+    lastDistrictCongestionKeyRef.current = fetchKey
+
+    try {
+      setDistrictLiveStatus('loading')
+      const res = await fetch(`${API_BASE_URL}/api/v1/districts/live-congestion?rain=${rainVal}&temp=${tempVal}&hour=${hourVal}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.status === 'success' && data.hotspots && data.hotspots.length > 0) {
+          setDistrictList(data.hotspots)
+          setDistrictLiveStatus('live')
+        }
+      }
+    } catch (err) {
+      console.warn('동별 실시간 교통 혼잡도 조회 실패, 기본값 유지:', err)
+      setDistrictLiveStatus('idle')
+    }
+  }
+
   const lastAIFetchKeyRef = useRef<string>('')
 
   // 자치구 또는 실시간 기상 데이터 변경 시 AI 추론 자동 실행 (100% 실시간 시간대 반영)
@@ -938,17 +974,19 @@ export default function App() {
     const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
     const fetchKey = `${districtName}_${liveWeather.temp}_${liveWeather.rain}_${liveWeather.pty}_${hourNum}`
 
-    if (lastAIFetchKeyRef.current === fetchKey) return
-    lastAIFetchKeyRef.current = fetchKey
+    if (lastAIFetchKeyRef.current !== fetchKey) {
+      lastAIFetchKeyRef.current = fetchKey
+      fetchAIPrediction(districtName, hourNum, {
+        temp: activeTemp,
+        rain: activeRain,
+        humidity: activeHumidity,
+        wind: activeWind,
+        hour: `${hourNum}시`
+      })
+    }
 
-    fetchAIPrediction(districtName, hourNum, {
-      temp: activeTemp,
-      rain: activeRain,
-      humidity: activeHumidity,
-      wind: activeWind,
-      hour: `${hourNum}시`
-    })
-  }, [selectedDistrict, liveWeather])
+    fetchDistrictCongestion(activeRain, activeTemp, hourNum)
+  }, [selectedDistrict, liveWeather, activeRain, activeTemp])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", color: '#F0F6FF' }}>
@@ -1412,17 +1450,58 @@ export default function App() {
 
             {/* 동별 혼잡도 */}
             <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>동별 교통 혼잡도</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>서울시 주요 행정동 현황</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>동별 교통 혼잡도</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>서울시 8대 핵심 거점 실시간 현황</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: districtLiveStatus === 'live' ? '#10B981' : districtLiveStatus === 'loading' ? '#FBBF24' : '#64748B',
+                    boxShadow: districtLiveStatus === 'live' ? '0 0 8px #10B981' : 'none'
+                  }} />
+                  <span style={{ fontSize: 10, color: districtLiveStatus === 'live' ? '#34D399' : 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
+                    {districtLiveStatus === 'live' ? 'ONNX 실시간 연동' : districtLiveStatus === 'loading' ? '추론 중...' : '기본값'}
+                  </span>
+                </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {DISTRICT_DATA.map(d => (
-                  <div key={d.name} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
+                {districtList.map(d => (
+                  <div
+                    key={d.name}
+                    onClick={() => {
+                      const dName = d.district || d.name
+                      const matchedIdx = DISTRICTS.findIndex(item => item.includes(dName) || item.includes(d.name.split(' ')[0]))
+                      if (matchedIdx !== -1) {
+                        setSelectedDistrict(matchedIdx)
+                      }
+                    }}
+                    style={{
+                      padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 14,
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(56,189,248,0.08)'
+                      e.currentTarget.style.borderColor = 'rgba(56,189,248,0.25)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                    }}
+                    title="클릭 시 해당 권역으로 대시보드 전환"
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 14 }}>{d.weather}</span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#F0F6FF' }}>{d.name}</span>
+                        {d.district && (
+                          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono' }}>
+                            ({d.district})
+                          </span>
+                        )}
                       </div>
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>{d.temp}°C</span>
                     </div>

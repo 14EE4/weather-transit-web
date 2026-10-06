@@ -1201,6 +1201,15 @@ async def predict_recommendation(req: PredictionRequest):
 
     latency_ms = (time.perf_counter() - t_start) * 1000.0
 
+    target_info = f"{req.district}" + (f" ({req.station})" if req.station else "")
+    logger.info(
+        f"⚡ [AI 수요/혼잡도 추론 완료] {target_info} | 기상: {weather.temp:.1f}°C, 강수 {weather.rain:.1f}mm | 소요: {latency_ms:.2f}ms"
+    )
+    for r in recommendations:
+        logger.info(
+            f"   ▶ [{r.name}] 혼잡도: {r.crowd}% ({r.crowdLabel}) | 예측이용량: {r.predicted_volume:,}명/시 | 추천점수: {r.score}점"
+        )
+
     return PredictionResponse(
         status="success",
         timestamp=datetime.now().astimezone().isoformat(),

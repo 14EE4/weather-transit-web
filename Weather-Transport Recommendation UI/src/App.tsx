@@ -482,9 +482,9 @@ const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location) {
     const proto = window.location.protocol || 'http:'
     const host = window.location.hostname || 'localhost'
-    return `${proto}//${host}:8000`
+    return `${proto}//${host}:8100`
   }
-  return 'http://localhost:8000'
+  return 'http://localhost:8100'
 }
 const API_BASE_URL = getApiBaseUrl()
 

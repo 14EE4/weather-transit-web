@@ -96,9 +96,9 @@ docker compose up --build -d
 ### 3. 서비스 접속 안내
 | 서비스 | 접속 URL | 설명 |
 |---|---|---|
-| **🌐 웹 대시보드 (Frontend)** | **`http://localhost:3000`** | Nginx 리버스 프록시 연동 SPA (포트 3000) |
-| **⚡ AI 추론 API (Backend)** | **`http://localhost:8000/docs`** | FastAPI Swagger 대화형 API 문서 (포트 8000) |
-| **🩺 시스템 헬스체크** | `http://localhost:8000/health` | ONNX 세션 인메모리 웜업 및 서킷 브레이커 상태 |
+| **🌐 웹 대시보드 (Frontend)** | **`http://localhost:3100`** | Nginx 리버스 프록시 연동 SPA (포트 3100) |
+| **⚡ AI 추론 API (Backend)** | **`http://localhost:8100/docs`** | FastAPI Swagger 대화형 API 문서 (포트 8100) |
+| **🩺 시스템 헬스체크** | `http://localhost:8100/health` | ONNX 세션 인메모리 웜업 및 서킷 브레이커 상태 |
 
 ### 4. 주요 컨테이너 관리 명령어
 ```bash
@@ -112,8 +112,20 @@ docker compose logs -f
 docker compose down
 ```
 
-> 💡 **리눅스 미니 PC 및 사설 네트워크 배포 팁**:
-> 미니 PC에 배포 후 동일 공유기(Wi-Fi) 내의 노트북, 태블릿, 스마트폰 브라우저에서 **`http://<미니PC_IP>:3000`**으로 접속하시면 별도의 추가 설정 없이 대시보드와 지도를 즉시 이용하실 수 있습니다. Nginx 리버스 프록시가 내부 백엔드로 API를 자동 라우팅하므로 CORS 문제가 발생하지 않습니다.
+> 💡 **리눅스 미니 PC 및 홈서버(PM2 / Nginx Proxy Manager) 배포 안내**:
+> 기존에 다른 서비스(포트 3000, 8000 등)를 구동 중인 Ubuntu 홈서버/미니 PC(Intel N100 등) 환경에서 PM2나 Docker, NPM(Nginx Proxy Manager)으로 배포하는 상세 절차는 **[`docs/SERVER_DEPLOYMENT_GUIDE.md`](docs/SERVER_DEPLOYMENT_GUIDE.md)**를 참조하세요.
+
+---
+
+## 🚀 리눅스 홈서버 / 미니 PC 배포 (PM2 & 호스트 배포)
+
+이미 서버에서 다른 웹 서비스가 구동 중이거나 PM2 프로세스 매니저를 사용하는 경우, 다음 가이드를 통해 초경량으로 즉시 구동할 수 있습니다:
+- 📖 **서버 배포 완벽 가이드**: [리눅스 홈서버 / 미니 PC 배포 가이드](docs/SERVER_DEPLOYMENT_GUIDE.md)
+- 기본 포트: **프론트엔드 `3100`**, **백엔드 `8100`** (기존 서비스와의 포트 충돌 방지 완비)
+- 실행 명령어 한 줄 요약:
+  ```bash
+  pm2 start ecosystem.config.cjs
+  ```
 
 ---
 
@@ -235,6 +247,7 @@ weather-transit-web/
 ├── docker-compose.yml                  # 🐳 Docker Compose 멀티 컨테이너 오케스트레이션
 ├── Dockerfile.backend                  # 🐍 FastAPI 백엔드 (Python 3.11-slim + ONNX) 이미지 빌드 명세
 ├── Dockerfile.frontend                 # ⚛️ React 프론트엔드 (Node 20 Multi-stage + Nginx) 빌드 명세
+├── ecosystem.config.cjs                # ⚡ PM2 프로세스 매니저 설정 (Backend :8100, Frontend :3100)
 ├── nginx.conf                          # 🌐 Nginx SPA 라우팅 & 백엔드 API 리버스 프록시 설정
 ├── .env                                # API 키 및 환경 변수 설정 파일 (Git 추적 제외)
 ├── .env.example                        # 환경 변수 예시 템플릿 (Git 포함, 참고용)
@@ -258,6 +271,7 @@ weather-transit-web/
 │   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋
 ├── docs/                               # 📖 시스템 아키텍처 및 요구사항 명세서
 │   ├── CHANGELOG.md                    # 통합 변경 이력
+│   ├── SERVER_DEPLOYMENT_GUIDE.md      # 🚀 리눅스 홈서버 / 미니 PC (PM2, Docker, NPM) 배포 가이드
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
 │   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서

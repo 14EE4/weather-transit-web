@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data:/app/data
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8100}:8000"
     networks:
       - weather-transit-net
 
@@ -22,7 +22,7 @@ services:
     container_name: weather-transit-frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3100}:80"
     depends_on:
       backend:
         condition: service_healthy

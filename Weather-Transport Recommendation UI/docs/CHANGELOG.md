@@ -8,6 +8,21 @@
 
 ## [2026-10-06]
 
+### 0. 🚀 리눅스 홈서버 / 미니 PC 배포 가이드 공식 문서화 및 포트 격리 (`docs/SERVER_DEPLOYMENT_GUIDE.md`)
+- **배경**:
+  - Intel N100 등의 리눅스 홈서버/미니 PC 환경에서 이미 다른 웹 서비스(예: `map-board` Next.js 3000번, `leaderboard-api` 8000번)가 운영 중인 경우, 포트 충돌 없이 안정적으로 병행 운영할 수 있는 실전 가이드 요구 반영.
+- **해결 조치**:
+  1. **배포 가이드 문서 신설 ([`docs/SERVER_DEPLOYMENT_GUIDE.md`](../../docs/SERVER_DEPLOYMENT_GUIDE.md))**:
+     - 시스템 필수 패키지(`python3-venv`, `libgomp1`, `nodejs 20+`, `pm2`) 설치 안내.
+     - **방법 A (권장)**: PM2 프로세스 매니저 기반 호스트 직접 배포 절차 (`ecosystem.config.cjs`, `pm2 save`, `pm2 startup`).
+     - **방법 B**: Docker Compose 컨테이너 배포 절차 및 기본 포트 격리.
+     - **Nginx Proxy Manager (NPM)** 연동 (단일 도메인 + `/api` 리버스 프록시, SSL 설정).
+     - 방화벽(UFW) 오픈 및 원클릭 재배포 스크립트, FAQ 트러블슈팅(`libgomp1`, 포트 점검) 수록.
+  2. **기본 포트 격리 (`docker-compose.yml`, `ecosystem.config.cjs`)**:
+     - 프론트엔드 기본 포트: `3100` (기존 3000 점유 서비스 보호).
+     - 백엔드 기본 포트: `8100` (기존 8000 점유 서비스 보호).
+     - 환경 변수(`FRONTEND_PORT`, `BACKEND_PORT`) 오버라이드 지원.
+
 ### 0. 🇰🇷 대한민국 영토 한정 뷰포트 이동 제한 및 글로벌 타일 리소스 절약 (`maxBounds`, `minZoom`)
 - **배경**:
   - 본 서비스는 대한민국 수도권 및 전국 대중교통·날씨 분석에 특화되어 있으므로, 사용자가 실수로 해외 영역으로 지도를 패닝하거나 전 세계 단위로 축소할 경우 불필요한 OpenStreetMap 타일 다운로드로 네트워크 대역폭과 브라우저 메모리가 낭비되던 문제 개선.

@@ -476,7 +476,9 @@ function CorrelationChart() {
   )
 }
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE_URL = typeof (import.meta as any).env?.VITE_API_BASE_URL === 'string'
+  ? (import.meta as any).env.VITE_API_BASE_URL
+  : (import.meta.env?.DEV ? 'http://localhost:8000' : '')
 
 interface LiveWeatherData {
   status: string

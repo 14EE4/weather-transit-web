@@ -7,7 +7,9 @@ import { TransitRouteResult } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
 import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE_URL = typeof (import.meta as any).env?.VITE_API_BASE_URL === 'string'
+  ? (import.meta as any).env.VITE_API_BASE_URL
+  : (import.meta.env?.DEV ? 'http://localhost:8000' : '')
 
 // ── 로컬 스토리지 키 (새로고침 시 지도 카메라 위치 및 선택 역 복원) ──
 const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'

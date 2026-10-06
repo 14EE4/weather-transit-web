@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 런타임 필수 패키지: libgomp1(ONNX Runtime OpenMP 가속), curl(헬스체크용)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 레이어 캐시 활용을 위해 requirements.txt 먼저 복사 및 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 애플리케이션 소스, AI 모델 파일, 데이터셋 복사
+COPY main.py timeseries_cache.py ./
+COPY models/ ./models/
+COPY data/ ./data/
+
+EXPOSE 8000
+
+# 헬스체크: 10초 간격으로 /health 엔드포인트 점검 (모델 로딩 완료 확인)
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,25 @@
+# Git & IDE
+.git
+.github
+.vscode
+.idea
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+venv
+.env.local
+*.log
+
+# Node & Build artifacts
+**/node_modules
+**/dist
+**/build
+
+# Temp & Cache
+.DS_Store
+Thumbs.db
+tests
+api_example

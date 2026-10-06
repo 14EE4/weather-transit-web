@@ -3,12 +3,12 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# 의존성 정의 파일 복사 및 설치
-COPY "Weather-Transport Recommendation UI/package*.json" ./
+# 공백이 포함된 디렉터리 경로를 안전하게 처리하기 위해 JSON 배열 문법(["src", "dest"]) 사용
+COPY ["Weather-Transport Recommendation UI/package*.json", "./"]
 RUN npm ci
 
-# 소스 코드 복사
-COPY "Weather-Transport Recommendation UI/" ./
+# 소스 코드 전체 복사 (디렉터리 내부 파일들이 /app으로 복사됨)
+COPY ["Weather-Transport Recommendation UI/", "./"]
 
 # 도커 Nginx 리버스 프록시 연동을 위해 상대 경로(/api)로 API 기본 URL 주입
 ENV VITE_API_BASE_URL=""
@@ -28,3 +28,4 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
+

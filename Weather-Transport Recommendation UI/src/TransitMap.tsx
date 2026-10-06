@@ -43,16 +43,6 @@ export const TRANSIT_STOPS: TransitStop[] = [
   { id: 'bike-jamsil', name: '따릉이: 잠실역 8번출구', type: 'bike', coords: [127.1015, 37.5142], lineInfo: '거치대 25대 (대여가능)', baseCrowd: 70, rainSensitivity: -2.4 },
 ]
 
-// 2호선 강남-잠실 구간 GeoJSON 경로 좌표
-const SUBWAY_LINE_COORDS = [
-  [127.0276, 37.4979], // 강남역
-  [127.0365, 37.5006], // 역삼역
-  [127.0460, 37.5042], // 선릉역
-  [127.0631, 37.5088], // 삼성역
-  [127.0737, 37.5109], // 종합운동장역
-  [127.0863, 37.5116], // 잠실새내역
-  [127.1002, 37.5133], // 잠실역
-]
 
 interface TransitMapProps {
   filterType: 'all' | 'subway' | 'bus' | 'bike'
@@ -175,44 +165,6 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right')
 
     map.on('load', () => {
-      // 2호선 경로 GeoJSON 레이어 추가
-      map.addSource('subway-line-2', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: { name: '지하철 2호선' },
-          geometry: {
-            type: 'LineString',
-            coordinates: SUBWAY_LINE_COORDS,
-          },
-        },
-      })
-
-      // 외곽선 (글로우 효과)
-      map.addLayer({
-        id: 'subway-line-glow',
-        type: 'line',
-        source: 'subway-line-2',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#38BDF8',
-          'line-width': 8,
-          'line-opacity': 0.35,
-        },
-      })
-
-      // 중심선
-      map.addLayer({
-        id: 'subway-line-core',
-        type: 'line',
-        source: 'subway-line-2',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#38BDF8',
-          'line-width': 4,
-          'line-dasharray': [2, 1],
-        },
-      })
 
       // 검색된 경로(Active Transit Route) GeoJSON 소스 및 레이어 추가
       map.addSource('active-route', {

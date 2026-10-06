@@ -143,12 +143,9 @@
 
 ### 3.5 강남-잠실 고정 2호선 경로선(`SUBWAY_LINE_COORDS`) 잔존 문제 조치
 - **위치**: `Weather-Transport Recommendation UI/src/TransitMap.tsx` (`SUBWAY_LINE_COORDS`, `subway-line-2`, `subway-line-glow`, `subway-line-core`, L46~55, L178~215)
-- **현황**:
-  - 초기 목업 개발 당시 등록된 2호선 강남~잠실 7개 역 구간 좌표(`SUBWAY_LINE_COORDS`) 기반 레이어가 지도 초기화 시 상시 렌더링되어 남아있음.
-  - 사용자가 경로를 검색하지 않았음에도 강남-잠실 구간만 청록색 네온 라인이 항시 표시되어 혼란을 초래함.
-- **[TODO]**:
-  - [ ] 하드코딩된 강남~잠실 2호선 정적 노선 레이어(`subway-line-2`, `subway-line-glow`, `subway-line-core`) 및 GeoJSON 소스 완전 삭제
-  - [ ] 사용자가 출발역-도착역을 검색했을 때 실시간으로 생성되는 동적 추천 경로선(`active-route`)만 표출하도록 일원화
+- **현황 및 조치 완료**:
+  - [x] **[완료] 하드코딩된 강남~잠실 2호선 정적 노선 레이어 완전 삭제**: 초기 목업 잔재인 `SUBWAY_LINE_COORDS`, `subway-line-2` 소스, `subway-line-glow`, `subway-line-core` 레이어를 완전 제거함.
+  - [x] **[완료] 실시간 검색 추천 경로(`active-route`) 전용 표출**: 사용자가 출발역-도착역을 검색했을 때 실시간으로 생성되는 동적 추천 경로선만 네온 효과로 표출되도록 정리 완료.
   - [ ] (선택 확장) 수도권 전철 전체 호선망의 실제 GeoJSON 데이터셋을 로드하여 배경 인프라 레이어로 제공하는 기능 검토
 
 ### 3.6 각 역별 위치(좌표) 기반 국지 기상 매핑 및 개별 역 혼잡도 정밀 추론
@@ -229,7 +226,7 @@
 
 [Phase 2: UI 및 알고리즘 정밀화 (P1)]
   ├── 프론트엔드 HOURLY_DATA 24시간 기상청 실측 예보(getVilageFcst) API 바인딩
-  ├── [지도 UX] 강남-잠실 정적 2호선 경로선(SUBWAY_LINE_COORDS) 잔존 제거
+  ├── [x] [완료] [지도 UX] 강남-잠실 정적 2호선 경로선(SUBWAY_LINE_COORDS) 잔존 제거
   ├── [지도 UX] 원거리(줌아웃) 역 클릭 시 flyTo 애니메이션 중 팝업 즉시 소멸 버그 조치
   ├── [지도 UX] 역 팝업 및 사이드바 내 실시간 열차 도착 정보(상/하행 잔여분) UI 표출
   ├── 25개 자치구 실시간 What-If 시뮬레이션 결과와 DISTRICT_DATA 연동

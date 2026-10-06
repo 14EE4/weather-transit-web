@@ -90,6 +90,45 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 33
   },
   {
+    "id": "sub-3216",
+    "name": "가재울역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.683673,
+      37.484192
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3211",
+    "name": "가정역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.675539,
+      37.524649
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3212",
+    "name": "가정중앙시장역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.676672,
+      37.517054
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1063075315",
     "name": "가좌역",
     "lines": [
@@ -142,6 +181,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 66
   },
   {
+    "id": "sub-3123",
+    "name": "간석오거리역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.707938,
+      37.467048
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1067080123",
     "name": "갈매역",
     "lines": [
@@ -153,6 +205,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 48
+  },
+  {
+    "id": "sub-3117",
+    "name": "갈산역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.721514,
+      37.517268
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1007000730",
@@ -353,10 +418,63 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 84
   },
   {
+    "id": "sub-3203",
+    "name": "검단사거리역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.657108,
+      37.60185
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3201",
+    "name": "검단오류역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.627178,
+      37.594877
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3107",
+    "name": "검단호수공원역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.688566,
+      37.60244
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3208",
+    "name": "검바위역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.677566,
+      37.561405
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1065006507",
     "name": "검암역",
     "lines": [
-      "공항철도"
+      "공항철도",
+      "인천2호선"
     ],
     "coords": [
       126.674007,
@@ -405,6 +523,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 53
   },
   {
+    "id": "sub-3115",
+    "name": "경인교대입구역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.722597,
+      37.538157
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1003000351",
     "name": "경찰병원역",
     "lines": [
@@ -418,10 +549,24 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 48
   },
   {
+    "id": "sub-3114",
+    "name": "계산역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.728128,
+      37.543238
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1065006506",
     "name": "계양역",
     "lines": [
-      "공항철도"
+      "공항철도",
+      "인천1호선"
     ],
     "coords": [
       126.7363,
@@ -884,6 +1029,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 48
   },
   {
+    "id": "sub-3138",
+    "name": "국제업무지구역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.630347,
+      37.399907
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1009000914",
     "name": "국회의사당역",
     "lines": [
@@ -961,6 +1119,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 52
+  },
+  {
+    "id": "sub-3111",
+    "name": "귤현역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.742654,
+      37.566379
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1067080127",
@@ -1161,6 +1332,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 49
+  },
+  {
+    "id": "sub-3225",
+    "name": "남동구청역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.736939,
+      37.448161
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1075075264",
@@ -1838,6 +2022,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 53
   },
   {
+    "id": "sub-3206",
+    "name": "독정역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.675844,
+      37.585212
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1006000643",
     "name": "돌곶이역",
     "lines": [
@@ -1932,6 +2129,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 50
   },
   {
+    "id": "sub-3132",
+    "name": "동막역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.674005,
+      37.397878
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1001000127",
     "name": "동묘앞역",
     "lines": [
@@ -1944,6 +2154,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "서울 도심권",
     "baseCrowd": 68
+  },
+  {
+    "id": "sub-3121",
+    "name": "동수역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.718247,
+      37.485312
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001000154",
@@ -1997,6 +2220,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 51
+  },
+  {
+    "id": "sub-3131",
+    "name": "동춘역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.681015,
+      37.404737
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1032000356",
@@ -2184,6 +2420,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 53
   },
   {
+    "id": "sub-3204",
+    "name": "마전역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.666998,
+      37.597566
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1005080555",
     "name": "마천역",
     "lines": [
@@ -2221,6 +2470,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 69
+  },
+  {
+    "id": "sub-3224",
+    "name": "만수역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.732094,
+      37.454911
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1063075121",
@@ -2394,6 +2656,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 67
   },
   {
+    "id": "sub-3223",
+    "name": "모래내시장역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.719298,
+      37.45583
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1005000520",
     "name": "목동역",
     "lines": [
@@ -2472,6 +2747,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 47
   },
   {
+    "id": "sub-3127",
+    "name": "문학경기장역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.698579,
+      37.434935
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1075075231",
     "name": "미금역",
     "lines": [
@@ -2523,6 +2811,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 53
+  },
+  {
+    "id": "sub-3112",
+    "name": "박촌역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.745077,
+      37.553703
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1004000447",
@@ -2950,7 +3251,8 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "id": "sub-1007000759",
     "name": "부평구청역",
     "lines": [
-      "7호선"
+      "7호선",
+      "인천1호선"
     ],
     "coords": [
       126.72077,
@@ -2960,10 +3262,37 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 63
   },
   {
+    "id": "sub-3122",
+    "name": "부평삼거리역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.710208,
+      37.477679
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3119",
+    "name": "부평시장역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.722244,
+      37.498383
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1001000152",
     "name": "부평역",
     "lines": [
-      "1호선"
+      "1호선",
+      "인천1호선"
     ],
     "coords": [
       126.723453,
@@ -3447,6 +3776,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 51
   },
   {
+    "id": "sub-3210",
+    "name": "서구청역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.676787,
+      37.543742
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1005000532",
     "name": "서대문역",
     "lines": [
@@ -3471,6 +3813,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "서울 도심권",
     "baseCrowd": 31
+  },
+  {
+    "id": "sub-3214",
+    "name": "서부여성회관역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.675795,
+      37.500168
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1063075112",
@@ -3624,7 +3979,8 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "id": "sub-1007000761",
     "name": "석남역",
     "lines": [
-      "7호선"
+      "7호선",
+      "인천2호선"
     ],
     "coords": [
       126.676281,
@@ -3632,6 +3988,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 47
+  },
+  {
+    "id": "sub-3220",
+    "name": "석바위시장역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.692575,
+      37.457611
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001080145",
@@ -3645,6 +4014,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "서울 도심권",
     "baseCrowd": 48
+  },
+  {
+    "id": "sub-3222",
+    "name": "석천사거리역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.709986,
+      37.456805
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1009000932",
@@ -3739,6 +4121,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 63
+  },
+  {
+    "id": "sub-3128",
+    "name": "선학역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.698863,
+      37.426684
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001080153",
@@ -3860,6 +4255,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 32
   },
   {
+    "id": "sub-3137",
+    "name": "센트럴파크역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.634729,
+      37.393054
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1075075261",
     "name": "소래포구역",
     "lines": [
@@ -3950,6 +4358,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "서울 도심권",
     "baseCrowd": 69
+  },
+  {
+    "id": "sub-3139",
+    "name": "송도달빛축제공원역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.62597,
+      37.407143
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1075075267",
@@ -4189,6 +4610,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 53
   },
   {
+    "id": "sub-3219",
+    "name": "시민공원역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.681192,
+      37.458335
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1093004021",
     "name": "시우역",
     "lines": [
@@ -4266,6 +4700,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 32
+  },
+  {
+    "id": "sub-3108",
+    "name": "신검단중앙역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.698527,
+      37.602676
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1005000538",
@@ -4499,6 +4946,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 31
   },
   {
+    "id": "sub-3129",
+    "name": "신연수역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.693863,
+      37.41804
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1004000429",
     "name": "신용산역",
     "lines": [
@@ -4695,6 +5155,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 35
   },
   {
+    "id": "sub-3109",
+    "name": "아라역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.713301,
+      37.592259
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1001080172",
     "name": "아산역",
     "lines": [
@@ -4706,6 +5179,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "서울 도심권",
     "baseCrowd": 33
+  },
+  {
+    "id": "sub-3209",
+    "name": "아시아드경기장역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.677122,
+      37.5517
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1063075133",
@@ -5287,6 +5773,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 53
   },
   {
+    "id": "sub-3125",
+    "name": "예술회관역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.701012,
+      37.449396
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1003000352",
     "name": "오금역",
     "lines": [
@@ -5461,6 +5960,32 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 68
   },
   {
+    "id": "sub-3205",
+    "name": "완정역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.673203,
+      37.592928
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3202",
+    "name": "왕길역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.642696,
+      37.59518
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1002000208",
     "name": "왕십리역",
     "lines": [
@@ -5595,6 +6120,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 47
   },
   {
+    "id": "sub-3227",
+    "name": "운연역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.75997,
+      37.440127
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1063075329",
     "name": "운정역",
     "lines": [
@@ -5676,7 +6214,8 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "id": "sub-1075075265",
     "name": "원인재역",
     "lines": [
-      "수인분당선"
+      "수인분당선",
+      "인천1호선"
     ],
     "coords": [
       126.687869,
@@ -5950,6 +6489,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 63
   },
   {
+    "id": "sub-3215",
+    "name": "인천가좌역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.675208,
+      37.4897
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1065006510",
     "name": "인천공항1터미널역",
     "lines": [
@@ -5989,6 +6541,46 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 47
   },
   {
+    "id": "sub-3226",
+    "name": "인천대공원역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.752618,
+      37.448769
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3136",
+    "name": "인천대입구역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.639484,
+      37.386007
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3124",
+    "name": "인천시청역",
+    "lines": [
+      "인천1호선",
+      "인천2호선"
+    ],
+    "coords": [
+      126.702143,
+      37.457263
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1001000161",
     "name": "인천역",
     "lines": [
@@ -6001,6 +6593,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "서울 도심권",
     "baseCrowd": 68
+  },
+  {
+    "id": "sub-3126",
+    "name": "인천터미널역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.699706,
+      37.442383
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1075075268",
@@ -6053,6 +6658,32 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
       37.888421
     ],
     "zone": "수도권/서울",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3113",
+    "name": "임학역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.738665,
+      37.545059
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
+    "id": "sub-3116",
+    "name": "작전역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.722527,
+      37.530415
+    ],
+    "zone": "수도권/인천",
     "baseCrowd": 50
   },
   {
@@ -6335,10 +6966,24 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 63
   },
   {
+    "id": "sub-3217",
+    "name": "주안국가산단역",
+    "lines": [
+      "인천2호선"
+    ],
+    "coords": [
+      126.68113,
+      37.473703
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1001000156",
     "name": "주안역",
     "lines": [
-      "1호선"
+      "1호선",
+      "인천2호선"
     ],
     "coords": [
       126.679098,
@@ -6491,6 +7136,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 51
+  },
+  {
+    "id": "sub-3135",
+    "name": "지식정보단지역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.645168,
+      37.378384
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1001080164",
@@ -6868,6 +7526,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     "baseCrowd": 67
   },
   {
+    "id": "sub-3133",
+    "name": "캠퍼스타운역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.661673,
+      37.387855
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
+  },
+  {
     "id": "sub-1032000347",
     "name": "킨텍스역",
     "lines": [
@@ -6932,6 +7603,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 53
+  },
+  {
+    "id": "sub-3134",
+    "name": "테크노파크역",
+    "lines": [
+      "인천1호선"
+    ],
+    "coords": [
+      126.656365,
+      37.382268
+    ],
+    "zone": "수도권/인천",
+    "baseCrowd": 50
   },
   {
     "id": "sub-1067080125",

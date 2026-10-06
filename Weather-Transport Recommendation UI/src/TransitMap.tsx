@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
+import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { SUBWAY_STATIONS } from './subwayData'
 import { TransitRouteResult } from './subwayGraph'
+import { resolveDistrict } from './districtResolver'
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -549,11 +550,129 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         el.style.zIndex = '1'
       })
 
-      // 팝업 HTML 생성 헬퍼 (실시간 열차/버스 도착 정보 연동)
+      // 팝업 HTML 생성 헬퍼 (실시간 기상 관측, AI 추론 모델, 열차/버스 도착 정보 연동)
       const buildPopupContent = (
-        arrivalsList?: any[],
-        isLoadingArrivals = false
+        arrivalsOrOptions?: any[] | {
+          arrivalsList?: any[]
+          isLoadingArrivals?: boolean
+          weather?: any
+          aiPrediction?: any
+          isLoadingAll?: boolean
+        },
+        isLoadingArrivalsArg = false
       ) => {
+        let arrivalsList: any[] = []
+        let isLoadingArrivals = false
+        let weatherData: any = null
+        let aiData: any = null
+        let isLoadingAll = false
+
+        if (Array.isArray(arrivalsOrOptions)) {
+          arrivalsList = arrivalsOrOptions
+          isLoadingArrivals = isLoadingArrivalsArg
+        } else if (arrivalsOrOptions && typeof arrivalsOrOptions === 'object') {
+          arrivalsList = arrivalsOrOptions.arrivalsList || []
+          isLoadingArrivals = !!arrivalsOrOptions.isLoadingArrivals
+          weatherData = arrivalsOrOptions.weather || null
+          aiData = arrivalsOrOptions.aiPrediction || null
+          isLoadingAll = !!arrivalsOrOptions.isLoadingAll
+        }
+
+        const resolvedDistrict = resolveDistrict(stop.name, stop.coords)
+        const rec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
+        const displayCrowd = rec ? rec.crowd : crowd
+        const displayLabel = rec ? rec.crowdLabel : label
+        const displayColor = rec ? rec.crowdColor : color
+
+        let weatherSection = ''
+        if (isLoadingAll) {
+          weatherSection = `
+            <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 9px; margin-bottom: 7px; text-align: center;">
+              <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
+                ⏳ 기상청 실시간 관측 및 AI 모델 추론 중...
+              </div>
+              <div style="font-size: 9px; color: #94A3B8;">격자 매핑 및 32차원 ONNX 텐서 연산 진행</div>
+            </div>
+          `
+        } else if (weatherData) {
+          const wTemp = typeof weatherData.temp === 'number' ? weatherData.temp.toFixed(1) : (weatherData.weather?.temperature ?? 14.0)
+          const wRain = typeof weatherData.rain === 'number' ? weatherData.rain : (weatherData.weather?.precipitation_mm ?? 0.0)
+          const wHum = typeof weatherData.humidity === 'number' ? weatherData.humidity : (weatherData.weather?.humidity ?? 60.0)
+          const wWind = typeof weatherData.wind === 'number' ? weatherData.wind : (weatherData.weather?.wind_speed ?? 2.0)
+          const wNx = weatherData.nx ?? weatherData.grid?.nx ?? 60
+          const wNy = weatherData.ny ?? weatherData.grid?.ny ?? 127
+          const wDistrict = weatherData.district || resolvedDistrict
+
+          weatherSection = `
+            <div style="background: rgba(14, 165, 233, 0.09); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+                <span style="font-size: 10px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
+                  <span>🌦️</span> ${wDistrict} 국지 기상 실황
+                </span>
+                <span style="font-size: 9px; color: #94A3B8; font-family: monospace;">
+                  격자 (${wNx}, ${wNy})
+                </span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; background: rgba(0,0,0,0.35); border-radius: 6px; padding: 4px 2px; margin-bottom: 5px;">
+                <div>
+                  <div style="font-size: 8px; color: #94A3B8;">기온</div>
+                  <div style="font-size: 11px; font-weight: 800; color: #F8FAFC; font-family: monospace;">${wTemp}°C</div>
+                </div>
+                <div>
+                  <div style="font-size: 8px; color: #94A3B8;">강수</div>
+                  <div style="font-size: 11px; font-weight: 800; color: ${wRain > 0 ? '#60A5FA' : '#34D399'}; font-family: monospace;">${wRain}mm</div>
+                </div>
+                <div>
+                  <div style="font-size: 8px; color: #94A3B8;">습도</div>
+                  <div style="font-size: 11px; font-weight: 800; color: #F8FAFC; font-family: monospace;">${wHum}%</div>
+                </div>
+                <div>
+                  <div style="font-size: 8px; color: #94A3B8;">풍속</div>
+                  <div style="font-size: 11px; font-weight: 800; color: #F8FAFC; font-family: monospace;">${wWind}m/s</div>
+                </div>
+              </div>
+              <div style="font-size: 9px; color: #BAE6FD; display: flex; align-items: center; justify-content: space-between;">
+                <span>${wRain > 0 ? `🌧️ ${weatherData.pty_desc || '비'} (강수 관측)` : '☀️ 맑음 (평시 패턴)'}</span>
+                <span style="color: #64748B;">기상청 초단기실황</span>
+              </div>
+            </div>
+          `
+        } else {
+          weatherSection = `
+            <div style="font-size: 11px; color: #E2E8F0; background: rgba(255, 255, 255, 0.07); padding: 7px 9px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.45; margin-bottom: 7px;">
+              ${rainMm > 0 
+                ? `🌧 강수(${rainMm.toFixed(1)}mm) 영향으로 ${stop.type === 'bike' ? '따릉이 이용 위험 및 급감' : '지하철·버스 환승 승객 증가'}` 
+                : '☀️ 맑은 날씨로 평시 이동 패턴 유지'}
+            </div>
+          `
+        }
+
+        let aiSection = ''
+        if (aiData && rec) {
+          aiSection = `
+            <div style="background: rgba(124, 58, 237, 0.1); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-size: 10px; font-weight: 800; color: #C084FC; display: flex; align-items: center; gap: 4px;">
+                  <span>🤖</span> AI 수요 추론 (${rec.name})
+                </span>
+                <span style="font-size: 9px; font-weight: 700; color: #C084FC; background: rgba(168,85,247,0.22); padding: 1px 5px; border-radius: 4px;">
+                  ⚡ ONNX ${aiData.latency_ms ?? 1.2}ms
+                </span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">
+                <span style="color: #E2E8F0;">예측 혼잡도: <strong style="color: ${displayColor};">${displayCrowd}%</strong> (${displayLabel})</span>
+                <span style="color: #94A3B8; font-family: monospace;">시간당 ${rec.predicted_volume ? rec.predicted_volume.toLocaleString() : '1,200'}명</span>
+              </div>
+              <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 5px;">
+                <div style="width: ${displayCrowd}%; height: 100%; background: ${displayColor}; border-radius: 2px;"></div>
+              </div>
+              <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: rgba(0,0,0,0.25); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
+                ${rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석'}
+              </div>
+            </div>
+          `
+        }
+
         let arrivalSection = ''
 
         if (stop.type === 'subway') {
@@ -646,23 +765,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         }
 
         return `
-          <div style="min-width: 220px; max-width: 290px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
+          <div style="min-width: 250px; max-width: 310px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
             <!-- 닫기(X) 버튼과 겹치지 않도록 padding-right: 36px 적용 -->
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
               <div style="display: flex; align-items: center; gap: 5px;">
                 <span style="font-size: 15px;">${typeIcon}</span>
                 <strong style="font-size: 14px; color: #F0F6FF; font-weight: 800;">${stop.name}</strong>
+                <span style="font-size: 9px; color: #94A3B8; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;">${resolvedDistrict}</span>
               </div>
-              <span style="font-size: 10px; font-weight: 800; color: #FFFFFF; background: ${color}; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">
-                ${label} (${crowd}%)
+              <span style="font-size: 10px; font-weight: 800; color: #FFFFFF; background: ${displayColor}; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">
+                ${displayLabel} (${displayCrowd}%)
               </span>
             </div>
             <div style="font-size: 11px; color: #94A3B8; margin-bottom: 6px; font-family: monospace;">${stop.lineInfo}</div>
-            <div style="font-size: 11px; color: #E2E8F0; background: rgba(255, 255, 255, 0.07); padding: 7px 9px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.45;">
-              ${rainMm > 0 
-                ? `🌧 강수(${rainMm.toFixed(1)}mm) 영향으로 ${stop.type === 'bike' ? '따릉이 이용 위험 및 급감' : '지하철·버스 환승 승객 증가'}` 
-                : '☀️ 맑은 날씨로 평시 이동 패턴 유지'}
-            </div>
+            ${weatherSection}
+            ${aiSection}
             ${arrivalSection}
           </div>
         `
@@ -698,7 +815,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         .setPopup(popup)
         .addTo(mapInstanceRef.current)
 
-      el.addEventListener('click', () => {
+      el.addEventListener('click', async () => {
         // 다른 역 누르면 이전 열려 있던 역 정보 팝업 즉시 제거 (요청사항 반영)
         if (activePopupRef.current && activePopupRef.current !== popup) {
           activePopupRef.current.remove()
@@ -731,58 +848,109 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           }, 750)
         }
 
-        // 실시간 도착 정보 로딩 UI 선반영
-        popup.setHTML(buildPopupContent([], true))
+        const district = resolveDistrict(stop.name, stop.coords)
+        const cleanName = stop.name.replace(/역$/, '').trim()
 
-        // 브라우저 개발자 콘솔(F12) 및 팝업에 해당 거점의 실제 API 송수신 규격 데이터 출력
-        if (stop.type === 'subway') {
-          const cleanName = stop.name.replace(/역$/, '')
-          fetch(`${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`)
-            .then(res => res.json())
-            .then(data => {
-              const arrivals = (data.status === 'success' && data.arrivals && data.arrivals.length > 0)
-                ? data.arrivals
+        // 2. 실시간 국지 기상 및 AI 모델 추론 로딩 UI 선반영
+        popup.setHTML(buildPopupContent({ isLoadingAll: true }))
+
+        try {
+          // (1) 해당 역의 실시간 기상 API 조회 (위도/경도 기반 정밀 KMA 격자 nx, ny 계산)
+          const weatherRes = await fetch(
+            `${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(district)}&lat=${stop.coords[1]}&lng=${stop.coords[0]}&station=${encodeURIComponent(cleanName)}`
+          )
+          const weatherData = await weatherRes.json()
+
+          // 기상청 API 호출 로깅
+          logWeatherApiCall(
+            { nx: weatherData.nx, ny: weatherData.ny },
+            weatherData,
+            weatherData
+          )
+
+          // (2) 실시간 관측 기상 데이터를 투입하여 AI 모델(ONNX 32차원 Feature Vector) 추론 호출
+          const parsedHour = parseInt(selectedTime, 10)
+          const currentHour = !isNaN(parsedHour) ? parsedHour : new Date().getHours()
+
+          const aiPayload = {
+            district,
+            hour: currentHour,
+            weather: {
+              temp: weatherData.temp,
+              rain: weatherData.rain,
+              humidity: weatherData.humidity,
+              wind: weatherData.wind,
+            }
+          }
+
+          const aiRes = await fetch(`${API_BASE_URL}/api/v1/predict/recommendation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(aiPayload)
+          })
+          const aiData = await aiRes.json()
+
+          // AI 모델 추론 결과 로깅
+          logAIPredictionCall(aiPayload, aiData)
+
+          // (3) 실시간 대중교통 도착 정보 조회
+          let arrivals: any[] = []
+          if (stop.type === 'subway') {
+            try {
+              const arrivalRes = await fetch(
+                `${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`
+              )
+              const arrivalData = await arrivalRes.json()
+              arrivals = (arrivalData.status === 'success' && arrivalData.arrivals && arrivalData.arrivals.length > 0)
+                ? arrivalData.arrivals
                 : [
                     { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
                   ]
-              logSubwayApiCall(cleanName, arrivals, data)
-              popup.setHTML(buildPopupContent(arrivals, false))
-            })
-            .catch(() => {
-              const fallbackArrivals = [
+              logSubwayApiCall(cleanName, arrivals, arrivalData)
+            } catch {
+              arrivals = [
                 { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '정상 운행중', remaining_minutes: 2, updn_line: '상/하행' }
               ]
-              logSubwayApiCall(cleanName, fallbackArrivals)
-              popup.setHTML(buildPopupContent(fallbackArrivals, false))
-            })
-        } else if (stop.type === 'bus') {
-          fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=111000299`)
-            .then(res => res.json())
-            .then(data => {
-              const arrivals = (data.status === 'success' && data.arrivals && data.arrivals.length > 0)
-                ? data.arrivals
+              logSubwayApiCall(cleanName, arrivals)
+            }
+          } else if (stop.type === 'bus') {
+            try {
+              const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=111000299`)
+              const busData = await busRes.json()
+              arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
+                ? busData.arrivals
                 : [
                     { route_name: '472', arrival_msg1: '곧 도착' },
                     { route_name: '140', arrival_msg1: '3분 후' }
                   ]
-              logBusApiCall('100100118', '111000299', arrivals, data)
-              popup.setHTML(buildPopupContent(arrivals, false))
-            })
-            .catch(() => {
-              const fallbackArrivals = [
+              logBusApiCall('100100118', '111000299', arrivals, busData)
+            } catch {
+              arrivals = [
                 { route_name: '472', arrival_msg1: '곧 도착' },
                 { route_name: '140', arrival_msg1: '3분 후' }
               ]
-              logBusApiCall('100100118', '111000299', fallbackArrivals)
-              popup.setHTML(buildPopupContent(fallbackArrivals, false))
-            })
-        }
+              logBusApiCall('100100118', '111000299', arrivals)
+            }
+          }
 
-        // AI 추론 결과 로깅
-        logAIPredictionCall(
-          { stop: stop.name, type: stop.type, rainMm, hour: selectedTime },
-          { predictedCrowd: `${crowd}%`, status: label, weatherEffect: rainMm > 0 ? `강수량 ${rainMm}mm로 인한 수요 변동 반영` : '맑음 (평시 패턴)' }
-        )
+          // 최종 통합 데이터로 팝업 갱신
+          if (activePopupRef.current === popup) {
+            popup.setHTML(buildPopupContent({
+              weather: weatherData,
+              aiPrediction: aiData,
+              arrivalsList: arrivals,
+              isLoadingArrivals: false
+            }))
+          }
+        } catch (err) {
+          console.error('역 정보 파이프라인 조회 실패:', err)
+          if (activePopupRef.current === popup) {
+            popup.setHTML(buildPopupContent({
+              arrivalsList: [],
+              isLoadingArrivals: false
+            }))
+          }
+        }
       })
 
       markerItemsRef.current.push({

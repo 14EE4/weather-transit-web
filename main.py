@@ -232,12 +232,63 @@ def normalize_district_name(district: str) -> str:
             return d_name
     return "강남구"
 
-def resolve_weather_target(district_str: str) -> tuple[str, int, int]:
+def latlng_to_grid(lat: float, lng: float) -> tuple[int, int]:
+    """
+    기상청 공인 LCC(Lambert Conformal Conic) 투영 격자 변환 공식
+    위경도(lat, lng) -> 기상청 국지 격자좌표 (nx, ny)
+    """
+    RE = 6371.00877
+    GRID = 5.0
+    SLAT1 = 30.0
+    SLAT2 = 60.0
+    OLON = 126.0
+    OLAT = 38.0
+    XO = 43
+    YO = 136
+
+    DEGRAD = math.pi / 180.0
+    re = RE / GRID
+    slat1 = SLAT1 * DEGRAD
+    slat2 = SLAT2 * DEGRAD
+    olon = OLON * DEGRAD
+    olat = OLAT * DEGRAD
+
+    sn = math.tan(math.pi * 0.25 + slat2 * 0.5) / math.tan(math.pi * 0.25 + slat1 * 0.5)
+    sn = math.log(math.cos(slat1) / math.cos(slat2)) / math.log(sn)
+    sf = math.tan(math.pi * 0.25 + slat1 * 0.5)
+    sf = math.pow(sf, sn) * math.cos(slat1) / sn
+    ro = math.tan(math.pi * 0.25 + olat * 0.5)
+    ro = re * sf / math.pow(ro, sn)
+
+    ra = math.tan(math.pi * 0.25 + lat * DEGRAD * 0.5)
+    ra = re * sf / math.pow(ra, sn)
+    theta = lng * DEGRAD - olon
+    if theta > math.pi:
+        theta -= 2.0 * math.pi
+    if theta < -math.pi:
+        theta += 2.0 * math.pi
+    theta *= sn
+
+    x = math.floor(ra * math.sin(theta) + XO + 0.5)
+    y = math.floor(ro - ra * math.cos(theta) + YO + 0.5)
+    return int(x), int(y)
+
+def resolve_weather_target(
+    district_str: str,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    station: Optional[str] = None
+) -> tuple[str, int, int]:
     """
     기상청 관측소 격자 좌표(nx, ny) 및 표출 지역명 판별
-    - 서울시 25개 자치구
-    - 수도권 주요 인접 도시 (성남시, 광명시, 부천시, 고양시, 하남시, 수원시, 안양시, 남양주시 등)
+    - lat, lng 좌표가 전달된 경우: 기상청 LCC 공식을 통해 초정밀 국지 격자(nx, ny) 직접 산출
+    - 서울시 25개 자치구 및 수도권 주요 인접 도시 매핑 지원
     """
+    calc_nx, calc_ny = None, None
+    if lat is not None and lng is not None and 33.0 <= lat <= 43.0 and 124.0 <= lng <= 132.0:
+        calc_nx, calc_ny = latlng_to_grid(lat, lng)
+
+    name_to_check = (station or district_str).strip()
     d_clean = district_str.strip()
 
     # 수도권 인접 광역 관문 거점 및 행정동/랜드마크 매핑
@@ -270,13 +321,13 @@ def resolve_weather_target(district_str: str) -> tuple[str, int, int]:
     }
 
     for key, (city_name, nx, ny) in satellite_cities.items():
-        if key in d_clean:
-            return city_name, nx, ny
+        if key in name_to_check or key in d_clean:
+            return city_name, (calc_nx or nx), (calc_ny or ny)
 
     # 서울 25개 자치구 정규화
-    norm_d = normalize_district_name(d_clean)
+    norm_d = normalize_district_name(name_to_check if name_to_check != "강남구" else d_clean)
     grid = DISTRICT_KMA_GRID.get(norm_d, {"nx": 61, "ny": 126})
-    return norm_d, grid["nx"], grid["ny"]
+    return norm_d, (calc_nx or grid["nx"]), (calc_ny or grid["ny"])
 
 # ==============================================================================
 # 2. ONNX 세션 관리 및 Cold Start 방지 인메모리 로더
@@ -418,6 +469,7 @@ class SimulationResponse(BaseModel):
 class RealtimeWeatherResponse(BaseModel):
     status: str = "success"
     district: str
+    station: Optional[str] = None
     nx: int
     ny: int
     base_date: str
@@ -1002,12 +1054,17 @@ async def simulate_weather_impact(req: SimulationRequest):
 # ==============================================================================
 
 @app.get("/api/v1/weather/current", response_model=RealtimeWeatherResponse, tags=["Live Public APIs"])
-async def get_current_weather(district: str = "강남구"):
+async def get_current_weather(
+    district: str = "강남구",
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    station: Optional[str] = None
+):
     """
     기상청 API허브 초단기실황(getUltraSrtNcst) 연동 실시간 기상 관측 API
-    - 서울시 25개 자치구 및 수도권 주요 8대 광역 거점 격자(nx, ny) 자동 매핑 및 10분 캐싱 지원
+    - 서울시 25개 자치구, 수도권 주요 관문 거점 및 위경도(lat, lng) 기반 초정밀 국지 격자(nx, ny) 매핑 지원
     """
-    target_name, nx, ny = resolve_weather_target(district)
+    target_name, nx, ny = resolve_weather_target(district, lat=lat, lng=lng, station=station)
 
     now = datetime.now()
     if now.minute < 10:
@@ -1025,12 +1082,14 @@ async def get_current_weather(district: str = "강남구"):
         if curr_time - cached_ts < 600:
             res = dict(cached_data)
             res["district"] = target_name
+            res["station"] = station
             return RealtimeWeatherResponse(**res)
 
     if not KMA_AUTH_KEY:
         return RealtimeWeatherResponse(
             status="success",
             district=target_name,
+            station=station,
             nx=nx,
             ny=ny,
             base_date=base_date,
@@ -1077,6 +1136,7 @@ async def get_current_weather(district: str = "강남구"):
                     resp_data = {
                         "status": "success",
                         "district": target_name,
+                        "station": station,
                         "nx": nx,
                         "ny": ny,
                         "base_date": base_date,
@@ -1104,6 +1164,7 @@ async def get_current_weather(district: str = "강남구"):
     fallback_data = {
         "status": "success",
         "district": target_name,
+        "station": station,
         "nx": nx,
         "ny": ny,
         "base_date": base_date,

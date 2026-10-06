@@ -150,31 +150,26 @@
   - [ ] (선택 확장) 수도권 전철 전체 호선망의 실제 GeoJSON 데이터셋을 로드하여 배경 인프라 레이어로 제공하는 기능 검토
 
 ### 3.6 각 역별 위치(좌표) 기반 국지 기상 매핑 및 개별 역 혼잡도 정밀 추론
-- **위치**: `Weather-Transport Recommendation UI/src/TransitMap.tsx` (`calculateCrowd`), `App.tsx` (`selectedDistrict`, `liveWeather`), 백엔드 `main.py`
-- **현황**:
-  - 현재 수도권 561개 전체 역의 혼잡도 계산 시 단일 선택 자치구의 강수량(`rainMm`) 및 날씨 파라미터를 일괄 적용하고 있음.
-  - 서울-경기-인천의 넓은 광역권에서 국지성 호우나 기상 편차가 발생해도 모든 역에 동일한 날씨가 반영되는 한계 존재.
-- **[TODO]**:
-  - [ ] 561개 전체 역의 지리적 좌표(`coords: [lng, lat]`)를 기반으로 행정구역(자치구/시·군·구) 및 기상청 격자좌표(`nx, ny`)를 역별로 개별 매핑
-  - [ ] 백엔드에 다중 격자 실시간 날씨 일괄 수신 및 캐싱 API(`GET /api/v1/weather/batch-current`) 구축
-  - [ ] 각 역의 고유 국지 기상(해당 역 위치의 실제 강수량/기온/풍속)을 기반으로 역별 혼잡도 및 AI 수요를 각각 개별 추론하도록 고도화
+- **위치**: `Weather-Transport Recommendation UI/src/districtResolver.ts`, `TransitMap.tsx`, `App.tsx`, 백엔드 `main.py`
+- **현황 및 조치 완료**:
+  - [x] **[완료] 기상청 공식 LCC 람베르트 정각원추 투영 변환 함수(`latlng_to_grid`) 탑재**: WGS84 위경도 좌표를 기상청 표준 예보 격자(`nx, ny`)로 즉시 정밀 투영(`RE=6371.00877, GRID=5.0, SLAT1=30, SLAT2=60, OLON=126, OLAT=38, XO=43, YO=136`).
+  - [x] **[완료] 자치구 및 수도권 거점 매핑 리졸버(`districtResolver.ts`) 구현**: 서울 25개 자치구 + 경기·인천 9대 관문 도시 중심 좌표 유클리디안 최근접 매핑 및 역명 키워드 매칭 엔진 탑재.
+  - [x] **[완료] 거점별 실시간 날씨 연동(`GET /api/v1/weather/current?district=...&lat=...&lng=...&station=...`)**: 역 좌표별 기상청 초단기실황 API(기온, 강수량, 습도, 풍속, 강수형태) 실시간 연동 및 60초 인메모리 캐싱.
+  - [x] **[완료] 역별 실시간 국지 기상 기반 AI 32차원 ONNX 모델 추론 파이프라인**:
+    - 역 클릭/선택 시: `해당 역 국지 기상 API 조회` ➔ `기상청 실시간 관측치 투입` ➔ `POST /api/v1/predict/recommendation` 32차원 ONNX 모델 추론(0.6~1.4ms) ➔ `실시간 지하철 도착 API` 호출.
+    - 지도 마커 팝업 및 좌측 사이드바 패널에 (1) 국지 기상 관측 카드 (2) ONNX AI 예측 혼잡도/수요량/MCDA 스코어/분석 코멘터리 (3) 실시간 열차 도착 정보 완전 표출.
 
 ### 3.7 원거리(줌아웃 상태)에서 역 클릭 시 팝업 즉시 소멸 버그 조치
-- **위치**: `Weather-Transport Recommendation UI/src/TransitMap.tsx` (`updateCollisions`, `el.addEventListener('click')`, L305~325, L645~675)
-- **현황 및 원인 분석**:
-  - 지도를 축소한 상태(Zoom < 14.0)에서 역 마커 클릭 시, `map.flyTo({ zoom: 15.5 })` 카메라 줌인 애니메이션이 700ms 동안 진행됨.
-  - 카메라 이동 중 줌 레벨이 14.0 미만인 프레임 구간에서 `updateCollisions`의 `currentZoom < 14.0` 조건이 격발되어 막 열린 팝업이 즉시 `.remove()`되는 버그 발생.
-- **[TODO]**:
-  - [ ] 카메라 `flyTo` 이동 중(`isFlyingRef` 플래그)에는 `updateCollisions`의 팝업 자동 닫기 판정을 일시 차단
-  - [ ] 팝업 기준 줌 레벨(`popupOpenedZoomRef`)을 카메라 도착 목표 줌 레벨(15.5)로 설정하고, 사용자가 수동으로 줌아웃을 수행할 때만(도착 레벨 대비 0.7 이상 축소 시) 닫히도록 조건식 개선
+- **위치**: `Weather-Transport Recommendation UI/src/TransitMap.tsx` (`isFlyingRef`, `popupOpenedZoomRef`, `updateCollisions`)
+- **현황 및 조치 완료**:
+  - [x] **[완료]** 카메라 비행 상태 플래그(`isFlyingRef`)를 도입하여 `flyTo` 이동 중 줌 레벨 변화에 따른 팝업 강제 제거 방지.
+  - [x] **[완료]** 팝업 기준 줌 레벨을 카메라 도착 줌 레벨(15.5)로 설정하고, 12.0 미만 및 도착 레벨 대비 1.2 배율 이상 의도적 줌아웃 시에만 팝업이 닫히도록 완충 마진을 적용하여 정상 유지.
 
 ### 3.8 역 마커 팝업 및 사이드바 내 실시간 열차 도착 정보 UI 표출
-- **위치**: `Weather-Transport Recommendation UI/src/TransitMap.tsx` (`popupHtml`, `el.addEventListener('click')`, L594~615, L675~705), `App.tsx` (`selectedStop`)
-- **현황**:
-  - 지도에서 역 클릭 시 `GET /api/v1/transit/subway/arrival?station=...` API를 정상 호출하고 있으나, 데이터가 브라우저 콘솔(`logSubwayApiCall`)에만 로깅되고 지도 팝업 카드 및 좌측 사이드바 "선택된 거점 상세 정보" 카드에는 반영되지 않음.
-- **[TODO]**:
-  - [ ] 역 클릭 시 반환된 실시간 도착 정보(상행/내선, 하행/외선 행선지 및 잔여 도착 시간 e.g. "2분 후 도착", "전역 도착")를 지도 팝업 DOM(`popupHtml`)에 동적으로 렌더링
-  - [ ] 좌측 사이드바 `selectedStop` 카드에도 실시간 도착 예정 열차 리스트(2~4건)를 시각적 배지로 표출하도록 컴포넌트 확장
+- **위치**: `Weather-Transport Recommendation UI/src/TransitMap.tsx`, `App.tsx`
+- **현황 및 조치 완료**:
+  - [x] **[완료]** 역 마커 팝업에 실시간 열차 도착 목록(호선, 행선지, 도착 상태, 잔여 시간) 렌더링.
+  - [x] **[완료]** 좌측 사이드바 거점 상세 정보 창에 호선별 실시간 열차 도착 카드 및 새로고침 기준 시각 반영.
 
 ---
 

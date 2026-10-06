@@ -174,7 +174,8 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   "용산역": [
     "남영역",
     "노량진역",
-    "이촌역"
+    "이촌역",
+    "효창공원앞역"
   ],
   "노량진역": [
     "노들역",
@@ -623,7 +624,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   "영등포구청역": [
     "당산역",
     "문래역",
-    "양평역",
+    "양평역(5호선)",
     "영등포시장역"
   ],
   "당산역": [
@@ -1116,13 +1117,11 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   ],
   "오목교역": [
     "목동역",
-    "양평역"
+    "양평역(5호선)"
   ],
-  "양평역": [
+  "양평역(5호선)": [
     "영등포구청역",
-    "오목교역",
-    "오빈역",
-    "원덕역"
+    "오목교역"
   ],
   "영등포시장역": [
     "신길역",
@@ -1148,7 +1147,6 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "서강대역",
     "서울역",
     "애오개역",
-    "지평역",
     "홍대입구역",
     "효창공원앞역"
   ],
@@ -1337,8 +1335,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   "효창공원앞역": [
     "공덕역",
     "삼각지역",
-    "신촌역",
-    "임진강역"
+    "용산역"
   ],
   "녹사평역": [
     "삼각지역",
@@ -1889,10 +1886,14 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   ],
   "오빈역": [
     "아신역",
-    "양평역"
+    "양평역(경의중앙선)"
+  ],
+  "양평역(경의중앙선)": [
+    "오빈역",
+    "원덕역"
   ],
   "원덕역": [
-    "양평역",
+    "양평역(경의중앙선)",
     "용문역"
   ],
   "용문역": [
@@ -1900,7 +1901,6 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "지평역"
   ],
   "지평역": [
-    "공덕역",
     "용문역"
   ],
   "서강대역": [
@@ -2809,10 +2809,22 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
   SUBWAY_STATIONS.forEach(s => {
     stationMap.set(s.name, s)
     stationMap.set(s.name.replace(/역$/, ''), s)
+    // 괄호 제거 역명 별칭 (예: 양평역(5호선) -> 양평역, 양평)
+    const baseName = s.name.replace(/\(.*?\)/g, '')
+    if (!stationMap.has(baseName)) {
+      stationMap.set(baseName, s)
+      stationMap.set(baseName.replace(/역$/, ''), s)
+    }
   })
 
-  const startSt = stationMap.get(cleanFrom) || stationMap.get(fromName.trim())
-  const endSt = stationMap.get(cleanTo) || stationMap.get(toName.trim())
+  const resolveStation = (input: string, clean: string): SubwayStation | undefined => {
+    return stationMap.get(clean) ||
+           stationMap.get(input.trim()) ||
+           SUBWAY_STATIONS.find(s => s.name === clean || s.name.startsWith(clean) || s.name.replace(/\(.*?\)/g, '') === clean)
+  }
+
+  const startSt = resolveStation(fromName, cleanFrom)
+  const endSt = resolveStation(toName, cleanTo)
 
   if (!startSt || !endSt) return null
   if (startSt.name === endSt.name) {

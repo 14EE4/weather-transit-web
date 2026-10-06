@@ -5024,10 +5024,9 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
   },
   {
     "id": "sub-1005000522",
-    "name": "양평역",
+    "name": "양평역(5호선)",
     "lines": [
-      "5호선",
-      "경의중앙선"
+      "5호선"
     ],
     "coords": [
       126.886129,
@@ -5035,6 +5034,19 @@ export const SUBWAY_STATIONS: SubwayStation[] = [
     ],
     "zone": "수도권/서울",
     "baseCrowd": 69
+  },
+  {
+    "id": "sub-1063075135",
+    "name": "양평역(경의중앙선)",
+    "lines": [
+      "경의중앙선"
+    ],
+    "coords": [
+      127.491837,
+      37.492773
+    ],
+    "zone": "수도권/경기",
+    "baseCrowd": 45
   },
   {
     "id": "sub-1007000726",

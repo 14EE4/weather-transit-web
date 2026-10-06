@@ -87,3 +87,4 @@ export function buildSubwayNetworkGeoJSON(): any {
 
 // 런타임 메모이제이션 (싱글톤)
 export const SUBWAY_NETWORK_GEOJSON = buildSubwayNetworkGeoJSON()
+

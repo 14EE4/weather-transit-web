@@ -5,6 +5,7 @@ import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
 import { TransitRouteResult } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
+import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -214,6 +215,47 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right')
 
     map.on('load', () => {
+      // 0. 수도권 전철 전체 노선망 배경 벡터 레이어 (공식 호선별 고유 컬러)
+      map.addSource('subway-network', {
+        type: 'geojson',
+        data: SUBWAY_NETWORK_GEOJSON,
+      })
+
+      // 노선 외곽 케이싱 (다크 콘트라스트)
+      map.addLayer({
+        id: 'subway-network-casing',
+        type: 'line',
+        source: 'subway-network',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#0B1120',
+          'line-width': [
+            'interpolate', ['linear'], ['zoom'],
+            9, 2.0,
+            12, 3.8,
+            15, 6.0,
+          ],
+          'line-opacity': 0.8,
+        },
+      })
+
+      // 노선 중심 컬러선 (호선별 고유 색상 매핑)
+      map.addLayer({
+        id: 'subway-network-line',
+        type: 'line',
+        source: 'subway-network',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': [
+            'interpolate', ['linear'], ['zoom'],
+            9, 1.2,
+            12, 2.4,
+            15, 4.2,
+          ],
+          'line-opacity': 0.85,
+        },
+      })
 
       // 검색된 경로(Active Transit Route) GeoJSON 소스 및 레이어 추가
       map.addSource('active-route', {
@@ -512,6 +554,19 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   }
 
   updateCollisionsRef.current = updateCollisions
+
+  // 1-3. 필터 모드에 따른 지하철 노선망 배경 레이어 가시성 제어 (버스/따릉이 모드 시 은은하게 톤다운)
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current
+    if (map && map.getLayer && map.getLayer('subway-network-line')) {
+      const isSubwayFocused = filterType === 'all' || filterType === 'subway'
+      map.setPaintProperty('subway-network-line', 'line-opacity', isSubwayFocused ? 0.85 : 0.15)
+      if (map.getLayer('subway-network-casing')) {
+        map.setPaintProperty('subway-network-casing', 'line-opacity', isSubwayFocused ? 0.8 : 0.1)
+      }
+    }
+  }, [filterType, mapLoaded])
 
   // 2. 필터링 및 날씨에 따른 마커 동적 갱신
   useEffect(() => {

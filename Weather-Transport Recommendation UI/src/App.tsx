@@ -531,7 +531,17 @@ export default function App() {
   const [selectedDistrict, setSelectedDistrict] = useState<number>(getInitialDistrict)
   const [departure, setDeparture] = useState('')
   const [destination, setDestination] = useState('')
-  const [mapTransport, setMapTransport] = useState<'all' | 'subway' | 'bus' | 'bike'>('all')
+  const [mapTransport, setMapTransport] = useState<'all' | 'subway' | 'bus' | 'bike'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('weather_transit_map_transport')
+        if (saved === 'all' || saved === 'subway' || saved === 'bus' || saved === 'bike') {
+          return saved
+        }
+      } catch {}
+    }
+    return 'all'
+  })
   const [districtQuery, setDistrictQuery] = useState('')
   const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null)
   const [subwaySearchQuery, setSubwaySearchQuery] = useState('')
@@ -654,6 +664,13 @@ export default function App() {
       }
     } catch {}
   }, [selectedDistrict])
+
+  // 지도 필터 교통수단(전체/지하철/버스/따릉이) 로컬 스토리지 동기화 (새로고침 시 유지)
+  useEffect(() => {
+    try {
+      localStorage.setItem('weather_transit_map_transport', mapTransport)
+    } catch {}
+  }, [mapTransport])
 
   useEffect(() => {
     const handleHash = () => {

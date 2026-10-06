@@ -9,6 +9,44 @@ import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000'
 
+// ── 로컬 스토리지 키 (새로고침 시 지도 카메라 위치 및 선택 역 복원) ──
+const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'
+const STORAGE_SELECTED_STOP_KEY = 'weather_transit_selected_stop_id'
+
+interface SavedMapView {
+  center: [number, number]
+  zoom: number
+  pitch: number
+  bearing: number
+}
+
+const getSavedMapView = (): SavedMapView | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(STORAGE_MAP_VIEW_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (
+      Array.isArray(parsed.center) &&
+      parsed.center.length === 2 &&
+      typeof parsed.center[0] === 'number' &&
+      !isNaN(parsed.center[0]) &&
+      typeof parsed.center[1] === 'number' &&
+      !isNaN(parsed.center[1]) &&
+      typeof parsed.zoom === 'number' &&
+      !isNaN(parsed.zoom)
+    ) {
+      return {
+        center: [parsed.center[0], parsed.center[1]],
+        zoom: parsed.zoom,
+        pitch: typeof parsed.pitch === 'number' ? parsed.pitch : 30,
+        bearing: typeof parsed.bearing === 'number' ? parsed.bearing : 0,
+      }
+    }
+  } catch {}
+  return null
+}
+
 // ── 역 및 정류장 데이터 규격 ──
 export interface TransitStop {
   id: string
@@ -106,6 +144,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const activePopupRef = useRef<any>(null)
   const popupOpenedZoomRef = useRef<number | null>(null)
   const isFlyingRef = useRef<boolean>(false)
+  const initialRestoreDoneRef = useRef<boolean>(false)
+  const isInitialRestoringRef = useRef<boolean>(false)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [zoomLevel, setZoomLevel] = useState<number>(13)
@@ -182,6 +222,16 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       return
     }
 
+    const savedView = getSavedMapView()
+    const initialCenter = savedView?.center || [127.050, 37.505] // 저장된 위치 또는 기본 강남구 중심
+    const initialZoom = savedView?.zoom ?? 13
+    const initialPitch = savedView?.pitch ?? 30
+    const initialBearing = savedView?.bearing ?? 0
+
+    if (savedView?.zoom) {
+      setZoomLevel(savedView.zoom)
+    }
+
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: {
@@ -204,9 +254,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           },
         ],
       },
-      center: [127.050, 37.505], // 강남구 중심
-      zoom: 13,
-      pitch: 30, // 3D 입체감
+      center: initialCenter,
+      zoom: initialZoom,
+      pitch: initialPitch,
+      bearing: initialBearing,
     })
 
     // 컨트롤 추가
@@ -298,9 +349,27 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       setMapLoaded(true)
     })
 
+    const saveCurrentMapView = () => {
+      try {
+        const center = map.getCenter()
+        const zoom = map.getZoom()
+        const pitch = map.getPitch()
+        const bearing = map.getBearing()
+        localStorage.setItem(STORAGE_MAP_VIEW_KEY, JSON.stringify({
+          center: [Math.round(center.lng * 1000000) / 1000000, Math.round(center.lat * 1000000) / 1000000],
+          zoom: Math.round(zoom * 100) / 100,
+          pitch: Math.round(pitch * 10) / 10,
+          bearing: Math.round(bearing * 10) / 10,
+        }))
+      } catch {}
+    }
+
+    map.on('moveend', saveCurrentMapView)
+
     mapInstanceRef.current = map
 
     return () => {
+      map.off('moveend', saveCurrentMapView)
       map.remove()
     }
   }, [])
@@ -372,6 +441,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       if (activeStop) {
         setActiveStop(null)
       }
+      try {
+        localStorage.removeItem(STORAGE_SELECTED_STOP_KEY)
+      } catch {}
       popupOpenedZoomRef.current = null
     }
 
@@ -985,6 +1057,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           popupOpenedZoomRef.current = null
         }
         setActiveStop(null)
+        try {
+          localStorage.removeItem(STORAGE_SELECTED_STOP_KEY)
+        } catch {}
         if (onSelectStop) onSelectStop(null)
       })
 
@@ -994,6 +1069,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         .addTo(mapInstanceRef.current)
 
       el.addEventListener('click', async () => {
+        // 선택된 역 ID 로컬 스토리지에 저장 (새로고침 시 복원용)
+        try {
+          localStorage.setItem(STORAGE_SELECTED_STOP_KEY, stop.id)
+        } catch {}
+
         // 다른 역 누르면 이전 열려 있던 역 정보 팝업 즉시 제거 (요청사항 반영)
         if (activePopupRef.current && activePopupRef.current !== popup) {
           activePopupRef.current.remove()
@@ -1007,7 +1087,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         if (onSelectStop) onSelectStop(stop, { loading: true })
 
         // 1. 역 클릭 시 중심 이동 및 부드러운 줌인 (기본 15.5 배율로 확대, 비행 애니메이션 중 팝업 유지)
-        if (mapInstanceRef.current) {
+        // 단, 새로고침 시 원래 보던 위치 복원 중일 때는 사용자가 맞춰둔 줌/중심을 유지하기 위해 flyTo 생략
+        if (mapInstanceRef.current && !isInitialRestoringRef.current) {
           const currentZ = mapInstanceRef.current.getZoom()
           const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
           isFlyingRef.current = true
@@ -1181,6 +1262,24 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         priority: calculateStationPriority(stop),
       })
     })
+
+    // 새로고침 시 이전에 선택했던 역/정류소가 있었다면 마커 선택 및 팝업/상세정보 자동 복원
+    try {
+      const savedStopId = localStorage.getItem(STORAGE_SELECTED_STOP_KEY)
+      if (savedStopId && !initialRestoreDoneRef.current) {
+        initialRestoreDoneRef.current = true
+        const targetItem = markerItemsRef.current.find(item => item.stop.id === savedStopId)
+        if (targetItem) {
+          isInitialRestoringRef.current = true
+          setTimeout(() => {
+            targetItem.el.click()
+            setTimeout(() => {
+              isInitialRestoringRef.current = false
+            }, 800)
+          }, 150)
+        }
+      }
+    } catch {}
 
     // 초기 마커 겹침 필터링 실행
     updateCollisions()

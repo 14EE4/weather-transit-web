@@ -3,6 +3,7 @@ import sys
 import re
 import math
 import time
+import asyncio
 import logging
 import urllib.parse
 from datetime import datetime, timedelta
@@ -1751,9 +1752,7 @@ async def get_subway_arrival(station: str = "강남"):
     """
     raw_st = station.strip()
     clean_st = re.sub(r"역$", "", raw_st)
-    if clean_st == "서울" or raw_st == "서울역":
-        clean_st = "서울역"
-    elif not clean_st:
+    if not clean_st:
         clean_st = raw_st
 
     curr_time = time.time()
@@ -1775,8 +1774,8 @@ async def get_subway_arrival(station: str = "강남"):
         return SubwayArrivalResponse(**fallback_data)
 
     key = SEOUL_SUBWAY_KEY or "sample"
-    encoded_station = urllib.parse.quote(clean_st)
-    url = f"http://swopenAPI.seoul.go.kr/api/subway/{key}/json/realtimeStationArrival/0/8/{encoded_station}"
+    # 서울역은 서울시 공공데이터에 일반 노선(1·4·경의중앙·공항)은 '서울', GTX-A는 '서울역'으로 분리 등록되어 있어 둘 다 병렬 조회
+    query_stations = ["서울", "서울역"] if clean_st == "서울" else [clean_st]
 
     subway_line_map = {
         "1001": "1호선", "1002": "2호선", "1003": "3호선", "1004": "4호선",
@@ -1790,33 +1789,46 @@ async def get_subway_arrival(station: str = "강남"):
     call_success = False
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
-            res = await client.get(url)
-            if res.status_code == 200:
-                data = res.json()
-                raw_list = data.get("realtimeArrivalList", [])
-                for item in raw_list:
-                    subway_id = str(item.get("subwayId", ""))
-                    line_name = subway_line_map.get(subway_id, f"{subway_id}호선")
-                    barvl_dt = int(item.get("barvlDt", 0) or 0)
-                    rem_min = max(1, round(barvl_dt / 60)) if barvl_dt > 0 else 1
-                    arrivals.append(
-                        SubwayArrivalItem(
-                            line=line_name,
-                            destination=item.get("trainLineNm", "열차 운행중"),
-                            message=item.get("arvlMsg2", "도착 정보 준비중"),
-                            remaining_seconds=barvl_dt,
-                            remaining_minutes=rem_min,
-                            train_status=item.get("btrainSttus", "일반"),
-                            updn_line=item.get("updnLine", "상/하행")
+            tasks = [
+                client.get(f"http://swopenAPI.seoul.go.kr/api/subway/{key}/json/realtimeStationArrival/0/16/{urllib.parse.quote(q)}")
+                for q in query_stations
+            ]
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            seen_trains = set()
+            for res in responses:
+                if isinstance(res, httpx.Response) and res.status_code == 200:
+                    data = res.json()
+                    raw_list = data.get("realtimeArrivalList", [])
+                    if raw_list:
+                        call_success = True
+                    for item in raw_list:
+                        train_key = (
+                            item.get("subwayId"),
+                            item.get("btrainNo"),
+                            item.get("trainLineNm"),
+                            item.get("arvlMsg2")
                         )
-                    )
-                if arrivals:
-                    call_success = True
-                    subway_circuit_breaker.record_success()
-                else:
-                    subway_circuit_breaker.record_success()
-            else:
-                subway_circuit_breaker.record_failure(f"HTTP {res.status_code}")
+                        if train_key in seen_trains:
+                            continue
+                        seen_trains.add(train_key)
+
+                        subway_id = str(item.get("subwayId", ""))
+                        line_name = subway_line_map.get(subway_id, f"{subway_id}호선")
+                        barvl_dt = int(item.get("barvlDt", 0) or 0)
+                        rem_min = max(1, round(barvl_dt / 60)) if barvl_dt > 0 else 1
+                        arrivals.append(
+                            SubwayArrivalItem(
+                                line=line_name,
+                                destination=item.get("trainLineNm", "열차 운행중"),
+                                message=item.get("arvlMsg2", "도착 정보 준비중"),
+                                remaining_seconds=barvl_dt,
+                                remaining_minutes=rem_min,
+                                train_status=item.get("btrainSttus", "일반"),
+                                updn_line=item.get("updnLine", "상/하행")
+                            )
+                        )
+            if call_success:
+                subway_circuit_breaker.record_success()
     except Exception as e:
         logger.warning(f"Seoul Subway API error: {e}")
         subway_circuit_breaker.record_failure(str(e))

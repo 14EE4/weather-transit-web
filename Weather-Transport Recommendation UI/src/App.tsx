@@ -2857,8 +2857,8 @@ export default function App() {
                           ⏳ 실시간 열차 운행 정보 수신 중...
                         </div>
                       ) : stopArrivalData.subwayArrivals && stopArrivalData.subwayArrivals.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                          {stopArrivalData.subwayArrivals.slice(0, 6).map((arr: any, idx: number) => (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                          {stopArrivalData.subwayArrivals.slice(0, 10).map((arr: any, idx: number) => (
                             <div
                               key={idx}
                               style={{

@@ -924,8 +924,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                     실시간 API
                   </span>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; max-height: 130px; overflow-y: auto;">
-                  ${arrivalsList.slice(0, 4).map((arr: any) => `
+                <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
+                  ${arrivalsList.slice(0, 8).map((arr: any) => `
                     <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.35); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #38BDF8;">
                       <div style="min-width: 0; flex: 1; margin-right: 6px;">
                         <div style="display: flex; align-items: center; gap: 4px;">

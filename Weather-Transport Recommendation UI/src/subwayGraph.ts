@@ -117,7 +117,6 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "청량리역"
   ],
   "신설동역": [
-    "도림천역",
     "동묘앞역",
     "보문역",
     "용두역",
@@ -201,6 +200,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   "신도림역": [
     "구로역",
     "대림역",
+    "도림천역",
     "문래역",
     "영등포역"
   ],
@@ -508,7 +508,8 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   ],
   "성수역": [
     "건대입구역",
-    "뚝섬역"
+    "뚝섬역",
+    "용답역"
   ],
   "건대입구역": [
     "구의역",
@@ -664,12 +665,11 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "서대문역",
     "시청역",
     "아현역",
-    "애오개역",
-    "용답역"
+    "애오개역"
   ],
   "용답역": [
-    "신답역",
-    "충정로역"
+    "성수역",
+    "신답역"
   ],
   "신답역": [
     "용답역",
@@ -680,7 +680,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "신설동역"
   ],
   "도림천역": [
-    "신설동역",
+    "신도림역",
     "양천구청역"
   ],
   "양천구청역": [
@@ -2786,6 +2786,20 @@ const BRANCH_TRANSFER_RULES: BranchTransferRule[] = [
     branchB: ['신촌역'],
     lineAName: '경의중앙선(본선)',
     lineBName: '경의중앙선(서울역지선)',
+  },
+  {
+    junction: '성수역',
+    branchA: ['뚝섬역', '건대입구역'],
+    branchB: ['용답역'],
+    lineAName: '2호선',
+    lineBName: '2호선(성수지선)',
+  },
+  {
+    junction: '신도림역',
+    branchA: ['대림역', '문래역'],
+    branchB: ['도림천역'],
+    lineAName: '2호선',
+    lineBName: '2호선(신정지선)',
   },
 ]
 

@@ -271,6 +271,7 @@ weather-transit-web/
 │   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋
 ├── docs/                               # 📖 시스템 아키텍처 및 요구사항 명세서
 │   ├── CHANGELOG.md                    # 통합 변경 이력
+│   ├── TODO.md                         # 📋 향후 개발 백로그 (모바일 UI 반응형 최적화 등)
 │   ├── SERVER_DEPLOYMENT_GUIDE.md      # 🚀 리눅스 홈서버 / 미니 PC (PM2, Docker, NPM) 배포 가이드
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드

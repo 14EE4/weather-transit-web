@@ -400,6 +400,61 @@ def test_hourly_forecast():
     except Exception as e:
         print(f"[실패] hourly-forecast API 테스트 실패: {e}")
 
+def test_circuit_breaker_resilience():
+    """공공 API 서킷 브레이커(Circuit Breaker) 및 장애 복원력 테스트"""
+    print("\n" + "="*50)
+    print("[6] 공공 API 서킷 브레이커(Circuit Breaker) 및 장애 복원력 테스트")
+    print("="*50)
+    try:
+        from fastapi.testclient import TestClient
+        import main
+        with TestClient(main.app) as client:
+            # 1. 서킷 브레이커 모니터링 API 조회
+            res = client.get("/api/v1/system/circuit-breakers")
+            assert res.status_code == 200, f"Status code failed: {res.status_code}"
+            data = res.json()
+            assert data["status"] == "success"
+            cb = data["circuit_breakers"]
+            assert "kma_weather" in cb and "seoul_subway" in cb and "seoul_bus" in cb
+            print(f"[성공] 서킷 브레이커 모니터링 API 조회 완료:")
+            for name, item in cb.items():
+                print(f"  - [{name}] 상태: {item['state']}, 실패임계치: {item['failure_threshold']}, 쿨다운: {item['recovery_timeout_sec']}s")
+
+            # 2. 헬스체크 연동 확인
+            h_res = client.get("/health")
+            assert h_res.status_code == 200
+            h_data = h_res.json()
+            assert "circuit_breakers" in h_data
+            print(f"[성공] 헬스체크(/health) 서킷 브레이커 통합 상태: {h_data['circuit_breakers']}")
+
+            # 3. 서킷 브레이커 상태 전이 및 장애 폴백 시뮬레이션
+            cb_subway = main.subway_circuit_breaker
+            orig_state = cb_subway.state
+            orig_fail = cb_subway.failure_count
+
+            # 인위적 실패 주입 -> OPEN 전이 테스트
+            for _ in range(3):
+                cb_subway.record_failure("Mock Network Timeout")
+            assert cb_subway.state == "OPEN", f"Expected OPEN, got {cb_subway.state}"
+            assert not cb_subway.can_execute(), "Circuit should block execution when OPEN"
+            print(f"[성공] 연속 3회 실패 주입 -> 서킷 브레이커 상태: {cb_subway.state} (외부 호출 차단 정상)")
+
+            # 서킷 OPEN 상태에서 도착 정보 조회 시 지연 없이 즉시 Fallback 반환 확인
+            t0 = datetime.now()
+            sub_res = client.get("/api/v1/transit/subway/arrival?station=판교")
+            dt = (datetime.now() - t0).total_seconds() * 1000.0
+            assert sub_res.status_code == 200
+            sub_data = sub_res.json()
+            assert "source" in sub_data and "CIRCUIT_OPEN" in sub_data["source"]
+            print(f"[성공] 서킷 OPEN 시 즉시 Fallback 반환 (소요시간: {dt:.2f}ms, 출처: {sub_data['source']})")
+
+            # 상태 원상 복구
+            cb_subway.record_success()
+            assert cb_subway.state == "CLOSED"
+            print(f"[성공] 정상 복구 확인 -> 서킷 브레이커 상태: {cb_subway.state} (CLOSED)")
+    except Exception as e:
+        print(f"[실패] circuit-breaker resilience 테스트 실패: {e}")
+
 if __name__ == "__main__":
     test_kma_weather()
     test_seongnam_weather()
@@ -408,3 +463,4 @@ if __name__ == "__main__":
     test_seoul_subway()
     test_live_district_congestion()
     test_hourly_forecast()
+    test_circuit_breaker_resilience()

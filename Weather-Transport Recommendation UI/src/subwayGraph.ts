@@ -647,6 +647,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "합정역"
   ],
   "신촌역": [
+    "가좌역",
     "서울역",
     "이대역",
     "홍대입구역"
@@ -1906,6 +1907,7 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   ],
   "가좌역": [
     "디지털미디어시티역",
+    "신촌역",
     "홍대입구역"
   ],
   "수색역": [
@@ -2777,6 +2779,13 @@ const BRANCH_TRANSFER_RULES: BranchTransferRule[] = [
     branchB: ['둔촌동역'],
     lineAName: '5호선(하남선)',
     lineBName: '5호선(마천지선)',
+  },
+  {
+    junction: '가좌역',
+    branchA: ['홍대입구역'],
+    branchB: ['신촌역'],
+    lineAName: '경의중앙선(본선)',
+    lineBName: '경의중앙선(서울역지선)',
   },
 ]
 

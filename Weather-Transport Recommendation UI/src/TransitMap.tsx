@@ -20,6 +20,12 @@ interface SavedMapView {
   bearing: number
 }
 
+// ── 대한민국 영역 경계 (전 세계 타일 로딩 방지 및 한국 영토 내 이동 제한) ──
+const KOREA_BOUNDS: [[number, number], [number, number]] = [
+  [124.0, 32.8], // 서남단 (서해 격렬비열도/마라도 남단)
+  [132.0, 39.2], // 동북단 (동해 독도 동단/휴전선 북방)
+]
+
 const getSavedMapView = (): SavedMapView | null => {
   if (typeof window === 'undefined') return null
   try {
@@ -36,9 +42,14 @@ const getSavedMapView = (): SavedMapView | null => {
       typeof parsed.zoom === 'number' &&
       !isNaN(parsed.zoom)
     ) {
+      const lng = parsed.center[0]
+      const lat = parsed.center[1]
+      const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
+      const validCenter: [number, number] = isInsideKorea ? [lng, lat] : [127.050, 37.505]
+      const validZoom = Math.max(7.0, Math.min(18.5, parsed.zoom))
       return {
-        center: [parsed.center[0], parsed.center[1]],
-        zoom: parsed.zoom,
+        center: validCenter,
+        zoom: validZoom,
         pitch: typeof parsed.pitch === 'number' ? parsed.pitch : 30,
         bearing: typeof parsed.bearing === 'number' ? parsed.bearing : 0,
       }
@@ -249,13 +260,16 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             id: 'osm-tiles-layer',
             type: 'raster',
             source: 'osm-tiles',
-            minzoom: 0,
+            minzoom: 6,
             maxzoom: 19,
           },
         ],
       },
       center: initialCenter,
       zoom: initialZoom,
+      minZoom: 6.8, // 대한민국 전국 뷰 이하로 축소 방지 (글로벌 타일 로딩 원천 차단)
+      maxZoom: 18.5, // 세부 역사/정류소 수준 확대 허용
+      maxBounds: KOREA_BOUNDS, // 대한민국 영토 밖으로 패닝/이동 차단 (네트워크 & 메모리 리소스 절약)
       pitch: initialPitch,
       bearing: initialBearing,
     })

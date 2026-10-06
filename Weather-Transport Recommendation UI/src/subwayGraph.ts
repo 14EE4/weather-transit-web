@@ -160,7 +160,6 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
   "서울역": [
     "공덕역",
     "남영역",
-    "수서역",
     "숙대입구역",
     "시청역",
     "신촌역",
@@ -872,7 +871,6 @@ export const SUBWAY_GRAPH: Record<string, string[]> = {
     "가락시장역",
     "대모산입구역",
     "복정역",
-    "서울역",
     "성남역",
     "일원역"
   ],

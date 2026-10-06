@@ -536,6 +536,30 @@ class LiveDistrictCongestionResponse(BaseModel):
     hotspots: list[DistrictLiveCongestionItem]
     all_districts: Optional[list[DistrictLiveCongestionItem]] = None
 
+class HourlyForecastItem(BaseModel):
+    hour: str
+    hour_num: int
+    temp: float
+    rain: float
+    humidity: float
+    wind: float
+    subway: int
+    bus: int
+    bike: int
+    subway_crowd: int
+    bus_crowd: int
+    bike_crowd: int
+    is_peak: bool
+
+class HourlyForecastResponse(BaseModel):
+    status: str = "success"
+    district: str
+    timestamp: str
+    current_hour: int
+    latency_ms: float
+    hourly: list[HourlyForecastItem]
+    forecast: Optional[list[HourlyForecastItem]] = None
+
 # ==============================================================================
 # 5. 사양서 규격의 32차원 Feature Vector 조립 함수 (build_feature_vector)
 # ==============================================================================
@@ -1265,6 +1289,98 @@ async def get_live_district_congestion(
         all_districts=all_districts,
     )
     LIVE_DISTRICT_CACHE[cache_key] = (now_ts, resp)
+    return resp
+
+HOURLY_FORECAST_CACHE: dict[tuple, tuple[float, HourlyForecastResponse]] = {}
+
+@app.get("/api/v1/transit/hourly-forecast", response_model=HourlyForecastResponse, tags=["Inference"])
+async def get_hourly_transit_forecast(
+    district: str = "강남구",
+    rain: Optional[float] = None,
+    temp: Optional[float] = None,
+):
+    """
+    24시간(00시~23시) 시계열 기상 및 3대 대중교통(지하철, 버스, 따릉이) 수요/혼잡도 AI 추론 API
+    - 자치구별 일교차 곡선 및 출퇴근 피크(08~09시, 17~18시) 동적 모델 추론
+    - 60초 인메모리 캐싱 지원 (<2ms 초저지연)
+    """
+    if not registry.is_loaded:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 추론 세션이 준비되지 않았습니다."
+        )
+
+    t_start = time.perf_counter()
+    norm_d = normalize_district_name(district)
+    now = datetime.now()
+    cur_hour = now.hour
+    base_temp = temp if temp is not None else 19.4
+    base_rain = max(0.0, rain if rain is not None else 0.0)
+
+    cache_key = (norm_d, round(base_rain, 1), round(base_temp, 1), cur_hour)
+    now_ts = time.time()
+    if cache_key in HOURLY_FORECAST_CACHE:
+        cached_time, cached_resp = HOURLY_FORECAST_CACHE[cache_key]
+        if now_ts - cached_time < 60.0:
+            return cached_resp
+
+    items = []
+    for h in range(24):
+        # 1. 일교차 및 시간대별 기상 추정 곡선 (최저 05시, 최고 14시)
+        temp_h = round(base_temp + 3.2 * math.sin((h - 8) * math.pi / 12), 1)
+        rain_h = base_rain
+        if base_rain > 0.0:
+            rain_factor = 1.0 + 0.3 * math.sin((h - 6) * math.pi / 6)
+            rain_h = round(max(0.0, base_rain * rain_factor), 1)
+        
+        humid_h = min(95.0, max(40.0, 65.0 - (temp_h - base_temp) * 2.0 + (15.0 if rain_h > 0 else 0.0)))
+        wind_h = round(max(0.5, 2.0 + 0.8 * math.cos((h - 14) * math.pi / 12)), 1)
+
+        w_in = WeatherInput(temp=temp_h, rain=rain_h, humidity=round(humid_h, 1), wind=wind_h)
+        f_vec = build_feature_vector(norm_d, h, w_in)
+
+        sub_t = prepare_session_input(f_vec, registry.subway_session)
+        bus_t = prepare_session_input(f_vec, registry.bus_session)
+        bike_t = prepare_session_input(f_vec, registry.bike_session)
+
+        s_v = max(0.0, float(registry.subway_session.run(None, {"float_input": sub_t})[0].flatten()[0]))
+        bu_v = max(0.0, float(registry.bus_session.run(None, {"float_input": bus_t})[0].flatten()[0]))
+        bi_v = max(0.0, float(registry.bike_session.run(None, {"float_input": bike_t})[0].flatten()[0]))
+
+        s_c, _, _ = evaluate_subway(s_v, rain_h, norm_d)
+        bu_c, _, _ = evaluate_bus(bu_v, rain_h, norm_d)
+        bi_c, _, _ = evaluate_bike(bi_v, rain_h, norm_d)
+
+        is_peak = (8 <= h <= 9) or (17 <= h <= 18)
+
+        items.append(HourlyForecastItem(
+            hour=f"{h:02d}시",
+            hour_num=h,
+            temp=temp_h,
+            rain=rain_h,
+            humidity=round(humid_h, 1),
+            wind=wind_h,
+            subway=int(round(s_v)),
+            bus=int(round(bu_v)),
+            bike=int(round(bi_v)),
+            subway_crowd=s_c,
+            bus_crowd=bu_c,
+            bike_crowd=bi_c,
+            is_peak=is_peak,
+        ))
+
+    latency_ms = (time.perf_counter() - t_start) * 1000.0
+
+    resp = HourlyForecastResponse(
+        status="success",
+        district=norm_d,
+        timestamp=now.astimezone().isoformat(),
+        current_hour=cur_hour,
+        latency_ms=round(latency_ms, 2),
+        hourly=items,
+        forecast=items,
+    )
+    HOURLY_FORECAST_CACHE[cache_key] = (now_ts, resp)
     return resp
 
 # ==============================================================================

@@ -98,18 +98,47 @@ export const DISTRICT_GROUPS = [
 
 const DISTRICTS = DISTRICT_GROUPS.flatMap(g => g.items)
 
-// ── 시간대별 날씨 + 교통 통합 데이터 ──
-const HOURLY_DATA = [
-  { hour: '06시', temp: 11, rain: 0, humidity: 68, wind: 1.8, bus: 4200, subway: 18000, bike: 320 },
-  { hour: '07시', temp: 12, rain: 0, humidity: 70, wind: 2.1, bus: 12800, subway: 62000, bike: 510 },
-  { hour: '08시', temp: 13, rain: 0, humidity: 72, wind: 2.4, bus: 18400, subway: 95000, bike: 780 },
-  { hour: '09시', temp: 14, rain: 1.2, humidity: 82, wind: 3.2, bus: 14200, subway: 78000, bike: 210 },
-  { hour: '10시', temp: 14, rain: 2.8, humidity: 86, wind: 3.8, bus: 9600, subway: 52000, bike: 85 },
-  { hour: '11시', temp: 13, rain: 3.1, humidity: 88, wind: 4.1, bus: 8200, subway: 44000, bike: 62 },
-  { hour: '12시', temp: 14, rain: 1.5, humidity: 85, wind: 3.5, bus: 11400, subway: 56000, bike: 140 },
-  { hour: '13시', temp: 15, rain: 0.8, humidity: 80, wind: 3.0, bus: 10800, subway: 51000, bike: 190 },
-  { hour: '14시', temp: 15, rain: 0, humidity: 76, wind: 2.8, bus: 9200, subway: 46000, bike: 380 },
-]
+export interface HourlyTransitData {
+  hour: string
+  hour_num: number
+  temp: number
+  rain: number
+  humidity: number
+  wind: number
+  subway: number
+  bus: number
+  bike: number
+  subway_crowd?: number
+  bus_crowd?: number
+  bike_crowd?: number
+  is_peak?: boolean
+}
+
+// ── 24시간 시간대별(00시~23시) 날씨 + 교통 통합 기본 데이터 ──
+export const DEFAULT_24H_DATA: HourlyTransitData[] = Array.from({ length: 24 }, (_, h) => {
+  const isPeak = (h >= 8 && h <= 9) || (h >= 17 && h <= 18)
+  const isNight = h < 6 || h >= 23
+  const subMult = isPeak ? 1.25 : (isNight ? 0.35 : 0.8)
+  const busMult = isPeak ? 1.2 : (isNight ? 0.25 : 0.75)
+  const bikeMult = isPeak ? 1.1 : (isNight ? 0.15 : 0.7)
+  return {
+    hour: `${String(h).padStart(2, '0')}시`,
+    hour_num: h,
+    temp: Math.round((16.0 + 3.5 * Math.sin((h - 8) * Math.PI / 12)) * 10) / 10,
+    rain: 0,
+    humidity: 60,
+    wind: 2.0,
+    subway: Math.round(45000 * subMult),
+    bus: Math.round(18000 * busMult),
+    bike: Math.round(350 * bikeMult),
+    subway_crowd: Math.round(55 * subMult),
+    bus_crowd: Math.round(50 * busMult),
+    bike_crowd: Math.round(45 * bikeMult),
+    is_peak: isPeak,
+  }
+})
+
+const HOURLY_DATA = DEFAULT_24H_DATA
 
 // ── 교통수단 추천 스코어 (비 오는 날 기준) ──
 const TRANSPORT_SCORES = [
@@ -505,6 +534,12 @@ export default function App() {
   }>>(DISTRICT_DATA)
   const [districtLiveStatus, setDistrictLiveStatus] = useState<'idle' | 'loading' | 'live'>('idle')
   const lastDistrictCongestionKeyRef = useRef<string>('')
+
+  // 24시간 실시간 AI 시계열 예측 상태
+  const [hourlyForecast, setHourlyForecast] = useState<HourlyTransitData[]>(DEFAULT_24H_DATA)
+  const [hourlyLiveStatus, setHourlyLiveStatus] = useState<'idle' | 'loading' | 'live'>('idle')
+  const [hourlyHovered, setHourlyHovered] = useState<number | null>(null)
+  const lastHourlyForecastKeyRef = useRef<string>('')
 
   // 활성 경로 탐색 결과 상태
   const [activeRoute, setActiveRoute] = useState<TransitRouteResult | null>(null)
@@ -964,6 +999,30 @@ export default function App() {
     }
   }
 
+  // ── 24시간 실시간 시계열 AI 예측 곡선 조회 ──
+  const fetchHourlyForecast = async (districtName: string, rainVal: number, tempVal: number) => {
+    const fetchKey = `${districtName}_${rainVal}_${tempVal}`
+    if (lastHourlyForecastKeyRef.current === fetchKey) return
+    lastHourlyForecastKeyRef.current = fetchKey
+
+    try {
+      setHourlyLiveStatus('loading')
+      const targetDistrict = districtName.split(' ')[0] || districtName
+      const res = await fetch(`${API_BASE_URL}/api/v1/transit/hourly-forecast?district=${encodeURIComponent(targetDistrict)}&rain=${rainVal}&temp=${tempVal}`)
+      if (res.ok) {
+        const data = await res.json()
+        const forecastList = data.forecast || data.hourly
+        if (data.status === 'success' && forecastList && forecastList.length > 0) {
+          setHourlyForecast(forecastList)
+          setHourlyLiveStatus('live')
+        }
+      }
+    } catch (err) {
+      console.warn('24시간 AI 시계열 예측 조회 실패, 기본값 유지:', err)
+      setHourlyLiveStatus('idle')
+    }
+  }
+
   const lastAIFetchKeyRef = useRef<string>('')
 
   // 자치구 또는 실시간 기상 데이터 변경 시 AI 추론 자동 실행 (100% 실시간 시간대 반영)
@@ -986,6 +1045,7 @@ export default function App() {
     }
 
     fetchDistrictCongestion(activeRain, activeTemp, hourNum)
+    fetchHourlyForecast(districtName, activeRain, activeTemp)
   }, [selectedDistrict, liveWeather, activeRain, activeTemp])
 
   return (
@@ -1372,13 +1432,33 @@ export default function App() {
           {/* 하단 2열: 시간대별 차트 + 상관관계 + 동별 현황 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20 }}>
 
-            {/* 시간대별 이용자 추이 */}
+            {/* 시간대별 이용자 추이 (24시간 전일 ONNX AI 시계열 예측) */}
             <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>시간대별 이용자 추이</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>날씨 변화와 교통 수요 연관성</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>시간대별 이용자 추이</span>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '2px 8px', borderRadius: 9999,
+                      background: hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)'}`
+                    }}>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: hourlyLiveStatus === 'live' ? '#10B981' : hourlyLiveStatus === 'loading' ? '#FBBF24' : '#64748B',
+                        boxShadow: hourlyLiveStatus === 'live' ? '0 0 6px #10B981' : 'none'
+                      }} />
+                      <span style={{ fontSize: 10, color: hourlyLiveStatus === 'live' ? '#34D399' : 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
+                        {hourlyLiveStatus === 'live' ? '24H ONNX AI 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '시계열 기본값'}
+                      </span>
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                    전일 24시간 날씨 연동 수요 추론 곡선 (00시 ~ 23시)
+                  </div>
                 </div>
+
                 <div style={{ display: 'flex', gap: 12 }}>
                   {[['🚇', '지하철', '#38BDF8'], ['🚌', '버스', '#FB923C'], ['🚲', '따릉이', '#34D399']].map(([icon, name, color]) => (
                     <div key={name as string} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1389,62 +1469,202 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Multi-line chart */}
+              {/* 호버 시 실시간 상세 스펙 툴팁 배너 */}
+              {(() => {
+                const hoverItem = hourlyHovered !== null ? hourlyForecast[hourlyHovered] : null
+                if (!hoverItem) {
+                  return (
+                    <div style={{ height: 22, marginBottom: 8, display: 'flex', alignItems: 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono' }}>
+                      💡 마우스를 그래프에 올리면 시간대별 정밀 AI 예측 수요를 확인할 수 있습니다.
+                    </div>
+                  )
+                }
+                return (
+                  <div style={{
+                    height: 22, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10,
+                    fontSize: 11, fontFamily: 'JetBrains Mono', background: 'rgba(56,189,248,0.08)',
+                    padding: '2px 10px', borderRadius: 6, border: '1px solid rgba(56,189,248,0.2)'
+                  }}>
+                    <span style={{ color: '#38BDF8', fontWeight: 700 }}>[{hoverItem.hour}]</span>
+                    <span style={{ color: '#E0F2FE' }}>
+                      🚇 {hoverItem.subway.toLocaleString()}명
+                      {hoverItem.subway_crowd ? ` (혼잡 ${hoverItem.subway_crowd}%)` : ''}
+                    </span>
+                    <span style={{ color: '#FED7AA' }}>
+                      🚌 {hoverItem.bus.toLocaleString()}명
+                      {hoverItem.bus_crowd ? ` (혼잡 ${hoverItem.bus_crowd}%)` : ''}
+                    </span>
+                    <span style={{ color: '#A7F3D0' }}>
+                      🚲 {hoverItem.bike.toLocaleString()}대
+                    </span>
+                    <span style={{ color: 'rgba(255,255,255,0.5)', marginLeft: 'auto' }}>
+                      🌡️ {hoverItem.temp}°C {hoverItem.rain > 0 ? `· 🌧️ ${hoverItem.rain}mm` : ''}
+                    </span>
+                  </div>
+                )
+              })()}
+
+              {/* 24시간 Multi-line SVG 차트 */}
               <div style={{ position: 'relative', height: 140 }}>
-                <svg width="100%" height="140" viewBox="0 0 560 140" preserveAspectRatio="none">
-                  {/* Grid */}
-                  {[0, 35, 70, 105, 140].map(y => (
-                    <line key={y} x1="0" y1={y} x2="560" y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                  ))}
-                  {/* Subway */}
-                  <polyline
-                    points={HOURLY_DATA.map((d, i) => `${(i / (HOURLY_DATA.length-1)) * 560},${140 - (d.subway / 95000) * 120}`).join(' ')}
-                    fill="none" stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                  />
-                  <polyline
-                    points={HOURLY_DATA.map((d, i) => `${(i / (HOURLY_DATA.length-1)) * 560},${140 - (d.subway / 95000) * 120}`).join(' ')}
-                    fill="rgba(56,189,248,0.08)" strokeWidth="0"
-                  />
-                  {/* Bus */}
-                  <polyline
-                    points={HOURLY_DATA.map((d, i) => `${(i / (HOURLY_DATA.length-1)) * 560},${140 - (d.bus / 18400) * 120}`).join(' ')}
-                    fill="none" stroke="#FB923C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 3"
-                  />
-                  {/* Bike */}
-                  <polyline
-                    points={HOURLY_DATA.map((d, i) => `${(i / (HOURLY_DATA.length-1)) * 560},${140 - (d.bike / 780) * 120}`).join(' ')}
-                    fill="none" stroke="#34D399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  />
-                  {/* Rain markers */}
-                  {HOURLY_DATA.map((d, i) => d.rain > 0 && (
-                    <rect key={i} x={(i / (HOURLY_DATA.length-1)) * 560 - 4} y={0} width={8} height={140}
-                      fill="rgba(56,189,248,0.06)" />
-                  ))}
-                  {/* Current real time marker */}
-                  {(() => {
-                    const nowHour = new Date().getHours()
-                    const hourClamped = Math.max(6, Math.min(14, nowHour))
-                    const ratio = (hourClamped - 6) / 8
-                    return (
+                {(() => {
+                  const chartData = hourlyForecast.length > 0 ? hourlyForecast : DEFAULT_24H_DATA
+                  const n = chartData.length
+                  const maxSub = Math.max(...chartData.map(d => d.subway || 0), 1000)
+                  const maxBus = Math.max(...chartData.map(d => d.bus || 0), 1000)
+                  const maxBike = Math.max(...chartData.map(d => d.bike || 0), 50)
+
+                  const getX = (i: number) => n > 1 ? (i / (n - 1)) * 560 : 0
+                  const getSubY = (v: number) => 130 - (v / maxSub) * 110
+                  const getBusY = (v: number) => 130 - (v / maxBus) * 110
+                  const getBikeY = (v: number) => 130 - (v / maxBike) * 110
+
+                  const subPoints = chartData.map((d, i) => `${getX(i).toFixed(1)},${getSubY(d.subway).toFixed(1)}`).join(' ')
+                  const busPoints = chartData.map((d, i) => `${getX(i).toFixed(1)},${getBusY(d.bus).toFixed(1)}`).join(' ')
+                  const bikePoints = chartData.map((d, i) => `${getX(i).toFixed(1)},${getBikeY(d.bike).toFixed(1)}`).join(' ')
+
+                  // 지하철 영역 음영 (Gradient Fill용 polygon)
+                  const subAreaPoints = `${subPoints} 560,140 0,140`
+
+                  // 현재 시각 계산 (00시~23시 범위)
+                  const now = new Date()
+                  const currentHourFloat = now.getHours() + (now.getMinutes() / 60)
+                  const currentX = Math.max(0, Math.min(560, (currentHourFloat / 23) * 560))
+
+                  return (
+                    <svg width="100%" height="140" viewBox="0 0 560 140" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+                      {/* Grid 수평선 */}
+                      {[15, 45, 75, 105, 135].map(y => (
+                        <line key={y} x1="0" y1={y} x2="560" y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                      ))}
+
+                      {/* 강수(Rain) 감지 시간대 음영 컬럼 */}
+                      {chartData.map((d, i) => d.rain > 0 && (
+                        <rect
+                          key={`rain-${i}`}
+                          x={Math.max(0, getX(i) - 10)}
+                          y={0}
+                          width={20}
+                          height={140}
+                          fill="rgba(56,189,248,0.08)"
+                        />
+                      ))}
+
+                      {/* 지하철 면적 음영 */}
+                      <polygon
+                        points={subAreaPoints}
+                        fill="rgba(56,189,248,0.06)"
+                      />
+
+                      {/* 지하철 곡선 */}
+                      <polyline
+                        points={subPoints}
+                        fill="none"
+                        stroke="#38BDF8"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* 버스 곡선 */}
+                      <polyline
+                        points={busPoints}
+                        fill="none"
+                        stroke="#FB923C"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray="4 2"
+                      />
+
+                      {/* 따릉이 곡선 */}
+                      <polyline
+                        points={bikePoints}
+                        fill="none"
+                        stroke="#34D399"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* 현재 시각 실시간 수직선 (Current Time Marker) */}
                       <line
-                        x1={ratio * 560}
+                        x1={currentX}
                         y1={0}
-                        x2={ratio * 560}
+                        x2={currentX}
                         y2={140}
                         stroke="#38BDF8"
-                        strokeWidth="2"
-                        strokeDasharray="4 3"
+                        strokeWidth="1.5"
+                        strokeDasharray="3 3"
                       />
-                    )
-                  })()}
-                </svg>
+                      <circle cx={currentX} cy={12} r={3} fill="#38BDF8" />
+                      <text
+                        x={Math.min(530, Math.max(30, currentX))}
+                        y={9}
+                        textAnchor="middle"
+                        fill="#38BDF8"
+                        fontSize={8}
+                        fontFamily="JetBrains Mono"
+                        fontWeight="700"
+                      >
+                        NOW
+                      </text>
+
+                      {/* 마우스 호버 가이드선 및 데이터 포인트 원 */}
+                      {hourlyHovered !== null && chartData[hourlyHovered] && (() => {
+                        const hItem = chartData[hourlyHovered]
+                        const hx = getX(hourlyHovered)
+                        return (
+                          <g pointerEvents="none">
+                            <line x1={hx} y1={0} x2={hx} y2={140} stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeDasharray="2 2" />
+                            <circle cx={hx} cy={getSubY(hItem.subway)} r={4} fill="#38BDF8" stroke="#0A1628" strokeWidth="2" />
+                            <circle cx={hx} cy={getBusY(hItem.bus)} r={4} fill="#FB923C" stroke="#0A1628" strokeWidth="2" />
+                            <circle cx={hx} cy={getBikeY(hItem.bike)} r={4} fill="#34D399" stroke="#0A1628" strokeWidth="2" />
+                          </g>
+                        )
+                      })()}
+
+                      {/* 마우스 호버 인터랙션 투명 히트박스 (24구간) */}
+                      {chartData.map((_, i) => {
+                        const colWidth = 560 / n
+                        return (
+                          <rect
+                            key={`hitbox-${i}`}
+                            x={i * colWidth}
+                            y={0}
+                            width={colWidth}
+                            height={140}
+                            fill="transparent"
+                            style={{ cursor: 'pointer' }}
+                            onMouseEnter={() => setHourlyHovered(i)}
+                            onMouseLeave={() => setHourlyHovered(null)}
+                          />
+                        )
+                      })}
+                    </svg>
+                  )
+                })()}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                {HOURLY_DATA.map(d => (
-                  <span key={d.hour} style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: 'JetBrains Mono' }}>
-                    {d.hour.replace('시', '')}시
-                  </span>
-                ))}
+
+              {/* X축 시간 라벨 (3시간 간격 및 23시) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, padding: '0 4px' }}>
+                {(hourlyForecast.length > 0 ? hourlyForecast : DEFAULT_24H_DATA).map((d, i) => {
+                  // 00, 03, 06, 09, 12, 15, 18, 21, 23시 레이블 표출
+                  const isVisibleLabel = d.hour_num % 3 === 0 || d.hour_num === 23
+                  return (
+                    <span
+                      key={d.hour}
+                      style={{
+                        fontSize: 9,
+                        color: hourlyHovered === i ? '#38BDF8' : isVisibleLabel ? 'rgba(255,255,255,0.45)' : 'transparent',
+                        fontFamily: 'JetBrains Mono',
+                        fontWeight: isVisibleLabel || hourlyHovered === i ? 600 : 400,
+                        transition: 'color 0.15s ease',
+                      }}
+                    >
+                      {d.hour.replace('시', '')}시
+                    </span>
+                  )
+                })}
               </div>
             </div>
 

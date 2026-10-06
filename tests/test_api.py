@@ -377,6 +377,29 @@ def test_live_district_congestion():
     except Exception as e:
         print(f"[실패] live-congestion API 테스트 실패: {e}")
 
+def test_hourly_forecast():
+    """24시간 시간대별 이용자 추이 AI 시계열 예측 API (GET /api/v1/transit/hourly-forecast) 테스트"""
+    print("\n" + "="*50)
+    print("[5] 24시간 실시간 AI 시계열 예측 API 테스트")
+    print("="*50)
+    try:
+        from fastapi.testclient import TestClient
+        import main
+        with TestClient(main.app) as client:
+            res = client.get("/api/v1/transit/hourly-forecast?district=강남구&rain=0.0&temp=18.5")
+            assert res.status_code == 200, f"Status code failed: {res.status_code}"
+            data = res.json()
+            assert data["status"] == "success", "Response status is not success"
+            assert "forecast" in data and len(data["forecast"]) == 24, f"Expected 24 forecast items, got {len(data.get('forecast', []))}"
+            print(f"[성공] 24시간 시계열 추론 완료 (자치구: {data.get('district')}, 지연시간: {data.get('latency_ms')}ms)")
+            # 08시(출근 첨두)와 18시(퇴근 첨두) 샘플 출력
+            f08 = data["forecast"][8]
+            f18 = data["forecast"][18]
+            print(f"  - 08시(출근): 지하철 {f08['subway']:,}명 (혼잡 {f08['subway_crowd']}%), 버스 {f08['bus']:,}명, 따릉이 {f08['bike']:,}대 | {f08['temp']}°C (is_peak: {f08['is_peak']})")
+            print(f"  - 18시(퇴근): 지하철 {f18['subway']:,}명 (혼잡 {f18['subway_crowd']}%), 버스 {f18['bus']:,}명, 따릉이 {f18['bike']:,}대 | {f18['temp']}°C (is_peak: {f18['is_peak']})")
+    except Exception as e:
+        print(f"[실패] hourly-forecast API 테스트 실패: {e}")
+
 if __name__ == "__main__":
     test_kma_weather()
     test_seongnam_weather()
@@ -384,3 +407,4 @@ if __name__ == "__main__":
     test_seoul_bus()
     test_seoul_subway()
     test_live_district_congestion()
+    test_hourly_forecast()

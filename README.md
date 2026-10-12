@@ -36,8 +36,9 @@
    - 가상 강수량(0~10mm/h) 조절에 따른 실시간 대중교통 수요 전이 시뮬레이터 제공
    - 📖 **프론트엔드 상세 가이드**: [프론트엔드 README](Weather-Transport%20Recommendation%20UI/README.md)
    - 🧠 **백엔드 AI 추론 모델 사양서**: [AI 추론 모델 개발 가이드](docs/AI_INFERENCE_MODEL_SPEC.md)
-   - 📈 **모델 성능 비교 분석 보고서**: [ONNX 모델 성능 비교 분석 보고서 (25 vs 32차원)](docs/MODEL_PERFORMANCE_REPORT.md)
+   - 📈 **모델 성능 비교 분석 보고서**: [ONNX 모델 성능 비교 분석 보고서 (v2: 실피처 32차원 vs 25차원 배포본)](docs/MODEL_PERFORMANCE_REPORT.md)
    - 🧩 **AI 모델 사양서 (모델 규격 분리본)**: [AI 모델 사양서](docs/AI_MODEL_SPEC.md)
+   - 📦 **데이터 전처리 산출물 인수 검수·요청서**: [데이터 전처리 전달 사항](docs/DATA_PREPROCESSING_HANDOFF.md)
 
 ---
 
@@ -277,8 +278,9 @@ weather-transit-web/
 │   ├── SERVER_DEPLOYMENT_GUIDE.md      # 🚀 리눅스 홈서버 / 미니 PC (PM2, Docker, NPM) 배포 가이드
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
-│   ├── MODEL_PERFORMANCE_REPORT.md     # ONNX 모델 성능 비교 분석 보고서 (25 vs 32차원)
+│   ├── MODEL_PERFORMANCE_REPORT.md     # ONNX 모델 성능 비교 분석 보고서 (v2: 실피처 32차원 vs 25차원)
 │   ├── AI_MODEL_SPEC.md                # AI 모델 사양서 (모델 규격만 분리한 문서)
+│   ├── DATA_PREPROCESSING_HANDOFF.md   # 데이터 전처리 산출물 인수 검수·회신 요청서
 │   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서
 └── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드
     ├── README.md                       # 프론트엔드 전용 안내 문서

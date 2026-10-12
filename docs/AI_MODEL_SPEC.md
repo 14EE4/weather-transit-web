@@ -60,7 +60,7 @@
 
 | 컬럼명 | 데이터 타입 | 결측치 수 | 통계치 요약 (Min ~ Max, Mean) | 분석 및 전처리 지침 |
 | :--- | :--- | :--- | :--- | :--- |
-| `기준_날짜` | String (YYYY-MM-DD) | 0 | 2025-01-01 ~ 2025-12-31 | `월`, `일`, `요일`, `주말여부`, `공휴일여부` 파생변수 추출 |
+| `기준_날짜` | String (YYYY-MM-DD) | 0 | 2025-01-01 ~ 2025-12-31 | `월`, `일`, `요일`, `주말여부` 파생변수 추출 / `공휴일여부`는 **2025 대한민국 공휴일 캘린더(19일)** 로 판정 |
 | `시간` | Integer | 0 | 1 ~ 23시 (평균 12시) | 순환 주기형 변수 변환 ($\sin, \cos$ 인코딩) |
 | `구` | Categorical (String) | 0 | 25개 자치구 (강남구, 종로구 등) | One-Hot Encoding 또는 Target Encoding / 구 임베딩 |
 | `따릉이_대여` | Float / Integer | 173 | 1 ~ 2,633 (평균 174.6) | 자전거 대여 수요 (비 올 때 평균 183.6 → 38.2로 **-79.2% 급감**) |
@@ -90,7 +90,7 @@ FEATURE_SCHEMA = {
     "hour_cos": float,         # cos(2 * pi * hour / 24)
     "dayofweek": int,          # 0 (월) ~ 6 (일)
     "is_weekend": int,         # 1 if 토/일 else 0
-    "is_holiday": int,         # 공휴일 여부 (1 or 0)
+    "is_holiday": int,         # 공휴일 여부 (1 or 0) — 2025 대한민국 공휴일 캘린더 19일 기준
     "is_rush_hour": int,       # 출퇴근 시간대 (08~09시, 18~19시 = 1, 나머지 0)
 
     # 2. 기상 관측 및 파생 피처 (8차원)
@@ -129,7 +129,9 @@ FEATURE_SCHEMA = {
 > - 위 32차원은 백엔드가 **항상 조립하는 서빙 입력 계약**입니다 (`main.py::build_feature_vector`).
 > - 그러나 개별 배포 모델의 **입력 텐서 차원은 다를 수 있습니다**. 현재 `models/*.onnx`는 **25차원** 텐서를 기대하며, 이는 32차원에서 `district_subway_stations`, `district_bus_stops`, `district_bike_racks`, `commercial_density`(4) + `same_day_last_week_bike/bus/sub`(3) = **7차원을 제외한 부분집합**입니다.
 > - 서버는 `main.py::prepare_session_input()`에서 모델 기대 차원에 맞춰 자동 정렬(인덱스 매핑)하므로 25차원·32차원 모델이 공존할 수 있습니다.
-> - **학습 데이터 한계**: §3.1 원천 데이터에는 위 7개 피처가 물리적으로 존재하지 않으므로, `benchmarks/CastTransit.ipynb`는 25차원 실피처 + 상수 0 더미 7개로 32차원 텐서를 맞춥니다(정보량은 25차원과 동일). 실 피처 기반 32차원 학습은 향후 마이그레이션 과제입니다.
+> - **학습 데이터**: 2026-10-13부터 원천이 `data/2025_서울25개구_교통날씨_전처리_2.csv` 로 전환되어, 위 7개 피처를 학습 파이프라인이 **실측값으로 직접 산출**합니다(인프라 4종은 `main.py::DISTRICT_INFRA` 조인, `same_day_last_week_*` 3종은 7일 전 타임스탬프 self-merge). 따라서 **"25차원 실피처 + 상수 0 더미 7" 방식은 폐기**되었습니다.
+> - **학습/평가/서빙 단일 소스**: `district_code`(`DISTRICT_CODE_MAP`) · 인프라 4종(`DISTRICT_INFRA`) · 공휴일 캘린더(`KR_HOLIDAYS`)는 `main.py` 를 유일한 소스로 참조합니다. 평가 스크립트(`benchmarks/evaluate_models.py`)도 동일 상수를 import 하여 사용합니다.
+> - **`is_holiday` 정의**: 토/일 여부(`is_weekend`)와 **별개 지표**이며, `main.py::is_kr_public_holiday()` 가 2025년 공휴일 19일(신정·설날 연휴·삼일절+대체·어린이날/부처님오신날+대체·대선·현충일·광복절·개천절·추석 연휴+대체·한글날·성탄절)에 대해 1을 반환합니다. (노동절·제헌절은 2025년 공휴일 아님)
 > - 상세 배경: [MODEL_PERFORMANCE_REPORT.md](./MODEL_PERFORMANCE_REPORT.md) · [SYSTEM_ARCHITECTURE.md §6.2](./SYSTEM_ARCHITECTURE.md)
 
 ---
@@ -258,7 +260,7 @@ $$C_{\text{station}}(s) = \text{clip}\left( C_{\text{district}} \times \alpha(s)
 4. **ONNX 변환을 통한 마이크로초 서빙**:
    - 학습 완료된 LightGBM 모델 트리는 C++ 기반의 `onnxruntime`으로 컴파일되어 **요청당 1~3ms**의 압도적인 속도로 추론됩니다.
 
-> **실측 성능**: 25차원 배포 모델과 32차원 튜닝 후보의 공정 비교 결과는 [MODEL_PERFORMANCE_REPORT.md](./MODEL_PERFORMANCE_REPORT.md)를 참조하십시오.
+> **실측 성능**: 25차원 배포 모델과 32차원 후보의 공정 비교 결과는 [MODEL_PERFORMANCE_REPORT.md](./MODEL_PERFORMANCE_REPORT.md)를 참조하십시오. (2026-10-13부터 **실제 32차원 실피처 + 사양서 §6.1 분할 + 실제 공휴일 캘린더** 기준의 v2 평가 방법론으로 개정)
 
 ---
 
@@ -271,10 +273,14 @@ $$C_{\text{station}}(s) = \text{clip}\left( C_{\text{district}} \times \alpha(s)
 일반적인 무작위 K-Fold 분할은 시계열 데이터에서 미래 정보가 과거로 누출(Data Leakage)되므로, **시간 축 기반 순차 분할(Temporal Split)**을 적용합니다.
 
 ```text
-[ 2025-01-01 ~ 2025-09-30 ] : Train Set (약 75%, 157,400건)
-[ 2025-10-01 ~ 2025-11-15 ] : Validation Set (약 12.5%, 26,200건) - 조기 종료 및 튜닝
-[ 2025-11-16 ~ 2025-12-31 ] : Test Set (약 12.5%, 26,275건) - 최종 일반화 검증
+[ 2025-01-01 ~ 2025-09-30 ] : Train Set      (약 75%,   156,975건) - 학습
+[ 2025-10-01 ~ 2025-11-15 ] : Validation Set (약 12.5%,  26,450건) - 조기 종료 및 튜닝
+[ 2025-11-16 ~ 2025-12-31 ] : Test Set       (약 12.5%,  26,450건) - 최종 일반화 검증
 ```
+
+> **✅ 경계 공식 확정 (2026-10-13)**: 인수 데이터셋(`data/2025_서울25개구_교통날씨_전처리_2.csv`)의 `분할` 컬럼은 `valid 10-01~10-31` / `test 11-01~12-31` 로 본 절과 다르지만, **본 절(사양서)의 경계를 공식 기준으로 확정**했습니다.
+> - 따라서 `분할` 컬럼은 **사용하지 않으며**, 학습 노트북은 `SPLIT_SOURCE = 'spec_dates'`, 평가 스크립트(`benchmarks/evaluate_models.py`)는 본 절의 날짜 경계를 그대로 적용합니다.
+> - 위 행 수는 완전 그리드(25구 × 23시간) × 일수 기준 실측값입니다.
 
 > 하이퍼파라미터 튜닝(Optuna, Phase 3) 코드는 [원문 §6.3](./AI_INFERENCE_MODEL_SPEC.md#63-phase-3-모델-학습-및-optuna-하이퍼파라미터-튜닝-코드)을 참조하십시오.
 
@@ -301,7 +307,7 @@ with open("models/lgb_subway_demand.onnx", "wb") as f:
 print("ONNX 모델 변환 및 저장 완료: models/lgb_subway_demand.onnx")
 ```
 
-> **⚠️ 차원 주의**: 위 예시는 사양 32차원 텐서로 포팅하지만, **현재 배포된 `models/*.onnx`는 25차원** 텐서입니다(§3.2 주석 참조). `FloatTensorType([None, N])`의 `N`은 **학습에 사용한 실제 피처 수와 반드시 일치**해야 합니다.
+> **⚠️ 차원 주의**: 위 예시는 사양 32차원 텐서로 포팅하지만, **현재 배포된 `models/*.onnx`는 25차원** 텐서입니다(§3.2 주석 참조). `FloatTensorType([None, N])`의 `N`은 **학습에 사용한 실제 피처 수와 반드시 일치**해야 합니다. 2026-10-13부터 v2 노트북(`benchmarks/CastTransit.ipynb`)이 **실제 32차원(8/8/5/11) 실피처**를 생성하므로, 재학습 산출물은 32차원으로 포팅됩니다.
 
 ---
 
@@ -316,7 +322,8 @@ print("ONNX 모델 변환 및 저장 완료: models/lgb_subway_demand.onnx")
 | `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승·하차량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
 
 - **입력 계약 vs 텐서**: 서빙 입력 계약은 32차원(§3.2)이나 배포 모델 입력 텐서는 **25차원**이며, `main.py::prepare_session_input()`이 자동 정렬합니다.
-- **벤치마크 후보(32차원)**: `benchmarks/2026-10-12/tuned/` — 상수 0 더미 7을 포함하므로 정보량은 25차원과 동일하며, **배치 순서가 사양과 달라 그대로 서빙 투입하면 안 됩니다.**
+- **신규 32차원 후보(실피처)**: `benchmarks/2026-10-12/tuned_real/` — v2 노트북(실제 32차원 8/8/5/11) 산출물 보관 위치이며, `models/` 반영 전까지는 벤치마크 전용입니다.
+- **구 32차원 후보(폐기)**: `benchmarks/2026-10-12/tuned/` — 25차원 실피처 + 상수 0 더미 7로 학습되어 **배치 순서가 사양과 다르므로**, 참고 보관용으로만 유지하고 서빙 투입 및 신규 공정 비교 대상에서는 제외합니다.
 - 모델 자산 목록·해시·폴더 구조·평가 규약: [benchmarks/README.md](../benchmarks/README.md)
 
 ---

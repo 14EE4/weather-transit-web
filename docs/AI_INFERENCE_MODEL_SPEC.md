@@ -144,6 +144,12 @@ FEATURE_SCHEMA = {
 }
 ```
 
+> **📌 서빙 입력 계약(32차원) ≠ 모델 입력 텐서**
+> - 위 32차원은 백엔드가 **항상 조립하는 서빙 입력 계약**입니다 (`main.py::build_feature_vector`).
+> - 그러나 개별 배포 모델의 **입력 텐서 차원은 다를 수 있습니다**. 현재 `models/*.onnx`는 **25차원** 텐서를 기대하며, 이는 32차원에서 `district_subway_stations`, `district_bus_stops`, `district_bike_racks`, `commercial_density`(4) + `same_day_last_week_bike/bus/sub`(3) = **7차원을 제외한 부분집합**입니다.
+> - 서버는 `main.py::prepare_session_input()`에서 모델 기대 차원에 맞춰 자동 정렬(인덱스 매핑)하므로 25차원·32차원 모델이 공존할 수 있습니다.
+> - **학습 데이터 한계**: §2 원천 데이터에는 위 7개 피처가 물리적으로 존재하지 않으므로, `benchmarks/CastTransit.ipynb`는 25차원 실피처 + 상수 0 더미 7개로 32차원 텐서를 맞춥니다(정보량은 25차원과 동일). 실 피처 기반 32차원 학습은 향후 마이그레이션 과제입니다.
+
 ---
 
 ### 3.3 백엔드 REST API 인터페이스 및 프론트엔드 연동 규격

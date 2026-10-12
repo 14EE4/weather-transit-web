@@ -83,6 +83,10 @@ DISTRICT_CODE_MAP = {
 | **3. 공간 인코딩** | 5 | `district_code`<br>`district_subway_stations`<br>`district_bus_stops`<br>`district_bike_racks`<br>`commercial_density` | 서울시 25개 자치구 정수 ID (0 ~ 24)<br>해당 구 내 지하철 역사 수<br>해당 구 내 버스 정류소 수<br>해당 구 내 따릉이 거치대 수<br>상업/업무 지구 밀도 가중치 (강남/중구/여의도 1.4~1.45 등) |
 | **4. 시계열 래그/통계** | 11 | `bike_lag_1h`, `bus_lag_1h`, `subway_lag_1h`<br>`bike_roll_mean_3h`, `bus_roll_mean_3h`, `subway_roll_mean_3h`<br>`same_day_last_week_bike/bus/sub`<br>`temp_diff_1h`, `rain_diff_1h` | 직전 1시간 이용량 래그<br>직전 3시간 이동평균<br>전주 동요일 동시간 이용량<br>전 시간 대비 기온 및 강수량 변화량 |
 
+> **📌 서빙 입력(32차원) ≠ 모델 입력 텐서**
+> - 위 32차원은 `main.py::build_feature_vector()`가 조립하는 **서빙 입력 계약**입니다.
+> - 현재 배포 모델(`models/*.onnx`)은 **25차원** 텐서를 기대하며, 이는 32차원에서 공간 인프라 4차원 + `same_day_last_week_*` 3차원 = **7차원을 제외한 부분집합**입니다.
+> - `main.py::prepare_session_input()`이 모델 기대 차원으로 자동 정렬하므로 25차원·32차원 모델이 공존합니다(상세: `docs/SYSTEM_ARCHITECTURE.md` §6.2).
 ---
 
 ## 5. 혼잡도 지수 및 MCDA 추천 스코어링 알고리즘

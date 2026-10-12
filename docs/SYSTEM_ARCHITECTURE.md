@@ -143,6 +143,7 @@ flowchart TB
   - 기상 관측/파생 (8차원): 기온, 풍속, 습도, 강수량, 강우강도(4단계), 체감온도 공식, 불쾌지수 공식
   - 공간/인프라 (5차원): 서울시 25개 구 정수 ID(0~24), 역사 수, 버스 정류소 수, 따릉이 거치대 수, 상업밀도
   - 시계열 래그/통계 (11차원): 수단별 1시간 래그, 3시간 이동평균, 전주 동요일 기본값, 전시간 대비 기온/강수 변화량
+  - **⚠️ 서빙 입력(32차원) ≠ 모델 입력 텐서**: 위 32차원은 `main.py::build_feature_vector()`가 조립하는 **서빙 입력 계약**이며, 현재 배포 모델(`models/*.onnx`)은 이 중 **25차원 부분집합**만 입력 텐서로 받습니다. 서버는 `main.py::prepare_session_input()`에서 32→25차원을 자동 정렬하므로 두 규격이 공존합니다(상세: §6.2 및 `docs/AI_INFERENCE_MODEL_SPEC.md` §3.2).
 
 ### 4.4 사후 처리 및 MCDA 의사결정 엔진
 - **혼잡도 지수 ($C_m$) 정규화**:
@@ -263,6 +264,12 @@ sequenceDiagram
 | `lgb_bike_demand.onnx` | LightGBM GBDT | 따릉이 대여량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
 | `lgb_bus_demand.onnx` | LightGBM GBDT | 버스 승차량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
 | `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승·하차량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
+
+> **📌 입력 차원 표기 해설 (25차원 vs 32차원)**
+> - 위 표의 **25차원**은 배포된 ONNX 모델의 **입력 텐서 차원**입니다 (`session.get_inputs()[0].shape == [None, 25]`).
+> - 서빙 입력 계약(§4.3 및 `docs/AI_INFERENCE_MODEL_SPEC.md` §3.2)은 **32차원**이며, 25차원은 32차원에서 **공간 인프라 4차원 + `same_day_last_week_*` 3차원 = 7차원**을 제외한 부분집합입니다.
+> - `main.py::prepare_session_input()`이 모델이 기대하는 차원으로 자동 정렬하므로 25차원·32차원 모델을 모두 서빙할 수 있습니다.
+> - 벤치마크 후보(`benchmarks/2026-10-12/tuned/`, 32차원)는 25차원 실피처 + 상수 0 더미 7개로 구성되어 **정보량은 25차원과 동일**합니다.
 
 ---
 

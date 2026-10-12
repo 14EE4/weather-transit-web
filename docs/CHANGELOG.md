@@ -6,6 +6,20 @@
 
 ---
 
+## [2026-10-12]
+
+### 0. 🧩 ONNX 모델 입력 차원(25 vs 32) 문서 모순 정리 및 벤치마크 자산 통합
+- **배경**:
+  - 사양서(`docs/AI_INFERENCE_MODEL_SPEC.md` §3.2)와 백엔드 문서는 추론 입력을 **32차원**으로 규정하나, `docs/SYSTEM_ARCHITECTURE.md` §6.2 모델 규격 표는 배포 모델을 **25차원**으로 기재하여 문서 간 표기가 상충.
+  - 또한 `benchmarks/2026-10-12/` 하위에 노트북 export 셀 2회 실행으로 **동일 모델(MD5 일치)이 2벌 중복** 저장되어 있었음.
+- **조치**:
+  1. **중복 모델 자산 통합**: `baseline/`, `hyperparameter/`(MD5 동일 2벌)를 삭제하고 `benchmarks/2026-10-12/tuned/` 단일 폴더로 무손실 통합(해시 검증 통과 후 삭제).
+  2. **문서 모순 정리**: `SYSTEM_ARCHITECTURE.md` §4.3·§6.2 및 사양서 §3.2에 “**서빙 입력 계약(32차원) vs 모델 입력 텐서(25차원)**” 두 계층을 명시하고, `25 = 32 − 7`(공간 인프라 4 + `same_day_last_week_*` 3) 매핑 및 `prepare_session_input()` 자동 정렬 로직을 문서화.
+  3. **비교 분석 도구 신설(`benchmarks/evaluate_models.py`)**: Temporal Split(Test 2025-11-16 ~ 12-31) 기준으로 배포 모델(25차원)과 튜닝 후보(32차원)를 R²/RMSE/MAE/MAPE + ONNX 레이턴시로 공정 비교. 노트북 [Cell 7-1] 보고 R²(0.9893 / 0.9908 / 0.9940)와 **완전 일치**로 파이프라인 재현을 검증.
+  4. **결과 요약**: 후보(튜닝)가 전 수단에서 우세(MAE 기준 subway −19.2%, bus −13.4%, bike −4.0%)하나, 이는 **차원이 아닌 하이퍼파라미터 튜닝 효과**임(더미 7차원은 상수 0으로 정보량이 25차원과 동일).
+- **산출물**: `benchmarks/README.md`, `benchmarks/evaluate_models.py`, `benchmarks/results/comparison_*.{json,md}`, `docs/MODEL_PERFORMANCE_REPORT.md`, `docs/AI_INFERENCE_MODEL_SPEC.md` §3.2, `docs/SYSTEM_ARCHITECTURE.md` §4.3·§6.2, `docs/BACKEND_INFERENCE_SERVER.md` §4
+
+---
 ## [2026-10-06]
 
 ### 0. 🧹 경로 추천 탭 랜드마크 추천 경로 UI 및 입력창 기본값(Prefill) 완전 제거

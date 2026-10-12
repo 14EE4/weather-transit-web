@@ -19,6 +19,14 @@
   4. **결과 요약**: 후보(튜닝)가 전 수단에서 우세(MAE 기준 subway −19.2%, bus −13.4%, bike −4.0%)하나, 이는 **차원이 아닌 하이퍼파라미터 튜닝 효과**임(더미 7차원은 상수 0으로 정보량이 25차원과 동일).
 - **산출물**: `benchmarks/README.md`, `benchmarks/evaluate_models.py`, `benchmarks/results/comparison_*.{json,md}`, `docs/MODEL_PERFORMANCE_REPORT.md`, `docs/AI_INFERENCE_MODEL_SPEC.md` §3.2, `docs/SYSTEM_ARCHITECTURE.md` §4.3·§6.2, `docs/BACKEND_INFERENCE_SERVER.md` §4
 
+### 1. 🧩 AI 모델 사양서(`AI_MODEL_SPEC.md`) 분리 및 상호 링크 정리
+- **배경**: `AI_INFERENCE_MODEL_SPEC.md`가 모델 규격과 구축·서빙 가이드를 한 문서에 담고 있어, 모델 스펙만 참조하려는 경우에도 개발 절차·서빙 연동 절을 함께 읽어야 하는 불편이 있었음.
+- **조치**: **모델 자체의 규격만** 별도 문서로 분리.
+  - 신설: `docs/AI_MODEL_SPEC.md` — §2.3 SLA, §3.1·3.2 데이터셋/피처 스키마, §4 아키텍처·혼잡도/추천 알고리즘, §5 베이스 모델 비교, §6.2·6.4 학습 분할/ONNX 규격, §7 모델 자산(`models/`) 규격.
+  - 원본 `AI_INFERENCE_MODEL_SPEC.md`는 **구축 가이드로 그대로 유지**하되, 문서 상단 및 각 분리 절(§2.3, §3.1, §3.2, §4, §5, §6.2, §6.4)에 **상호 링크** 추가.
+  - `README.md` 문서 목록·디렉터리 트리에 `AI_MODEL_SPEC.md` 등록.
+- **산출물**: `docs/AI_MODEL_SPEC.md`(신설), `docs/AI_INFERENCE_MODEL_SPEC.md`(링크), `README.md`
+
 ---
 ## [2026-10-06]
 

@@ -37,6 +37,7 @@
    - 📖 **프론트엔드 상세 가이드**: [프론트엔드 README](Weather-Transport%20Recommendation%20UI/README.md)
    - 🧠 **백엔드 AI 추론 모델 사양서**: [AI 추론 모델 개발 가이드](docs/AI_INFERENCE_MODEL_SPEC.md)
    - 📈 **모델 성능 비교 분석 보고서**: [ONNX 모델 성능 비교 분석 보고서 (25 vs 32차원)](docs/MODEL_PERFORMANCE_REPORT.md)
+   - 🧩 **AI 모델 사양서 (모델 규격 분리본)**: [AI 모델 사양서](docs/AI_MODEL_SPEC.md)
 
 ---
 
@@ -277,6 +278,7 @@ weather-transit-web/
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
 │   ├── MODEL_PERFORMANCE_REPORT.md     # ONNX 모델 성능 비교 분석 보고서 (25 vs 32차원)
+│   ├── AI_MODEL_SPEC.md                # AI 모델 사양서 (모델 규격만 분리한 문서)
 │   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서
 └── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드
     ├── README.md                       # 프론트엔드 전용 안내 문서

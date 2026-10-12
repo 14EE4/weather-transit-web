@@ -202,4 +202,4 @@ python benchmarks/evaluate_models.py
 
 ---
 
-> **관련 문서**: [benchmarks/README.md](../benchmarks/README.md) · [docs/CHANGELOG.md](./CHANGELOG.md) `[2026-10-12]` · [docs/SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md) §6.2
+> **관련 문서**: [benchmarks/README.md](../benchmarks/README.md) · [docs/CHANGELOG.md](./CHANGELOG.md) `[2026-10-12]` · [docs/SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md) §6.2 · [docs/AI_MODEL_SPEC.md](./AI_MODEL_SPEC.md)

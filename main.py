@@ -20,6 +20,15 @@ import onnxruntime as ort
 import httpx
 
 from timeseries_cache import timeseries_cache
+from feature_schema import (
+    FeatureSchemaError,
+    legacy_25d_indices,
+    load_schema,
+    resolve_schema_path,
+    schema_feature_cols,
+    schema_summary,
+    validate_expected_order,
+)
 
 # ==============================================================================
 # 0. 로깅 및 환경 설정
@@ -193,6 +202,42 @@ DISTRICT_CODE_MAP: dict[str, int] = {
     "중구": 23,
     "중랑구": 24,
 }
+
+# 2025년 대한민국 공휴일 캘린더 (공휴일에 관한 법률 + 대체공휴일 + 임시공휴일·선거일)
+# - 포함 19일: 신정 / 설날 연휴(+임시공휴일 01-27) / 삼일절+대체 / 어린이날·부처님오신날+대체 /
+#             제21대 대통령선거일 / 현충일 / 광복절 / 개천절 / 추석 연휴+대체 / 한글날 / 성탄절
+# - 제외: 노동절(05-01), 제헌절(07-17) → 2025년 기준 법정 공휴일 아님
+# - 출처: 「공휴일에 관한 법률」 제2조·제3조, Office Holidays 2025, 위키백과 「대한민국의 공휴일」 대체공휴일 규정
+# - ⚠️ 학습 파이프라인(`benchmarks/CastTransit.ipynb` [Cell 4-A] `KR_HOLIDAYS_2025`)과
+#      반드시 동일한 집합을 유지할 것. 연도 추가 시 이 딕셔너리에 항목을 추가한다.
+KR_HOLIDAYS: dict[int, frozenset[str]] = {
+    2025: frozenset({
+        "2025-01-01",                                # 신정
+        "2025-01-27",                                # 임시공휴일(설 연휴 연결)
+        "2025-01-28", "2025-01-29", "2025-01-30",    # 설날 연휴
+        "2025-03-01", "2025-03-03",                  # 삼일절 + 대체공휴일
+        "2025-05-05", "2025-05-06",                  # 어린이날·부처님오신날 + 대체공휴일
+        "2025-06-03",                                # 제21대 대통령선거일
+        "2025-06-06",                                # 현충일
+        "2025-08-15",                                # 광복절
+        "2025-10-03",                                # 개천절
+        "2025-10-05", "2025-10-06", "2025-10-07", "2025-10-08",  # 추석 연휴 + 대체공휴일
+        "2025-10-09",                                # 한글날
+        "2025-12-25",                                # 성탄절
+    }),
+}
+
+
+def is_kr_public_holiday(dt: datetime) -> bool:
+    """해당 일자가 대한민국 공휴일(임시공휴일·선거일·대체공휴일 포함)인지 여부.
+
+    주말(토·일) 여부와는 별개 지표입니다. 사양서 §3.2의 `is_holiday` 피처는
+    "공휴일 여부"이므로 본 함수를 단일 소스로 사용합니다.
+    캘린더에 없는 연도는 False(0)를 반환하므로, 신규 연도 서빙 시
+    `KR_HOLIDAYS`에 해당 연도 집합을 추가해야 합니다.
+    """
+    return dt.strftime("%Y-%m-%d") in KR_HOLIDAYS.get(dt.year, frozenset())
+
 
 # 25개 자치구별 대중교통 인프라 가중치 (지하철 역사수, 버스 정류소수, 따릉이 거치대수, 상업지구 밀도)
 # - 서울 열린데이터광장 및 서울시 교통통계연보(2024/2025) 실측 전수 동기화
@@ -428,6 +473,98 @@ class ModelRegistry:
         self.bus_session: Optional[ort.InferenceSession] = None
         self.subway_session: Optional[ort.InferenceSession] = None
         self.is_loaded: bool = False
+        # 피처 스키마(단일 진실 공급원) — 기동 시 순서·차원 검증 결과를 보관한다.
+        self.schema: Optional[dict] = None
+        self.schema_path: Optional[Path] = None
+        self.schema_status: str = "not-checked"
+        self.model_input_dims: dict[str, int] = {}
+
+    def load_feature_schema(self):
+        """`feature_schema.json`(SSoT)을 읽어 피처 **차원·순서**를 검증한다.
+
+        - 스키마가 없으면 경고만 남기고 진행한다(스키마 미동봉 배포와의 호환).
+        - 순서가 어긋나면 `FeatureSchemaError` 로 **기동을 중단**한다(조용한 예측 붕괴 방지).
+        """
+        self.schema_path = resolve_schema_path()
+        if self.schema_path is None:
+            self.schema_status = "not-found"
+            logger.warning(
+                "feature_schema.json 을 찾지 못해 피처 순서 검증을 건너뜁니다 "
+                "(FEATURE_SCHEMA_PATH 환경변수로 경로를 지정할 수 있습니다)."
+            )
+            return
+        self.schema = load_schema(self.schema_path)
+        if self.schema is None:  # resolve 성공 후 None 은 불가능하지만 방어적으로 처리
+            self.schema_status = "not-found"
+            return
+        cols = validate_expected_order(
+            self.schema, FEATURE_ORDER_32, "main.py::FEATURE_ORDER_32"
+        )
+        self.schema_status = "verified"
+        logger.info(
+            f"[schema] 피처 스키마 검증 통과: model_version={self.schema.get('model_version')} | "
+            f"{len(cols)}차원 | order={self.schema.get('order')} | 출처={self.schema_path.as_posix()}"
+        )
+
+    def validate_model_dimensions(self):
+        """로드된 ONNX 세션의 입력 차원을 스키마(SSoT)와 대조한다.
+
+        - 스키마 차원과 동일 → 정렬 OK
+        - 25차원 → 레거시 서브셋(경고: 예측은 정상, 32차원 재학습 자산으로 교체 시 자동 정렬)
+        - 그 외 → `FeatureSchemaError`(잘못된 자산 반입 차단)
+        """
+        session_names = ("bike", "bus", "subway")
+        for name in session_names:
+            sess = getattr(self, f"{name}_session")
+            if sess is None:
+                continue
+            self.model_input_dims[name] = int(sess.get_inputs()[0].shape[1])
+
+        if self.schema is None:
+            return
+        schema_dim = len(schema_feature_cols(self.schema))
+        legacy_indices = legacy_25d_indices()
+
+        aligned, legacy_modes, unknown = [], [], {}
+        for name in session_names:
+            dim = self.model_input_dims.get(name)
+            if dim is None:
+                continue
+            if dim == schema_dim:
+                aligned.append(name)
+            elif dim == len(legacy_indices):
+                legacy_modes.append(name)
+            else:
+                unknown[name] = dim
+
+        if unknown:
+            raise FeatureSchemaError(
+                f"스키마({schema_dim}차원)와 맞지 않는 모델 입력 차원: {unknown} — "
+                f"{schema_dim}차원 또는 25차원 레거시 서브셋만 지원합니다."
+            )
+        for name in aligned:
+            logger.info(f"[schema] {name}: 입력 {schema_dim}차원 — 스키마 정렬 OK")
+        if legacy_modes:
+            logger.warning(
+                f"[schema] {legacy_modes}: 입력 25차원 레거시 서브셋으로 동작 중 "
+                f"(스키마 {schema_dim}차원 중 인덱스 {list(legacy_indices)} 사용). "
+                "32차원 재학습 자산으로 교체하면 자동 정렬됩니다."
+            )
+        if aligned and legacy_modes:
+            self.schema_status = "mixed-32d/25d"
+        elif legacy_modes:
+            self.schema_status = "legacy-subset-25d"
+        else:
+            self.schema_status = "verified"
+
+    def schema_report(self) -> dict:
+        """`/health` 응답용 피처 스키마 검증 요약."""
+        return schema_summary(
+            self.schema,
+            path=self.schema_path,
+            model_input_dims=self.model_input_dims,
+            status=self.schema_status,
+        )
 
     def load_models(self):
         logger.info("Initializing ONNX Inference Sessions with CPUExecutionProvider...")
@@ -446,6 +583,10 @@ class ModelRegistry:
         self.bike_session = ort.InferenceSession(str(bike_path), sess_options=sess_options, providers=["CPUExecutionProvider"])
         self.bus_session = ort.InferenceSession(str(bus_path), sess_options=sess_options, providers=["CPUExecutionProvider"])
         self.subway_session = ort.InferenceSession(str(subway_path), sess_options=sess_options, providers=["CPUExecutionProvider"])
+
+        # 피처 스키마(SSoT) 검증: 코드 순서 ↔ 스키마 ↔ 실제 ONNX 입력 차원
+        self.load_feature_schema()
+        self.validate_model_dimensions()
 
         # Cold Start 방지를 위한 더미 웜업 추론 수행
         self._warmup()
@@ -653,6 +794,26 @@ class HourlyForecastResponse(BaseModel):
 # ==============================================================================
 # 5. 사양서 규격의 32차원 Feature Vector 조립 함수 (build_feature_vector)
 # ==============================================================================
+# 피처 **이름과 순서의 코드 측 정의** — `build_feature_vector` 가 만드는 벡터 순서와 1:1 대응.
+# `feature_schema.json`(SSoT) 이 있으면 기동 시 이 순서와 assert 대조한다
+# (`ModelRegistry.load_feature_schema`) → 학습/평가/서빙 순서 드리프트 차단.
+FEATURE_ORDER_32 = [
+    # [0..7] 시계열 및 캘린더 피처
+    "month_sin", "month_cos", "hour_sin", "hour_cos",
+    "dayofweek", "is_weekend", "is_holiday", "is_rush_hour",
+    # [8..15] 기상 관측 및 파생 피처
+    "temperature", "wind_speed", "humidity", "precipitation",
+    "is_raining", "rain_intensity", "sensible_temp", "discomfort_index",
+    # [16..20] 공간(위치) 인코딩 피처
+    "district_code", "district_subway_stations", "district_bus_stops",
+    "district_bike_racks", "commercial_density",
+    # [21..31] 시계열 래그 및 이동통계 피처
+    "따릉이_대여_lag_1h", "버스_승차_lag_1h", "지하철_승차_lag_1h",
+    "따릉이_대여_roll_3h", "버스_승차_roll_3h", "지하철_승차_roll_3h",
+    "same_day_last_week_bike", "same_day_last_week_bus", "same_day_last_week_sub",
+    "temp_diff_1h", "rain_diff_1h",
+]
+
 def build_feature_vector(
     district: str,
     hour: int,
@@ -683,7 +844,9 @@ def build_feature_vector(
     month = dt.month
     dayofweek = dt.weekday()  # 0(월) ~ 6(일)
     is_weekend = 1 if dayofweek in (5, 6) else 0
-    is_holiday = 1 if is_weekend else 0
+    # is_holiday: 실제 대한민국 공휴일 캘린더(2025) 기준. 주말과는 별개 지표이며,
+    #             학습 파이프라인(`benchmarks/CastTransit.ipynb`)과 동일 정의를 사용한다.
+    is_holiday = 1 if is_kr_public_holiday(dt) else 0
     is_rush_hour = 1 if hour in (8, 9, 18, 19) else 0
 
     # 1. 시계열 및 캘린더 피처 (8)
@@ -758,21 +921,27 @@ def build_feature_vector(
         same_day_last_week_bike, same_day_last_week_bus, same_day_last_week_sub,
         temp_diff_1h, rain_diff_1h
     ]
+    # 코드 상수(FEATURE_ORDER_32)와 실제 조립 순서·차원이 어긋나면 즉시 실패시킨다.
+    # (기동 시 feature_schema.json 과도 대조되므로 학습↔서빙 드리프트가 조용히 통과하지 못한다.)
+    assert len(vector_32) == len(FEATURE_ORDER_32), (
+        f"피처 벡터 차원 불일치: 조립 {len(vector_32)} vs 정의 {len(FEATURE_ORDER_32)}"
+    )
     return vector_32
 
 def prepare_session_input(vector_32: list[float], session: ort.InferenceSession) -> np.ndarray:
     """
     32차원 피처 벡터를 로드된 ONNX 모델의 입력 텐서 차원에 맞게 정렬하여 반환합니다.
-    - 학습 모델 세션이 25차원을 기대하는 경우:
+    - 학습 모델 세션이 25차원(레거시 배포본)을 기대하는 경우:
       [0..15](시간+날씨), [16](구코드), [21..26](1h/3h 래그 6개), [30..31](기온/강수 변화량 2개) = 25차원
+      → 인덱스 정의의 단일 소스는 `feature_schema.legacy_25d_indices()` 입니다.
     - 32차원을 직접 지원하는 경우: 전체 32차원 전달
     """
-    expected_dim = session.get_inputs()[0].shape[1]
-    if expected_dim == 25:
-        indices = list(range(17)) + [21, 22, 23, 24, 25, 26, 30, 31]
-        vec = [vector_32[i] for i in indices]
+    expected_dim = int(session.get_inputs()[0].shape[1])
+    legacy_indices = legacy_25d_indices()
+    if expected_dim == len(legacy_indices):  # 25차원 레거시 서브셋
+        vec = [vector_32[i] for i in legacy_indices]
         return np.array([vec], dtype=np.float32)
-    elif expected_dim == 32:
+    elif expected_dim == len(FEATURE_ORDER_32):  # 32차원 = 스키마 정렬
         return np.array([vector_32], dtype=np.float32)
     else:
         if len(vector_32) >= expected_dim:
@@ -987,6 +1156,7 @@ async def health_check():
     return {
         "status": "ok",
         "models_loaded": registry.is_loaded,
+        "feature_schema": registry.schema_report(),
         "circuit_breakers": {
             "kma_weather": kma_circuit_breaker.state,
             "seoul_subway": subway_circuit_breaker.state,

@@ -50,6 +50,9 @@ raw_data/
 !models/*.onnx
 !data/*.json
 !data/*.db
+# SQLite WAL 저널/공유메모리 임시 파일 (컨테이너 런타임 산출물 — 커밋 제외)
+data/*.db-shm
+data/*.db-wal
 
 # Jupyter / Colab 임시 파일
 .ipynb_checkpoints/

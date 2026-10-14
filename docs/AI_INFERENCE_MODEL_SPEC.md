@@ -3,6 +3,7 @@
 > **최종 수정일**: 2026-09-30  
 > **대상 시스템**: Weather & Transit Web 프론트엔드 대시보드 (`Weather-Transport Recommendation UI`)  
 > **참조 데이터셋**: `data/2025_서울25개구_시간대별_교통_날씨_통합_01-23시.csv` (총 209,875건) 및 지하철 노선망 그래프 (`data/subway_graph.json`)
+> **모델 자산·규격 분리 문서**: [AI 모델 사양서 (AI_MODEL_SPEC.md)](./AI_MODEL_SPEC.md)
 
 ---
 
@@ -61,6 +62,7 @@
   - `pydantic >= 2.4.0` (입출력 스키마 유효성 검증)
 
 ### 2.3 성능 지표 및 제약조건 (SLA)
+> 🔗 이 절은 별도 문서로도 정리되어 있습니다: [AI 모델 사양서 §2](./AI_MODEL_SPEC.md#2-성능-지표-및-제약조건-sla)
 1. **추론 응답 지연 (Latency)**: 단일 요청 기준 **15ms 이하**, 배치(25개 구 전체) 요청 기준 **50ms 이하**
 2. **동시 처리량 (Throughput)**: 단일 프로세스 기준 **150 RPS(Requests Per Second) 이상**
 3. **모델 예측 정확도 (Accuracy Target)**:
@@ -75,11 +77,12 @@
 ## 3. 데이터 및 입출력 규격 (Input & Output Specifications)
 
 ### 3.1 원천 데이터셋 분석 (`2025_서울25개구_시간대별_교통_날씨_통합_01-23시.csv`)
+> 🔗 이 절은 별도 문서로도 정리되어 있습니다: [AI 모델 사양서 §3](./AI_MODEL_SPEC.md#3-데이터셋-및-입력-피처-규격)
 총 레코드 수: **209,875건** (365일 $\times$ 23개 시간대 $\times$ 서울시 25개 자치구 완전 그리드)
 
 | 컬럼명 | 데이터 타입 | 결측치 수 | 통계치 요약 (Min ~ Max, Mean) | 분석 및 전처리 지침 |
 | :--- | :--- | :--- | :--- | :--- |
-| `기준_날짜` | String (YYYY-MM-DD) | 0 | 2025-01-01 ~ 2025-12-31 | `월`, `일`, `요일`, `주말여부`, `공휴일여부` 파생변수 추출 |
+| `기준_날짜` | String (YYYY-MM-DD) | 0 | 2025-01-01 ~ 2025-12-31 | `월`, `일`, `요일`, `주말여부` 파생변수 추출 / `공휴일여부`는 **2025 대한민국 공휴일 캘린더(19일)** 로 판정 |
 | `시간` | Integer | 0 | 1 ~ 23시 (평균 12시) | 순환 주기형 변수 변환 ($\sin, \cos$ 인코딩) |
 | `구` | Categorical (String) | 0 | 25개 자치구 (강남구, 종로구 등) | One-Hot Encoding 또는 Target Encoding / 구 임베딩 |
 | `따릉이_대여` | Float / Integer | 173 | 1 ~ 2,633 (평균 174.6) | 자전거 대여 수요 (비 올 때 평균 183.6 → 38.2로 **-79.2% 급감**) |
@@ -97,6 +100,7 @@
 ---
 
 ### 3.2 모델 입력 피처 스키마 (Model Feature Matrix)
+> 🔗 이 절은 별도 문서로도 정리되어 있습니다: [AI 모델 사양서 §3.2](./AI_MODEL_SPEC.md#32-모델-입력-피처-스키마-model-feature-matrix)
 
 추론 파이프라인에 입력되는 최종 정제 피처는 총 **32개 차원**으로 구성됩니다.
 
@@ -109,7 +113,7 @@ FEATURE_SCHEMA = {
     "hour_cos": float,         # cos(2 * pi * hour / 24)
     "dayofweek": int,          # 0 (월) ~ 6 (일)
     "is_weekend": int,         # 1 if 토/일 else 0
-    "is_holiday": int,         # 공휴일 여부 (1 or 0)
+    "is_holiday": int,         # 공휴일 여부 (1 or 0) — 2025 대한민국 공휴일 캘린더 19일 기준
     "is_rush_hour": int,       # 출퇴근 시간대 (08~09시, 18~19시 = 1, 나머지 0)
     
     # 2. 기상 관측 및 파생 피처 (8차원)
@@ -143,6 +147,13 @@ FEATURE_SCHEMA = {
     "rain_diff_1h": float      # 전 시간 대비 강수량 변화량
 }
 ```
+
+> **📌 서빙 입력 계약(32차원) ≠ 모델 입력 텐서**
+> - 위 32차원은 백엔드가 **항상 조립하는 서빙 입력 계약**입니다 (`main.py::build_feature_vector`).
+> - 그러나 개별 배포 모델의 **입력 텐서 차원은 다를 수 있습니다**. 현재 `models/*.onnx`는 **25차원** 텐서를 기대하며, 이는 32차원에서 `district_subway_stations`, `district_bus_stops`, `district_bike_racks`, `commercial_density`(4) + `same_day_last_week_bike/bus/sub`(3) = **7차원을 제외한 부분집합**입니다.
+> - 서버는 `main.py::prepare_session_input()`에서 모델 기대 차원에 맞춰 자동 정렬(인덱스 매핑)하므로 25차원·32차원 모델이 공존할 수 있습니다.
+> - **학습 데이터**: 2026-10-13부터 원천이 `data/2025_서울25개구_교통날씨_전처리_2.csv` 로 전환되어, 위 7개 피처를 학습 파이프라인이 **실측값으로 직접 산출**합니다(인프라 4종은 `main.py::DISTRICT_INFRA` 조인, `same_day_last_week_*` 3종은 7일 전 타임스탬프 self-merge). 따라서 **"25차원 실피처 + 상수 0 더미 7" 방식은 폐기**되었습니다.
+> - **`is_holiday` 정의**: `is_weekend`(토/일)와 **별개 지표**이며, `main.py::KR_HOLIDAYS` 의 2025년 공휴일 19일 집합을 단일 소스로 사용합니다. 학습 노트북도 동일 집합(`KR_HOLIDAYS_2025`)을 사용해 학습↔서빙 정의를 일치시킵니다.
 
 ---
 
@@ -279,6 +290,8 @@ FEATURE_SCHEMA = {
 
 ## 4. AI 모델 아키텍처 및 파이프라인 (Model Architecture)
 
+> 🔗 이 절은 별도 문서로도 정리되어 있습니다: [AI 모델 사양서 §4](./AI_MODEL_SPEC.md#4-모델-아키텍처-및-파이프라인)
+
 ### 4.1 엔드투엔드 시스템 아키텍처
 
 ```mermaid
@@ -377,6 +390,8 @@ $$C_{\text{station}}(s) = \text{clip}\left( C_{\text{district}} \times \alpha(s)
 
 ## 5. 베이스 모델 추천 및 벤치마크 비교 (Base Model Recommendations)
 
+> 🔗 이 절은 별도 문서로도 정리되어 있습니다: [AI 모델 사양서 §5](./AI_MODEL_SPEC.md#5-베이스-모델-추천-및-벤치마크-비교)
+
 대중교통 수요 및 기상 시계열 데이터셋의 특성을 고려하여 4가지 모델 계열을 종합 평가하였습니다.
 
 ### 5.1 후보 모델군 종합 비교표
@@ -415,13 +430,16 @@ $$C_{\text{station}}(s) = \text{clip}\left( C_{\text{district}} \times \alpha(s)
    - 직전 주 및 익일 주 동일 요일 동시간대 데이터의 가중 중앙값(Weighted Median)으로 대체
 
 ### 6.2 Phase 2: 데이터셋 분할 전략 (Temporal Validation Split)
+> 🔗 이 절은 별도 문서로도 정리되어 있습니다: [AI 모델 사양서 §6.1](./AI_MODEL_SPEC.md#61-데이터셋-분할-전략-temporal-validation-split)
 일반적인 무작위 K-Fold 분할은 시계열 데이터에서 미래 정보가 과거로 누출(Data Leakage)되므로, **시간 축 기반 순차 분할(Temporal Split)**을 적용합니다.
 
 ```text
-[ 2025-01-01 ~ 2025-09-30 ] : Train Set (약 75%, 157,400건)
-[ 2025-10-01 ~ 2025-11-15 ] : Validation Set (약 12.5%, 26,200건) - 조기 종료 및 튜닝
-[ 2025-11-16 ~ 2025-12-31 ] : Test Set (약 12.5%, 26,275건) - 최종 일반화 검증
+[ 2025-01-01 ~ 2025-09-30 ] : Train Set      (약 75%,   156,975건) - 학습
+[ 2025-10-01 ~ 2025-11-15 ] : Validation Set (약 12.5%,  26,450건) - 조기 종료 및 튜닝
+[ 2025-11-16 ~ 2025-12-31 ] : Test Set       (약 12.5%,  26,450건) - 최종 일반화 검증
 ```
+
+> **✅ 경계 공식 확정 (2026-10-13)**: 인수 데이터셋(`전처리_2.csv`)의 `분할` 컬럼(`valid 10-01~10-31` / `test 11-01~12-31`)은 본 절과 다르므로 **사용하지 않고**, 본 절의 경계를 공식 기준으로 적용합니다(학습 노트북 `SPLIT_SOURCE = 'spec_dates'`, `benchmarks/evaluate_models.py` 동일).
 
 ---
 
@@ -470,6 +488,7 @@ def objective(trial, X_train, y_train, X_val, y_val, target_name):
 ---
 
 ### 6.4 Phase 4: ONNX 모델 포팅 (ONNX Export & Quantization)
+> 🔗 이 절은 별도 문서로도 정리되어 있습니다: [AI 모델 사양서 §6.2](./AI_MODEL_SPEC.md#62-onnx-모델-포팅-규격)
 학습된 LightGBM 모델을 ONNX 형식으로 변환하여 Python 런타임 종속성을 제거하고 추론 속도를 3배 이상 향상시킵니다.
 
 ```python

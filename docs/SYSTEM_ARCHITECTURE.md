@@ -139,10 +139,11 @@ flowchart TB
 - **런타임**: ONNX Runtime C++ 백엔드 (`CPUExecutionProvider`)
 - **멀티스레딩**: `intra_op_num_threads = 4` 설정으로 단일 코어 집중 방지 및 병렬 가속
 - **32차원 입력 특성 벡터 구조**:
-  - 캘린더/시계열 (8차원): $\sin/\cos$ 주기 변환, 요일, 주말/공휴일, 출퇴근 시간대
+  - 캘린더/시계열 (8차원): $\sin/\cos$ 주기 변환, 요일, 주말(`is_weekend`), 공휴일(`is_holiday` — **2025 대한민국 실제 공휴일 19일**, `main.py::KR_HOLIDAYS` / `is_kr_public_holiday()`), 출퇴근 시간대
   - 기상 관측/파생 (8차원): 기온, 풍속, 습도, 강수량, 강우강도(4단계), 체감온도 공식, 불쾌지수 공식
   - 공간/인프라 (5차원): 서울시 25개 구 정수 ID(0~24), 역사 수, 버스 정류소 수, 따릉이 거치대 수, 상업밀도
   - 시계열 래그/통계 (11차원): 수단별 1시간 래그, 3시간 이동평균, 전주 동요일 기본값, 전시간 대비 기온/강수 변화량
+  - **⚠️ 서빙 입력(32차원) ≠ 모델 입력 텐서**: 위 32차원은 `main.py::build_feature_vector()`가 조립하는 **서빙 입력 계약**이며, 현재 배포 모델(`models/*.onnx`)은 이 중 **25차원 부분집합**만 입력 텐서로 받습니다. 서버는 `main.py::prepare_session_input()`에서 32→25차원을 자동 정렬하므로 두 규격이 공존합니다(상세: §6.2 및 `docs/AI_INFERENCE_MODEL_SPEC.md` §3.2).
 
 ### 4.4 사후 처리 및 MCDA 의사결정 엔진
 - **혼잡도 지수 ($C_m$) 정규화**:
@@ -260,9 +261,17 @@ sequenceDiagram
 ### 6.2 모델 파일 규격 (`models/`)
 | 모델 파일명 | 원천 알고리즘 | 추론 타겟 | 입력 차원 | 파일 크기 | 추론 지연시간 |
 | :--- | :--- | :--- | :---: | :---: | :---: |
-| `lgb_bike_demand.onnx` | LightGBM GBDT | 따릉이 대여량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
-| `lgb_bus_demand.onnx` | LightGBM GBDT | 버스 승차량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
-| `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승·하차량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
+| `lgb_bike_demand.onnx` | LightGBM GBDT | 따릉이 대여량 | 32차원 Float | 약 7.0 MB | ~0.2 ms |
+| `lgb_bus_demand.onnx` | LightGBM GBDT | 버스 승차량 | 32차원 Float | 약 13.6 MB | ~0.2 ms |
+| `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승·하차량 | 32차원 Float | 약 7.3 MB | ~0.2 ms |
+
+> **📌 입력 차원 표기 해설 (25차원 vs 32차원)**
+> - 위 표의 **32차원**은 **현행 배포 모델의 입력 텐서 차원**입니다(`session.get_inputs()[0].shape == [None, 32]` · 2026-10-14 `benchmarks/2026-10-14/` → `models/` 반입).
+> - 서빙 입력 계약(§4.3 및 `docs/AI_INFERENCE_MODEL_SPEC.md` §3.2)도 **32차원**이라 배포 모델과 **문자 단위로 일치**하며, `/health.feature_schema.status = verified` 로 검증됩니다.
+> - 25차원은 32차원에서 **공간 인프라 4차원 + `same_day_last_week_*` 3차원 = 7차원**을 제외한 레거시 서브셋이며, `main.py::prepare_session_input()`이 모델이 기대하는 차원으로 자동 정렬하므로 **25차원 자산을 다시 넣어도 서빙은 계속 동작**합니다(`status` 는 `legacy-subset-25d` / `mixed-32d/25d` 로 보고).
+> - 구 벤치마크 후보(`benchmarks/2026-10-12/tuned/`, 32차원)는 25차원 실피처 + 상수 0 더미 7개로 구성되어 **정보량은 25차원과 동일**하고, **서빙에는 투입할 수 없습니다**(배치 비호환 · 인덱스 17 이후 어긋남). 평가 스크립트는 라벨별 배치(`v1`)를 지정해 **자기 배치 공정 비교에는 포함**합니다(`docs/MODEL_PERFORMANCE_REPORT.md` §0.3 — v1 이 배포본보다 12개 지표 전부 우세).
+> - **롤백·대안 자산**: ① `benchmarks/original/`(25차원 배포본 스냅샷 — 복사만 하면 즉시 원복) ② `benchmarks/2026-10-14/tuned_25d/`(v2 튜닝 + 25차원 서브셋 재학습 — bus·subway 전 지표 개선, `docs/MODEL_PERFORMANCE_REPORT.md` §0.4). 교체 결정·검증 이력: `docs/TODO.md` §4 · `docs/CHANGELOG.md` [2026-10-14] §6.
+> - **피처 스키마(SSoT) 검증**: 서버는 기동 시 `feature_schema.json` 을 읽어 **스키마 ↔ `main.py::FEATURE_ORDER_32` ↔ ONNX 입력 차원**을 3중 대조하고(`feature_schema.py::ModelRegistry.load_feature_schema`), 결과를 `GET /health.feature_schema` 로 노출합니다. 순서 불일치 시 **기동을 중단**해 배치 오적용(예: v1 32차원 자산의 조용한 예측 붕괴)을 원천 차단합니다.
 
 ---
 

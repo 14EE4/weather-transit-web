@@ -22,6 +22,7 @@
 
 - **백엔드**: `main.py` (단일 파일, 1960줄, FastAPI)
   - `timeseries_cache.py` (시계열 래그/기상 차분 인메모리 캐시)
+  - `feature_schema.py` (피처 스키마 SSoT 로더·검증 — 기동 시 차원·순서 assert)
   - `models/*.onnx` (따릉이/버스/지하철 수요예측 모델 3종, 기동 시 메모리 로딩)
 - **프론트엔드**: `Weather-Transport Recommendation UI/src/` (App.tsx, TransitMap.tsx가 `fetch`로 직접 호출)
 - **리버스 프록시**: `nginx.conf` → 프론트 컨테이너가 `/api/` 와 `/health` 를 백엔드(`backend:8000`)로 프록시 (CORS 원천 해소)
@@ -54,9 +55,17 @@
 **GET `/health`** — 파라미터 없음
 ```json
 { "status": "ok", "models_loaded": true,
+  "feature_schema": { "path": "benchmarks/2026-10-14/feature_schema.json", "status": "verified",
+                      "model_version": "v2-전처리_2-32d", "feature_dim": 32,
+                      "model_input_dims": { "bike": 32, "bus": 32, "subway": 32 } },
   "circuit_breakers": { "kma_weather":"CLOSED","seoul_subway":"CLOSED","seoul_bus":"CLOSED" },
   "available_districts": ["강남구", "..."], "timestamp": "..." }
 ```
+
+- `feature_schema` 는 **기동 시 피처 스키마(SSoT) 검증 결과**입니다(`feature_schema.py` → `main.py::ModelRegistry`).
+  - `status`: **`verified`(현행 배포 상태 — 모델 입력 차원 = 스키마 차원, 2026-10-14 32차원 교체)** / `legacy-subset-25d`(25차원 레거시 자산을 배포 슬롯에 반입한 경우) / `mixed-32d/25d`(수단별 혼합) / `not-found`(스키마 미발견 → 검증 생략)
+  - 스키마 순서가 코드(`main.py::FEATURE_ORDER_32`)와 다르면 **서버가 기동하지 않습니다**(조용한 예측 붕괴 방지).
+  - 경로 재정의: `FEATURE_SCHEMA_PATH` 환경변수(미지정 시 `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json` 자동 탐색).
 
 **GET `/api/v1/system/circuit-breakers`** — 3개 서킷브레이커의 상태/실패횟수/쿨다운 잔여시간/누적성공·폴백 + 스냅샷 캐시 개수 반환
 

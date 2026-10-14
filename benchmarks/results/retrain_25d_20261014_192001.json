@@ -1,0 +1,129 @@
+{
+  "generated_at": "2026-10-14T19:20:01",
+  "experiment": "차원 vs 튜닝 분리 — 동일 v2 파라미터 + 25차원 서빙 서브셋 재학습",
+  "meta": {
+    "csv": "data/2025_서울25개구_교통날씨_전처리_2.csv",
+    "legacy_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      30,
+      31
+    ],
+    "params_source": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\2026-10-14\\feature_schema.json",
+    "schema_model_version": "v2-전처리_2-32d",
+    "export_dir": "benchmarks/2026-10-14/tuned_25d"
+  },
+  "exported": [
+    "benchmarks/2026-10-14/tuned_25d/lgb_bike_demand.onnx",
+    "benchmarks/2026-10-14/tuned_25d/lgb_bus_demand.onnx",
+    "benchmarks/2026-10-14/tuned_25d/lgb_subway_demand.onnx",
+    "benchmarks/2026-10-14/tuned_25d/feature_schema.json"
+  ],
+  "results": {
+    "bike": {
+      "r2": 0.9883123543088536,
+      "rmse": 16.66643062198574,
+      "mae": 9.676670135232538,
+      "mape_pct_nonzero": 16.19481556204565,
+      "n": 26450,
+      "best_iteration": 680,
+      "frozen_params": {
+        "learning_rate": 0.08811950498925582,
+        "num_leaves": 109,
+        "max_depth": 10,
+        "subsample": 0.6523792755919405,
+        "colsample_bytree": 0.6790616323310082,
+        "reg_alpha": 0.0024082899040478675,
+        "reg_lambda": 0.011453737805966376
+      },
+      "reference_v2_32d": {
+        "r2": 0.9872871387225873,
+        "rmse": 17.382039560409765,
+        "mae": 9.669415831990186,
+        "best_iteration": 834
+      },
+      "delta_vs_v2_32d": {
+        "r2": 0.001025215586266226,
+        "rmse": -0.7156089384240261,
+        "mae": 0.007254303242351767
+      }
+    },
+    "bus": {
+      "r2": 0.9911849700203399,
+      "rmse": 528.6187360351473,
+      "mae": 342.72112269266165,
+      "mape_pct_nonzero": 14.06959288077226,
+      "n": 26450,
+      "best_iteration": 1498,
+      "frozen_params": {
+        "learning_rate": 0.09703869938657278,
+        "num_leaves": 126,
+        "max_depth": 10,
+        "subsample": 0.8605477792677568,
+        "colsample_bytree": 0.6661090758204229,
+        "reg_alpha": 3.2075582423454496,
+        "reg_lambda": 0.40019714909533227
+      },
+      "reference_v2_32d": {
+        "r2": 0.9900594762233543,
+        "rmse": 561.3520194125099,
+        "mae": 370.4409844971906,
+        "best_iteration": 1390
+      },
+      "delta_vs_v2_32d": {
+        "r2": 0.001125493796985566,
+        "rmse": -32.73328337736257,
+        "mae": -27.719861804528932
+      }
+    },
+    "subway": {
+      "r2": 0.9934503029427587,
+      "rmse": 769.3175383002115,
+      "mae": 330.8713269806191,
+      "mape_pct_nonzero": 4.9625026533471175,
+      "n": 26450,
+      "best_iteration": 446,
+      "frozen_params": {
+        "learning_rate": 0.09807115232677817,
+        "num_leaves": 117,
+        "max_depth": 8,
+        "subsample": 0.6620109779156034,
+        "colsample_bytree": 0.7180910290353443,
+        "reg_alpha": 0.9148471286354888,
+        "reg_lambda": 0.085461631351953
+      },
+      "reference_v2_32d": {
+        "r2": 0.9951487849247284,
+        "rmse": 662.0949742849008,
+        "mae": 277.63284223928423,
+        "best_iteration": 865
+      },
+      "delta_vs_v2_32d": {
+        "r2": -0.0016984819819696462,
+        "rmse": 107.2225640153107,
+        "mae": 53.238484741334844
+      }
+    }
+  }
+}

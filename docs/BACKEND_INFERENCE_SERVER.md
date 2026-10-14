@@ -242,10 +242,24 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 {
   "status": "ok",
   "models_loaded": true,
+  "feature_schema": {
+    "path": "benchmarks/2026-10-14/feature_schema.json",
+    "status": "legacy-subset-25d",
+    "model_version": "v2-전처리_2-32d",
+    "feature_dim": 32,
+    "model_input_dims": { "bike": 25, "bus": 25, "subway": 25 }
+  },
   "available_districts": ["강남구", "강동구", "...", "중랑구"],
   "timestamp": "2026-10-05T19:55:53+09:00"
 }
 ```
+
+#### 피처 스키마(SSoT) 기동 검증
+- 서버는 모델 로딩 직후 [`feature_schema.py`](../feature_schema.py) 가 제공하는 검증을 수행합니다.
+  1. 스키마 탐색: `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`
+  2. 스키마 `feature_cols` 순서 == `main.py::FEATURE_ORDER_32` assert(불일치 시 **기동 중단**)
+  3. 각 ONNX 세션 입력 차원 == 스키마 차원(32) 또는 25차원 레거시 서브셋인지 확인(그 외 차원이면 기동 중단)
+- 결과는 `/health.feature_schema.status` 로 노출되며, 25차원 레거시로 동작 중이면 **경고 로그**를 남깁니다.
 
 ---
 

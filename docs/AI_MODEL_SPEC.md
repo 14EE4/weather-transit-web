@@ -322,6 +322,12 @@ print("ONNX 모델 변환 및 저장 완료: models/lgb_subway_demand.onnx")
 | `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승·하차량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
 
 - **입력 계약 vs 텐서**: 서빙 입력 계약은 32차원(§3.2)이나 배포 모델 입력 텐서는 **25차원**이며, `main.py::prepare_session_input()`이 자동 정렬합니다.
+- **피처 스키마 SSoT (2026-10-14)**: `benchmarks/2026-10-14/feature_schema.json` 을 **평가·서빙 코드가 직접 읽어 차원·순서를 assert** 합니다.
+  - 서빙: 기동 시 `feature_schema.py::ModelRegistry.load_feature_schema()` → 스키마 ↔ `main.py::FEATURE_ORDER_32` ↔ ONNX 입력 차원 3중 대조 · 결과는 `GET /health.feature_schema`(`verified` / `legacy-subset-25d` / `not-found`)
+  - 평가: `benchmarks/evaluate_models.py --schema PATH`(미지정 시 자동 탐색) · `verify_feature_schema()` 가 순서·타깃·분할 경계를 검증
+  - 테스트: `python tests/test_feature_schema.py` (7종) · 경로 재정의는 `FEATURE_SCHEMA_PATH` 환경변수
+- **신규 32차원 후보(실피처)**: `benchmarks/2026-10-14/` — 2026-10-14 Colab 실행으로 학습된 v2 노트북(실제 32차원 8/8/5/11) 산출물 3종 + `feature_schema.json` 이며, 공정 재평가·`models/` 반영 전까지는 벤치마크 전용입니다. (구 배치 위치 `benchmarks/2026-10-12/tuned_real/` 은 안내 README 만 남긴 **종료 폴더**)
+- **25차원 재학습 후보(서빙 정렬 가능)**: `benchmarks/2026-10-14/tuned_25d/` — `benchmarks/retrain_25d.py` 가 v2 튜닝 파라미터를 고정하고 피처만 25차원 서빙 서브셋으로 줄여 재학습한 실험본(입력 `[None, 25]`, `model_version: v2-전처리_2-25d-retrain`)입니다. 교체 판단 재료는 `docs/MODEL_PERFORMANCE_REPORT.md` §0.4 · `docs/TODO.md` §4 참조.
 - **신규 32차원 후보(실피처)**: `benchmarks/2026-10-14/` — 2026-10-14 Colab 실행으로 학습된 v2 노트북(실제 32차원 8/8/5/11) 산출물 3종 + `feature_schema.json` 이며, 공정 재평가·`models/` 반영 전까지는 벤치마크 전용입니다. (구 배치 위치 `benchmarks/2026-10-12/tuned_real/` 은 안내 README 만 남긴 **종료 폴더**)
 - **구 32차원 후보(서빙 불가 · 벤치마크 참고)**: `benchmarks/2026-10-12/tuned/` — 25차원 실피처 + 상수 0 더미 7로 학습되어 **배치 순서가 사양과 다르므로 서빙에 투입하지 않습니다.** 다만 평가 스크립트는 라벨별 배치(`MODEL_LAYOUTS["tuned_32d_v1"] = "v1"`)를 지정해 **자기 배치로 공정 비교에 포함**합니다(2026-10-14 개정 → `docs/MODEL_PERFORMANCE_REPORT.md` §0.3: v1 이 배포본보다 12개 지표 전부 우세).
 - 모델 자산 목록·해시·폴더 구조·평가 규약: [benchmarks/README.md](../benchmarks/README.md)

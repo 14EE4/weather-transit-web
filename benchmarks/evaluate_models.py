@@ -14,6 +14,8 @@ v1 → v2 핵심 변경
   5. 단일 소스     : district_code / 인프라 4종 / 공휴일 캘린더를 `main.py` 에서 직접 import
                      → 학습↔서빙 피처 정의 드리프트 원천 차단
   6. 레거시 참고치 : 25차원 배포 모델은 학습 당시 분포(is_holiday 상수 0) 결과를 1행 더 병기
+  7. 피처 스키마   : `feature_schema.json`(SSoT) 을 읽어 **차원·순서·타깃·분할 경계를 assert**
+                     (경로 자동 탐색 / `--schema PATH` / 환경변수 `FEATURE_SCHEMA_PATH`)
 
 비교 대상 (기본값, `--model LABEL=PATH` 로 추가/덮어쓰기 가능)
     * production_25d : benchmarks/original/lgb_{mode}_demand.onnx   (배포본, 25차원)
@@ -38,6 +40,7 @@ v1 → v2 핵심 변경
     python benchmarks/evaluate_models.py                    # 배포본 / v1 32d / v2 32d 실피처 3종 동시 비교
     python benchmarks/evaluate_models.py --model tuned_32d_real=benchmarks/2026-10-14
     python benchmarks/evaluate_models.py --layout tuned_32d_real=v1   # 배치 강제(인덱스 어긋남 주의)
+    python benchmarks/evaluate_models.py --schema benchmarks/2026-10-14/feature_schema.json  # SSoT 경로 명시
 ================================================================================
 """
 from __future__ import annotations
@@ -59,8 +62,18 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# 피처 정의의 유일한 소스 = 서빙 코드(main.py)
+# 피처 정의의 유일한 소스 = 서빙 코드(main.py) + 피처 스키마(feature_schema.json, SSoT)
 from main import DISTRICT_CODE_MAP, DISTRICT_INFRA, KR_HOLIDAYS  # noqa: E402
+from feature_schema import (  # noqa: E402
+    legacy_25d_cols,
+    legacy_25d_indices,
+    load_schema,
+    resolve_schema_path,
+    schema_feature_cols,
+    validate_expected_order,
+    validate_split_bounds,
+    validate_targets,
+)
 
 CSV_PATH = ROOT / "data" / "2025_서울25개구_교통날씨_전처리_2.csv"
 BENCH_DIR = ROOT / "benchmarks"
@@ -90,6 +103,8 @@ SAME_DAY_SUFFIX = {
 # Temporal Split 경계 (docs/AI_MODEL_SPEC.md §6.1 · 공식)
 TRAIN_END = "2025-09-30"
 VAL_END = "2025-11-15"
+TEST_START = "2025-11-16"
+TEST_END = "2025-12-31"
 
 # 32차원 피처 순서 (main.py::build_feature_vector 인덱스 0~31 과 완전 일치)
 FEATURE_COLS_32 = [
@@ -110,7 +125,8 @@ FEATURE_COLS_32 = [
 ]
 
 # main.py::prepare_session_input 이 25차원 세션에 전달하는 인덱스와 동일한 서브셋
-LEGACY_25D_INDICES = list(range(17)) + [21, 22, 23, 24, 25, 26, 30, 31]
+# (인덱스 정의의 단일 소스 = feature_schema.LEGACY_25D_INDICES)
+LEGACY_25D_INDICES = list(legacy_25d_indices())
 FEATURE_COLS_25 = [FEATURE_COLS_32[i] for i in LEGACY_25D_INDICES]
 IS_HOLIDAY_INDEX = FEATURE_COLS_32.index("is_holiday")
 
@@ -136,6 +152,10 @@ MODEL_LAYOUTS: dict[str, str] = {
 }
 LAYOUT_ORDER = ("v2", "v1")  # `--layout` 허용값(문서·검증용)
 BASELINE_LABEL = "production_25d"  # 델타 기준(배포본 25차원)
+
+# `is_holiday` 가 상수 0 인 데이터로 학습된 **레거시** 자산만 참고치(reference_ih0)를 병기합니다.
+# (2026-10-14 이후 신규 학습 자산은 실제 공휴일 19일 캘린더로 학습되므로 참고치가 무의미)
+LEGACY_IH0_LABELS = frozenset({"production_25d", "tuned_32d_v1"})
 
 # 레이턴시 측정 반복 횟수(웜업 20회 제외)
 LATENCY_ITERS = 200
@@ -319,6 +339,18 @@ def asset_inventory() -> dict[str, str]:
 
 
 # ---------------------------------------------------------------- 결과 포매팅
+def _md_schema_line(results: dict) -> str:
+    """피처 스키마(SSoT) 검증 결과를 한 줄로 요약 — 리포트 재현성/게이트 근거."""
+    spec = results.get("feature_spec", {}).get("schema") or {}
+    if not spec.get("enabled"):
+        return "미발견 → 내장 `FEATURE_COLS_32` 상수 사용 (순서 검증 생략)"
+    checks = " / ".join(spec.get("checks", []))
+    return (
+        f"`{spec.get('path')}` (model_version={spec.get('model_version')}, "
+        f"{spec.get('feature_dim')}차원) — **{spec.get('status')}** · {checks}"
+    )
+
+
 def _md_table(results: dict) -> str:
     lines = [
         "| 모델 | 수단 | 입력차원 | 피처 배치 | R² | RMSE | MAE | MAPE(실측0제외) | 레이턴시(ms) | 파일(byte) |",
@@ -446,6 +478,88 @@ def parse_model_overrides(pairs: list[str]) -> dict[str, Path]:
     return out
 
 
+# ------------------------------------------------------- 피처 스키마(SSoT) 검증
+def verify_feature_schema(explicit_path: str | None) -> dict:
+    """`feature_schema.json`(SSoT)을 읽어 이 스크립트의 피처 정의와 대조한다.
+
+    검증 항목: ① feature_cols 순서·차원 == 코드 상수(`FEATURE_COLS_32` 또는 25차원 배치면 `FEATURE_COLS_25`)
+              ② targets 매핑 == `TARGETS`
+              ③ split 경계 == 사양서 §6.1(`TRAIN_END`/`VAL_END`/`TEST_START`/`TEST_END`)
+              ④ 32차원 스키마면 25차원 레거시 서브셋 명칭 == `FEATURE_COLS_25`
+
+    반환값은 결과 리포트에 그대로 실린다(`feature_spec.schema`). 불일치면 예외로 중단.
+    스키마 미발견 시에는 내장 상수로만 진행하고 `status='skipped'` 로 기록한다.
+    """
+    info: dict = {"enabled": False, "path": None, "status": "skipped"}
+    schema_path = resolve_schema_path(explicit_path)
+    if schema_path is None:
+        print(
+            "[schema] feature_schema.json 미발견 → 내장 FEATURE_COLS_32 상수를 사용합니다 "
+            "(검증 생략. `--schema PATH` 또는 FEATURE_SCHEMA_PATH 로 지정 가능)"
+        )
+        return info
+
+    try:
+        display = schema_path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        display = str(schema_path)
+
+    schema = load_schema(schema_path)
+    cols = schema_feature_cols(schema)
+    validate_targets(schema, TARGETS)
+    validate_split_bounds(schema, TRAIN_END, VAL_END, TEST_START, TEST_END)
+
+    common_checks = [
+        "targets 매핑 일치 (bike/bus/subway)",
+        f"split 경계 일치 (train≤{TRAIN_END} / valid≤{VAL_END} / test={TEST_START}~{TEST_END})",
+    ]
+    if len(cols) == len(FEATURE_COLS_32):
+        validate_expected_order(
+            schema, FEATURE_COLS_32, "benchmarks/evaluate_models.py::FEATURE_COLS_32"
+        )
+        subset = legacy_25d_cols(schema)
+        assert subset == FEATURE_COLS_25, (
+            "25차원 레거시 서브셋 피처명 불일치\n"
+            f"  - 스키마: {subset}\n  - 평가 스크립트: {FEATURE_COLS_25}"
+        )
+        layout_note = "32차원 실피처 배치(사양서 §3.2)"
+        checks = [
+            f"feature_cols {len(cols)}차원 순서 == evaluate_models.py::FEATURE_COLS_32",
+            *common_checks,
+            f"25차원 레거시 서브셋 {len(subset)}개 명칭 일치",
+        ]
+    elif len(cols) == len(FEATURE_COLS_25):
+        validate_expected_order(
+            schema, FEATURE_COLS_25, "benchmarks/evaluate_models.py::FEATURE_COLS_25"
+        )
+        layout_note = "25차원 서빙 서브셋 배치(레거시/25차원 재학습본)"
+        checks = [
+            f"feature_cols {len(cols)}차원 순서 == evaluate_models.py::FEATURE_COLS_25",
+            *common_checks,
+            "배포 슬롯 25차원 모델과 동일 배치(서빙 정렬 가능)",
+        ]
+    else:
+        raise FeatureSchemaError(
+            f"지원하지 않는 스키마 차원입니다: {len(cols)} "
+            f"(32차원 실피처 또는 25차원 서빙 서브셋만 지원)"
+        )
+
+    info.update({
+        "enabled": True,
+        "path": display,
+        "model_version": schema.get("model_version"),
+        "status": "PASS",
+        "feature_dim": len(cols),
+        "layout": layout_note,
+        "checks": checks,
+    })
+    print(
+        f"[schema] PASS — {display} (model_version={info['model_version']}, {len(cols)}차원 · "
+        f"{layout_note}) | 순서·타깃·분할 assert 통과"
+    )
+    return info
+
+
 def parse_layout_overrides(pairs: list[str]) -> dict[str, str]:
     """`--layout LABEL=v1|v2` 인자를 (라벨 -> 배치) 딕셔너리로 변환."""
     out: dict[str, str] = {}
@@ -472,6 +586,11 @@ def main() -> None:
         "--layout", action="append", default=[], metavar="LABEL=v1|v2",
         help="라벨별 피처 배치 덮어쓰기 (v1=25차원+상수 0 더미 7 / v2=사양서 §3.2 32차원, 기본 v2)",
     )
+    parser.add_argument(
+        "--schema", default=None, metavar="PATH",
+        help="피처 스키마(feature_schema.json) 경로 — 미지정 시 자동 탐색 "
+             "(models/ → benchmarks/2026-10-14/), FEATURE_SCHEMA_PATH 환경변수로도 지정 가능",
+    )
     args = parser.parse_args()
 
     model_sets = dict(MODEL_SETS)
@@ -484,6 +603,9 @@ def main() -> None:
         csv_display = str(csv_path.resolve().relative_to(ROOT))
     except ValueError:
         csv_display = str(csv_path)
+
+    # 피처 스키마(SSoT) 검증 — 무거운 CSV 로드 이전에 순서/차원을 확정한다.
+    schema_info = verify_feature_schema(args.schema)
 
     df = load_and_engineer(csv_path)
 
@@ -517,9 +639,9 @@ def main() -> None:
 
     def pick_input(dim: int, layout: str) -> tuple[np.ndarray | None, str]:
         """(ONNX 입력 차원, 라벨 배치) -> (평가 행렬, 실제 사용 배치 라벨)."""
-        if dim == 25:
+        if dim == len(LEGACY_25D_INDICES):  # 25차원 레거시 서브셋(배포본)
             return X25, "25d-subset"
-        if dim == 32:
+        if dim == len(FEATURE_COLS_32):  # 32차원(배치에 따라 v1/v2)
             key = "v1-32d-dummy7" if layout == "v1" else "v2-32d-real"
             return X_BY_LAYOUT[key], key
         return None, f"unsupported-{dim}"
@@ -542,13 +664,17 @@ def main() -> None:
                 "25d-subset": "배포본 25차원 부분집합 (공간 인프라 4 + same_day 3 제외)",
             },
             "holiday_calendar": sorted({d for days in KR_HOLIDAYS.values() for d in days}),
-            "source_of_truth": "main.py (DISTRICT_CODE_MAP / DISTRICT_INFRA / KR_HOLIDAYS)",
+            "schema": schema_info,
+            "source_of_truth": (
+                "feature_schema.json (피처 순서·차원) + "
+                "main.py (DISTRICT_CODE_MAP / DISTRICT_INFRA / KR_HOLIDAYS)"
+            ),
         },
         "split": {
             "source": "docs/AI_MODEL_SPEC.md §6.1 (spec_dates)",
             "train": f"2025-01-01 ~ {TRAIN_END}",
             "val": f"2025-10-01 ~ {VAL_END}",
-            "test": "2025-11-16 ~ 2025-12-31",
+            "test": f"{TEST_START} ~ {TEST_END}",
         },
         "n_test": int(test_mask.sum()),
         "asset_sha256": asset_inventory(),
@@ -586,8 +712,9 @@ def main() -> None:
             m["file_size_bytes"] = onnx_path.stat().st_size
             m["sha256"] = sha256_file(onnx_path)
             m["latency_ms_1row"] = round(measure_latency(sess, X[:1]), 4)
-            # is_holiday 가 상수 0 인 데이터로 학습된 자산(배포본 25d / v1)만 참고치를 남긴다
-            ref_X = X_IH0_BY_LAYOUT.get(used_layout)
+            # is_holiday 가 상수 0 인 데이터로 학습된 자산(배포본 25d / v1)만 참고치를 남긴다.
+            # ⚠️ 새로 학습된 25차원 자산(예: tuned_25d)은 공휴일 실값을 학습했으므로 제외한다.
+            ref_X = X_IH0_BY_LAYOUT.get(used_layout) if label in LEGACY_IH0_LABELS else None
             if ref_X is not None:
                 pred0 = np.clip(sess.run(None, {ins: ref_X})[0].reshape(-1), 0.0, None)
                 m["reference_ih0"] = regression_metrics(y_true[mode], pred0)
@@ -613,6 +740,7 @@ def main() -> None:
         f"- 평가 데이터: `{results['csv']}`",
         f"- Test 구간: {results['split']['test']} (n={results['n_test']:,}, source={results['split']['source']})",
         f"- 피처: {results['feature_spec']['version']} — v2 32차원 실피처(더미 0 없음), 공휴일 캘린더 19일 적용",
+        f"- 피처 스키마(SSoT): {_md_schema_line(results)}",
         "- 모델은 각자 **자기 세대의 피처 배치**로 평가했습니다(v1 배치는 25차원 + 상수 0 더미 7 재현).",
         "- MAPE 는 실측 0(심야 운휴 등) 제외.",
         "",

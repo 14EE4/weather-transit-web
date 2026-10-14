@@ -62,19 +62,27 @@
   - **해석 주의(교란 3중)**: 신규 후보는 ① 32차원 ② Optuna 튜닝 ③ 신규 원천(`전처리_2`)이 **동시에** 바뀐 모델이고, 배포본은 구 원천·25차원입니다. 순수 "차원 증가 효과"는 아래 25차원 재학습으로만 분리됩니다
 - [x] **배포 판단 (Gate) — 전면 교체 보류 (2026-10-14)** — 3수단 전부 유의 우세 조건 **미충족**(bike R²·RMSE 열세 / bus MAPE 열세 / subway 우세) → **`models/` 는 25차원 유지**
   - 다음 단계: **수단별 교체 검토**(지하철 우선) 또는 **25차원 재학습 결과와 비교** 후 확정
-- [x] **전 세대(3종) 동시 비교 실행 (2026-10-14)** — 평가 스크립트에 **라벨별 피처 배치**(`MODEL_LAYOUTS` + `--layout LABEL=v1|v2`)를 도입해 구 후보(v1 배치)까지 **자기 배치로** 비교 → `benchmarks/results/comparison_20261014_190055.{json,md}`
+- [x] **전 세대(3종) 동시 비교 실행 (2026-10-14)** — 평가 스크립트에 **라벨별 피처 배치**(`MODEL_LAYOUTS` + `--layout LABEL=v1|v2`)를 도입해 구 후보(v1 배치)까지 **자기 배치로** 비교 → `benchmarks/results/comparison_20261014_192204.{json,md}` (4-way 확장, 구 `190055` 대체)
   - v1 배치 행렬은 **25차원 서브셋 + 상수 0 더미 7** 로 재현(구 스크립트 `ef1d03d` 의 `FEATURE_COLS` + `infra_dummy_0..6` 정의와 일치 확인) · 레거시 자산은 `is_holiday = 0` 참고치 병기
   - **교차검증 통과**: 구 v1 프레임 보고치 재현 — bike R² **0.9893** / subway R² **0.9940** 동일, subway MAE 개선폭 **−19.2%** 동일 → v1 배치 재구성 정확. (bus 만 프레임 차이로 이동: R² 0.9908→0.9923 — 배포본도 0.9882→0.9897 로 같은 방향)
   - **결과**: v1 이 **12개 지표 전부 배포본보다 우세**(MAE bike −4.4% / bus −15.4% / subway −19.2%) · **동일 프레임 v1 vs v2 직접 비교 시 bike·bus 는 v1, subway 는 v2 우세**
-  - ⇒ **우선순위 변경**: ① **25차원 재학습(v2 파라미터) 최우선**(v1 = 그 서빙 가능 버전의 기대치), ② 수단별 교체는 **지하철 단독**만 근거 있음
+  - ⇒ **우선순위 변경**: ① **25차원 재학습(v2 파라미터) 최우선**(v1 = 그 서빙 가능 버전의 기대치) → **2026-10-14 실행 완료**(아래 항목), ② 수단별 교체는 **지하철 단독**만 근거 있음
   - 리포트에 **배포본 대비 델타 표**·**SHA256 자산 무결성** 절 자동 생성(`models/` ≡ `benchmarks/original/` **동일 자산** 검출)
   - ⚠️ v1 은 **서빙 불가**(32차원 모델에 32차원 실피처 벡터가 그대로 들어가면 인덱스 17 이후 어긋남) → **판단 보조 지표**로만 사용
   - 교체 확정 시: `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 의 "25차원 부분집합" 서술 정리
   - 교체 후 검증: `python tests/test_inference.py`(32차원 정합성·레이턴시 SLA) · `python tests/test_api.py`
 - [ ] **해석 주의 (P0-1 미해결)** — 테스트 구간 `버스_승차` 결측 24.59%(8,625행 보간) 영향으로 **버스 수치는 잠정치**. 원천 재수집 또는 평가구간 축소 합의 후 확정
-- [ ] **차원 vs 튜닝 분리 실험 (신설 · 최우선)** — 동일 `study.best_params` + **25차원 서브셋** 재학습 → 동일 테스트 구간 재비교 (`docs/MODEL_PERFORMANCE_REPORT.md` §7 후속 과제)
-  - v1 재평가(위)로 **기대 근거 확보**: 25차원 정보량 + 튜닝만으로도 배포본을 12개 지표 전부 상회 → 재학습 시 서빙 가능한 개선본 확보 가능성이 큼
-  - 학습 경로: 현행 노트북(v2)은 `assert len(FINAL_FEATURE_COLS) == 32` 로 32차원을 강제하므로, **[Cell 4-B]/[Cell 7] 의 `FINAL_FEATURE_COLS` 를 25차원 서브셋으로 치환한 실행 사본**으로 export (`main.py::prepare_session_input` 의 25차원 인덱스 `range(17) + [21..26] + [30,31]` 와 동일 순서) + [Cell 6-1] 튜닝은 동일 `study.best_params` 고정
-- [ ] **`feature_schema.json` SSoT 소비 (신설)** — 평가 스크립트·서빙이 스키마를 읽어 **차원·순서를 assert** 하도록 전환(피처 불일치 재발 원천 차단)
+- [x] **차원 vs 튜닝 분리 실험 (2026-10-14 완료)** — 동일 `study.best_params` 고정 + **25차원 서빙 서브셋** 재학습 → 4-way 재비교 (`benchmarks/results/comparison_20261014_192204.{json,md}`)
+  - 도구: `benchmarks/retrain_25d.py` (스키마 SSoT 의 `metrics.*.tuned.best_params` 소비, `--export` 로 ONNX·25차원 스키마 반출) → 산출물 `benchmarks/2026-10-14/tuned_25d/`
+  - **결과**: 튜닝 파라미터를 고정하고 25차원으로 줄여도 배포본을 상회 — bus MAE −26.6 / subway MAE −38.9 / bike MAE −0.138·MAPE −0.54%p → **개선분의 대부분은 튜닝 효과**(v1 결론과 일치). 32차원 증가의 **순수 효과는 🚇 지하철에서만**(v2 32d 가 25d 재학습 대비 R² +0.0017 · MAE −53.2) 확인
+  - ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1498 / subway 446) → Colab 버전과 완전 동일하지 않음(방향·규모 비교용)
+- [x] **`feature_schema.json` SSoT 소비 (2026-10-14 완료)** — 평가 스크립트·서빙이 스키마를 읽어 **차원·순서를 assert** 하도록 전환(피처 불일치 재발 원천 차단)
+  - `feature_schema.py` 신설(탐색: `--schema` 인자 → `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`) · 서빙 기동 시 **스키마 ↔ `FEATURE_ORDER_32` ↔ ONNX 입력 차원 3중 대조**(`/health.feature_schema`, 불일치 시 기동 중단) · 평가는 `verify_feature_schema` 로 순서·타깃·분할 경계 assert 후 리포트에 기록
+  - `tests/test_feature_schema.py` **7종 통과**(규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health` 노출)
+- [ ] **`models/` 교체 판단 (신설 · 최우선)** — `benchmarks/2026-10-14/tuned_25d/`(25차원 재학습본)는 **서빙 정렬이 그대로 맞는** 교체 후보(32차원 자산 교체안과 달리 배치 변환 불필요)
+  - 판단 재료: 4-way 리포트 — bus·subway 는 전 지표 개선 / bike 는 R²·RMSE 소폭 열세(MAE·MAPE 우세) → **수단별 교체(지하철·버스 우선)** 또는 bike 제외 논의
+  - 교체 시: `models/lgb_{bike,bus,subway}_demand.onnx` 반입 → `/health.feature_schema.status` 가 `verified` 로 바뀌는지 확인 · `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`
+  - 교체 확정 시 문서 정리: `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 의 "25차원 = 32차원 − 7" 서술 기준 모델 갱신
+- [ ] **Colab 재현 (선택)** — 동일 실험 스펙을 Colab 노트북 사본으로 재실행해 `best_iteration`·지표 편차 확인(로컬 lightgbm 4.7 vs Colab 환경)
 - [ ] **(데이터팀 회신 대기)** P1-1 파생 피처 7종 CSV 포함 시 노트북 하드코딩 재구성 로직 제거
 - [ ] **(데이터팀 회신 대기)** P1-3 결측 대체 정책 확정 시 노트북 대체 규칙 1:1 일치화

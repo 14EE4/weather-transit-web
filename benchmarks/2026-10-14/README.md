@@ -48,3 +48,31 @@ python benchmarks/evaluate_models.py
 
 **교차검증 기준**: 산출 R²/RMSE 가 위 노트북 기록치와 소수점 수준으로 일치해야 합니다.
 불일치 시 전처리 차이(버스 선형보간, 기온·습도 interpolate, `same_day_last_week` 7일 전 self-merge)를 먼저 확인하십시오.
+
+## 피처 스키마 소비 (SSoT · 2026-10-14)
+
+이 폴더의 `feature_schema.json` 은 이제 **평가·서빙 코드가 직접 읽어 차원·순서를 assert 하는 단일 진실 공급원**입니다.
+
+| 소비 지점 | 동작 |
+| :--- | :--- |
+| 서빙 `main.py` | 기동 시 `ModelRegistry.load_feature_schema()` → 스키마 ↔ `FEATURE_ORDER_32` ↔ **실제 ONNX 입력 차원** 3중 대조. 불일치면 기동 중단, 결과는 `GET /health` 의 `feature_schema` 블록에 노출 |
+| 평가 `benchmarks/evaluate_models.py` | 실행 초반 `verify_feature_schema()` 로 순서·타깃·분할 경계 assert(`--schema` 로 경로 지정, 미지정 시 자동 탐색) · 결과를 리포트에 기록 |
+| 재학습 `benchmarks/retrain_25d.py` | `metrics.*.tuned.best_params` 를 **고정 파라미터**로 소비 |
+| 테스트 `tests/test_feature_schema.py` | 규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health` **7종** |
+
+## `tuned_25d/` — 동일 v2 파라미터 25차원 재학습 (실험 · 2026-10-14)
+
+`benchmarks/retrain_25d.py` 가 이 폴더의 `feature_schema.json` 에 기록된 **v2 튜닝 파라미터를 그대로 고정**하고,
+피처만 25차원 서빙 서브셋(`main.py::prepare_session_input` 과 동일 배치)으로 줄여 재학습한 산출물입니다.
+
+| 파일 | 설명 | 크기(byte) |
+| :--- | :--- | ---: |
+| `lgb_bike_demand.onnx` | 따릉이 (입력 `[None, 25]`) | 5,709,941 |
+| `lgb_bus_demand.onnx` | 버스 (입력 25차원) | 14,574,454 |
+| `lgb_subway_demand.onnx` | 지하철 (입력 25차원) | 3,713,077 |
+| `feature_schema.json` | 25차원 서빙 배치 스키마 (`model_version: v2-전처리_2-25d-retrain`) | 3,044 |
+
+- **목적**: ① 차원 vs 튜닝 효과 분리(교란 3중 해소) · ② **서빙 가능한 개선본** 확보.
+- **결과**(`benchmarks/results/comparison_20261014_192204.{json,md}` 4-way): bus·subway 는 배포본 대비 전 지표 개선(bus MAE −26.6 / subway MAE −38.9), bike 는 R²·RMSE 소폭 열세·MAE/MAPE 우세 → **개선분의 대부분은 튜닝 효과**, 32차원 증가의 순수 효과는 **지하철에서만** 확인됩니다.
+- ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1498 / subway 446)으로 Colab 버전과 다를 수 있습니다. bus 는 P0-1(결측 24.59% 보간)로 **잠정치**입니다.
+- 평가: `python benchmarks/evaluate_models.py --model tuned_25d=benchmarks/2026-10-14/tuned_25d`

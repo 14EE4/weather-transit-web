@@ -2,7 +2,7 @@
 
 > **작성일**: 2026-10-12
 > **평가 스크립트**: [`benchmarks/evaluate_models.py`](../benchmarks/evaluate_models.py)
-> **결과 원본**: [`benchmarks/results/comparison_20261014_190055.json`](../benchmarks/results/comparison_20261014_190055.json) (3세대 동시 비교 · 최신) · v1 프레임: [`comparison_20261012_233256.json`](../benchmarks/results/comparison_20261012_233256.json)
+> **결과 원본**: [`benchmarks/results/comparison_20261014_192204.json`](../benchmarks/results/comparison_20261014_192204.json) (4-way 동시 비교 · 최신) · 차원 vs 튜닝 분리 실험: [`retrain_25d_20261014_192001.json`](../benchmarks/results/retrain_25d_20261014_192001.json) · v1 프레임: [`comparison_20261012_233256.json`](../benchmarks/results/comparison_20261012_233256.json)
 > **관련 문서**: [SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md) · [AI_INFERENCE_MODEL_SPEC.md](./AI_INFERENCE_MODEL_SPEC.md) · [BACKEND_INFERENCE_SERVER.md](./BACKEND_INFERENCE_SERVER.md) · [benchmarks/README.md](../benchmarks/README.md)
 
 ---
@@ -58,7 +58,7 @@
 
 평가 스크립트가 **라벨별 피처 배치**를 지정하도록 개정되어(`benchmarks/README.md` §4.1), 구 후보(v1 배치)까지 **자기 배치로** 동일 프레임·동일 테스트 행에서 비교했습니다.
 
-- 원본: `benchmarks/results/comparison_20261014_190055.{json,md}` · Test 2025-11-16~12-31 (n=26,450)
+- 원본: `benchmarks/results/comparison_20261014_192204.{json,md}` (4-way 확장 · 구 `190055` 대체) · Test 2025-11-16~12-31 (n=26,450)
 - 배치: 배포본 = 25차원 서브셋 / `tuned_32d_v1` = v1(25차원 `8/8/1/3/3/2` + 상수 0 더미 7) / `tuned_32d_real` = v2(사양서 §3.2 · 8/8/5/11)
 - 배포 슬롯 `models/` 는 `benchmarks/original/` 과 **SHA256 동일**임을 리포트가 자동 검출했습니다(별도 평가 행 없음).
 
@@ -86,6 +86,27 @@
 3. **실행 우선순위가 바뀝니다** — ① v2 하이퍼파라미터(`feature_schema.json::metrics.*.tuned.best_params`)로 **25차원 재학습**(= v1 의 서빙 가능 버전)이 가장 유망하고, ② 수단별 교체는 **지하철 단독**만 근거가 있습니다. 현재 `models/` 는 **25차원 유지**입니다(§0.2 · §7).
 4. ⚠️ v1 은 **서빙 불가**(배치 비호환)이므로 v1 수치는 **판단 보조 지표**이며 `models/` 교체 근거로 직접 인용하지 않습니다.
 5. ⚠️ 교란은 여전히 3중(32차원 / 튜닝 / 신규 원천)이며, 버스 수치는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치**입니다. 프레임 차이로 bus 수치는 이동합니다(배포본 R² 0.9882→0.9897 · v1 0.9908→0.9923) → 순위 해석은 **동일 실행 내부 비교**로 한정합니다.
+
+### 0.4 차원 vs 튜닝 분리 실험 — 25차원 재학습 (2026-10-14)
+
+§0.2 의 교란 3중(①32차원 ②Optuna 튜닝 ③신규 원천 `전처리_2`) 중 **②를 고정**하고 ①만 바꾼 대조군을 만들었습니다.
+[`benchmarks/retrain_25d.py`](../benchmarks/retrain_25d.py) 가 스키마 SSoT 의 `metrics.*.tuned.best_params` 를 그대로 쓰고, 피처만 **25차원 서빙 서브셋**(`main.py::prepare_session_input` 과 동일 배치)으로 줄여 재학습했습니다.
+
+- 원본: `benchmarks/results/comparison_20261014_192204.{json,md}`(4-way) · 학습 리포트: `benchmarks/results/retrain_25d_20261014_192001.{json,md}`
+- 산출물: `benchmarks/2026-10-14/tuned_25d/` — ONNX 3종(`float_input [None, 25]`) + 25차원 스키마(`v2-전처리_2-25d-retrain`) → **서빙 정렬이 그대로 맞는 형태**
+
+| 수단 | 지표 | 배포본 25d | **재학습 25d (동일 v2 파라미터)** | v2 32d |
+| :---: | :--- | ---: | ---: | ---: |
+| 🚲 bike | R² / RMSE / MAE / MAPE≠0 | 0.9887 / 16.372 / 9.815 / 16.74% | 0.9883 / 16.666 / 9.677 / 16.19% | 0.9873 / 17.382 / 9.669 / 16.37% |
+| 🚌 bus | R² / RMSE / MAE / MAPE≠0 | 0.9897 / 571.741 / 369.300 / 14.53% | **0.9912 / 528.628 / 342.732 / 14.07%** | 0.9901 / 561.358 / 370.444 / 18.09% |
+| 🚇 subway | R² / RMSE / MAE / MAPE≠0 | 0.9924 / 826.324 / 369.732 / 5.51% | 0.9935 / 769.318 / 330.871 / 4.96% | **0.9951 / 662.095 / 277.633 / 4.24%** |
+
+**해석**
+
+1. **25차원 재학습만으로 배포본을 상회**했습니다 — 🚌 R² +0.0015 · RMSE −43.1 · MAE −26.6 / 🚇 R² +0.0010 · RMSE −57.0 · MAE −38.9 / 🚲 MAE −0.138. 즉 **개선의 대부분은 하이퍼파라미터 튜닝 효과**이며, §0.1 의 결론이 실피처 프레임에서도 유지됩니다.
+2. **차원 증가의 순수 효과는 🚇 지하철에서만** 확인됩니다(v2 32d 가 25d 재학습 대비 R² +0.0017 · RMSE −107.2 · MAE −53.2). 🚌 bus 는 25차원이 전 지표 우세, 🚲 bike 는 R²·RMSE 소폭 열세·MAE/MAPE 우세로 **사실상 동일**합니다.
+3. **배포 관점**: 재학습본은 25차원이라 `prepare_session_input` 정렬이 그대로 맞아 **교체 위험이 낮은 후보**입니다(32차원 자산 교체 시 필요한 배치 전환 불필요). 최종 판단은 수단별 우열로 진행합니다(§7 후속 과제).
+4. ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1,498 / subway 446)이라 Colab 산출물과 완전 동일하지 않습니다(방향·규모 비교용). 버스는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치**입니다.
 
 ---
 
@@ -236,16 +257,18 @@
 5. **(v2 실측 반영, 2026-10-14)** 실피처 32차원 후보(`benchmarks/2026-10-14/`)는 **지하철에서 전 지표 우세**(MAE −24.9%)했으나 **따릉이는 R²·RMSE 열세, 버스는 MAPE 열세**여서 **전면 교체는 보류**(`models/` 25차원 유지)합니다. 위 2항의 "25차원 통일" 권고는 **v2 실측으로 부분 수정**되며, 최종 확정은 수단별 교체 검토 또는 25차원 재학습 비교 결과로 판단합니다. (§0.2 참조)
 6. **(3세대 비교 반영, 2026-10-14)** v1 후보(25차원 정보량 + 튜닝)를 자기 배치로 재평가한 결과 **12개 지표 전부 배포본보다 우세**했습니다(§0.3). 같은 프레임에서 v1 vs v2 를 직접 비교하면 **bike·bus 는 v1, subway 는 v2 우세**입니다. 따라서 ① **25차원 재학습(v2 파라미터)** 실험을 최우선으로, ② 수단별 교체는 **지하철 단독**만 검토 대상으로 권고합니다.
 
+7. **(차원 vs 튜닝 분리 완료, 2026-10-14)** 동일 v2 파라미터 + 25차원 서브셋 재학습(§0.4)으로 교란 3중을 분리한 결과 **개선의 대부분은 튜닝 효과**이고, **차원 증가의 순수 효과는 🚇 지하철에만** 확인됩니다. 25차원 재학습본(`benchmarks/2026-10-14/tuned_25d/`)은 **서빙 정렬이 그대로 맞아** 교체 후보로 등록합니다.
+
 ### 후속 과제 (Action Items)
 
-- [ ] **(최우선)** v2 하이퍼파라미터(`feature_schema.json::metrics.*.tuned.best_params`)로 **25차원 모델 재학습** → 동일 `evaluate_models.py` 프레임에서 재비교 (차원 vs 튜닝 효과 분리 · §0.3 의 v1 우세 결과가 기대 근거)
-- [x] **3세대 동시 비교 실행** (2026-10-14) — 평가 스크립트에 **라벨별 피처 배치**를 도입(`--layout`)해 v1 자산까지 자기 배치로 비교 → `benchmarks/results/comparison_20261014_190055.{json,md}` · §0.3 실측 수치 확정
+- [x] **v2 하이퍼파라미터로 25차원 모델 재학습** (2026-10-14 완료) — `benchmarks/retrain_25d.py` 로 동일 `best_params` 고정 + 25차원 서빙 서브셋 재학습 → `benchmarks/2026-10-14/tuned_25d/` · 4-way 재비교 `benchmarks/results/comparison_20261014_192204.{json,md}` · §0.4 실측 수치 확정 (🚌 MAE −26.6 / 🚇 MAE −38.9 / 🚲 MAE −0.138)
+- [x] **3세대 동시 비교 실행** (2026-10-14) — 평가 스크립트에 **라벨별 피처 배치**를 도입(`--layout`)해 v1 자산까지 자기 배치로 비교 → `benchmarks/results/comparison_20261014_192204.{json,md}`(4-way 확장) · §0.3 실측 수치 확정
 - [x] 실 피처 기반 **정식 32차원** 파이프라인 반영 (2026-10-13): 노트북 v2(`benchmarks/CastTransit.ipynb`)가 인프라 4 + `same_day_last_week_*` 3을 실측 산출하고 사양 순서(8/8/5/11)로 정렬하며, `benchmarks/evaluate_models.py` 도 동일 피처 프레임으로 개정되었습니다.
 - [x] Colab 실행으로 32차원 ONNX 3종 생성 → **`benchmarks/2026-10-14/` 배치 완료** (2026-10-14, 커밋 `07292b4`)
 - [x] 반입 자산 **공정 재비교 실행** (2026-10-14) → `benchmarks/results/comparison_20261014_184621.{json,md}` · 노트북 기록치와 소수점 수준 일치(재현성 확인) · §0.2 실측 수치 확정
-- [ ] **배포 판단(Gate) 확정** — 전면 교체 보류(25차원 유지). **25차원 재학습 결과와 비교(최우선)** 또는 수단별 교체(지하철 우선) 후 결정
+- [ ] **배포 판단(Gate) 확정** — 전면 교체 보류(25차원 유지). 이제 판단 재료는 ① 25차원 재학습본(`tuned_25d`, **수단별 교체 후보 — bus·subway 우세**) ② 32차원 후보의 **지하철 단독** 교체입니다. `models/` 교체 시 `tests/test_feature_schema.py`·`tests/test_inference.py`·`tests/test_api.py` 재검증 필요
 - [x] `feature_schema.json` 생성·반입 (2026-10-14) — 피처 32개 순서·분할 경계·공휴일 캘린더·튜닝 파라미터/지표 메타 포함
-- [ ] 평가·서빙 코드가 `feature_schema.json` 을 **읽어 차원·순서를 assert** 하도록 전환 — 스키마 SSoT 자동 검증(문서/코드 불일치 재발 방지)
+- [x] 평가·서빙 코드가 `feature_schema.json` 을 **읽어 차원·순서를 assert** 하도록 전환 (2026-10-14 완료) — `feature_schema.py` SSoT 모듈 · 서빙 기동 3중 대조(`/health.feature_schema`) · 평가 `verify_feature_schema` · `tests/test_feature_schema.py` 7종
 
 ---
 

@@ -27,6 +27,27 @@
   - 수단별 교체 확정 시 `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 의 "25차원 부분집합" 서술 정리 + `tests/test_inference.py`·`tests/test_api.py` 재검증.
 - **산출물**: `benchmarks/2026-10-14/{lgb_bike,lgb_bus,lgb_subway}_demand.onnx`, `benchmarks/2026-10-14/feature_schema.json`, `benchmarks/2026-10-14/README.md`, `benchmarks/2026-10-12/tuned_real/README.md`, `benchmarks/results/comparison_20261014_184621.{json,md}`, `benchmarks/evaluate_models.py`, `benchmarks/README.md`, `docs/TODO.md`, `docs/MODEL_PERFORMANCE_REPORT.md`, `docs/AI_MODEL_SPEC.md`, `docs/BACKEND_INFERENCE_SERVER.md`, `docs/SYSTEM_ARCHITECTURE.md`, `docs/CHANGELOG.md`
 
+### 1. 🤖 전 세대 모델 3종 동시 비교 지원 — 평가 스크립트 **피처 배치(layout)** 도입
+- **배경**:
+  - 평가 스크립트가 v1 자산(`benchmarks/2026-10-12/tuned/`, 25차원 + 상수 0 더미 7)을 **피처 배치 비호환**을 이유로 비교 대상에서 제외하고 있어 **"전 모델 비교"가 불가능**했음.
+- **조치**:
+  1. **`benchmarks/evaluate_models.py` — 라벨별 피처 배치 도입**: `MODEL_LAYOUTS`(미지정 라벨 = `v2`) + CLI `--layout LABEL=v1|v2`.
+     - 배치 3종: `v2-32d-real`(사양서 §3.2 · 8/8/5/11 실피처) / `v1-32d-dummy7`(25차원 `8/8/1/3/3/2` + 상수 0 더미 7 — **25차원 서브셋 + 0 열 7개**로 재현) / `25d-subset`(배포본).
+     - v1 정의는 구 스크립트(`ef1d03d:benchmarks/evaluate_models.py`)의 `FEATURE_COLS` + `infra_dummy_0..6` 과 동일함을 git 이력으로 확인.
+     - `is_holiday = 0` 참고치(`reference_ih0`)를 **배치 기준**으로 산출(25차원 배포본 · v1 32차원).
+  2. **기본 비교 3종 확대**: `production_25d`(=`original/`) · `tuned_32d_v1`(=`2026-10-12/tuned/`) · `tuned_32d_real`(=`2026-10-14/`).
+  3. **리포트 확장**: `피처 배치` 열 · 배포본 대비 **델타 표** · **SHA256 자산 무결성** 절(배포 슬롯 `models/` ≡ `benchmarks/original/` **동일 자산 자동 검출** — 12개 스캔 중 동일 3건).
+  4. **자산 문서**: `benchmarks/2026-10-12/tuned/README.md` 신설(배치 정의·평가법·교차검증 기준) · `benchmarks/README.md` §1(트리)·§2·§3·§4.1·§5·§6 갱신.
+- **검증 (교차검증 통과)**: 구 v1 프레임 보고치 재현 — bike R² **0.9893** / subway R² **0.9940** / subway MAE 개선폭 **−19.2%** 동일 → v1 배치 재구성 정확. (bus 만 프레임 차이로 R² 0.9908→0.9923 — 배포본도 0.9882→0.9897 로 동일 방향)
+- **결과 (`benchmarks/results/comparison_20261014_190055.{json,md}` · Test 2025-11-16~12-31, n=26,450)**:
+  - `tuned_32d_v1` 이 **12개 지표 전부 배포본보다 우세**(MAE 개선폭 bike −4.4% / bus −15.4% / subway −19.2%) — "25차원 정보량 + Optuna 튜닝"만으로 배포본을 상회.
+  - **동일 프레임 v1 vs v2 직접 비교**: 🚲·🚌 은 **v1 우세**(8개 지표), 🚇 만 **v2 우세**(4개 지표 · MAE −24.9%).
+  - ⇒ **배포 판단 변화 없음**(`models/` 25차원 유지). 단 **25차원 재학습(v2 파라미터)이 최우선 후속 과제**로 승격되고, 수단별 교체는 **지하철 단독**만 근거가 있음.
+- **미해결 / 다음 단계**:
+  - v1 은 **서빙 불가**(32차원 모델에 32차원 실피처 벡터가 들어가면 인덱스 17 이후 어긋남) → **판단 보조 지표**로만 사용.
+  - 버스 수치는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치** · `feature_schema.json` SSoT 소비 전환은 미완.
+- **산출물**: `benchmarks/evaluate_models.py`, `benchmarks/results/comparison_20261014_190055.{json,md}`, `benchmarks/2026-10-12/tuned/README.md`, `benchmarks/README.md`, `docs/MODEL_PERFORMANCE_REPORT.md` §0.3·§7, `docs/TODO.md` §4, `docs/AI_MODEL_SPEC.md` §7, `docs/BACKEND_INFERENCE_SERVER.md` §4, `docs/SYSTEM_ARCHITECTURE.md` §6.2, `docs/CHANGELOG.md`
+
 ---
 
 ## [2026-10-13]

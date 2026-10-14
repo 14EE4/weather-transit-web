@@ -17,26 +17,33 @@ v1 → v2 핵심 변경
 
 비교 대상 (기본값, `--model LABEL=PATH` 로 추가/덮어쓰기 가능)
     * production_25d : benchmarks/original/lgb_{mode}_demand.onnx   (배포본, 25차원)
-    * tuned_32d_real : benchmarks/2026-10-14/lgb_{mode}_demand.onnx (v2 32차원 실피처 · 2026-10-14 학습/반입)
+      → `models/lgb_{mode}_demand.onnx` 와 **바이트 동일(SHA256)** 이므로 별도 평가하지 않습니다.
+    * tuned_32d_real : benchmarks/2026-10-14/lgb_{mode}_demand.onnx (신규 후보, v2 32차원 실피처)
       → Colab(`benchmarks/CastTransit.ipynb` [Cell 7]) 산출 3종이 `benchmarks/2026-10-14/` 에 반입되어 있습니다.
       (구 배치 위치 `benchmarks/2026-10-12/tuned_real/` 은 안내 README 만 남은 종료 폴더)
+    * tuned_32d_v1   : benchmarks/2026-10-12/tuned/lgb_{mode}_demand.onnx (구 후보, v1 배치)
 
-  ⚠️ 이전 세대 `benchmarks/2026-10-12/tuned` 의 32차원 모델은 v1 배치
-     (25차원 8/8/1/3/3/2 + 상수 0 더미 7)로 학습되어, v2 실피처 배치(8/8/5/11)와
-     **컬럼 순서가 다릅니다.** 그대로 먹이면 인덱스 16 이후가 전부 어긋나므로
-     기본 비교에서 제외했습니다(필요 시 `--model` 로 명시 평가하되 수치 해석 주의).
+  ⚠️ 세대별 **피처 배치가 다릅니다.** 각 모델은 자기 배치로만 평가해야 합니다(인덱스 어긋남 방지).
+     * `v2-32d-real`  : 사양서 §3.2 순서 (8/8/5/11) — 인프라 4 + `same_day_last_week_*` 3 실측
+     * `v1-32d-dummy7`: v1 배치 (8/8/1/3/3/2 + 상수 0 더미 7) → **정보량은 25차원과 동일**
+     * `25d-subset`   : v2 32차원에서 [17..20](공간 인프라 4) + [27..29](same_day 3) 제외
+     → `MODEL_LAYOUTS` 가 라벨별 배치를 지정하며(미지정 = v2), `--layout LABEL=v1|v2` 로 덮어쓸 수 있습니다.
+  ⚠️ 구 후보(`tuned_32d_v1`)와 배포본(25차원)은 `is_holiday` 가 **상수 0인 데이터로 학습**되었으므로,
+     학습 분포 기준 참고치(`reference_ih0`)를 함께 기록합니다.
 
 산출물: benchmarks/results/comparison_{timestamp}.json / .md
         (R² / RMSE / MAE / MAPE(실측 0 제외) / 단건 ONNX 추론 레이턴시(ms))
 
 실행:
-    python benchmarks/evaluate_models.py
+    python benchmarks/evaluate_models.py                    # 배포본 / v1 32d / v2 32d 실피처 3종 동시 비교
     python benchmarks/evaluate_models.py --model tuned_32d_real=benchmarks/2026-10-14
+    python benchmarks/evaluate_models.py --layout tuned_32d_real=v1   # 배치 강제(인덱스 어긋남 주의)
 ================================================================================
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -107,14 +114,28 @@ LEGACY_25D_INDICES = list(range(17)) + [21, 22, 23, 24, 25, 26, 30, 31]
 FEATURE_COLS_25 = [FEATURE_COLS_32[i] for i in LEGACY_25D_INDICES]
 IS_HOLIDAY_INDEX = FEATURE_COLS_32.index("is_holiday")
 
+# v1 배치(구 후보 `2026-10-12/tuned`) 정의: 25차원 + 상수 0 더미 7
+# - 구 스크립트(`ef1d03d:benchmarks/evaluate_models.py`)의 FEATURE_COLS + infra_dummy_0..6 과 동일
+# - 더미는 상수 0 이므로 25차원 행렬 뒤에 0 열을 붙여 재현한다(정보량 = 25차원).
+V1_DUMMY_COLS = [f"infra_dummy_{i}" for i in range(32 - len(FEATURE_COLS_25))]
+FEATURE_COLS_32_V1 = FEATURE_COLS_25 + V1_DUMMY_COLS
+
 # 기본 모델 세트 (라벨 -> 폴더). CLI `--model LABEL=PATH` 로 덮어쓸 수 있다.
-# 주의: 이전 세대 `2026-10-12/tuned` 는 v1 피처 배치(더미 7)로 학습되어 v2 배치와
-#       컬럼 순서가 다르므로 기본 비교에서 제외한다(위 docstring 참조).
-MODEL_SETS = {
+MODEL_SETS: dict[str, Path] = {
     "production_25d": BENCH_DIR / "original",
     # 2026-10-14 Colab 학습 산출물(v2 실제 32차원 실피처, feature_schema.json 동봉)
     "tuned_32d_real": BENCH_DIR / "2026-10-14",
+    # 구 후보(v1): 25차원 + 상수 0 더미 7 — 참고 보관 자산이지만 배치만 맞추면 비교 가능
+    "tuned_32d_v1": BENCH_DIR / "2026-10-12" / "tuned",
 }
+
+# 라벨별 피처 배치(32차원 모델에만 적용). 미지정 라벨은 v2(사양서 §3.2 실피처)로 평가한다.
+# 25차원 모델은 배치와 무관하게 FEATURE_COLS_25 를 사용한다(입력 텐서 자체가 좁은 층위).
+MODEL_LAYOUTS: dict[str, str] = {
+    "tuned_32d_v1": "v1",
+}
+LAYOUT_ORDER = ("v2", "v1")  # `--layout` 허용값(문서·검증용)
+BASELINE_LABEL = "production_25d"  # 델타 기준(배포본 25차원)
 
 # 레이턴시 측정 반복 횟수(웜업 20회 제외)
 LATENCY_ITERS = 200
@@ -271,16 +292,42 @@ def measure_latency(session: ort.InferenceSession, x_row: np.ndarray, iters: int
     return (t1 - t0) / iters * 1000.0
 
 
+# ------------------------------------------------------------ 자산 인벤토리(SHA256)
+def sha256_file(path: Path) -> str:
+    """파일 SHA256 (자산 동일성 판정용)."""
+    digest = hashlib.sha256()
+    with path.open("rb") as fp:
+        for chunk in iter(lambda: fp.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def asset_inventory() -> dict[str, str]:
+    """`benchmarks/` 하위 ONNX 자산 + 배포 슬롯 `models/` 의 SHA256 인벤토리.
+
+    배포 슬롯(`models/`)이 `benchmarks/original/` 과 바이트 동일하면 별도 평가 행을 만들
+    필요가 없으므로, 중복 여부를 결과 리포트(JSON/MD)에 함께 남긴다.
+    """
+    inventory: dict[str, str] = {}
+    for base in (BENCH_DIR, ROOT / "models"):
+        if not base.exists():
+            continue
+        for onnx_path in sorted(base.rglob("lgb_*_demand.onnx")):
+            rel = onnx_path.relative_to(ROOT).as_posix()  # 리포트는 OS 무관하게 '/' 표기
+            inventory[rel] = sha256_file(onnx_path)
+    return inventory
+
+
 # ---------------------------------------------------------------- 결과 포매팅
 def _md_table(results: dict) -> str:
     lines = [
-        "| 모델 | 수단 | 입력차원 | R² | RMSE | MAE | MAPE(실측0제외) | 레이턴시(ms) | 파일(byte) |",
-        "| :--- | :---: | :---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| 모델 | 수단 | 입력차원 | 피처 배치 | R² | RMSE | MAE | MAPE(실측0제외) | 레이턴시(ms) | 파일(byte) |",
+        "| :--- | :---: | :---: | :--- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for label, blk in results["models"].items():
         for mode, m in blk["targets"].items():
             lines.append(
-                f"| {label} | {mode} | {m['input_dim']} | {m['r2']:.4f} | {m['rmse']:.3f} | "
+                f"| {label} | {mode} | {m['input_dim']} | {m['layout']} | {m['r2']:.4f} | {m['rmse']:.3f} | "
                 f"{m['mae']:.3f} | {m['mape_pct_nonzero']:.2f}% | {m['latency_ms_1row']:.3f} | "
                 f"{m['file_size_bytes']} |"
             )
@@ -288,7 +335,7 @@ def _md_table(results: dict) -> str:
 
 
 def _md_reference_section(results: dict) -> list[str]:
-    """25차원 레거시 모델의 `is_holiday = 0` 참고치 섹션을 만든다.
+    """레거시 모델(배포본 25차원 / 구 후보 v1 32차원)의 `is_holiday = 0` 참고치 섹션을 만든다.
 
     레거시 모델은 `is_holiday` 가 상수 0 인 데이터로 학습되었기 때문에 실제 공휴일을
     넣어도 예측이 바뀌지 않을 수 있다. 이 경우 표 대신 진단 한 줄만 남긴다.
@@ -311,20 +358,82 @@ def _md_reference_section(results: dict) -> list[str]:
         if not identical:
             return []
         return [
-            "## 25차원 레거시 모델 `is_holiday = 0` 참고치",
+            "## 레거시 모델 `is_holiday = 0` 참고치 (배포본 25차원 / v1 32차원)",
             "",
             f"- `{', '.join(identical)}`: 값 동일 — 레거시 모델은 `is_holiday` 가 상수 0 인 "
             "데이터로 학습되어 해당 피처를 전혀 사용하지 않습니다(주말 정보는 `is_weekend` 로 별도 존재).",
             "",
         ]
     return [
-        "## 25차원 레거시 모델 `is_holiday = 0` 참고치 (학습 당시 분포)",
+        "## 레거시 모델 `is_holiday = 0` 참고치 (배포본 25차원 / v1 32차원 · 학습 당시 분포)",
         "",
         "| 모델 | 수단 | R² | RMSE | MAE | MAPE(실측0제외) |",
         "| :--- | :---: | ---: | ---: | ---: | ---: |",
         *rows,
         "",
     ]
+
+
+def _md_delta_section(results: dict) -> list[str]:
+    """배포본(25차원) 대비 델타 — 수단별 우열을 한눈에 판정하기 위한 요약."""
+    base = results["models"].get(BASELINE_LABEL)
+    if not base or not base["targets"]:
+        return []
+    rows: list[str] = []
+    for label, blk in results["models"].items():
+        if label == BASELINE_LABEL:
+            continue
+        for mode, m in blk["targets"].items():
+            b = base["targets"].get(mode)
+            if not b:
+                continue
+            rows.append(
+                f"| {label} ({m['layout']}) | {mode} | {m['r2'] - b['r2']:+.4f} | "
+                f"{m['rmse'] - b['rmse']:+.3f} | {m['mae'] - b['mae']:+.3f} | "
+                f"{m['mape_pct_nonzero'] - b['mape_pct_nonzero']:+.2f}%p |"
+            )
+    if not rows:
+        return []
+    return [
+        f"## `{BASELINE_LABEL}`(배포본 25차원) 대비 델타",
+        "",
+        "- R² 는 **양수(+) = 개선**, RMSE / MAE / MAPE 는 **음수(−) = 개선** 입니다.",
+        "- `tuned_32d_v1`(v1 배치)은 25차원 뒤에 **상수 0 더미 7** 을 붙인 구조이므로 "
+        "**정보량이 25차원과 동일**합니다 → 델타는 전부 **Optuna 튜닝 효과**입니다.",
+        "- `tuned_32d_real`(v2 배치)은 인프라 4 + `same_day_last_week_*` 3이 실측값이므로 "
+        "**튜닝 + 차원 증가 + 원천 데이터(`전처리_2`) 효과가 혼재**합니다(순수 차원 효과 아님).",
+        "",
+        "| 모델 (배치) | 수단 | ΔR² | ΔRMSE | ΔMAE | ΔMAPE |",
+        "| :--- | :---: | ---: | ---: | ---: | ---: |",
+        *rows,
+        "",
+    ]
+
+
+def _md_asset_section(results: dict) -> list[str]:
+    """SHA256 인벤토리 섹션 — `models/`(배포 슬롯) 와 벤치마크 자산의 동일/중복 여부."""
+    inventory: dict = results.get("asset_sha256") or {}
+    if not inventory:
+        return []
+    groups: dict[str, list[str]] = {}
+    for path, digest in inventory.items():
+        groups.setdefault(digest, []).append(path)
+    dups = {digest: paths for digest, paths in groups.items() if len(paths) > 1}
+    lines = [
+        "## 자산 무결성 (SHA256)",
+        "",
+        f"- ONNX 자산 {len(inventory)}개 스캔 (`benchmarks/` 모델 폴더 + 배포 슬롯 `models/`).",
+    ]
+    if dups:
+        for digest, paths in sorted(dups.items()):
+            lines.append(
+                f"- **동일 자산** `{digest[:16]}…`: " + " ≡ ".join(f"`{p}`" for p in paths)
+                + " → 배포 슬롯은 별도 평가 행을 만들지 않습니다."
+            )
+    else:
+        lines.append("- 바이트 동일(중복) 자산 없음.")
+    lines.append("")
+    return lines
 
 
 def parse_model_overrides(pairs: list[str]) -> dict[str, Path]:
@@ -334,6 +443,18 @@ def parse_model_overrides(pairs: list[str]) -> dict[str, Path]:
         label, sep, path = raw.partition("=")
         assert sep and path.strip(), f"--model 형식은 LABEL=PATH 입니다: {raw}"
         out[label.strip()] = (ROOT / path.strip()).resolve()
+    return out
+
+
+def parse_layout_overrides(pairs: list[str]) -> dict[str, str]:
+    """`--layout LABEL=v1|v2` 인자를 (라벨 -> 배치) 딕셔너리로 변환."""
+    out: dict[str, str] = {}
+    for raw in pairs:
+        label, sep, layout = raw.partition("=")
+        assert sep and layout.strip(), f"--layout 형식은 LABEL=v1|v2 입니다: {raw}"
+        value = layout.strip().lower()
+        assert value in LAYOUT_ORDER, f"지원하지 않는 배치입니다({value}): {LAYOUT_ORDER}"
+        out[label.strip()] = value
     return out
 
 
@@ -347,10 +468,16 @@ def main() -> None:
         "--model", action="append", default=[], metavar="LABEL=PATH",
         help="평가할 모델 폴더를 라벨=경로로 추가/덮어쓰기 (반복 가능)",
     )
+    parser.add_argument(
+        "--layout", action="append", default=[], metavar="LABEL=v1|v2",
+        help="라벨별 피처 배치 덮어쓰기 (v1=25차원+상수 0 더미 7 / v2=사양서 §3.2 32차원, 기본 v2)",
+    )
     args = parser.parse_args()
 
     model_sets = dict(MODEL_SETS)
     model_sets.update(parse_model_overrides(args.model))
+    model_layouts = dict(MODEL_LAYOUTS)
+    model_layouts.update(parse_layout_overrides(args.layout))
 
     csv_path = Path(args.csv)
     try:  # 로그/산출물에는 가능한 한 레포 상대경로를 남긴다
@@ -370,25 +497,50 @@ def main() -> None:
         f"test={int(test_mask.sum()):,} | test {test_dates.min().date()} ~ {test_dates.max().date()}"
     )
 
-    # 두 모델군이 **동일한 피처 프레임**에서 만들어지므로 차이는 피처 구성뿐이다.
+    # 모든 모델군이 **동일한 테스트 행**에서 만들어지므로 차이는 피처 배치(구성)뿐이다.
     X32 = df.loc[test_mask, FEATURE_COLS_32].astype(np.float32).to_numpy()
     X25 = df.loc[test_mask, FEATURE_COLS_25].astype(np.float32).to_numpy()
-    # 레거시 25차원 모델은 학습 당시 is_holiday 가 상수 0 이었으므로,
+    # v1 배치 = 25차원 + 상수 0 더미 7 (더미는 정보량 0 이므로 0 열을 덧붙여 재현)
+    X32_V1 = np.hstack(
+        [X25, np.zeros((X25.shape[0], len(V1_DUMMY_COLS)), dtype=np.float32)]
+    )
+
+    # 레거시(25차원 배포본 / v1 배치) 모델은 학습 당시 is_holiday 가 상수 0 이었으므로,
     # 자기 학습 분포 기준 참고치를 위해 is_holiday 열만 0 으로 둔 변형을 준비한다.
-    X25_ih0 = X25.copy()
-    X25_ih0[:, IS_HOLIDAY_INDEX] = 0.0
+    def _ih0(mat: np.ndarray) -> np.ndarray:
+        out = mat.copy()
+        out[:, IS_HOLIDAY_INDEX] = 0.0
+        return out
+
+    X_BY_LAYOUT = {"v2-32d-real": X32, "v1-32d-dummy7": X32_V1, "25d-subset": X25}
+    X_IH0_BY_LAYOUT = {"v1-32d-dummy7": _ih0(X32_V1), "25d-subset": _ih0(X25)}
+
+    def pick_input(dim: int, layout: str) -> tuple[np.ndarray | None, str]:
+        """(ONNX 입력 차원, 라벨 배치) -> (평가 행렬, 실제 사용 배치 라벨)."""
+        if dim == 25:
+            return X25, "25d-subset"
+        if dim == 32:
+            key = "v1-32d-dummy7" if layout == "v1" else "v2-32d-real"
+            return X_BY_LAYOUT[key], key
+        return None, f"unsupported-{dim}"
 
     y_true = {mode: df.loc[test_mask, col].to_numpy() for mode, col in TARGETS.items()}
 
     results = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "csv": csv_display,
-        "evaluator": "benchmarks/evaluate_models.py (v2 · 실제 32차원 실피처)",
+        "evaluator": "benchmarks/evaluate_models.py (v2 · 세대별 피처 배치 병기)",
         "feature_spec": {
             "version": "v2-32d-real (상수 0 더미 7 폐기)",
             "n_features": len(FEATURE_COLS_32),
             "feature_cols_32": FEATURE_COLS_32,
             "feature_cols_25_subset": FEATURE_COLS_25,
+            "feature_cols_32_v1": FEATURE_COLS_32_V1,
+            "layouts": {
+                "v2-32d-real": "사양서 §3.2 순서 (8/8/5/11) 실제 32차원 실피처",
+                "v1-32d-dummy7": "v1 배치 (25차원 8/8/1/3/3/2 + 상수 0 더미 7) — 정보량 = 25차원",
+                "25d-subset": "배포본 25차원 부분집합 (공간 인프라 4 + same_day 3 제외)",
+            },
             "holiday_calendar": sorted({d for days in KR_HOLIDAYS.values() for d in days}),
             "source_of_truth": "main.py (DISTRICT_CODE_MAP / DISTRICT_INFRA / KR_HOLIDAYS)",
         },
@@ -399,12 +551,21 @@ def main() -> None:
             "test": "2025-11-16 ~ 2025-12-31",
         },
         "n_test": int(test_mask.sum()),
+        "asset_sha256": asset_inventory(),
         "models": {},
     }
 
     for label, folder in model_sets.items():
         folder = Path(folder)
-        block: dict = {"dir": str(folder), "targets": {}}
+        requested_layout = model_layouts.get(label, "v2")
+        assert requested_layout in LAYOUT_ORDER, (
+            f"라벨 `{label}` 의 배치 `{requested_layout}` 는 지원하지 않습니다: {LAYOUT_ORDER}"
+        )
+        block: dict = {
+            "dir": str(folder),
+            "requested_layout": requested_layout,
+            "targets": {},
+        }
         results["models"][label] = block
         for mode in TARGETS:
             onnx_path = folder / f"lgb_{mode}_demand.onnx"
@@ -413,27 +574,28 @@ def main() -> None:
                 continue
             sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
             dim = onnx_input_dim(sess)
-            if dim == 32:
-                X = X32
-            elif dim == 25:
-                X = X25
-            else:
+            X, used_layout = pick_input(dim, requested_layout)
+            if X is None:
                 print(f"[skip] 미지원 차원 {dim}: {onnx_path}")
                 continue
             ins = sess.get_inputs()[0].name
             pred = np.clip(sess.run(None, {ins: X})[0].reshape(-1), 0.0, None)
             m = regression_metrics(y_true[mode], pred)
             m["input_dim"] = dim
+            m["layout"] = used_layout
             m["file_size_bytes"] = onnx_path.stat().st_size
+            m["sha256"] = sha256_file(onnx_path)
             m["latency_ms_1row"] = round(measure_latency(sess, X[:1]), 4)
-            if dim == 25:
-                pred0 = np.clip(sess.run(None, {ins: X25_ih0})[0].reshape(-1), 0.0, None)
+            # is_holiday 가 상수 0 인 데이터로 학습된 자산(배포본 25d / v1)만 참고치를 남긴다
+            ref_X = X_IH0_BY_LAYOUT.get(used_layout)
+            if ref_X is not None:
+                pred0 = np.clip(sess.run(None, {ins: ref_X})[0].reshape(-1), 0.0, None)
                 m["reference_ih0"] = regression_metrics(y_true[mode], pred0)
             block["targets"][mode] = m
             print(
                 f"[eval] {label:26s} {mode:6s} R2={m['r2']:.4f} RMSE={m['rmse']:8.3f} "
                 f"MAE={m['mae']:7.3f} MAPE={m['mape_pct_nonzero']:6.2f}% dim={dim} "
-                f"{m['latency_ms_1row']:.3f}ms"
+                f"layout={used_layout:14s} {m['latency_ms_1row']:.3f}ms"
             )
 
     # ---- 저장 ----
@@ -445,22 +607,31 @@ def main() -> None:
     json_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
 
     md = [
-        "# ONNX 모델 비교 분석 결과 (실제 32차원 피처 기준)",
+        "# ONNX 모델 비교 분석 결과 (세대별 피처 배치 — 25d / v1 32d / v2 32d 실피처)",
         "",
         f"- 생성시각: {results['generated_at']}",
         f"- 평가 데이터: `{results['csv']}`",
         f"- Test 구간: {results['split']['test']} (n={results['n_test']:,}, source={results['split']['source']})",
-        f"- 피처: {results['feature_spec']['version']} — 32차원 실피처(더미 0 없음), 공휴일 캘린더 19일 적용",
+        f"- 피처: {results['feature_spec']['version']} — v2 32차원 실피처(더미 0 없음), 공휴일 캘린더 19일 적용",
+        "- 모델은 각자 **자기 세대의 피처 배치**로 평가했습니다(v1 배치는 25차원 + 상수 0 더미 7 재현).",
         "- MAPE 는 실측 0(심야 운휴 등) 제외.",
         "",
         _md_table(results),
         "",
     ]
+    md += _md_delta_section(results)
     md += _md_reference_section(results)
+    md += _md_asset_section(results)
     md_path.write_text("\n".join(md), encoding="utf-8")
 
     print(f"\n[저장] {json_path.relative_to(ROOT)}")
     print(f"[저장] {md_path.relative_to(ROOT)}")
+    inventory = results["asset_sha256"]
+    unique_assets = len(set(inventory.values()))
+    print(
+        f"[asset] ONNX {len(inventory)}개 스캔 · 고유 자산 {unique_assets}개"
+        f"(동일 파일 {len(inventory) - unique_assets}건 · 배포 슬롯 models/ 는 original/ 과 동일)"
+    )
     print("\n" + _md_table(results))
 
 

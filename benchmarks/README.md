@@ -37,6 +37,12 @@ benchmarks/
     │   ├── lgb_bus_demand.onnx
     │   ├── lgb_subway_demand.onnx
     │   └── feature_schema.json   # 25차원 서빙 배치 스키마(model_version: v2-전처리_2-25d-retrain)
+    ├── tuned_25d_colab/          # Colab 재현 노트북 산출물 (지표 Δ=0 검증 완료 — 로컬 tuned_25d/ 와 동일 모델)
+    │   ├── lgb_bike_demand.onnx
+    │   ├── lgb_bus_demand.onnx
+    │   ├── lgb_subway_demand.onnx
+    │   ├── feature_schema.json   # 25차원 스키마(v2-전처리_2-25d-retrain-colab) + Colab env 기록
+    │   └── README.md             # 반입·검증 결과
     └── README.md                 # 자산 설명·평가 방법
 ```
 
@@ -61,6 +67,9 @@ benchmarks/
 | **25차원 재학습** | `2026-10-14/tuned_25d/lgb_bike_demand.onnx` | **25** | 5,709,941 | 동일 v2 파라미터 + 25차원 서빙 서브셋 · **서빙 정렬 가능** |
 | 25차원 재학습 | `2026-10-14/tuned_25d/lgb_bus_demand.onnx` | 25 | 14,574,454 | 동일 v2 파라미터 + 25차원 서빙 서브셋 |
 | 25차원 재학습 | `2026-10-14/tuned_25d/lgb_subway_demand.onnx` | 25 | 3,713,077 | 동일 v2 파라미터 + 25차원 서빙 서브셋 |
+| **Colab 재현(검증 완료)** | `2026-10-14/tuned_25d_colab/lgb_bike_demand.onnx` | **25** | 5,709,941 | Colab 실행 산출 · `tuned_25d/` 와 **지표 Δ=0 · 파일 크기 동일** |
+| Colab 재현(검증 완료) | `2026-10-14/tuned_25d_colab/lgb_bus_demand.onnx` | 25 | 14,574,454 | 위와 동일(SHA256 만 상이) · `env` 블록에 Colab 런타임 기록 |
+| Colab 재현(검증 완료) | `2026-10-14/tuned_25d_colab/lgb_subway_demand.onnx` | 25 | 3,713,077 | 위와 동일 |
 
 ---
 
@@ -237,7 +246,11 @@ python tests/test_inference.py        # 서빙 기동 시 스키마 검증 + 추
 - **동기**: ① Colab 은 `.py` 파일을 열어 실행하는 환경이 아니라 파일 업로드·모듈 import·저장소 클론이 필요하고, ② `retrain_25d.py` 는 `evaluate_models.py` → `main.py`(fastapi·dotenv·httpx) → `feature_schema.py`·원천 CSV 까지 import 체인이 이어져 **단독 업로드 불가**였습니다 → **노트북 1개 업로드로 완결되는 재현 경로**를 신설했습니다.
 - **도구**: `retrain_25d_colab.ipynb` — `CastTransit.ipynb` 의 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **첫 줄 태그로 찾아 그대로 `exec`**(피처 드리프트 0) 하고, `[Cell 6-1]` Optuna 는 **seed 부재 → 재탐색 금지** 원칙에 따라 스키마 SSoT 의 v2 `best_params` 를 **고정 주입**해 25차원 재학습 → ONNX 3종 + 25차원 스키마를 `2026-10-14/tuned_25d_colab/` 로 반출합니다.
 - **로컬 선검증(2026-10-14)**: 노트북 셀을 로컬 원천 CSV 로 exec 해 지표·`best_iteration` 이 `retrain_25d.py` 값과 **완전 일치**(bike 680 / bus 1,498 / subway 446, ΔR² 0.0000) · 반출 ONNX 는 하네스가 **`dim=25`·`layout=25d-subset`** 으로 자동 판별.
-- **반입 후 평가**: `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab`
+- **Colab 실행·반입 검증 완료(2026-10-14)** — 산출물을 `2026-10-14/tuned_25d_colab/` 에 반입 후 5-way 평가: `benchmarks/results/comparison_20261014_214856.{json,md}`
+  - **플랫폼 편차 0** — R²·RMSE·MAE·MAPE·`best_iteration` **12개 지표 전부 Δ = 0.000000** + `best_params`·25차원 피처 순서 일치 · ONNX 파일 크기 3종 동일(SHA256 만 상이).
+  - Colab 환경(스키마 `env` 기록): python 3.13.16 · **lightgbm 4.7.0(로컬과 동일)** · numpy 2.1.3 · pandas 2.2.3.
+  - ⇒ 로컬 25차원 재학습 결과가 **Colab 재현성까지 확보**되어 배포 후보 자격 유지(모델 순위 변동 없음).
+- **평가(5-way)**: `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab --model tuned_25d=benchmarks/2026-10-14/tuned_25d`
 
 ### [2026-10-14] v2 실제 32차원 실피처 모델 3종 학습·반입
 - **학습·반입**: `benchmarks/CastTransit.ipynb`(v2)를 Colab에서 실행해 **실제 32차원 실피처(8/8/5/11)** 모델 3종을 생성하고 `benchmarks/2026-10-14/` 에 배치했습니다(커밋 `07292b4`).

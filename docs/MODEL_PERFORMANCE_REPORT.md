@@ -92,8 +92,8 @@
 §0.2 의 교란 3중(①32차원 ②Optuna 튜닝 ③신규 원천 `전처리_2`) 중 **②를 고정**하고 ①만 바꾼 대조군을 만들었습니다.
 [`benchmarks/retrain_25d.py`](../benchmarks/retrain_25d.py) 가 스키마 SSoT 의 `metrics.*.tuned.best_params` 를 그대로 쓰고, 피처만 **25차원 서빙 서브셋**(`main.py::prepare_session_input` 과 동일 배치)으로 줄여 재학습했습니다.
 
-- 원본: `benchmarks/results/comparison_20261014_192204.{json,md}`(4-way) · 학습 리포트: `benchmarks/results/retrain_25d_20261014_192001.{json,md}`
-- 산출물: `benchmarks/2026-10-14/tuned_25d/` — ONNX 3종(`float_input [None, 25]`) + 25차원 스키마(`v2-전처리_2-25d-retrain`) → **서빙 정렬이 그대로 맞는 형태**
+- 원본: `benchmarks/results/comparison_20261014_192204.{json,md}`(4-way) · 학습 리포트: `benchmarks/results/retrain_25d_20261014_192001.{json,md}` · **Colab 재현 검증: `benchmarks/results/comparison_20261014_214856.{json,md}`(5-way · 플랫폼 편차 Δ = 0)**
+- 산출물: `benchmarks/2026-10-14/tuned_25d/` — ONNX 3종(`float_input [None, 25]`) + 25차원 스키마(`v2-전처리_2-25d-retrain`) → **서빙 정렬이 그대로 맞는 형태** · Colab 재현본은 `benchmarks/2026-10-14/tuned_25d_colab/`(`v2-전처리_2-25d-retrain-colab`)
 
 | 수단 | 지표 | 배포본 25d | **재학습 25d (동일 v2 파라미터)** | v2 32d |
 | :---: | :--- | ---: | ---: | ---: |
@@ -106,7 +106,7 @@
 1. **25차원 재학습만으로 배포본을 상회**했습니다 — 🚌 R² +0.0015 · RMSE −43.1 · MAE −26.6 / 🚇 R² +0.0010 · RMSE −57.0 · MAE −38.9 / 🚲 MAE −0.138. 즉 **개선의 대부분은 하이퍼파라미터 튜닝 효과**이며, §0.1 의 결론이 실피처 프레임에서도 유지됩니다.
 2. **차원 증가의 순수 효과는 🚇 지하철에서만** 확인됩니다(v2 32d 가 25d 재학습 대비 R² +0.0017 · RMSE −107.2 · MAE −53.2). 🚌 bus 는 25차원이 전 지표 우세, 🚲 bike 는 R²·RMSE 소폭 열세·MAE/MAPE 우세로 **사실상 동일**합니다.
 3. **배포 관점**: 재학습본은 25차원이라 `prepare_session_input` 정렬이 그대로 맞아 **교체 위험이 낮은 후보**입니다(32차원 자산 교체 시 필요한 배치 전환 불필요). 최종 판단은 수단별 우열로 진행합니다(§7 후속 과제).
-4. ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1,498 / subway 446)이라 Colab 산출물과 완전 동일하지 않습니다(방향·규모 비교용). 버스는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치**입니다.
+4. ✅ **Colab 재현 검증 완료(2026-10-14)** — `benchmarks/retrain_25d_colab.ipynb`(업로드 1개로 완결)를 Colab 에서 실행해 반출한 `benchmarks/2026-10-14/tuned_25d_colab/` 은 로컬 `tuned_25d/` 와 **R²·RMSE·MAE·MAPE·`best_iteration` 12개 지표 전부 Δ = 0.000000**(`best_params`·피처 순서 일치 · ONNX 파일 크기 3종 동일) → **플랫폼 편차 없음**(Colab: python 3.13.16 · lightgbm 4.7.0 · numpy 2.1.3 · pandas 2.2.3). 버스는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치**입니다.
 
 ---
 

@@ -79,21 +79,25 @@
 - [x] **차원 vs 튜닝 분리 실험 (2026-10-14 완료)** — 동일 `study.best_params` 고정 + **25차원 서빙 서브셋** 재학습 → 4-way 재비교 (`benchmarks/results/comparison_20261014_192204.{json,md}`)
   - 도구: `benchmarks/retrain_25d.py` (스키마 SSoT 의 `metrics.*.tuned.best_params` 소비, `--export` 로 ONNX·25차원 스키마 반출) → 산출물 `benchmarks/2026-10-14/tuned_25d/`
   - **결과**: 튜닝 파라미터를 고정하고 25차원으로 줄여도 배포본을 상회 — bus MAE −26.6 / subway MAE −38.9 / bike MAE −0.138·MAPE −0.54%p → **개선분의 대부분은 튜닝 효과**(v1 결론과 일치). 32차원 증가의 **순수 효과는 🚇 지하철에서만**(v2 32d 가 25d 재학습 대비 R² +0.0017 · MAE −53.2) 확인
-  - ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1498 / subway 446) → Colab 버전과 완전 동일하지 않음(방향·규모 비교용)
+  - ✅ **Colab 재현 편차 0 (2026-10-14 완료)** — Colab 산출물 `tuned_25d_colab/` 과 `best_iteration` bike 680 / bus 1,498 / subway 446 · **12개 지표 Δ = 0**(아래 Colab 항목)
 - [x] **`feature_schema.json` SSoT 소비 (2026-10-14 완료)** — 평가 스크립트·서빙이 스키마를 읽어 **차원·순서를 assert** 하도록 전환(피처 불일치 재발 원천 차단)
   - `feature_schema.py` 신설(탐색: `--schema` 인자 → `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`) · 서빙 기동 시 **스키마 ↔ `FEATURE_ORDER_32` ↔ ONNX 입력 차원 3중 대조**(`/health.feature_schema`, 불일치 시 기동 중단) · 평가는 `verify_feature_schema` 로 순서·타깃·분할 경계 assert 후 리포트에 기록
   - `tests/test_feature_schema.py` **8종 통과**(규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health` 노출·컨테이너 배포 파일 목록)
 - [ ] **`models/` 교체 판단 (신설 · 최우선)** — `benchmarks/2026-10-14/tuned_25d/`(25차원 재학습본)는 **서빙 정렬이 그대로 맞는** 교체 후보(32차원 자산 교체안과 달리 배치 변환 불필요)
-  - 판단 재료: 4-way 리포트 — bus·subway 는 전 지표 개선 / bike 는 R²·RMSE 소폭 열세(MAE·MAPE 우세) → **수단별 교체(지하철·버스 우선)** 또는 bike 제외 논의
+  - 판단 재료: 4-way/5-way 리포트 — bus·subway 는 전 지표 개선 / bike 는 R²·RMSE 소폭 열세(MAE·MAPE 우세) → **수단별 교체(지하철·버스 우선)** 또는 bike 제외 논의 · Colab 재현본 `tuned_25d_colab/` 은 `tuned_25d` 와 **지표 완전 동일**이라 판단에 영향 없음
   - 교체 시: `models/lgb_{bike,bus,subway}_demand.onnx` 반입 → `/health.feature_schema.status` 가 `verified` 로 바뀌는지 확인 · `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`
   - 교체 확정 시 문서 정리: `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 의 "25차원 = 32차원 − 7" 서술 기준 모델 갱신
   - 교체 전 백업/롤백: `models/` 는 `benchmarks/original/` 과 **SHA256 동일 스냅샷**으로 판정되어 있어 문제 시 즉시 원복 가능 · 교체는 **파일 단위(수단별) 부분 교체**로도 가능
 - [ ] **교체 승인 기준(Gate) 확정 (신설)** — 전면 교체 기준("3수단 전부 유의 우세")으로는 이미 보류됨 → **수단별 기준**(예: subway 단독 교체 허용 조건)과 bike 처리 방침(제외/보류) 결정 필요
   - 근거: `docs/MODEL_PERFORMANCE_REPORT.md` §0.3·§0.4 · `benchmarks/results/comparison_20261014_192204.{json,md}`
-- [ ] **Colab 재현 (선택) — 노트북 준비 완료 (2026-10-14)** — 동일 실험 스펙을 Colab 에서 재실행해 `best_iteration`·지표 편차(플랫폼 차이) 확인 (로컬 lightgbm 4.7.0 기준값)
+- [x] **Colab 재현 — 완료 (2026-10-14)** — 동일 실험 스펙을 Colab 에서 재실행해 `best_iteration`·지표 편차(플랫폼 차이) 확인 (로컬 lightgbm 4.7.0 기준값)
   - **도구: `benchmarks/retrain_25d_colab.ipynb` 신설** — Colab 이 `.py` 파일 업로드/모듈 import 를 지원하지 않는 제약 때문에 **노트북 1개만 업로드**하면 끝나도록 설계: 레포의 `benchmarks/CastTransit.ipynb` 에서 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **태그로 찾아 그대로 exec**(피처 드리프트 0) → `[Cell 6-1]` Optuna(seed 없음)는 **건너뛰고** 스키마 SSoT 의 v2 `best_params` 를 고정 주입(비교 가능성 유지·약 20분 절약)
   - 실행: `[Step 0]` 패키지/버전 기록 → `[Step 1]` Drive 마운트·레포 확인 → `[Step 2]` 원본 셀 exec → `[Step 3]` 25차원 재학습 → `[Step 4]` ONNX 3종 + 25차원 스키마 반출(`benchmarks/2026-10-14/tuned_25d_colab/`, **로컬 `tuned_25d/` 덮어쓰기 금지**) → `[Step 5]` 대조 표
-  - 반입 후: `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab`(+ `--model tuned_25d=benchmarks/2026-10-14/tuned_25d` 로 5-way)
-  - **로컬 선검증(2026-10-14)**: 노트북 셀 로직을 로컬에서 exec 해 지표·`best_iteration` 이 `retrain_25d.py` 값과 완전 일치(bike 680 / bus 1,498 / subway 446, ΔR² 0.0000) · 반출 ONNX 는 하네스가 `dim=25`·`layout=25d-subset` 으로 자동 판별 → **남은 리스크는 플랫폼 편차뿐**
+  - 평가(5-way, 2026-10-14 실행 완료): `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab --model tuned_25d=benchmarks/2026-10-14/tuned_25d`
+  - **로컬 선검증(2026-10-14)**: 노트북 셀 로직을 로컬에서 exec 해 지표·`best_iteration` 이 `retrain_25d.py` 값과 완전 일치(bike 680 / bus 1,498 / subway 446, ΔR² 0.0000) · 반출 ONNX 는 하네스가 `dim=25`·`layout=25d-subset` 으로 자동 판별 → 남은 리스크는 플랫폼 편차뿐이었음
+  - ✅ **Colab 실실행·반입 검증 완료(2026-10-14)** — 반출 파일 4개를 `benchmarks/2026-10-14/tuned_25d_colab/` 에 반입 → 5-way 리포트 `benchmarks/results/comparison_20261014_214856.{json,md}`
+    - **플랫폼 편차 0**: R²·RMSE·MAE·MAPE·`best_iteration` **12개 지표 전부 Δ = 0.000000** + `best_params`·25차원 피처 순서 일치 · ONNX **파일 크기 3종 동일**(5,709,941 / 14,574,454 / 3,713,077 · 직렬화 메타 차이로 SHA256 만 상이)
+    - Colab 환경(스키마 `env` 자동 기록): python 3.13.16 · **lightgbm 4.7.0(로컬과 동일)** · numpy 2.1.3 · pandas 2.2.3
+    - ⇒ `tuned_25d` ≡ `tuned_25d_colab` **동일 모델** → `models/` 교체 판단 근거 변동 없음(잔여: P0-1 버스 잠정치 · 교체 Gate 확정)
 - [ ] **(데이터팀 회신 대기)** P1-1 파생 피처 7종 CSV 포함 시 노트북 하드코딩 재구성 로직 제거
 - [ ] **(데이터팀 회신 대기)** P1-3 결측 대체 정책 확정 시 노트북 대체 규칙 1:1 일치화

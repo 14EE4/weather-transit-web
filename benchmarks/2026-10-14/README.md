@@ -74,16 +74,31 @@ python benchmarks/evaluate_models.py
 
 - **목적**: ① 차원 vs 튜닝 효과 분리(교란 3중 해소) · ② **서빙 가능한 개선본** 확보.
 - **결과**(`benchmarks/results/comparison_20261014_192204.{json,md}` 4-way): bus·subway 는 배포본 대비 전 지표 개선(bus MAE −26.6 / subway MAE −38.9), bike 는 R²·RMSE 소폭 열세·MAE/MAPE 우세 → **개선분의 대부분은 튜닝 효과**, 32차원 증가의 순수 효과는 **지하철에서만** 확인됩니다.
-- ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1498 / subway 446)으로 Colab 버전과 다를 수 있습니다. bus 는 P0-1(결측 24.59% 보간)로 **잠정치**입니다.
+- ✅ **Colab 재현 검증 완료(2026-10-14)** — Colab(lightgbm 4.7.0) 산출물 `tuned_25d_colab/` 과 **12개 지표 Δ = 0** · `best_iteration` 680 / 1,498 / 446 동일 → 플랫폼 편차 없음. bus 는 P0-1(결측 24.59% 보간)로 **잠정치**입니다.
 - 평가: `python benchmarks/evaluate_models.py --model tuned_25d=benchmarks/2026-10-14/tuned_25d`
 
-## `tuned_25d_colab/` — Colab 재현 산출물 (2026-10-14 노트북 신설)
+## `tuned_25d_colab/` — Colab 재현 산출물 (**지표 Δ=0 검증 완료** · 2026-10-14)
 
-`benchmarks/retrain_25d_colab.ipynb` 를 Colab 에 **업로드만** 해서 실행하면 같은 25차원 재학습을 Colab 에서
-재현하고 결과(`lgb_*_demand.onnx` 3종 + `feature_schema.json`)를 이 폴더로 반출합니다
-(위 `tuned_25d/` 는 로컬 대조군으로 **그대로 보존**됩니다).
+`benchmarks/retrain_25d_colab.ipynb` 를 Colab 에 **업로드만** 해서 실행해 얻은 산출물입니다(위 `tuned_25d/` 는 로컬 대조군으로 보존).
+Colab 은 `.py` 파일을 열어 실행하는 환경이 아니므로(`retrain_25d.py` 는 `main.py`·`feature_schema.py` 까지 import 체인) **노트북 1개로 완결**되도록 설계했습니다 → 위 `CastTransit.ipynb` 의 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **태그로 찾아 `exec`**(피처 드리프트 0) · Optuna 는 재탐색하지 않고 위 스키마의 `best_params` 를 **고정 주입**.
 
-- Colab 은 `.py` 파일을 열어 실행하는 환경이 아니므로(`retrain_25d.py` 는 `main.py`·`feature_schema.py` 까지 import 체인) **노트북 1개로 완결**되도록 설계했습니다 → 위 `CastTransit.ipynb` 의 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **태그로 찾아 `exec`**(피처 드리프트 0) · Optuna 는 재탐색하지 않고 위 스키마의 `best_params` 를 **고정 주입**.
-- **선검증(로컬)**: 노트북 셀 로직을 로컬 원천 CSV 로 실행 → `retrain_25d.py` 와 지표·`best_iteration` **완전 일치**(bike 680 / bus 1,498 / subway 446, ΔR² 0.0000). 반출 ONNX 는 하네스가 `dim=25`·`layout=25d-subset` 으로 자동 판별.
-- 스키마 `model_version: v2-전처리_2-25d-retrain-colab` · `env` 블록에 Colab 런타임·lightgbm 버전을 자동 기록합니다.
-- 평가: `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab` (로컬 실행본과 온전 비교는 `tuned_25d` 병기 5-way)
+| 파일 | 설명 | 크기(byte) |
+| :--- | :--- | ---: |
+| `lgb_bike_demand.onnx` | 따릉이 (입력 `[None, 25]`) | 5,709,941 |
+| `lgb_bus_demand.onnx` | 버스 (입력 25차원) | 14,574,454 |
+| `lgb_subway_demand.onnx` | 지하철 (입력 25차원) | 3,713,077 |
+| `feature_schema.json` | 25차원 스키마 (`v2-전처리_2-25d-retrain-colab`) + Colab `env` 기록 | 3,081 |
+| `README.md` | 반입·검증 결과 안내 | 2,4xx |
+
+### 검증 결과 — **로컬 `tuned_25d/` 와 플랫폼 편차 0** (`benchmarks/results/comparison_20261014_214856.{json,md}`)
+
+| 수단 | R² | RMSE | MAE | MAPE≠0 | best_iter | 로컬 대비 Δ |
+| :---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| 🚲 bike | 0.9883 | 16.666 | 9.677 | 16.19% | 680 | **Δ = 0** |
+| 🚌 bus | 0.9912 | 528.628 | 342.732 | 14.07% | 1,498 | **Δ = 0** |
+| 🚇 subway | 0.9935 | 769.318 | 330.871 | 4.96% | 446 | **Δ = 0** |
+
+- R²·RMSE·MAE·MAPE·`best_iteration` **12개 지표 전부 Δ = 0.000000** · `best_params`·25차원 피처 순서 일치 · ONNX **파일 크기 3종 동일**(직렬화 메타 차이로 SHA256 만 상이).
+- Colab 환경(스키마 `env`): python 3.13.16 · **lightgbm 4.7.0(로컬과 동일)** · numpy 2.1.3 · pandas 2.2.3.
+- ⇒ 로컬 실험 결과가 **Colab 재현성까지 확보**되어, 교체 후보(`tuned_25d` ≡ `tuned_25d_colab` 동일 모델) 판단 근거는 변동 없습니다.
+- 평가(5-way): `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab --model tuned_25d=benchmarks/2026-10-14/tuned_25d`

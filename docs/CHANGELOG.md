@@ -68,10 +68,10 @@
 
   - **차원 vs 튜닝 분리**: 튜닝 파라미터 고정 + 25차원으로 축소해도 배포본을 상회(🚌 MAE −26.6 / 🚇 MAE −38.9 / 🚲 MAE −0.138) → **개선의 대부분은 튜닝 효과**. 32차원 증가의 **순수 효과는 🚇 지하철에서만**(v2 32d 가 25d 재학습 대비 R² +0.0017 · MAE −53.2).
   - `tuned_25d` 는 25차원이라 **서빙 정렬이 그대로 맞아**(`prepare_session_input` 서브셋과 배치 동일) `models/` 교체 후보로 등록합니다.
-  - ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1,498 / subway 446)으로 Colab 산출물과 완전 동일하지 않음 · 버스는 P0-1(결측 24.59% 보간)로 **잠정치**.
+  - ✅ **Colab 재현 편차 0 (2026-10-14 완료 · 아래 §4)** — `best_iteration` bike 680 / bus 1,498 / subway 446 이고 **R²·RMSE·MAE·MAPE 12개 지표 전부 로컬과 Δ = 0** → 플랫폼 차이 없음. 버스는 P0-1(결측 24.59% 보간)로 **잠정치**.
 - **미해결 / 다음 단계**:
   - **`models/` 교체 판단(미완)** — 후보: `tuned_25d`(bus·subway 우세, 수단별 교체) / v2 32d(지하철 단독). 교체 시 `tests/test_feature_schema.py`·`test_inference.py`·`test_api.py` 재검증 + `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 서술 갱신.
-  - Colab 재현(선택) 으로 `best_iteration`·지표 편차 확인.
+  - ~~Colab 재현(선택) 편차 확인~~ → **2026-10-14 완료**(아래 §4 · 플랫폼 편차 Δ = 0).
 - **산출물**: `feature_schema.py`, `benchmarks/retrain_25d.py`, `benchmarks/evaluate_models.py`, `main.py`, `tests/test_feature_schema.py`, `benchmarks/2026-10-14/tuned_25d/{lgb_bike,lgb_bus,lgb_subway}_demand.onnx` + `tuned_25d/feature_schema.json`, `benchmarks/results/{comparison_20261014_192204,retrain_25d_20261014_192001}.{json,md}`, `benchmarks/README.md`, `benchmarks/2026-10-14/README.md`, `docs/{TODO,MODEL_PERFORMANCE_REPORT,CHANGELOG,AI_MODEL_SPEC,BACKEND_INFERENCE_SERVER,API_STRUCTURE}.md`, `.env.example`
 
 ### 3. 🐳 컨테이너 배포 결함 수정 — `feature_schema.py` COPY 누락 (기동 ImportError)
@@ -95,11 +95,23 @@
      - 지표 산식은 `evaluate_models.regression_metrics` 와 동일 규칙(MAPE 는 실측 0 제외) · 산출 스키마는 `retrain_25d.py::export_assets` 와 동일 구조 → **정규 하네스가 그대로 소비**.
   2. **로컬 선검증(실행 증거)** — 노트북 셀을 로컬 원천 CSV 로 exec: `[Step 2]`~`[Step 5]` 전부 통과하며 지표·`best_iteration` 이 `retrain_25d.py` 실행값과 **완전 일치**(bike R² 0.9883·16.6664·9.6767·680 / bus 0.9912·528.6187·342.7211·1,498 / subway 0.9935·769.3175·330.8713·446, ΔR² 0.0000).
      - 반출 ONNX 3종은 `evaluate_models.py` 가 **`dim=25`·`layout=25d-subset`** 로 자동 판별해 4-way 표를 생성(반입 후 추가 조치 불필요) · 반출 스키마 `model_version=v2-전처리_2-25d-retrain-colab`.
-  3. **문서 동기화**: `benchmarks/README.md` §1 트리·§5 이력, `benchmarks/2026-10-14/README.md`(`tuned_25d_colab/` 절), `docs/TODO.md` §4.
+  3. **문서 동기화**: `benchmarks/README.md` §1 트리·§2 자산표·§5 이력, `benchmarks/2026-10-14/README.md`(`tuned_25d_colab/` 절 — 반입·검증 결과), `benchmarks/2026-10-14/tuned_25d_colab/README.md`(반입·검증 결과), `docs/TODO.md` §4.
+   4. **Colab 실행 → 반입 → 5-way 평가 (2026-10-14 완료)** — 사용자가 Colab 에서 노트북을 실행해 반출한 파일 4개를 `benchmarks/2026-10-14/tuned_25d_colab/` 에 반입하고 정규 하네스로 검증.
+- **검증 결과 — 플랫폼 편차 0 (`benchmarks/results/comparison_20261014_214856.{json,md}` · 5-way)**:
+
+| 수단 | R² | RMSE | MAE | MAPE≠0 | best_iter | 로컬 `tuned_25d/` 대비 Δ |
+| :---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| 🚲 bike | 0.9883 | 16.666 | 9.677 | 16.19% | 680 | **0.000000** |
+| 🚌 bus | 0.9912 | 528.628 | 342.732 | 14.07% | 1,498 | **0.000000** |
+| 🚇 subway | 0.9935 | 769.318 | 330.871 | 4.96% | 446 | **0.000000** |
+
+  - R²·RMSE·MAE·MAPE·`best_iteration` **12개 지표 전부 Δ = 0**(스키마 JSON 값 완전 일치) + `best_params`·25차원 피처 순서 일치 · ONNX **파일 크기 3종 동일**(5,709,941 / 14,574,454 / 3,713,077 · 직렬화 메타 차이로 SHA256 만 상이).
+  - Colab 환경(스키마 `env` 자동 기록): python 3.13.16 · **lightgbm 4.7.0(로컬과 동일)** · numpy 2.1.3 · pandas 2.2.3.
+  - ⇒ 로컬 실험(lightgbm 4.7.0) 결과가 **Colab 재현성까지 확보**되었고 `tuned_25d` ≡ `tuned_25d_colab` **동일 모델**이므로, `models/` 교체 판단 근거는 변동 없음(잔여 리스크: P0-1 버스 잠정치 · 교체 Gate 미확정).
 - **미해결 / 다음 단계**:
-  - **Colab 실실행 미수행** — 실제 Colab 실행(플랫폼 편차 확인)은 Drive·Google 계정이 필요해 사용자 몫으로 남습니다. 반입 후 `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab`(필요 시 `tuned_25d` 병기 5-way).
-  - 로컬 `tuned_25d/` 는 **대조군으로 보존**(반출 폴더명을 `tuned_25d_colab/` 으로 분리).
-- **산출물**: `benchmarks/retrain_25d_colab.ipynb`, `benchmarks/README.md`, `benchmarks/2026-10-14/README.md`, `docs/TODO.md`, `docs/CHANGELOG.md`
+  - 로컬 `tuned_25d/` 는 **대조군으로 보존**(반출 폴더명을 `tuned_25d_colab/` 으로 분리) — 두 폴더 지표가 동일하므로 교체 반입 시 어느 쪽을 쓰든 결과는 같습니다.
+  - `models/` 교체 판단·수단별 Gate 확정은 `docs/TODO.md` §4 의 별도 대기 항목.
+- **산출물**: `benchmarks/retrain_25d_colab.ipynb`, `benchmarks/2026-10-14/tuned_25d_colab/{lgb_bike,lgb_bus,lgb_subway}_demand.onnx` + `tuned_25d_colab/feature_schema.json` + `tuned_25d_colab/README.md`, `benchmarks/results/comparison_20261014_214856.{json,md}`, `benchmarks/README.md`, `benchmarks/2026-10-14/README.md`, `docs/TODO.md`, `docs/CHANGELOG.md`
 
 ---
 

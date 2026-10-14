@@ -52,3 +52,9 @@ python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-
 스키마·대조 기준은 [`../README.md`](../README.md) 의 `tuned_25d_colab/` 절 · 진행 항목은 `docs/TODO.md` §4 를 보십시오.
 
 > 이 폴더의 ONNX 를 비우면 평가 스크립트는 해당 라벨을 `[skip]` 하고 나머지 비교는 그대로 진행합니다(크래시 없음).
+
+## ⚠️ 배포 반입 시 주의 — 이 폴더의 `feature_schema.json` 을 `models/` 슬롯에 넣지 마세요
+
+- 배포 슬롯 교체 대상은 `models/lgb_{bike,bus,subway}_demand.onnx` **ONNX 3종만** 입니다.
+- 이 폴더의 스키마는 **25차원**(`model_version: v2-전처리_2-25d-retrain-colab`)인데, `feature_schema.py::validate_expected_order` 는 스키마가 `main.py::FEATURE_ORDER_32`(**32차원**)와 **완전 일치**할 것을 요구합니다 → `models/feature_schema.json` 으로 넣으면 **서버 기동이 중단**됩니다(2026-10-14 실측: `validate_expected_order → FAIL`).
+- 교체 후 `/health.feature_schema.status` 는 **`legacy-subset-25d` 유지가 정상**(모델 25차원 + 현행 32차원 SSoT)이며, `verified` 는 **32차원 자산 + 32차원 스키마**일 때만 나옵니다.

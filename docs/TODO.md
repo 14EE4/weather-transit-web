@@ -88,7 +88,8 @@
   - `tests/test_feature_schema.py` **8종 통과**(규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health` 노출·컨테이너 배포 파일 목록)
 - [ ] **`models/` 교체 판단 (신설 · 최우선)** — `benchmarks/2026-10-14/tuned_25d/`(25차원 재학습본)는 **서빙 정렬이 그대로 맞는** 교체 후보(32차원 자산 교체안과 달리 배치 변환 불필요)
   - 판단 재료: 4-way/5-way 리포트 — bus·subway 는 전 지표 개선 / bike 는 R²·RMSE 소폭 열세(MAE·MAPE 우세) → **수단별 교체(지하철·버스 우선)** 또는 bike 제외 논의 · Colab 재현본 `tuned_25d_colab/` 은 `tuned_25d` 와 **지표 완전 동일**이라 판단에 영향 없음
-  - 교체 시: `models/lgb_{bike,bus,subway}_demand.onnx` 반입 → `/health.feature_schema.status` 가 `verified` 로 바뀌는지 확인 · `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`
+  - 교체 시: `models/lgb_{bike,bus,subway}_demand.onnx` **만** 반입(파일 단위 수단별 교체 가능) → 기동 로그 `[schema] 25차원 레거시 서브셋으로 동작 중` + `/health.feature_schema.status == "legacy-subset-25d"` **유지가 정상**(스키마는 32차원 SSoT 유지) · `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`
+  - ⚠️ **`models/feature_schema.json` 슬롯에 25차원 스키마를 넣지 마세요** — `feature_schema.py::validate_expected_order` 가 스키마 == `main.py::FEATURE_ORDER_32`(**32차원 완전 일치**)를 요구하므로, 25차원 스키마(`tuned_25d/feature_schema.json` = `v2-전처리_2-25d-retrain`)를 배포 슬롯에 두면 **기동이 중단**됩니다(2026-10-14 실측: `validate_expected_order → FAIL`). `verified` 는 **32차원 자산 + 32차원 스키마**일 때만 나옵니다.
   - 교체 확정 시 문서 정리: `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 의 "25차원 = 32차원 − 7" 서술 기준 모델 갱신
   - 교체 전 백업/롤백: `models/` 는 `benchmarks/original/` 과 **SHA256 동일 스냅샷**으로 판정되어 있어 문제 시 즉시 원복 가능 · 교체는 **파일 단위(수단별) 부분 교체**로도 가능
 - [ ] **교체 승인 기준(Gate) 확정 (신설)** — 전면 교체 기준("3수단 전부 유의 우세")으로는 이미 보류됨 → **수단별 기준**(예: subway 단독 교체 허용 조건)과 bike 처리 방침(제외/보류) 결정 필요

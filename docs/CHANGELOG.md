@@ -116,6 +116,14 @@
   - `models/` 교체 판단·수단별 Gate 확정은 `docs/TODO.md` §4 의 별도 대기 항목.
 - **산출물**: `benchmarks/retrain_25d_colab.ipynb`, `benchmarks/2026-10-14/tuned_25d_colab/{lgb_bike,lgb_bus,lgb_subway}_demand.onnx` + `tuned_25d_colab/feature_schema.json` + `tuned_25d_colab/README.md`, `benchmarks/results/comparison_20261014_214856.{json,md}`, `benchmarks/README.md`, `benchmarks/2026-10-14/README.md`, `docs/TODO.md`, `docs/CHANGELOG.md`
 
+### 5. ⚠️ `models/` 교체 절차 함정 확인 — 25차원 스키마는 배포 슬롯 반입 금지 (기동 중단)
+- **배경**: `docs/TODO.md` §4 의 교체 체크리스트가 "교체 후 `/health.feature_schema.status == verified` 확인"으로 적혀 있었으나, 25차원 재학습 후보(`tuned_25d/`·`tuned_25d_colab/`)에는 **25차원 스키마**가 함께 반출되어 있어, 슬롯 반입 여부에 따라 **기동 실패 위험**이 있었습니다.
+- **실측 (2026-10-14 · `feature_schema.py` 직접 호출)**:
+  - `benchmarks/2026-10-14/feature_schema.json`(32차원 · `v2-전처리_2-32d`) → `validate_expected_order` **PASS**(기동 OK).
+  - `tuned_25d/feature_schema.json` · `tuned_25d_colab/feature_schema.json`(**25차원** · `v2-전처리_2-25d-retrain(-colab)`) → **FAIL** → `FeatureSchemaError` 로 **기동 중단**. `validate_expected_order` 는 스키마 == `main.py::FEATURE_ORDER_32`(32차원) **완전 일치**를 요구합니다.
+- **조치(문서 정정)**: 교체 체크리스트 수정 — ① 반입 대상은 `models/lgb_{bike,bus,subway}_demand.onnx` **ONNX 3종만** ② 교체 후 `feature_schema.status` 는 **`legacy-subset-25d` 유지가 정상**(스키마는 32차원 SSoT 유지) ③ `verified` 는 **32차원 자산 + 32차원 스키마**일 때만 ④ `models/feature_schema.json` 슬롯에 25차원 스키마 **반입 금지** 경고를 `docs/TODO.md` §4 · `benchmarks/2026-10-14/README.md` · `tuned_25d_colab/README.md` 에 명시.
+- **산출물**: `docs/TODO.md`, `benchmarks/2026-10-14/README.md`, `benchmarks/2026-10-14/tuned_25d_colab/README.md`, `docs/CHANGELOG.md`
+
 ---
 
 ## [2026-10-13]

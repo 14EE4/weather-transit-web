@@ -6,7 +6,7 @@
   1. `feature_schema.json` 규격(차원 == feature_cols 수, 중복 없음)
   2. 순서 3자 일치: 스키마 == `main.py::FEATURE_ORDER_32` == `benchmarks/evaluate_models.py::FEATURE_COLS_32`
   3. 25차원 레거시 서브셋 정의 일치(`feature_schema.LEGACY_25D_INDICES` == 서빙/평가 인덱스)
-  4. 실제 ONNX 자산 입력 차원(배포 슬롯 25 / v2 후보 32 / v1 후보 32)
+  4. 실제 ONNX 자산 입력 차원(배포 슬롯 32 / 레거시 원본 25 / v1 후보 32)
   5. 타깃 매핑 · 분할 경계 · 공휴일 캘린더(19일)
   6. 네거티브 가드(순서 뒤바뀜·v1 배치 오적용·차원 불일치 → 즉시 실패)
   7. `/health` 스키마 검증 노출(`feature_schema.status`)
@@ -97,22 +97,35 @@ def test_legacy_25d_subset():
     print(f"  ✅ 인덱스 {LEGACY_INDICES}")
     print("  ✅ 피처명 25개 일치 (feature_schema.legacy_25d_cols == FEATURE_COLS_25)")
 
-    # 서빙 정렬: 25차원 세션에는 서브셋만 들어가야 하고 순서는 인덱스 정의와 동일해야 한다.
-    sess25 = ort.InferenceSession(
-        str(ROOT_DIR / "models" / "lgb_bike_demand.onnx"), providers=["CPUExecutionProvider"]
-    )
+    # 서빙 정렬 A: 25차원 세션(레거시 서브셋)에는 [17..20]·[27..29] 를 뺀 25개가 순서대로 들어가야 한다.
+    #  - 배포 슬롯(models/)이 32차원으로 교체된 뒤에도 이 검증이 유지되도록 **25차원 자산을 직접 지정**한다.
+    legacy_asset = ROOT_DIR / "benchmarks" / "original" / "lgb_bike_demand.onnx"
+    assert legacy_asset.is_file(), f"25차원 레거시 자산이 없습니다: {legacy_asset}"
+    sess25 = ort.InferenceSession(str(legacy_asset), providers=["CPUExecutionProvider"])
     assert int(sess25.get_inputs()[0].shape[1]) == 25
-    out25 = prepare_session_input([float(i) for i in range(32)], sess25)
+    probe = [float(i) for i in range(32)]
+    out25 = prepare_session_input(probe, sess25)
     assert out25.shape == (1, 25), f"25차원 세션 정렬 실패: {out25.shape}"
     assert out25[0].tolist() == [float(i) for i in LEGACY_INDICES], "서브셋 순서가 다릅니다."
-    print(f"  ✅ 25차원 세션 정렬 shape={out25.shape} (서브셋 순서 일치)")
+    print(f"  ✅ 25차원 세션 정렬 shape={out25.shape} · 자산={legacy_asset.relative_to(ROOT_DIR).as_posix()}")
+
+    # 서빙 정렬 B: 32차원 세션(사양서 배치)에는 32차원 벡터가 **변환 없이 그대로** 전달되어야 한다.
+    #  - models/ 를 32차원 자산으로 교체한 뒤의 실제 배포 경로를 그대로 검증한다.
+    sess32 = ort.InferenceSession(
+        str(ROOT_DIR / "models" / "lgb_bike_demand.onnx"), providers=["CPUExecutionProvider"]
+    )
+    assert int(sess32.get_inputs()[0].shape[1]) == 32
+    out32 = prepare_session_input(probe, sess32)
+    assert out32.shape == (1, 32), f"32차원 세션 정렬 실패: {out32.shape}"
+    assert out32[0].tolist() == probe, "32차원 벡터가 변환 없이 전달되지 않았습니다."
+    print(f"  ✅ 32차원 세션 정렬 shape={out32.shape} (배포 슬롯 = 사양서 배치, 무변환 통과)")
 
 
 def test_onnx_asset_dims():
-    """[Test 4] ONNX 자산 입력 차원 — 배포 슬롯 25 / v2 후보·v1 후보 32."""
+    """[Test 4] ONNX 자산 입력 차원 — 배포 슬롯 32(사양서 배치) / 레거시 원본 25 / v1 후보 32."""
     print("\n[Test 4] ONNX 자산 입력 차원 검증...")
     expectations = {
-        ROOT_DIR / "models": 25,
+        ROOT_DIR / "models": 32,
         ROOT_DIR / "benchmarks" / "original": 25,
         ROOT_DIR / "benchmarks" / "2026-10-14": 32,
         ROOT_DIR / "benchmarks" / "2026-10-12" / "tuned": 32,
@@ -199,7 +212,7 @@ def test_negative_guards():
 
 
 def test_health_exposes_schema():
-    """[Test 7] `/health` 가 스키마 검증 결과를 노출하는지 확인."""
+    """[Test 7] `/health` 가 스키마 검증 결과를 노출하는지 확인 (배포 슬롯 = 32차원 자산)."""
     print("\n[Test 7] /health 스키마 검증 노출 확인 (TestClient 기동)...")
     from fastapi.testclient import TestClient
 
@@ -208,8 +221,12 @@ def test_health_exposes_schema():
     block = payload.get("feature_schema")
     assert block, "/health 응답에 feature_schema 블록이 없습니다."
     assert block.get("feature_dim") == 32, f"feature_dim 이 32가 아닙니다: {block}"
-    assert block.get("status") == "legacy-subset-25d", f"예상 status 와 다릅니다: {block.get('status')}"
-    assert set(block.get("model_input_dims", {}).values()) == {25}, "배포 모델 입력차원은 25여야 합니다."
+    assert block.get("status") == "verified", (
+        f"예상 status 와 다릅니다: {block.get('status')} — 배포 슬롯(ONNX 3종)이 스키마(32차원)와 "
+        "정렬되면 verified 입니다. 25차원 자산을 부분 반입했다면 legacy-subset-25d / mixed-32d/25d 가 "
+        "정상이므로 이 기대값을 배포 상태에 맞춰 함께 갱신하세요."
+    )
+    assert set(block.get("model_input_dims", {}).values()) == {32}, "배포 모델 입력차원은 32여야 합니다."
     print(f"  ✅ /health.feature_schema: {json.dumps(block, ensure_ascii=False)}")
 
 

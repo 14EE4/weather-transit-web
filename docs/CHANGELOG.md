@@ -20,7 +20,7 @@
 - **검증 결과 (2026-10-14 · `benchmarks/results/comparison_20261014_184621.{json,md}`)**:
   - **교차검증 통과** — `python benchmarks/evaluate_models.py` 실측값이 노트북 기록 Test 지표와 **소수점 수준 일치**(bike R² 0.98729→0.9873 · bus 0.99006→0.9901 · subway 0.99515→0.9951, RMSE 오차 ≤0.006) → **파이프라인 재현성 확인**.
   - 배포본(25차원) 대비 순위: 🚇 **subway 전 지표 우세**(R² 0.9924→0.9951 · RMSE 826.324→662.095 · MAE 369.732→277.633, **MAE −24.9%**) / 🚲 **bike R²·RMSE 열세**(0.9887→0.9873 · 16.372→17.382, MAE·MAPE 는 우세) / 🚌 **bus R²·RMSE·MAE 우세하나 MAPE 열세**(14.53%→18.09%).
-  - **배포 판단(Gate): 전면 교체 보류** — 3수단 전부 유의 우세 조건 미충족 → **`models/` 는 25차원 유지**(수단별 교체 검토 또는 25차원 재학습 비교 후 확정).
+  - **배포 판단(Gate): 전면 교체 보류** — 3수단 전부 유의 우세 조건 미충족 → **`models/` 는 25차원 유지**(수단별 교체 검토 또는 25차원 재학습 비교 후 확정). → ⚠️ **후속 §6 에서 전면 32차원 교체로 확정·실행(2026-10-14)**.
 - **미해결 / 다음 단계**:
   - 버스 수치는 P0-1(테스트 구간 `버스_승차` 결측 24.59% 보간)로 **잠정치**.
   - 동일 `study.best_params` + 25차원 서브셋 재학습으로 "차원 vs 튜닝" 효과 분리 · `feature_schema.json` 을 평가·서빙 코드가 소비하도록 전환(SSoT 자동 검증).
@@ -42,7 +42,7 @@
 - **결과 (`benchmarks/results/comparison_20261014_192204.{json,md}` · Test 2025-11-16~12-31, n=26,450 · 구 `190055` 대체)**:
   - `tuned_32d_v1` 이 **12개 지표 전부 배포본보다 우세**(MAE 개선폭 bike −4.4% / bus −15.4% / subway −19.2%) — "25차원 정보량 + Optuna 튜닝"만으로 배포본을 상회.
   - **동일 프레임 v1 vs v2 직접 비교**: 🚲·🚌 은 **v1 우세**(8개 지표), 🚇 만 **v2 우세**(4개 지표 · MAE −24.9%).
-  - ⇒ **배포 판단 변화 없음**(`models/` 25차원 유지). 단 **25차원 재학습(v2 파라미터)이 최우선 후속 과제**로 승격되고, 수단별 교체는 **지하철 단독**만 근거가 있음.
+  - ⇒ **배포 판단 변화 없음**(당시 `models/` 25차원 유지 → ⚠️ **§6 에서 전면 32차원 교체로 확정**). 단 **25차원 재학습(v2 파라미터)이 최우선 후속 과제**로 승격되고, 수단별 교체는 **지하철 단독**만 근거가 있음.
 - **미해결 / 다음 단계**:
   - v1 은 **서빙 불가**(32차원 모델에 32차원 실피처 벡터가 들어가면 인덱스 17 이후 어긋남) → **판단 보조 지표**로만 사용.
   - 버스 수치는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치** · `feature_schema.json` SSoT 소비 전환은 미완(→ 아래 §2 에서 완료).
@@ -84,7 +84,7 @@
   - ✅ `docker compose up -d --build` → backend·frontend **재빌드·재기동**(backend `healthy` 24초 내 · `8100→8000` / `3100→80`) · 기동 로그 `[schema] 피처 스키마 검증 통과: model_version=v2-전처리_2-32d | 32차원 | 출처=/app/benchmarks/2026-10-14/feature_schema.json` → **ImportError 재발 없음**(COPY 수정 유효) · 3세션 warmup(`input dim: 25`) 완료.
   - ✅ 엔드포인트 6종 **200**: 직접 `GET /health` · `POST /api/v1/predict/recommendation`(추론 6.6ms · 추천 3건) · `GET /api/v1/districts/live-congestion`(7.8ms) / Nginx 경유 `:3100/health`·`:3100/api/v1/predict/recommendation` / SPA `:3100/`(text/html) · 백엔드 로그 ERROR·Traceback 0건.
   - ✅ 회귀 테스트: `tests/test_feature_schema.py`(8종) · `tests/test_inference.py`(추론 SLA 평균 **2.28ms** < 15ms) · `tests/test_api.py`(서킷 브레이커 폴백 포함) 전부 통과.
-  - ℹ️ `/health.feature_schema.status` = **`legacy-subset-25d`**(배포 모델 25차원 + 스키마 32차원 = **정상**) — `verified` 는 `models/` 를 32차원 자산(+`models/feature_schema.json`)으로 교체할 때 나옵니다.
+  - ℹ️ 당시 `/health.feature_schema.status` = **`legacy-subset-25d`**(배포 모델 25차원 + 스키마 32차원 = **정상**) → ⚠️ **§6 교체로 `verified` 승격**(2026-10-14).
 - **산출물**: `Dockerfile.backend`, `tests/test_feature_schema.py`, `docs/DOCKER_CONTAINERIZATION_PLAN.md`, `docs/API_STRUCTURE.md`, `docs/TODO.md`, `docs/CHANGELOG.md`
 
 ### 4. 🔁 25차원 재학습 **Colab 재현 노트북** 신설 — `.py` 업로드 불가 제약 우회
@@ -123,6 +123,22 @@
   - `tuned_25d/feature_schema.json` · `tuned_25d_colab/feature_schema.json`(**25차원** · `v2-전처리_2-25d-retrain(-colab)`) → **FAIL** → `FeatureSchemaError` 로 **기동 중단**. `validate_expected_order` 는 스키마 == `main.py::FEATURE_ORDER_32`(32차원) **완전 일치**를 요구합니다.
 - **조치(문서 정정)**: 교체 체크리스트 수정 — ① 반입 대상은 `models/lgb_{bike,bus,subway}_demand.onnx` **ONNX 3종만** ② 교체 후 `feature_schema.status` 는 **`legacy-subset-25d` 유지가 정상**(스키마는 32차원 SSoT 유지) ③ `verified` 는 **32차원 자산 + 32차원 스키마**일 때만 ④ `models/feature_schema.json` 슬롯에 25차원 스키마 **반입 금지** 경고를 `docs/TODO.md` §4 · `benchmarks/2026-10-14/README.md` · `tuned_25d_colab/README.md` 에 명시.
 - **산출물**: `docs/TODO.md`, `benchmarks/2026-10-14/README.md`, `benchmarks/2026-10-14/tuned_25d_colab/README.md`, `docs/CHANGELOG.md`
+
+---
+
+### 6. 🚀 배포 모델 **전면 32차원 교체**(사양서 배치) + 컨테이너 실기동 재검증
+- **배경**: 32차원 실피처 후보(`benchmarks/2026-10-14/`)는 🚇 지하철 전 지표 우세(MAE −24.9%)였으나 🚲 bike R²·RMSE · 🚌 bus MAPE 열세로 **전면 교체가 보류**된 상태였음(§0). 이번에 **사양서 배치(8/8/5/11) 단일화 · 규격 정합(`verified`) 확보 · 서빙 경로 실검증**을 목적으로 **전면 32차원 교체**를 결정·실행(트레이드오프 수치 명시).
+- **조치**:
+  1. **배포 슬롯 교체(ONNX 3종, 파일 단위)** — `benchmarks/2026-10-14/lgb_{bike,bus,subway}_demand.onnx` → `models/` (SHA256 `A6854BC6…` / `983A069B…` / `264E822F…` · 크기 7,020,769 / 13,596,760 / 7,345,447 byte). 스키마는 **반입하지 않았음** — 현행 32차원 SSoT(`benchmarks/2026-10-14/feature_schema.json`)가 탐색 3순위로 그대로 사용되어 `status=verified` 로 자연 승격(`models/feature_schema.json` 중복 배치 시 드리프트 위험).
+  2. **테스트 동기화** — `tests/test_feature_schema.py`: **Test 3** 은 25차원 레거시 서브셋 정렬 검증을 **25차원 자산(`benchmarks/original/`)** 으로 분리 + **32차원 무변환 통과 검증 추가** · **Test 4** 배포 슬롯 기대 차원 25→**32** · **Test 7** `status` 기대값 `legacy-subset-25d`→**`verified`** · `model_input_dims` 25→**32**(부분 교체 시 되돌리는 방법을 주석으로 명시).
+  3. **문서 동기화** — `docs/TODO.md` §3·§4 · `docs/MODEL_PERFORMANCE_REPORT.md` §7 · `docs/API_STRUCTURE.md` §3 · `docs/BACKEND_INFERENCE_SERVER.md` §3 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 · `docs/AI_MODEL_SPEC.md` §7 · `docs/DOCKER_CONTAINERIZATION_PLAN.md` §5 · `benchmarks/README.md` §2·§3·§5 · `benchmarks/2026-10-14/README.md`.
+- **검증 결과 (2026-10-14)**:
+  - ✅ **회귀 테스트 6종 전부 통과** — `test_feature_schema.py`(8종 · `/health.feature_schema.status=verified` · dims `{bike:32,bus:32,subway:32}`) · `test_inference.py`(추론 SLA 평균 **1.91ms** < 15ms · 우천 모달 시프트 통과) · `test_api.py` · `test_mcda_calibration.py` · `test_timeseries_cache.py` · `test_station_pipeline.py`
+  - ✅ **컨테이너 재빌드·실기동** — `docker compose up -d --build` → backend **`healthy`**(`8100→8000`) · frontend Up(`3100→80`) · 기동 로그 `[schema] {bike,bus,subway}: 입력 32차원 — 스키마 정렬 OK` · 3세션 warmup(`input dim: 32`) · **레거시 서브셋 경고 소멸** · ERROR·Traceback 0건
+  - ✅ **엔드포인트 6종 200** — `GET /health`(`status=ok` · `feature_schema.status=verified` · dims `{32,32,32}`) · `POST /api/v1/predict/recommendation`(10.83ms · bike 87 / subway 80 / bus 67) · `GET /api/v1/districts/live-congestion`(14.67ms · hotspots 5) / Nginx 경유 `:3100/health`·`:3100/api/v1/districts/live-congestion`(200) / SPA `:3100/`(text/html)
+- **감수한 트레이드오프(명시)**: 배포본 25d 대비 🚇 subway MAE −24.9% · RMSE −19.9% ↔ 🚲 bike R² −0.0014 · RMSE +1.010(+6.2%) · 🚌 bus MAPE +3.56%p(+24.5% 상대, P0-1 결측 24.59% 보간으로 **잠정치**) → **지하철 정확도·규격 정합성·배치 단일화를 우선**하고 나머지는 수용. 25차원 재학습본(`tuned_25d/`)과 `original/` 스냅샷은 **롤백·대안 자산으로 보존**.
+- **롤백**: `Copy-Item benchmarks\original\lgb_{bike,bus,subway}_demand.onnx models\ -Force`(25차원 원복) → `status=legacy-subset-25d` 복귀 + `tests/test_feature_schema.py` Test 3·4·7 기대값 원복.
+- **산출물**: `models/lgb_{bike,bus,subway}_demand.onnx`, `tests/test_feature_schema.py`, `docs/TODO.md`, `docs/MODEL_PERFORMANCE_REPORT.md`, `docs/API_STRUCTURE.md`, `docs/BACKEND_INFERENCE_SERVER.md`, `docs/SYSTEM_ARCHITECTURE.md`, `docs/AI_MODEL_SPEC.md`, `docs/DOCKER_CONTAINERIZATION_PLAN.md`, `benchmarks/README.md`, `benchmarks/2026-10-14/README.md`, `docs/CHANGELOG.md`
 
 ---
 

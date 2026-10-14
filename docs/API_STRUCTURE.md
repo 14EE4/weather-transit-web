@@ -55,15 +55,15 @@
 **GET `/health`** — 파라미터 없음
 ```json
 { "status": "ok", "models_loaded": true,
-  "feature_schema": { "path": "benchmarks/2026-10-14/feature_schema.json", "status": "legacy-subset-25d",
+  "feature_schema": { "path": "benchmarks/2026-10-14/feature_schema.json", "status": "verified",
                       "model_version": "v2-전처리_2-32d", "feature_dim": 32,
-                      "model_input_dims": { "bike": 25, "bus": 25, "subway": 25 } },
+                      "model_input_dims": { "bike": 32, "bus": 32, "subway": 32 } },
   "circuit_breakers": { "kma_weather":"CLOSED","seoul_subway":"CLOSED","seoul_bus":"CLOSED" },
   "available_districts": ["강남구", "..."], "timestamp": "..." }
 ```
 
 - `feature_schema` 는 **기동 시 피처 스키마(SSoT) 검증 결과**입니다(`feature_schema.py` → `main.py::ModelRegistry`).
-  - `status`: `verified`(모델 입력 차원 = 스키마 차원) / `legacy-subset-25d`(25차원 레거시 서브셋으로 동작) / `mixed-32d/25d` / `not-found`(스키마 미발견 → 검증 생략)
+  - `status`: **`verified`(현행 배포 상태 — 모델 입력 차원 = 스키마 차원, 2026-10-14 32차원 교체)** / `legacy-subset-25d`(25차원 레거시 자산을 배포 슬롯에 반입한 경우) / `mixed-32d/25d`(수단별 혼합) / `not-found`(스키마 미발견 → 검증 생략)
   - 스키마 순서가 코드(`main.py::FEATURE_ORDER_32`)와 다르면 **서버가 기동하지 않습니다**(조용한 예측 붕괴 방지).
   - 경로 재정의: `FEATURE_SCHEMA_PATH` 환경변수(미지정 시 `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json` 자동 탐색).
 

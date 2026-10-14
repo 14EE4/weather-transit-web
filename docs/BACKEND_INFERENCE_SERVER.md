@@ -244,10 +244,10 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
   "models_loaded": true,
   "feature_schema": {
     "path": "benchmarks/2026-10-14/feature_schema.json",
-    "status": "legacy-subset-25d",
+    "status": "verified",
     "model_version": "v2-전처리_2-32d",
     "feature_dim": 32,
-    "model_input_dims": { "bike": 25, "bus": 25, "subway": 25 }
+    "model_input_dims": { "bike": 32, "bus": 32, "subway": 32 }
   },
   "available_districts": ["강남구", "강동구", "...", "중랑구"],
   "timestamp": "2026-10-05T19:55:53+09:00"

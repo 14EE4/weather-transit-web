@@ -10,6 +10,21 @@ Optuna 튜닝 모델 3종과 메타 스키마입니다. (커밋 `07292b4`)
 | `lgb_subway_demand.onnx` | 지하철 승차 수요 (입력 32차원) | 7,345,447 |
 | `feature_schema.json` | 피처 순서(32)·분할 경계·공휴일 캘린더·튜닝 파라미터/지표 메타 | 3,296 |
 
+## 배포 반입 완료 (2026-10-14)
+
+이 폴더의 ONNX 3종이 **배포 슬롯 `models/` 로 반입되어 현행 배포본**입니다(스키마 파일은 슬롯에 두지 않음 — 아래 ⚠️ 참조).
+
+| 항목 | 값 |
+| :--- | :--- |
+| 반입 파일 | `models/lgb_{bike,bus,subway}_demand.onnx` |
+| SHA256 | bike `A6854BC6…2D25` · bus `983A069B…58B1` · subway `264E822F…04F0` |
+| `GET /health.feature_schema` | `status=verified` · `feature_dim=32` · `model_input_dims {bike:32,bus:32,subway:32}` |
+| 기동 로그 | `[schema] {bike,bus,subway}: 입력 32차원 — 스키마 정렬 OK` · warmup `input dim: 32` |
+| 회귀 테스트 | `test_feature_schema`(8종) · `test_inference`(SLA 1.91ms) · `test_api` · `test_mcda_calibration` · `test_timeseries_cache` · `test_station_pipeline` 전부 통과 |
+| 롤백 | `Copy-Item benchmarks\original\lgb_{bike,bus,subway}_demand.onnx models\ -Force` → `status=legacy-subset-25d` 복귀 |
+
+검증 이력·트레이드오프: `docs/CHANGELOG.md` [2026-10-14] §6 · `docs/TODO.md` §4 · `docs/MODEL_PERFORMANCE_REPORT.md` §7-8
+
 ## 왜 별도 폴더인가
 
 `benchmarks/2026-10-12/tuned/` 의 구 32차원 모델은 v1 배치
@@ -103,8 +118,8 @@ Colab 은 `.py` 파일을 열어 실행하는 환경이 아니므로(`retrain_25
 - ⇒ 로컬 실험 결과가 **Colab 재현성까지 확보**되어, 교체 후보(`tuned_25d` ≡ `tuned_25d_colab` 동일 모델) 판단 근거는 변동 없습니다.
 - 평가(5-way): `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab --model tuned_25d=benchmarks/2026-10-14/tuned_25d`
 
-### ⚠️ 배포 반입 시 주의 — 25차원 스키마는 `models/` 슬롯에 넣지 마세요 (2026-10-14 실측)
+### ⚠️ 배포 슬롯 스키마 주의 — 25차원 스키마는 `models/` 에 넣지 마세요 (2026-10-14 실측)
 
-- `models/`(배포 슬롯) 교체는 **ONNX 3종만** 파일 단위로 반입합니다. 스키마 탐색 3순위가 `models/feature_schema.json` 이라 이 슬롯에 파일을 두면 **그 스키마가 우선 사용**됩니다.
-- 그런데 `feature_schema.py::validate_expected_order` 는 스키마가 `main.py::FEATURE_ORDER_32`(**32차원**)와 **완전 일치**할 것을 요구하므로, 이 폴더의 25차원 스키마(`tuned_25d/feature_schema.json` = `v2-전처리_2-25d-retrain`, `tuned_25d_colab/` 도 동일)를 슬롯에 넣으면 **서버 기동이 중단**됩니다(실측: `validate_expected_order → FAIL · FeatureSchemaError`).
-- 교체 후 `GET /health` 의 `feature_schema.status` 는 **`legacy-subset-25d` 유지가 정상**입니다(모델 25차원 + 현행 32차원 SSoT = 레거시 서브셋 정렬). `verified` 는 **32차원 자산 + 32차원 스키마**일 때만 나옵니다.
+- 현행 배포 슬롯(`models/`)에는 **이 폴더의 32차원 ONNX 3종만 반입**되어 있고 **스키마 파일은 없습니다**. 스키마 탐색 3순위가 `models/feature_schema.json` 이므로 여기에 파일을 두면 **4순위(`benchmarks/2026-10-14/feature_schema.json`)보다 우선** 사용됩니다.
+- `feature_schema.py::validate_expected_order` 는 스키마가 `main.py::FEATURE_ORDER_32`(**32차원**)와 **완전 일치**할 것을 요구합니다 → 25차원 스키마(`tuned_25d/feature_schema.json` = `v2-전처리_2-25d-retrain`, `tuned_25d_colab/` 도 동일)를 슬롯에 넣으면 **서버 기동이 중단**됩니다(2026-10-14 실측: `validate_expected_order → FAIL · FeatureSchemaError`).
+- 따라서 슬롯 교체는 **ONNX 3종만** 파일 단위로 수행합니다. 25차원 자산으로 롤백할 때도 **스키마 파일은 함께 넣지 마세요** — 그때는 `GET /health.feature_schema.status` 가 **`legacy-subset-25d` 로 돌아가는 것이 정상**입니다(`verified` 는 32차원 자산 + 32차원 스키마일 때만).

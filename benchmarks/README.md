@@ -27,7 +27,7 @@ benchmarks/
 │   │   └── lgb_subway_demand.onnx
 │   └── tuned_real/               # [종료] 2026-10-14 로 이관된 빈 배치 위치 (안내 README 만 유지)
 │       └── README.md
-└── 2026-10-14/                   # [신규 후보] v2 실제 32차원 실피처 산출물 (2026-10-14 Colab 학습)
+└── 2026-10-14/                   # [현행 배포본] v2 실제 32차원 실피처 산출물 (2026-10-14 Colab 학습 → models/ 반입)
     ├── lgb_bike_demand.onnx
     ├── lgb_bus_demand.onnx
     ├── lgb_subway_demand.onnx
@@ -55,9 +55,10 @@ benchmarks/
 
 | 구분 | 경로 | 차원 | 파일 크기 (byte) | 비고 |
 | :--- | :--- | :---: | ---: | :--- |
-| **기준선 A** | `original/lgb_bike_demand.onnx` | **25** | 4,719,076 | `models/` 와 MD5 동일 |
-| 기준선 A | `original/lgb_bus_demand.onnx` | 25 | 4,712,686 | `models/` 와 MD5 동일 |
-| 기준선 A | `original/lgb_subway_demand.onnx` | 25 | 4,696,656 | `models/` 와 MD5 동일 |
+| **기준선 A** | `original/lgb_bike_demand.onnx` | **25** | 4,719,076 | 2026-10-14 교체 **전** 배포본 스냅샷(현재 `models/` 는 32차원) |
+| 기준선 A | `original/lgb_bus_demand.onnx` | 25 | 4,712,686 | 2026-10-14 교체 **전** 배포본 스냅샷 — 롤백 자산 |
+| 기준선 A | `original/lgb_subway_demand.onnx` | 25 | 4,696,656 | 2026-10-14 교체 **전** 배포본 스냅샷 — 롤백 자산 |
+| **배포본(현행)** | `models/lgb_{bike,bus,subway}_demand.onnx` | **32** | 7,020,769 / 13,596,760 / 7,345,447 | `2026-10-14/` 와 SHA256 동일(2026-10-14 반입) |
 | **구 후보(v1)** | `2026-10-12/tuned/lgb_bike_demand.onnx` | **32** | 6,782,549 | v1 배치(25 + 더미 7) · 기본 비교 포함 |
 | 구 후보(v1) | `2026-10-12/tuned/lgb_bus_demand.onnx` | 32 | 13,251,388 | v1 배치(25 + 더미 7) · 기본 비교 포함 |
 | 구 후보(v1) | `2026-10-12/tuned/lgb_subway_demand.onnx` | 32 | 9,805,101 | v1 배치(25 + 더미 7) · 기본 비교 포함 |
@@ -108,7 +109,7 @@ benchmarks/
   - 구 배치 위치 `2026-10-12/tuned_real/` 은 **안내 README 만 남긴 종료 폴더**입니다.
 - **`2026-10-14/tuned_25d/`(25차원 재학습)**: `benchmarks/retrain_25d.py` 가 **스키마의 v2 튜닝 파라미터를 그대로 고정**하고 피처만 25차원 서빙 서브셋으로 줄여 재학습한 산출물입니다(`feature_schema.json` 의 `model_version: v2-전처리_2-25d-retrain`).
   - 목적: ① 차원 증가의 **순수 효과** 분리(§4.3) · ② **서빙 가능한 개선본** 확보(25차원이라 `prepare_session_input` 정렬 대상이 그대로 일치).
-  - 배포 슬롯(`models/`) 교체 여부는 성능 게이트 결과로만 판단합니다(§4.3 · `docs/MODEL_PERFORMANCE_REPORT.md` §0.4).
+  - **2026-10-14 배포는 32차원(`2026-10-14/`)으로 확정**되어, 이 후보는 **롤백·수단별 대안 자산**입니다(교체 이력: `docs/CHANGELOG.md` [2026-10-14] §6).
 
 ---
 
@@ -144,7 +145,7 @@ python benchmarks/evaluate_models.py --schema benchmarks/2026-10-14/feature_sche
 
 - **실행 첫 단계에서 피처 스키마를 검증**합니다(`verify_feature_schema`) — 스키마의 `feature_cols` 차원·순서가 이 스크립트의 상수와 다르면 **즉시 중단**합니다. 검증 결과는 리포트 헤더와 JSON `feature_spec.schema` 에 기록됩니다(스키마 미발견 시 `skipped` 로 표기하고 내장 상수로 진행).
 - 기본 비교 **3종**: `production_25d`(=`original/`, 25차원) · `tuned_32d_v1`(=`2026-10-12/tuned/`, v1 배치) · `tuned_32d_real`(=`2026-10-14/`, v2 실피처). `--model tuned_25d=...` 를 주면 25차원 재학습 자산까지 **4-way** 로 비교합니다.
-  - 배포 슬롯 `models/` 는 `original/` 과 **바이트 동일(SHA256)** 이므로 별도 행을 만들지 않고, 리포트 말미 `자산 무결성 (SHA256)` 절에 동일 자산으로 표기됩니다(스크립트가 자동 스캔).
+  - 배포 슬롯 `models/` 는 2026-10-14 교체로 `2026-10-14/`(32차원)와 **바이트 동일(SHA256)** 이므로 별도 행을 만들지 않고, 리포트 말미 `자산 무결성 (SHA256)` 절에 동일 자산으로 표기됩니다(스크립트가 자동 스캔) — `original/`(25차원) 스냅샷은 롤백 자산으로 보존됩니다.
 - **세대별 피처 배치**를 `MODEL_LAYOUTS` 로 지정해 각 모델을 **자기 배치로만** 평가합니다: `v2`(사양서 §3.2 · 8/8/5/11) / `v1`(25차원 `8/8/1/3/3/2` + 상수 0 더미 7). 25차원 모델은 배치와 무관하게 25차원 서브셋을 받습니다.
 - 모든 모델이 **동일한 테스트 행**(사양서 §6.1 `test 2025-11-16 ~ 12-31`, n=26,450)을 사용하므로 수단별 순위 비교가 성립합니다.
 - 레거시 모델(배포본 25차원 / v1 32차원)은 `is_holiday = 0`(학습 당시 분포) 변형도 함께 평가해 참고치를 남깁니다(값이 같으면 자동으로 진단 문구로 축약).
@@ -242,6 +243,14 @@ python tests/test_inference.py        # 서빙 기동 시 스키마 검증 + 추
   - 단, v1 은 **서빙 불가**(배치 비호환)이므로 v1 우세는 "25차원 정보량 + Optuna 튜닝"의 상한을 보여주는 **참고 지표**입니다 → 25차원 재학습 실험의 기대 근거로 사용합니다.
   - 프레임 차이(구 원천 ↔ `전처리_2`)로 bus 수치는 이동합니다(배포본 R² 0.9882→0.9897 · v1 0.9908→0.9923). 순위 해석은 **동일 실행 내부 비교**로 한정하십시오.
 
+### [2026-10-14] 배포 모델 **전면 32차원 교체**(사양서 배치) + 컨테이너 실기동 재검증
+- **결정**: `benchmarks/2026-10-14/`(v2 실피처 32차원) ONNX 3종을 **배포 슬롯 `models/` 로 반입**해 현행 배포본으로 확정했습니다. **스키마는 슬롯에 두지 않아**(탐색 3순위 미배치) 현행 32차원 SSoT(`2026-10-14/feature_schema.json`)가 그대로 사용되고, `GET /health.feature_schema.status` 가 **`verified`**(dims `{bike:32,bus:32,subway:32}`)로 승격됩니다.
+- **목적**: ① 사양서 피처 배치(8/8/5/11) 단일화 ② 규격 정합 검증(`docs/AI_MODEL_SPEC.md` §3.2 == 배포 텐서) ③ 서빙 경로 실검증. 🚲 RMSE +6.2% · 🚌 MAPE +24.5%(잠정)는 **명시적 트레이드오프로 수용**(§4.3 판단표).
+- **검증(2026-10-14)**: 회귀 테스트 6종 전부 통과(`test_feature_schema` 8종 · `test_inference` SLA **1.91ms** · `test_api` · `test_mcda_calibration` · `test_timeseries_cache` · `test_station_pipeline`) · `docker compose up -d --build` → backend `healthy` · 기동 로그 `[schema] {bike,bus,subway}: 입력 32차원 — 스키마 정렬 OK` + warmup `input dim: 32` · 엔드포인트 6종 200(추천 10.83ms · live-congestion 14.67ms · Nginx 경유 2종 · SPA).
+- **테스트 동기화**: `tests/test_feature_schema.py` — Test 3 은 25차원 서브셋 정렬 검증을 `original/`(25차원) 자산으로 분리하고 32차원 무변환 통과 검증을 추가 · Test 4 배포 슬롯 차원 25→32 · Test 7 `status` `legacy-subset-25d`→`verified`.
+- **롤백**: `Copy-Item benchmarks\original\lgb_{bike,bus,subway}_demand.onnx models\ -Force` → `status=legacy-subset-25d` 복귀(+ Test 3·4·7 기대값 원복).
+- **산출물**: `models/lgb_{bike,bus,subway}_demand.onnx`, `tests/test_feature_schema.py`, `docs/TODO.md` §4 · `docs/CHANGELOG.md` [2026-10-14] §6 · `docs/MODEL_PERFORMANCE_REPORT.md` §7-8.
+
 ### [2026-10-14] 25차원 재학습 **Colab 재현 노트북** 신설 (`retrain_25d_colab.ipynb`)
 - **동기**: ① Colab 은 `.py` 파일을 열어 실행하는 환경이 아니라 파일 업로드·모듈 import·저장소 클론이 필요하고, ② `retrain_25d.py` 는 `evaluate_models.py` → `main.py`(fastapi·dotenv·httpx) → `feature_schema.py`·원천 CSV 까지 import 체인이 이어져 **단독 업로드 불가**였습니다 → **노트북 1개 업로드로 완결되는 재현 경로**를 신설했습니다.
 - **도구**: `retrain_25d_colab.ipynb` — `CastTransit.ipynb` 의 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **첫 줄 태그로 찾아 그대로 `exec`**(피처 드리프트 0) 하고, `[Cell 6-1]` Optuna 는 **seed 부재 → 재탐색 금지** 원칙에 따라 스키마 SSoT 의 v2 `best_params` 를 **고정 주입**해 25차원 재학습 → ONNX 3종 + 25차원 스키마를 `2026-10-14/tuned_25d_colab/` 로 반출합니다.
@@ -261,7 +270,8 @@ python tests/test_inference.py        # 서빙 기동 시 스키마 검증 + 추
   - ⚠️ **평가 스크립트 교차검증 통과 (2026-10-14)**: `python benchmarks/evaluate_models.py` 실측값이 노트북 기록치와 **소수점 수준 일치**(bike 0.9873 / bus 0.9901 / subway 0.9951, RMSE 오차 ≤0.006) → 파이프라인 재현성 확인. 버스는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치**입니다.
 - **배포 판단 (Gate) — 전면 교체 보류 (2026-10-14)**: 3수단 전부 유의 우세 조건 **미충족** →
   - 🚇 subway ✅ 전 지표 우세(MAE −24.9%) / 🚲 bike ⚠️ R²·RMSE 열세(−0.0014 / +1.010) / 🚌 bus ⚠️ MAPE 열세(+3.56%p)
-  - 따라서 **`models/` 는 25차원 유지**하고, 수단별 교체 또는 25차원 재학습 비교 후 확정합니다.
+  - → **후속(같은 날): 전면 32차원 교체로 확정·실행**(위 첫 항목) — 규격 정합(`verified`)·배치 단일화·지하철 정확도 우선, 위 열세는 트레이드오프로 명시 수용.
+  - 롤백은 `original/`(25차원) 복사, 수단별 대안은 `2026-10-14/tuned_25d/`.
 - **자산 위치 정리**: 신규 후보 경로를 `2026-10-14/` 로 확정하고, `2026-10-12/tuned_real/` 은 안내 README 만 남긴 **종료 폴더**로 전환. `evaluate_models.py::MODEL_SETS` 의 `tuned_32d_real` 기본 경로도 `2026-10-14/` 로 갱신(기존 경로는 빈 폴더라 `[skip]` 되었음).
 - **사전 검증**: `feature_schema.json.feature_cols`(32) == `evaluate_models.py::FEATURE_COLS_32` == `main.py::build_feature_vector` 인덱스 0~31 (순서 완전 일치) · 공휴일 캘린더 19일 일치.
 

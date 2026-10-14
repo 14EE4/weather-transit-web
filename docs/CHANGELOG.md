@@ -84,6 +84,23 @@
   - **실기동 미검증** — Docker 데몬 부재로 `docker compose up -d --build` 를 실행하지 못했습니다(정적 테스트만 통과). → `docs/TODO.md` §3 의 "컨테이너 실기동 확인" 항목.
 - **산출물**: `Dockerfile.backend`, `tests/test_feature_schema.py`, `docs/DOCKER_CONTAINERIZATION_PLAN.md`, `docs/API_STRUCTURE.md`, `docs/CHANGELOG.md`
 
+### 4. 🔁 25차원 재학습 **Colab 재현 노트북** 신설 — `.py` 업로드 불가 제약 우회
+- **배경**:
+  - 로컬 25차원 재학습(`benchmarks/retrain_25d.py`) 결과에 대해 "Colab 재현(선택)" 과제가 남아 있었으나, Colab 은 **`.py` 파일을 열어 실행하는 방식이 아니라** 파일 업로드·모듈 import·저장소 클론이 필요했습니다(`retrain_25d.py` 는 `evaluate_models.py` → `main.py`(fastapi·dotenv·httpx) → `feature_schema.py`·원천 CSV 까지 import 체인이 이어져 **단독 업로드 불가**).
+  - 게다가 `retrain_25d.py`·`feature_schema.py` 는 `origin` 에 **미푸시**(로컬 5커밋 앞) 상태라 `git clone` 경로도 사용할 수 없었습니다.
+- **조치**:
+  1. **`benchmarks/retrain_25d_colab.ipynb` 신설(업로드 파일 1개로 완결)** — 레포의 `benchmarks/CastTransit.ipynb` 에서 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **첫 줄 태그로 찾아 그대로 `exec`** 하는 방식으로, 학습 코드를 복사하지 않고 재사용 → **학습·평가 간 피처 드리프트 0**(인덱스 하드코딩 금지).
+     - `[Cell 6]`(베이스라인)·`[Cell 6-1]`(Optuna 30 trials)·`[Cell 7]`(32차원 export)은 **건너뜀** → `create_study` 에 seed 가 없어 재탐색하면 `best_params` 가 바뀌어 **차원 vs 튜닝 분리 실험의 비교 가능성이 훼손**되므로, 스키마 SSoT(`benchmarks/2026-10-14/feature_schema.json::metrics.*.tuned.best_params`)를 코드에 **고정 주입**(약 20분 절약).
+     - 6셀 구성: `[Step 0]` 패키지 핀 + 환경 기록 → `[Step 1]` Drive 마운트·레포/CSV 확인 → `[Step 2]` 원본 셀 4개 exec → `[Step 3]` 25차원 서브셋 재학습(`LEGACY_25D_INDICES = range(17)+[21..26]+[30,31]`, 제외 7개 이름 assert) → `[Step 4]` ONNX 3종 + 25차원 스키마 반출(`benchmarks/2026-10-14/tuned_25d_colab/`, 입력 `[None, 25]` assert · `env` 블록에 런타임·lightgbm 버전 자동 기록) → `[Step 5]` 로컬 기준값 대조 표.
+     - 지표 산식은 `evaluate_models.regression_metrics` 와 동일 규칙(MAPE 는 실측 0 제외) · 산출 스키마는 `retrain_25d.py::export_assets` 와 동일 구조 → **정규 하네스가 그대로 소비**.
+  2. **로컬 선검증(실행 증거)** — 노트북 셀을 로컬 원천 CSV 로 exec: `[Step 2]`~`[Step 5]` 전부 통과하며 지표·`best_iteration` 이 `retrain_25d.py` 실행값과 **완전 일치**(bike R² 0.9883·16.6664·9.6767·680 / bus 0.9912·528.6187·342.7211·1,498 / subway 0.9935·769.3175·330.8713·446, ΔR² 0.0000).
+     - 반출 ONNX 3종은 `evaluate_models.py` 가 **`dim=25`·`layout=25d-subset`** 로 자동 판별해 4-way 표를 생성(반입 후 추가 조치 불필요) · 반출 스키마 `model_version=v2-전처리_2-25d-retrain-colab`.
+  3. **문서 동기화**: `benchmarks/README.md` §1 트리·§5 이력, `benchmarks/2026-10-14/README.md`(`tuned_25d_colab/` 절), `docs/TODO.md` §4.
+- **미해결 / 다음 단계**:
+  - **Colab 실실행 미수행** — 실제 Colab 실행(플랫폼 편차 확인)은 Drive·Google 계정이 필요해 사용자 몫으로 남습니다. 반입 후 `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab`(필요 시 `tuned_25d` 병기 5-way).
+  - 로컬 `tuned_25d/` 는 **대조군으로 보존**(반출 폴더명을 `tuned_25d_colab/` 으로 분리).
+- **산출물**: `benchmarks/retrain_25d_colab.ipynb`, `benchmarks/README.md`, `benchmarks/2026-10-14/README.md`, `docs/TODO.md`, `docs/CHANGELOG.md`
+
 ---
 
 ## [2026-10-13]

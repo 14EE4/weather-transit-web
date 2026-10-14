@@ -76,3 +76,14 @@ python benchmarks/evaluate_models.py
 - **결과**(`benchmarks/results/comparison_20261014_192204.{json,md}` 4-way): bus·subway 는 배포본 대비 전 지표 개선(bus MAE −26.6 / subway MAE −38.9), bike 는 R²·RMSE 소폭 열세·MAE/MAPE 우세 → **개선분의 대부분은 튜닝 효과**, 32차원 증가의 순수 효과는 **지하철에서만** 확인됩니다.
 - ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1498 / subway 446)으로 Colab 버전과 다를 수 있습니다. bus 는 P0-1(결측 24.59% 보간)로 **잠정치**입니다.
 - 평가: `python benchmarks/evaluate_models.py --model tuned_25d=benchmarks/2026-10-14/tuned_25d`
+
+## `tuned_25d_colab/` — Colab 재현 산출물 (2026-10-14 노트북 신설)
+
+`benchmarks/retrain_25d_colab.ipynb` 를 Colab 에 **업로드만** 해서 실행하면 같은 25차원 재학습을 Colab 에서
+재현하고 결과(`lgb_*_demand.onnx` 3종 + `feature_schema.json`)를 이 폴더로 반출합니다
+(위 `tuned_25d/` 는 로컬 대조군으로 **그대로 보존**됩니다).
+
+- Colab 은 `.py` 파일을 열어 실행하는 환경이 아니므로(`retrain_25d.py` 는 `main.py`·`feature_schema.py` 까지 import 체인) **노트북 1개로 완결**되도록 설계했습니다 → 위 `CastTransit.ipynb` 의 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **태그로 찾아 `exec`**(피처 드리프트 0) · Optuna 는 재탐색하지 않고 위 스키마의 `best_params` 를 **고정 주입**.
+- **선검증(로컬)**: 노트북 셀 로직을 로컬 원천 CSV 로 실행 → `retrain_25d.py` 와 지표·`best_iteration` **완전 일치**(bike 680 / bus 1,498 / subway 446, ΔR² 0.0000). 반출 ONNX 는 하네스가 `dim=25`·`layout=25d-subset` 으로 자동 판별.
+- 스키마 `model_version: v2-전처리_2-25d-retrain-colab` · `env` 블록에 Colab 런타임·lightgbm 버전을 자동 기록합니다.
+- 평가: `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab` (로컬 실행본과 온전 비교는 `tuned_25d` 병기 5-way)

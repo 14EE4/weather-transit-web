@@ -13,6 +13,7 @@ benchmarks/
 ├── CastTransit.ipynb             # LightGBM 학습/튜닝/ONNX export 노트북 (v2: 실제 32차원)
 ├── evaluate_models.py            # 공정 비교 평가 스크립트 (v2: 실피처 + 사양서 §6.1 분할 + 스키마 SSoT 검증)
 ├── retrain_25d.py                # [실험] 동일 v2 파라미터 + 25차원 서브셋 재학습 (차원 vs 튜닝 분리)
+├── retrain_25d_colab.ipynb       # [실험·Colab] 위 재학습을 '노트북 1개 업로드'로 재현 (.py 업로드 불가 환경)
 ├── original/                     # [기준선 A] 배포본 스냅샷 (25차원)
 │   ├── lgb_bike_demand.onnx
 │   ├── lgb_bus_demand.onnx
@@ -231,6 +232,12 @@ python tests/test_inference.py        # 서빙 기동 시 스키마 검증 + 추
   - 동일 프레임에서 v2 와 직접 비교하면 **v1 이 bike·bus 8개 지표 전부 우세**, v2 는 **subway 4개 지표**만 우세합니다.
   - 단, v1 은 **서빙 불가**(배치 비호환)이므로 v1 우세는 "25차원 정보량 + Optuna 튜닝"의 상한을 보여주는 **참고 지표**입니다 → 25차원 재학습 실험의 기대 근거로 사용합니다.
   - 프레임 차이(구 원천 ↔ `전처리_2`)로 bus 수치는 이동합니다(배포본 R² 0.9882→0.9897 · v1 0.9908→0.9923). 순위 해석은 **동일 실행 내부 비교**로 한정하십시오.
+
+### [2026-10-14] 25차원 재학습 **Colab 재현 노트북** 신설 (`retrain_25d_colab.ipynb`)
+- **동기**: ① Colab 은 `.py` 파일을 열어 실행하는 환경이 아니라 파일 업로드·모듈 import·저장소 클론이 필요하고, ② `retrain_25d.py` 는 `evaluate_models.py` → `main.py`(fastapi·dotenv·httpx) → `feature_schema.py`·원천 CSV 까지 import 체인이 이어져 **단독 업로드 불가**였습니다 → **노트북 1개 업로드로 완결되는 재현 경로**를 신설했습니다.
+- **도구**: `retrain_25d_colab.ipynb` — `CastTransit.ipynb` 의 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **첫 줄 태그로 찾아 그대로 `exec`**(피처 드리프트 0) 하고, `[Cell 6-1]` Optuna 는 **seed 부재 → 재탐색 금지** 원칙에 따라 스키마 SSoT 의 v2 `best_params` 를 **고정 주입**해 25차원 재학습 → ONNX 3종 + 25차원 스키마를 `2026-10-14/tuned_25d_colab/` 로 반출합니다.
+- **로컬 선검증(2026-10-14)**: 노트북 셀을 로컬 원천 CSV 로 exec 해 지표·`best_iteration` 이 `retrain_25d.py` 값과 **완전 일치**(bike 680 / bus 1,498 / subway 446, ΔR² 0.0000) · 반출 ONNX 는 하네스가 **`dim=25`·`layout=25d-subset`** 으로 자동 판별.
+- **반입 후 평가**: `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab`
 
 ### [2026-10-14] v2 실제 32차원 실피처 모델 3종 학습·반입
 - **학습·반입**: `benchmarks/CastTransit.ipynb`(v2)를 Colab에서 실행해 **실제 32차원 실피처(8/8/5/11)** 모델 3종을 생성하고 `benchmarks/2026-10-14/` 에 배치했습니다(커밋 `07292b4`).

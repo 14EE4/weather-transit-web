@@ -90,6 +90,10 @@
   - 교체 전 백업/롤백: `models/` 는 `benchmarks/original/` 과 **SHA256 동일 스냅샷**으로 판정되어 있어 문제 시 즉시 원복 가능 · 교체는 **파일 단위(수단별) 부분 교체**로도 가능
 - [ ] **교체 승인 기준(Gate) 확정 (신설)** — 전면 교체 기준("3수단 전부 유의 우세")으로는 이미 보류됨 → **수단별 기준**(예: subway 단독 교체 허용 조건)과 bike 처리 방침(제외/보류) 결정 필요
   - 근거: `docs/MODEL_PERFORMANCE_REPORT.md` §0.3·§0.4 · `benchmarks/results/comparison_20261014_192204.{json,md}`
-- [ ] **Colab 재현 (선택)** — 동일 실험 스펙을 Colab 노트북 사본으로 재실행해 `best_iteration`·지표 편차 확인(로컬 lightgbm 4.7 vs Colab 환경)
+- [ ] **Colab 재현 (선택) — 노트북 준비 완료 (2026-10-14)** — 동일 실험 스펙을 Colab 에서 재실행해 `best_iteration`·지표 편차(플랫폼 차이) 확인 (로컬 lightgbm 4.7.0 기준값)
+  - **도구: `benchmarks/retrain_25d_colab.ipynb` 신설** — Colab 이 `.py` 파일 업로드/모듈 import 를 지원하지 않는 제약 때문에 **노트북 1개만 업로드**하면 끝나도록 설계: 레포의 `benchmarks/CastTransit.ipynb` 에서 전처리 셀 4개(`[Cell 3]`/`[Cell 4-A]`/`[Cell 4-B]`/`[Cell 5]`)를 **태그로 찾아 그대로 exec**(피처 드리프트 0) → `[Cell 6-1]` Optuna(seed 없음)는 **건너뛰고** 스키마 SSoT 의 v2 `best_params` 를 고정 주입(비교 가능성 유지·약 20분 절약)
+  - 실행: `[Step 0]` 패키지/버전 기록 → `[Step 1]` Drive 마운트·레포 확인 → `[Step 2]` 원본 셀 exec → `[Step 3]` 25차원 재학습 → `[Step 4]` ONNX 3종 + 25차원 스키마 반출(`benchmarks/2026-10-14/tuned_25d_colab/`, **로컬 `tuned_25d/` 덮어쓰기 금지**) → `[Step 5]` 대조 표
+  - 반입 후: `python benchmarks/evaluate_models.py --model tuned_25d_colab=benchmarks/2026-10-14/tuned_25d_colab`(+ `--model tuned_25d=benchmarks/2026-10-14/tuned_25d` 로 5-way)
+  - **로컬 선검증(2026-10-14)**: 노트북 셀 로직을 로컬에서 exec 해 지표·`best_iteration` 이 `retrain_25d.py` 값과 완전 일치(bike 680 / bus 1,498 / subway 446, ΔR² 0.0000) · 반출 ONNX 는 하네스가 `dim=25`·`layout=25d-subset` 으로 자동 판별 → **남은 리스크는 플랫폼 편차뿐**
 - [ ] **(데이터팀 회신 대기)** P1-1 파생 피처 7종 CSV 포함 시 노트북 하드코딩 재구성 로직 제거
 - [ ] **(데이터팀 회신 대기)** P1-3 결측 대체 정책 확정 시 노트북 대체 규칙 1:1 일치화

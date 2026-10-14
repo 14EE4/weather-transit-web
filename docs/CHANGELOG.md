@@ -6,6 +6,29 @@
 
 ---
 
+## [2026-10-14]
+
+### 0. 🤖 v2 실제 32차원 실피처 모델 3종 학습·반입 및 모델 자산 위치 확정
+- **배경**:
+  - 2026-10-13 파이프라인 v2 개정으로 학습·평가 기준이 **실제 32차원 실피처(8/8/5/11)** 로 확정되었으나 32차원 모델 산출물은 아직 없었고, `benchmarks/2026-10-12/tuned_real/` 은 안내 README 만 있는 **빈 배치 위치**였음.
+- **조치**:
+  1. **학습·반입**: `benchmarks/CastTransit.ipynb`(v2)를 Colab에서 실행([Cell 1]→[Cell 7], Optuna 30 trials 포함)해 32차원 ONNX 3종 + `feature_schema.json` 을 `benchmarks/2026-10-14/` 에 배치(커밋 `07292b4`).
+     - `best_iteration` bike 834 / bus 1,390 / subway 865 · ONNX 입력 `[None, 32]`(이름 `float_input`)
+  2. **사전 검증**: `feature_schema.json.feature_cols`(32) == `benchmarks/evaluate_models.py::FEATURE_COLS_32` == `main.py::build_feature_vector` 인덱스 0~31 **순서 완전 일치** · 공휴일 캘린더 **19일** 일치(`main.py::KR_HOLIDAYS`).
+  3. **자산 위치 확정**: 신규 후보 경로를 `benchmarks/2026-10-14/` 로 확정하고, `2026-10-12/tuned_real/` 은 안내 README 만 남긴 **종료 폴더**로 전환. `evaluate_models.py::MODEL_SETS` 의 `tuned_32d_real` 기본 경로도 `2026-10-14/` 로 갱신(기존 경로는 빈 폴더라 `[skip]` 되었음).
+  4. **문서 동기화**: `benchmarks/README.md`(§1 트리 · §2 자산표 · §3 규격표 · §4.1~4.2 · §5 이력), `docs/TODO.md` §4, `docs/MODEL_PERFORMANCE_REPORT.md` §0.2·§7 후속과제, `docs/AI_MODEL_SPEC.md` §7, `docs/BACKEND_INFERENCE_SERVER.md` §4, `docs/SYSTEM_ARCHITECTURE.md` §6.2.
+- **검증 결과 (2026-10-14 · `benchmarks/results/comparison_20261014_184621.{json,md}`)**:
+  - **교차검증 통과** — `python benchmarks/evaluate_models.py` 실측값이 노트북 기록 Test 지표와 **소수점 수준 일치**(bike R² 0.98729→0.9873 · bus 0.99006→0.9901 · subway 0.99515→0.9951, RMSE 오차 ≤0.006) → **파이프라인 재현성 확인**.
+  - 배포본(25차원) 대비 순위: 🚇 **subway 전 지표 우세**(R² 0.9924→0.9951 · RMSE 826.324→662.095 · MAE 369.732→277.633, **MAE −24.9%**) / 🚲 **bike R²·RMSE 열세**(0.9887→0.9873 · 16.372→17.382, MAE·MAPE 는 우세) / 🚌 **bus R²·RMSE·MAE 우세하나 MAPE 열세**(14.53%→18.09%).
+  - **배포 판단(Gate): 전면 교체 보류** — 3수단 전부 유의 우세 조건 미충족 → **`models/` 는 25차원 유지**(수단별 교체 검토 또는 25차원 재학습 비교 후 확정).
+- **미해결 / 다음 단계**:
+  - 버스 수치는 P0-1(테스트 구간 `버스_승차` 결측 24.59% 보간)로 **잠정치**.
+  - 동일 `study.best_params` + 25차원 서브셋 재학습으로 "차원 vs 튜닝" 효과 분리 · `feature_schema.json` 을 평가·서빙 코드가 소비하도록 전환(SSoT 자동 검증).
+  - 수단별 교체 확정 시 `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 의 "25차원 부분집합" 서술 정리 + `tests/test_inference.py`·`tests/test_api.py` 재검증.
+- **산출물**: `benchmarks/2026-10-14/{lgb_bike,lgb_bus,lgb_subway}_demand.onnx`, `benchmarks/2026-10-14/feature_schema.json`, `benchmarks/2026-10-14/README.md`, `benchmarks/2026-10-12/tuned_real/README.md`, `benchmarks/results/comparison_20261014_184621.{json,md}`, `benchmarks/evaluate_models.py`, `benchmarks/README.md`, `docs/TODO.md`, `docs/MODEL_PERFORMANCE_REPORT.md`, `docs/AI_MODEL_SPEC.md`, `docs/BACKEND_INFERENCE_SERVER.md`, `docs/SYSTEM_ARCHITECTURE.md`, `docs/CHANGELOG.md`
+
+---
+
 ## [2026-10-13]
 
 ### 0. 🎯 학습·평가 파이프라인 v2 — 사양서 분할 확정 · 실제 공휴일 캘린더 · 실피처 32차원 공정 비교

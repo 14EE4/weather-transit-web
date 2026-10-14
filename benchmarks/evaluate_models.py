@@ -17,8 +17,9 @@ v1 → v2 핵심 변경
 
 비교 대상 (기본값, `--model LABEL=PATH` 로 추가/덮어쓰기 가능)
     * production_25d : benchmarks/original/lgb_{mode}_demand.onnx   (배포본, 25차원)
-    * tuned_32d_real : benchmarks/2026-10-12/tuned_real/lgb_{mode}_demand.onnx (신규 32차원 실피처)
-      → Colab(`benchmarks/CastTransit.ipynb` [Cell 7]) 산출 3종을 위 경로에 넣으면 자동 포함됩니다.
+    * tuned_32d_real : benchmarks/2026-10-14/lgb_{mode}_demand.onnx (v2 32차원 실피처 · 2026-10-14 학습/반입)
+      → Colab(`benchmarks/CastTransit.ipynb` [Cell 7]) 산출 3종이 `benchmarks/2026-10-14/` 에 반입되어 있습니다.
+      (구 배치 위치 `benchmarks/2026-10-12/tuned_real/` 은 안내 README 만 남은 종료 폴더)
 
   ⚠️ 이전 세대 `benchmarks/2026-10-12/tuned` 의 32차원 모델은 v1 배치
      (25차원 8/8/1/3/3/2 + 상수 0 더미 7)로 학습되어, v2 실피처 배치(8/8/5/11)와
@@ -30,7 +31,7 @@ v1 → v2 핵심 변경
 
 실행:
     python benchmarks/evaluate_models.py
-    python benchmarks/evaluate_models.py --model tuned_32d_real=benchmarks/2026-10-12/tuned_real
+    python benchmarks/evaluate_models.py --model tuned_32d_real=benchmarks/2026-10-14
 ================================================================================
 """
 from __future__ import annotations
@@ -111,7 +112,8 @@ IS_HOLIDAY_INDEX = FEATURE_COLS_32.index("is_holiday")
 #       컬럼 순서가 다르므로 기본 비교에서 제외한다(위 docstring 참조).
 MODEL_SETS = {
     "production_25d": BENCH_DIR / "original",
-    "tuned_32d_real": BENCH_DIR / "2026-10-12" / "tuned_real",
+    # 2026-10-14 Colab 학습 산출물(v2 실제 32차원 실피처, feature_schema.json 동봉)
+    "tuned_32d_real": BENCH_DIR / "2026-10-14",
 }
 
 # 레이턴시 측정 반복 횟수(웜업 20회 제외)

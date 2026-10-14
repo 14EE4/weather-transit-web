@@ -322,7 +322,7 @@ print("ONNX 모델 변환 및 저장 완료: models/lgb_subway_demand.onnx")
 | `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승·하차량 | 25차원 Float | 약 4.7 MB | ~0.2 ms |
 
 - **입력 계약 vs 텐서**: 서빙 입력 계약은 32차원(§3.2)이나 배포 모델 입력 텐서는 **25차원**이며, `main.py::prepare_session_input()`이 자동 정렬합니다.
-- **신규 32차원 후보(실피처)**: `benchmarks/2026-10-12/tuned_real/` — v2 노트북(실제 32차원 8/8/5/11) 산출물 보관 위치이며, `models/` 반영 전까지는 벤치마크 전용입니다.
+- **신규 32차원 후보(실피처)**: `benchmarks/2026-10-14/` — 2026-10-14 Colab 실행으로 학습된 v2 노트북(실제 32차원 8/8/5/11) 산출물 3종 + `feature_schema.json` 이며, 공정 재평가·`models/` 반영 전까지는 벤치마크 전용입니다. (구 배치 위치 `benchmarks/2026-10-12/tuned_real/` 은 안내 README 만 남긴 **종료 폴더**)
 - **구 32차원 후보(폐기)**: `benchmarks/2026-10-12/tuned/` — 25차원 실피처 + 상수 0 더미 7로 학습되어 **배치 순서가 사양과 다르므로**, 참고 보관용으로만 유지하고 서빙 투입 및 신규 공정 비교 대상에서는 제외합니다.
 - 모델 자산 목록·해시·폴더 구조·평가 규약: [benchmarks/README.md](../benchmarks/README.md)
 

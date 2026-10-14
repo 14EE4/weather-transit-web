@@ -99,9 +99,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 소스 및 AI 모델 복사
-COPY main.py timeseries_cache.py ./
+COPY main.py timeseries_cache.py feature_schema.py ./
 COPY models/ ./models/
 COPY data/ ./data/
+# 피처 스키마(SSoT) — 컨테이너에서도 기동 시 차원·순서 검증 (models/feature_schema.json 이 있으면 우선)
+COPY benchmarks/2026-10-14/feature_schema.json ./benchmarks/2026-10-14/feature_schema.json
 
 # 디렉터리 권한 및 포트 정의
 EXPOSE 8000

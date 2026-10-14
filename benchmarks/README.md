@@ -156,7 +156,9 @@ python benchmarks/evaluate_models.py --schema benchmarks/2026-10-14/feature_sche
 v2 후보(32차원)와 배포본(25차원)의 차이는 ①차원 ②Optuna 튜닝 ③신규 원천(`전처리_2`)이 **동시에** 바뀐 결과(교란 3중)입니다. 이 스크립트는 **②를 고정**하고 ①만 25차원으로 바꾼 대조군을 만듭니다.
 
 ```bash
-python benchmarks/retrain_25d.py            # 학습 + 지표 리포트(로컬 CPU, lightgbm 필요)
+pip install lightgbm                 # 재학습(학습)에 필요 — 런타임 requirements.txt 에는 불포함
+pip install onnxmltools skl2onnx     # --export(ONNX 반출)에 필요
+python benchmarks/retrain_25d.py            # 학습 + 지표 리포트(로컬 CPU)
 python benchmarks/retrain_25d.py --export   # + ONNX 3종/25차원 스키마 반출(benchmarks/<실행일>/tuned_25d)
 ```
 
@@ -178,7 +180,7 @@ python benchmarks/retrain_25d.py --export   # + ONNX 3종/25차원 스키마 반
 ### 4.4 피처 스키마 SSoT 및 정합성 테스트
 
 ```bash
-python tests/test_feature_schema.py   # 7종: 규격·3자 순서 일치·25d 서브셋·ONNX 차원·타깃/분할·네거티브 가드·/health
+python tests/test_feature_schema.py   # 8종: 규격·3자 순서 일치·25d 서브셋·ONNX 차원·타깃/분할·네거티브 가드·/health·배포 파일 목록
 python tests/test_inference.py        # 서빙 기동 시 스키마 검증 + 추론 SLA
 ```
 
@@ -196,7 +198,7 @@ python tests/test_inference.py        # 서빙 기동 시 스키마 검증 + 추
   2. **서빙(`main.py`)**: `FEATURE_ORDER_32` 상수 추가 + `build_feature_vector` 차원 assert · 기동 시 `load_feature_schema` → `validate_model_dimensions` 로 **스키마 ↔ 코드 ↔ ONNX 입력 차원 3중 대조**(스키마 차원도 25차원도 아니면 기동 중단) · `/health` 에 `feature_schema` 블록 추가. 25차원 서브셋 인덱스 정의는 SSoT 한 곳으로 통일.
   3. **평가(`evaluate_models.py`)**: `--schema` CLI + `verify_feature_schema`(순서·타깃·분할 경계 assert, 32차원/25차원 스키마 모두 지원) · 리포트에 스키마 검증 줄·JSON `feature_spec.schema` 추가 · `reference_ih0` 참고치는 **레거시 라벨 한정**(새 25차원 자산 오표기 방지).
   4. **25차원 재학습(`retrain_25d.py` 신설)**: 스키마의 v2 `best_params` 를 고정하고 피처만 25차원 서빙 서브셋으로 줄여 재학습 → 지표 리포트 + `--export` 시 ONNX·25차원 스키마 반출.
-  5. **테스트(`tests/test_feature_schema.py` 신설)**: 규격 / 3자 순서 일치 / 25차원 서브셋 / ONNX 자산 차원 / 타깃·분할·공휴일 / 네거티브 가드 5종 / `/health` 노출 — **7종 전부 통과**.
+  5. **테스트(`tests/test_feature_schema.py` 신설)**: 규격 / 3자 순서 일치 / 25차원 서브셋 / ONNX 자산 차원 / 타깃·분할·공휴일 / 네거티브 가드 5종 / `/health` 노출 / 컨테이너 배포 파일 목록 — **8종 전부 통과**.
 - **결과 (`results/comparison_20261014_192204.{json,md}` · 4-way · n=26,450)**:
 
 | 수단 | 배포본 25d | v1 32d | v2 32d | **재학습 25d (동일 v2 파라미터)** |

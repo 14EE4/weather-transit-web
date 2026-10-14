@@ -22,6 +22,7 @@
 
 - **백엔드**: `main.py` (단일 파일, 1960줄, FastAPI)
   - `timeseries_cache.py` (시계열 래그/기상 차분 인메모리 캐시)
+  - `feature_schema.py` (피처 스키마 SSoT 로더·검증 — 기동 시 차원·순서 assert)
   - `models/*.onnx` (따릉이/버스/지하철 수요예측 모델 3종, 기동 시 메모리 로딩)
 - **프론트엔드**: `Weather-Transport Recommendation UI/src/` (App.tsx, TransitMap.tsx가 `fetch`로 직접 호출)
 - **리버스 프록시**: `nginx.conf` → 프론트 컨테이너가 `/api/` 와 `/health` 를 백엔드(`backend:8000`)로 프록시 (CORS 원천 해소)

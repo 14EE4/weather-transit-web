@@ -45,7 +45,7 @@
   - ⇒ **배포 판단 변화 없음**(`models/` 25차원 유지). 단 **25차원 재학습(v2 파라미터)이 최우선 후속 과제**로 승격되고, 수단별 교체는 **지하철 단독**만 근거가 있음.
 - **미해결 / 다음 단계**:
   - v1 은 **서빙 불가**(32차원 모델에 32차원 실피처 벡터가 들어가면 인덱스 17 이후 어긋남) → **판단 보조 지표**로만 사용.
-  - 버스 수치는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치** · `feature_schema.json` SSoT 소비 전환은 미완.
+  - 버스 수치는 P0-1(테스트 구간 결측 24.59% 보간)로 **잠정치** · `feature_schema.json` SSoT 소비 전환은 미완(→ 아래 §2 에서 완료).
 - **산출물**: `benchmarks/evaluate_models.py`, `benchmarks/results/comparison_20261014_192204.{json,md}`, `benchmarks/2026-10-12/tuned/README.md`, `benchmarks/README.md`, `docs/MODEL_PERFORMANCE_REPORT.md` §0.3·§7, `docs/TODO.md` §4, `docs/AI_MODEL_SPEC.md` §7, `docs/BACKEND_INFERENCE_SERVER.md` §4, `docs/SYSTEM_ARCHITECTURE.md` §6.2, `docs/CHANGELOG.md`
 
 ### 2. 🧩 피처 스키마 SSoT 소비 전환 + 25차원 재학습(차원 vs 튜닝 분리) 실험
@@ -57,7 +57,7 @@
   2. **서빙 `main.py`** — `FEATURE_ORDER_32` 상수 신설 + `build_feature_vector` 차원 assert · 기동 시 `load_feature_schema()` → `validate_model_dimensions()` 로 **스키마 ↔ 코드 순서 ↔ 실제 ONNX 입력 차원 3중 대조**(알 수 없는 차원이면 기동 중단) · `GET /health` 에 `feature_schema` 블록 추가 · 25차원 서브셋 인덱스 정의를 SSoT 한 곳으로 통일.
   3. **평가 `evaluate_models.py`** — `--schema PATH` 추가 + `verify_feature_schema()`(순서·타깃·분할 경계 assert, **32차원/25차원 스키마 모두 지원**) · 리포트 헤더·JSON `feature_spec.schema` 에 검증 결과 기록 · `reference_ih0` 참고치를 **레거시 라벨 한정**(신규 25차원 자산 오표기 방지).
   4. **`benchmarks/retrain_25d.py` 신설** — 스키마의 v2 `best_params` **고정** + 피처만 25차원 서빙 서브셋으로 줄여 재학습(`--export` 시 ONNX 3종 + 25차원 스키마 반출). 전처리·지표·분할은 `evaluate_models.py` 를 import 해 재사용.
-  5. **`tests/test_feature_schema.py` 신설** — 규격 / 3자 순서 일치 / 25차원 서브셋 / ONNX 자산 차원 / 타깃·분할·공휴일 / 네거티브 가드 5종 / `/health` 노출 = **7종 전부 통과**.
+  5. **`tests/test_feature_schema.py` 신설** — 규격 / 3자 순서 일치 / 25차원 서브셋 / ONNX 자산 차원 / 타깃·분할·공휴일 / 네거티브 가드 5종 / `/health` 노출 / 컨테이너 배포 파일 목록 = **8종 전부 통과**.
 - **결과 (`benchmarks/results/comparison_20261014_192204.{json,md}` 4-way · Test 2025-11-16~12-31, n=26,450 · R²/RMSE/MAE)**:
 
 | 수단 | 배포본 25d | v1 32d | v2 32d | **재학습 25d (동일 v2 파라미터)** |

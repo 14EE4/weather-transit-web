@@ -58,7 +58,7 @@ python benchmarks/evaluate_models.py
 | 서빙 `main.py` | 기동 시 `ModelRegistry.load_feature_schema()` → 스키마 ↔ `FEATURE_ORDER_32` ↔ **실제 ONNX 입력 차원** 3중 대조. 불일치면 기동 중단, 결과는 `GET /health` 의 `feature_schema` 블록에 노출 |
 | 평가 `benchmarks/evaluate_models.py` | 실행 초반 `verify_feature_schema()` 로 순서·타깃·분할 경계 assert(`--schema` 로 경로 지정, 미지정 시 자동 탐색) · 결과를 리포트에 기록 |
 | 재학습 `benchmarks/retrain_25d.py` | `metrics.*.tuned.best_params` 를 **고정 파라미터**로 소비 |
-| 테스트 `tests/test_feature_schema.py` | 규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health` **7종** |
+| 테스트 `tests/test_feature_schema.py` | 규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health`·**컨테이너 배포 파일 목록** **8종** |
 
 ## `tuned_25d/` — 동일 v2 파라미터 25차원 재학습 (실험 · 2026-10-14)
 

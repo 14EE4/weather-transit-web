@@ -213,6 +213,25 @@ def test_health_exposes_schema():
     print(f"  ✅ /health.feature_schema: {json.dumps(block, ensure_ascii=False)}")
 
 
+def test_deployment_file_list():
+    """[Test 8] 컨테이너 배포 파일 목록에 `feature_schema.py`·스키마가 포함됐는지 확인.
+
+    `main.py` 가 `feature_schema` 를 import 하므로 Dockerfile COPY 목록에서 빠지면
+    컨테이너 기동이 ImportError 로 실패한다(2026-10-14 실제 발생 → 회귀 방지 테스트).
+    """
+    print("\n[Test 8] 컨테이너 배포 파일 목록(Dockerfile.backend) 검증...")
+    dockerfile = ROOT_DIR / "Dockerfile.backend"
+    assert dockerfile.is_file(), "Dockerfile.backend 가 없습니다."
+    text = dockerfile.read_text(encoding="utf-8")
+    copy_lines = [ln.strip() for ln in text.splitlines() if ln.strip().upper().startswith("COPY")]
+    joined = "\n".join(copy_lines)
+    assert "feature_schema.py" in joined, f"COPY 목록에 feature_schema.py 누락:\n{joined}"
+    assert "benchmarks/2026-10-14/feature_schema.json" in joined, (
+        f"COPY 목록에 피처 스키마(SSoT) 누락:\n{joined}"
+    )
+    print("  ✅ COPY 목록에 feature_schema.py + 피처 스키마(SSoT) 포함")
+
+
 def run_tests():
     print("=" * 80)
     print("  🧩 [Weather & Transit AI] 피처 스키마(feature_schema.json) SSoT 정합성 검증")
@@ -224,8 +243,9 @@ def run_tests():
     test_targets_split_holiday()
     test_negative_guards()
     test_health_exposes_schema()
+    test_deployment_file_list()
     print("\n" + "=" * 80)
-    print("  🎉 피처 스키마 정합성 검증 7종 전부 통과!")
+    print("  🎉 피처 스키마 정합성 검증 8종 전부 통과!")
     print("=" * 80 + "\n")
 
 

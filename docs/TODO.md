@@ -78,7 +78,7 @@
   - ⚠️ 로컬 lightgbm 4.7 실행값(`best_iteration` bike 680 / bus 1498 / subway 446) → Colab 버전과 완전 동일하지 않음(방향·규모 비교용)
 - [x] **`feature_schema.json` SSoT 소비 (2026-10-14 완료)** — 평가 스크립트·서빙이 스키마를 읽어 **차원·순서를 assert** 하도록 전환(피처 불일치 재발 원천 차단)
   - `feature_schema.py` 신설(탐색: `--schema` 인자 → `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`) · 서빙 기동 시 **스키마 ↔ `FEATURE_ORDER_32` ↔ ONNX 입력 차원 3중 대조**(`/health.feature_schema`, 불일치 시 기동 중단) · 평가는 `verify_feature_schema` 로 순서·타깃·분할 경계 assert 후 리포트에 기록
-  - `tests/test_feature_schema.py` **7종 통과**(규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health` 노출)
+  - `tests/test_feature_schema.py` **8종 통과**(규격·3자 순서 일치·25차원 서브셋·ONNX 자산 차원·타깃/분할/공휴일·네거티브 가드·`/health` 노출·컨테이너 배포 파일 목록)
 - [ ] **`models/` 교체 판단 (신설 · 최우선)** — `benchmarks/2026-10-14/tuned_25d/`(25차원 재학습본)는 **서빙 정렬이 그대로 맞는** 교체 후보(32차원 자산 교체안과 달리 배치 변환 불필요)
   - 판단 재료: 4-way 리포트 — bus·subway 는 전 지표 개선 / bike 는 R²·RMSE 소폭 열세(MAE·MAPE 우세) → **수단별 교체(지하철·버스 우선)** 또는 bike 제외 논의
   - 교체 시: `models/lgb_{bike,bus,subway}_demand.onnx` 반입 → `/health.feature_schema.status` 가 `verified` 로 바뀌는지 확인 · `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`

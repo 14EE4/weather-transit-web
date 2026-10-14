@@ -268,7 +268,7 @@
 - [x] 반입 자산 **공정 재비교 실행** (2026-10-14) → `benchmarks/results/comparison_20261014_184621.{json,md}` · 노트북 기록치와 소수점 수준 일치(재현성 확인) · §0.2 실측 수치 확정
 - [ ] **배포 판단(Gate) 확정** — 전면 교체 보류(25차원 유지). 이제 판단 재료는 ① 25차원 재학습본(`tuned_25d`, **수단별 교체 후보 — bus·subway 우세**) ② 32차원 후보의 **지하철 단독** 교체입니다. `models/` 교체 시 `tests/test_feature_schema.py`·`tests/test_inference.py`·`tests/test_api.py` 재검증 필요
 - [x] `feature_schema.json` 생성·반입 (2026-10-14) — 피처 32개 순서·분할 경계·공휴일 캘린더·튜닝 파라미터/지표 메타 포함
-- [x] 평가·서빙 코드가 `feature_schema.json` 을 **읽어 차원·순서를 assert** 하도록 전환 (2026-10-14 완료) — `feature_schema.py` SSoT 모듈 · 서빙 기동 3중 대조(`/health.feature_schema`) · 평가 `verify_feature_schema` · `tests/test_feature_schema.py` 7종
+- [x] 평가·서빙 코드가 `feature_schema.json` 을 **읽어 차원·순서를 assert** 하도록 전환 (2026-10-14 완료) — `feature_schema.py` SSoT 모듈 · 서빙 기동 3중 대조(`/health.feature_schema`) · 평가 `verify_feature_schema` · `tests/test_feature_schema.py` 8종
 
 ---
 

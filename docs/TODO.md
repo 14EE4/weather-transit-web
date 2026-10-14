@@ -27,7 +27,11 @@
 
 ---
 
-### 🛡️ 3. 시스템 안정성 및 장애 대응 (Backlog)
+### 🛡️ 3. 시스템 안정성 및 장애 대응 (1건 대기 · 나머지 Backlog)
+- [ ] **(배포 검증 · 최우선)** 컨테이너 실기동 확인 — `Dockerfile.backend` COPY 누락(`feature_schema.py` → ImportError) 결함은 2026-10-14 수정했으나 **Docker 데몬 부재로 실기동 미검증**(정적 테스트 `tests/test_feature_schema.py` Test 8 만 통과)
+  - 절차: `docker compose up -d --build` → `docker compose ps`(`backend` = `healthy`) → `GET /health` 의 **`feature_schema.status == verified`** 확인 → `docker compose logs backend`
+  - 실패 시 확인 지점: `main.py` import 목록 ↔ `Dockerfile.backend` COPY 목록 · 스키마 탐색 경로(`--schema`/`FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`)
+  - 참고: `docs/DOCKER_CONTAINERIZATION_PLAN.md` §5 Phase 4-5·4-6 · `docs/CHANGELOG.md` [2026-10-14] §3
 - [ ] 공공 API 서버 장애 시 자동 Fallback 서킷 브레이커 고도화
 - [ ] Redis 기반 분산 캐시 레이어 도입 (대규모 트래픽 대비)
 
@@ -83,6 +87,9 @@
   - 판단 재료: 4-way 리포트 — bus·subway 는 전 지표 개선 / bike 는 R²·RMSE 소폭 열세(MAE·MAPE 우세) → **수단별 교체(지하철·버스 우선)** 또는 bike 제외 논의
   - 교체 시: `models/lgb_{bike,bus,subway}_demand.onnx` 반입 → `/health.feature_schema.status` 가 `verified` 로 바뀌는지 확인 · `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`
   - 교체 확정 시 문서 정리: `docs/AI_MODEL_SPEC.md` §3.2·§7 · `docs/BACKEND_INFERENCE_SERVER.md` §4 · `docs/SYSTEM_ARCHITECTURE.md` §6.2 의 "25차원 = 32차원 − 7" 서술 기준 모델 갱신
+  - 교체 전 백업/롤백: `models/` 는 `benchmarks/original/` 과 **SHA256 동일 스냅샷**으로 판정되어 있어 문제 시 즉시 원복 가능 · 교체는 **파일 단위(수단별) 부분 교체**로도 가능
+- [ ] **교체 승인 기준(Gate) 확정 (신설)** — 전면 교체 기준("3수단 전부 유의 우세")으로는 이미 보류됨 → **수단별 기준**(예: subway 단독 교체 허용 조건)과 bike 처리 방침(제외/보류) 결정 필요
+  - 근거: `docs/MODEL_PERFORMANCE_REPORT.md` §0.3·§0.4 · `benchmarks/results/comparison_20261014_192204.{json,md}`
 - [ ] **Colab 재현 (선택)** — 동일 실험 스펙을 Colab 노트북 사본으로 재실행해 `best_iteration`·지표 편차 확인(로컬 lightgbm 4.7 vs Colab 환경)
 - [ ] **(데이터팀 회신 대기)** P1-1 파생 피처 7종 CSV 포함 시 노트북 하드코딩 재구성 로직 제거
 - [ ] **(데이터팀 회신 대기)** P1-3 결측 대체 정책 확정 시 노트북 대체 규칙 1:1 일치화

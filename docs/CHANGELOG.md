@@ -74,6 +74,16 @@
   - Colab 재현(선택) 으로 `best_iteration`·지표 편차 확인.
 - **산출물**: `feature_schema.py`, `benchmarks/retrain_25d.py`, `benchmarks/evaluate_models.py`, `main.py`, `tests/test_feature_schema.py`, `benchmarks/2026-10-14/tuned_25d/{lgb_bike,lgb_bus,lgb_subway}_demand.onnx` + `tuned_25d/feature_schema.json`, `benchmarks/results/{comparison_20261014_192204,retrain_25d_20261014_192001}.{json,md}`, `benchmarks/README.md`, `benchmarks/2026-10-14/README.md`, `docs/{TODO,MODEL_PERFORMANCE_REPORT,CHANGELOG,AI_MODEL_SPEC,BACKEND_INFERENCE_SERVER,API_STRUCTURE}.md`, `.env.example`
 
+### 3. 🐳 컨테이너 배포 결함 수정 — `feature_schema.py` COPY 누락 (기동 ImportError)
+- **배경**: `feature_schema.json` SSoT 소비 전환으로 `main.py` 가 `feature_schema` 모듈을 import 하게 되었는데, `Dockerfile.backend` 의 COPY 목록(`COPY main.py timeseries_cache.py ./`)에 빠져 **컨테이너 기동이 ImportError 로 실패**하는 상태였음(2026-10-14 실제 발생).
+- **조치**:
+  1. **`Dockerfile.backend`** — `COPY main.py timeseries_cache.py feature_schema.py ./` 로 수정 + `benchmarks/2026-10-14/feature_schema.json` 반입(`models/feature_schema.json` 이 있으면 그 스키마가 우선 → **32차원 자산 교체 시 자연 승격**).
+  2. **`tests/test_feature_schema.py`** — **Test 8 컨테이너 배포 파일 목록 검증** 추가(`Dockerfile.backend` COPY 목록에 런타임 모듈·스키마가 포함되는지 정적 검증) → **8종 전부 통과**.
+  3. **문서 동기화**: `docs/DOCKER_CONTAINERIZATION_PLAN.md` §3.1 · `docs/API_STRUCTURE.md`.
+- **미해결 / 다음 단계**:
+  - **실기동 미검증** — Docker 데몬 부재로 `docker compose up -d --build` 를 실행하지 못했습니다(정적 테스트만 통과). → `docs/TODO.md` §3 의 "컨테이너 실기동 확인" 항목.
+- **산출물**: `Dockerfile.backend`, `tests/test_feature_schema.py`, `docs/DOCKER_CONTAINERIZATION_PLAN.md`, `docs/API_STRUCTURE.md`, `docs/CHANGELOG.md`
+
 ---
 
 ## [2026-10-13]

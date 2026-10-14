@@ -27,9 +27,12 @@
 
 ---
 
-### 🛡️ 3. 시스템 안정성 및 장애 대응 (1건 대기 · 나머지 Backlog)
-- [ ] **(배포 검증 · 최우선)** 컨테이너 실기동 확인 — `Dockerfile.backend` COPY 누락(`feature_schema.py` → ImportError) 결함은 2026-10-14 수정했으나 **Docker 데몬 부재로 실기동 미검증**(정적 테스트 `tests/test_feature_schema.py` Test 8 만 통과)
-  - 절차: `docker compose up -d --build` → `docker compose ps`(`backend` = `healthy`) → `GET /health` 의 **`feature_schema.status == verified`** 확인 → `docker compose logs backend`
+### 🛡️ 3. 시스템 안정성 및 장애 대응 (Backlog — 2026-10-14 **배포 검증 1건 완료**)
+- [x] **(배포 검증 · 최우선) — 완료 (2026-10-14)** 컨테이너 실기동 확인 — `Dockerfile.backend` COPY 누락(`feature_schema.py` → ImportError) 결함을 2026-10-14 수정하고, **Docker Desktop 기동 후 재빌드·실기동 검증까지 완료**
+  - **실측**: `docker compose up -d --build` → `backend` **`healthy`**(24초 내 · `8100→8000`) · `frontend` Up(`3100→80`) · 기동 로그 `[schema] 피처 스키마 검증 통과: model_version=v2-전처리_2-32d | 32차원 | 출처=/app/benchmarks/2026-10-14/feature_schema.json` → **ImportError 없음** · 3세션 warmup(`input dim: 25`) 완료
+  - **엔드포인트 6종 200**: 직접 `GET /health` · `POST /api/v1/predict/recommendation`(추론 6.6ms · 추천 3건) · `GET /api/v1/districts/live-congestion`(7.8ms) / Nginx 경유 `:3100/health`·`:3100/api/v1/predict/recommendation` / SPA `:3100/`(text/html) · 백엔드 로그 ERROR·Traceback 0건
+  - **주의(정상)**: `/health.feature_schema.status` 는 현재 **`legacy-subset-25d`** 입니다 — 배포 모델이 25차원이고 스키마가 32차원이라 **레거시 서브셋 정렬로 동작하는 정상 상태**이며, `verified` 는 `models/` 를 32차원 자산(+`models/feature_schema.json`)으로 교체했을 때 나옵니다(→ `tests/test_feature_schema.py` Test 7 기대값과 일치)
+  - 재검증 절차: `docker compose up -d --build` → `docker compose ps`(`backend` = `healthy`) → `GET /health`(스키마·차원 확인) → `docker compose logs backend`(`[schema]` 라인) → `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`
   - 실패 시 확인 지점: `main.py` import 목록 ↔ `Dockerfile.backend` COPY 목록 · 스키마 탐색 경로(`--schema`/`FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`)
   - 참고: `docs/DOCKER_CONTAINERIZATION_PLAN.md` §5 Phase 4-5·4-6 · `docs/CHANGELOG.md` [2026-10-14] §3
 - [ ] 공공 API 서버 장애 시 자동 Fallback 서킷 브레이커 고도화

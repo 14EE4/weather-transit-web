@@ -297,8 +297,11 @@ weather-transit-web/
 | **Phase 4-2** | `Dockerfile.backend` 작성 | `python:3.11-slim`, `libgomp1`, 헬스체크 설정 검증 | `Dockerfile.backend` |
 | **Phase 4-3** | `nginx.conf` 및 `Dockerfile.frontend` 작성 | 멀티스테이지 빌드 및 `/api/` 프록시 경로 검증 | `nginx.conf`, `Dockerfile.frontend` |
 | **Phase 4-4** | `docker-compose.yml` 작성 | `depends_on: service_healthy`, `.env` 주입, `./data` 볼륨 매핑 | `docker-compose.yml` |
-| **Phase 4-5** | 컨테이너 빌드 및 로컬 구동 검증 | `docker compose up --build -d` 실행 후 브라우저(`http://localhost:3000`) 정상 작동 확인 | 로컬 컨테이너 구동 |
+| **Phase 4-5** | 컨테이너 빌드 및 로컬 구동 검증 | `docker compose up --build -d` 실행 후 브라우저(`http://localhost:3100` — 기본 `FRONTEND_PORT`) 정상 작동 확인 | 로컬 컨테이너 구동 |
 | **Phase 4-6** | 엔드포인트 무결성 점검 | `http://localhost:3000/health`, 실시간 기상/지하철/버스 및 ONNX 추론 정상 확인 | 검증 보고서 |
+
+> **✅ 검증 이력 (2026-10-14 · Docker Desktop)** — **Phase 4-5**: `docker compose up -d --build` → `backend` = **`healthy`**(24초 내 · 호스트 `8100→8000`) · `frontend` = Up(`3100→80`). **Phase 4-6**: `GET :8100/health`(200 · `models_loaded=true` · `feature_schema.status=legacy-subset-25d` = 배포 모델 25차원 + 스키마 32차원 **정상**) · `POST :8100/api/v1/predict/recommendation`(200 · 추론 6.6ms · 추천 3건) · `GET :8100/api/v1/districts/live-congestion`(200 · 7.8ms) · Nginx 경유 `:3100/health`·`:3100/api/v1/predict/recommendation`(200) · SPA `:3100/` 정상 · 기동 로그 `[schema]` 검증 통과 및 3세션 warmup 완료 · `tests/test_feature_schema.py`·`test_inference.py`·`test_api.py` 통과.
+> 실제 `docker-compose.yml` 의 기본 호스트 포트는 **백엔드 `8100` · 프론트 `3100`** 입니다(§3.3 예시의 `8000:8000`/`3000:80` 은 설계 초안 값 — 최신 포트는 `docs/API_STRUCTURE.md` §7 참조).
 
 ---
 

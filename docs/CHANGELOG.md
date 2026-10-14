@@ -80,9 +80,12 @@
   1. **`Dockerfile.backend`** — `COPY main.py timeseries_cache.py feature_schema.py ./` 로 수정 + `benchmarks/2026-10-14/feature_schema.json` 반입(`models/feature_schema.json` 이 있으면 그 스키마가 우선 → **32차원 자산 교체 시 자연 승격**).
   2. **`tests/test_feature_schema.py`** — **Test 8 컨테이너 배포 파일 목록 검증** 추가(`Dockerfile.backend` COPY 목록에 런타임 모듈·스키마가 포함되는지 정적 검증) → **8종 전부 통과**.
   3. **문서 동기화**: `docs/DOCKER_CONTAINERIZATION_PLAN.md` §3.1 · `docs/API_STRUCTURE.md`.
-- **미해결 / 다음 단계**:
-  - **실기동 미검증** — Docker 데몬 부재로 `docker compose up -d --build` 를 실행하지 못했습니다(정적 테스트만 통과). → `docs/TODO.md` §3 의 "컨테이너 실기동 확인" 항목.
-- **산출물**: `Dockerfile.backend`, `tests/test_feature_schema.py`, `docs/DOCKER_CONTAINERIZATION_PLAN.md`, `docs/API_STRUCTURE.md`, `docs/CHANGELOG.md`
+- **실기동 검증 완료 (2026-10-14 · Docker Desktop)**:
+  - ✅ `docker compose up -d --build` → backend·frontend **재빌드·재기동**(backend `healthy` 24초 내 · `8100→8000` / `3100→80`) · 기동 로그 `[schema] 피처 스키마 검증 통과: model_version=v2-전처리_2-32d | 32차원 | 출처=/app/benchmarks/2026-10-14/feature_schema.json` → **ImportError 재발 없음**(COPY 수정 유효) · 3세션 warmup(`input dim: 25`) 완료.
+  - ✅ 엔드포인트 6종 **200**: 직접 `GET /health` · `POST /api/v1/predict/recommendation`(추론 6.6ms · 추천 3건) · `GET /api/v1/districts/live-congestion`(7.8ms) / Nginx 경유 `:3100/health`·`:3100/api/v1/predict/recommendation` / SPA `:3100/`(text/html) · 백엔드 로그 ERROR·Traceback 0건.
+  - ✅ 회귀 테스트: `tests/test_feature_schema.py`(8종) · `tests/test_inference.py`(추론 SLA 평균 **2.28ms** < 15ms) · `tests/test_api.py`(서킷 브레이커 폴백 포함) 전부 통과.
+  - ℹ️ `/health.feature_schema.status` = **`legacy-subset-25d`**(배포 모델 25차원 + 스키마 32차원 = **정상**) — `verified` 는 `models/` 를 32차원 자산(+`models/feature_schema.json`)으로 교체할 때 나옵니다.
+- **산출물**: `Dockerfile.backend`, `tests/test_feature_schema.py`, `docs/DOCKER_CONTAINERIZATION_PLAN.md`, `docs/API_STRUCTURE.md`, `docs/TODO.md`, `docs/CHANGELOG.md`
 
 ### 4. 🔁 25차원 재학습 **Colab 재현 노트북** 신설 — `.py` 업로드 불가 제약 우회
 - **배경**:

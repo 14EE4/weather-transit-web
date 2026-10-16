@@ -23,6 +23,12 @@ const API_BASE_URL = getApiBaseUrl()
 const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'
 const STORAGE_SELECTED_STOP_KEY = 'weather_transit_selected_stop_id'
 
+// ── 기본 카메라 뷰 각도 (탑뷰: 3D 틸트 없이 수직 상공에서 내려다보는 시점) ──
+const DEFAULT_MAP_PITCH = 0 // 시야각 0° = 탑뷰 (수직 하향)
+const DEFAULT_MAP_BEARING = 0 // 방위각 0° = 정북 방향
+// 저장 뷰 스키마 버전 — v1(구버전): 기본 시야각 30°(3D 틸트) / v2(현행): 기본 시야각 0°(탑뷰)
+const STORAGE_MAP_VIEW_VERSION = 2
+
 interface SavedMapView {
   center: [number, number]
   zoom: number
@@ -57,11 +63,14 @@ const getSavedMapView = (): SavedMapView | null => {
       const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
       const validCenter: [number, number] = isInsideKorea ? [lng, lat] : [127.050, 37.505]
       const validZoom = Math.max(7.0, Math.min(18.5, parsed.zoom))
+      // 버전 필드가 없는 구버전(v1) 저장값은 기본 시야각 30°(3D 틸트)가 그대로 굳어 있으므로
+      // 중심·줌·방위각은 유지한 채 시야각만 탑뷰(0°)로 1회 이관한다.
+      const isLegacyView = parsed.v !== STORAGE_MAP_VIEW_VERSION
       return {
         center: validCenter,
         zoom: validZoom,
-        pitch: typeof parsed.pitch === 'number' ? parsed.pitch : 30,
-        bearing: typeof parsed.bearing === 'number' ? parsed.bearing : 0,
+        pitch: !isLegacyView && typeof parsed.pitch === 'number' ? parsed.pitch : DEFAULT_MAP_PITCH,
+        bearing: typeof parsed.bearing === 'number' ? parsed.bearing : DEFAULT_MAP_BEARING,
       }
     }
   } catch {}
@@ -246,8 +255,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     const savedView = getSavedMapView()
     const initialCenter = savedView?.center || [127.050, 37.505] // 저장된 위치 또는 기본 강남구 중심
     const initialZoom = savedView?.zoom ?? 13
-    const initialPitch = savedView?.pitch ?? 30
-    const initialBearing = savedView?.bearing ?? 0
+    const initialPitch = savedView?.pitch ?? DEFAULT_MAP_PITCH
+    const initialBearing = savedView?.bearing ?? DEFAULT_MAP_BEARING
 
     if (savedView?.zoom) {
       setZoomLevel(savedView.zoom)
@@ -380,6 +389,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         const pitch = map.getPitch()
         const bearing = map.getBearing()
         localStorage.setItem(STORAGE_MAP_VIEW_KEY, JSON.stringify({
+          v: STORAGE_MAP_VIEW_VERSION,
           center: [Math.round(center.lng * 1000000) / 1000000, Math.round(center.lat * 1000000) / 1000000],
           zoom: Math.round(zoom * 100) / 100,
           pitch: Math.round(pitch * 10) / 10,
@@ -404,7 +414,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     mapInstanceRef.current.flyTo({
       center: focusedCoords,
       zoom: 15,
-      pitch: 45,
+      pitch: DEFAULT_MAP_PITCH,
       essential: true,
     })
   }, [focusedCoords, mapLoaded])
@@ -1116,10 +1126,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           const currentZ = mapInstanceRef.current.getZoom()
           const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
           isFlyingRef.current = true
+          // 이동 후에도 기본 탑뷰(0°)를 유지 — 시야각이 3D 틸트로 되돌아가지 않도록 고정
           mapInstanceRef.current.flyTo({
             center: stop.coords,
             zoom: targetZoom,
-            pitch: 35,
+            pitch: DEFAULT_MAP_PITCH,
             duration: 700,
             essential: true,
           })
@@ -1457,7 +1468,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           mapInstanceRef.current.flyTo({
             center: startStop.coords,
             zoom: targetZoom,
-            pitch: 35,
+            pitch: DEFAULT_MAP_PITCH,
             duration: 700,
             essential: true,
           })
@@ -1527,7 +1538,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               mapInstanceRef.current.flyTo({
                 center: trStop.coords,
                 zoom: targetZoom,
-                pitch: 35,
+                pitch: DEFAULT_MAP_PITCH,
                 duration: 700,
                 essential: true,
               })
@@ -1586,7 +1597,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           mapInstanceRef.current.flyTo({
             center: endStop.coords,
             zoom: targetZoom,
-            pitch: 35,
+            pitch: DEFAULT_MAP_PITCH,
             duration: 700,
             essential: true,
           })
@@ -1614,7 +1625,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       mapInstanceRef.current.flyTo({
         center: focusedCoords,
         zoom: 15.5,
-        pitch: 35,
+        pitch: DEFAULT_MAP_PITCH,
         duration: 700,
         essential: true,
       })
@@ -1642,7 +1653,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     mapInstanceRef.current.flyTo({
       center: coords,
       zoom: zoom,
-      pitch: 35,
+      pitch: DEFAULT_MAP_PITCH,
       essential: true,
     })
   }

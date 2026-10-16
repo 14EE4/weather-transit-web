@@ -24,16 +24,14 @@ const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'
 const STORAGE_SELECTED_STOP_KEY = 'weather_transit_selected_stop_id'
 
 // ── 기본 카메라 뷰 각도 (탑뷰: 3D 틸트 없이 수직 상공에서 내려다보는 시점) ──
+// 새로고침 시 복원하는 것은 위치(중심·줌)뿐이며, 시야각(틸트)과 방위각은 항상 아래 기본값으로 초기화한다.
 const DEFAULT_MAP_PITCH = 0 // 시야각 0° = 탑뷰 (수직 하향)
 const DEFAULT_MAP_BEARING = 0 // 방위각 0° = 정북 방향
-// 저장 뷰 스키마 버전 — v1(구버전): 기본 시야각 30°(3D 틸트) / v2(현행): 기본 시야각 0°(탑뷰)
-const STORAGE_MAP_VIEW_VERSION = 2
 
+// 저장 뷰 규격 — 위치(중심·줌)만 영속화하고 시야각·방위각은 저장하지 않는다.
 interface SavedMapView {
   center: [number, number]
   zoom: number
-  pitch: number
-  bearing: number
 }
 
 // ── 대한민국 영역 경계 (전 세계 타일 로딩 방지 및 한국 영토 내 이동 제한) ──
@@ -63,14 +61,10 @@ const getSavedMapView = (): SavedMapView | null => {
       const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
       const validCenter: [number, number] = isInsideKorea ? [lng, lat] : [127.050, 37.505]
       const validZoom = Math.max(7.0, Math.min(18.5, parsed.zoom))
-      // 버전 필드가 없는 구버전(v1) 저장값은 기본 시야각 30°(3D 틸트)가 그대로 굳어 있으므로
-      // 중심·줌·방위각은 유지한 채 시야각만 탑뷰(0°)로 1회 이관한다.
-      const isLegacyView = parsed.v !== STORAGE_MAP_VIEW_VERSION
+      // 시야각(틸트)·방위각은 저장값을 신뢰하지 않는다 — 새로고침 시 항상 탑뷰·정북으로 초기화.
       return {
         center: validCenter,
         zoom: validZoom,
-        pitch: !isLegacyView && typeof parsed.pitch === 'number' ? parsed.pitch : DEFAULT_MAP_PITCH,
-        bearing: typeof parsed.bearing === 'number' ? parsed.bearing : DEFAULT_MAP_BEARING,
       }
     }
   } catch {}
@@ -255,8 +249,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     const savedView = getSavedMapView()
     const initialCenter = savedView?.center || [127.050, 37.505] // 저장된 위치 또는 기본 강남구 중심
     const initialZoom = savedView?.zoom ?? 13
-    const initialPitch = savedView?.pitch ?? DEFAULT_MAP_PITCH
-    const initialBearing = savedView?.bearing ?? DEFAULT_MAP_BEARING
+    // 위치(중심·줌)만 복원하고, 시야각(틸트)·방위각은 저장값과 무관하게 매 새로고침마다 탑뷰·정북으로 초기화
+    const initialPitch = DEFAULT_MAP_PITCH
+    const initialBearing = DEFAULT_MAP_BEARING
 
     if (savedView?.zoom) {
       setZoomLevel(savedView.zoom)
@@ -386,14 +381,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       try {
         const center = map.getCenter()
         const zoom = map.getZoom()
-        const pitch = map.getPitch()
-        const bearing = map.getBearing()
+        // 위치(중심·줌)만 영속화 — 시야각·방위각은 새로고침 시 항상 기본값(탑뷰·정북)으로 초기화되므로 저장하지 않는다.
         localStorage.setItem(STORAGE_MAP_VIEW_KEY, JSON.stringify({
-          v: STORAGE_MAP_VIEW_VERSION,
           center: [Math.round(center.lng * 1000000) / 1000000, Math.round(center.lat * 1000000) / 1000000],
           zoom: Math.round(zoom * 100) / 100,
-          pitch: Math.round(pitch * 10) / 10,
-          bearing: Math.round(bearing * 10) / 10,
         }))
       } catch {}
     }

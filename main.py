@@ -1958,3 +1958,531 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
+
+# ─────────────────────────────────────────────
+# 서울시 버스정류장 이름 검색 API
+# ─────────────────────────────────────────────
+
+@app.get("/api/v1/transit/bus/stations/search", tags=["Live Public APIs"])
+async def search_bus_stations(q: str):
+    from fastapi import HTTPException
+
+    keyword = q.strip()
+
+    if not keyword:
+        raise HTTPException(
+            status_code=400,
+            detail="검색어를 입력해 주세요."
+        )
+
+    if not DATA_GO_KR_BUS_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="버스 API 인증키가 설정되지 않았습니다."
+        )
+
+    url = (
+        "http://ws.bus.go.kr/api/rest/"
+        "stationinfo/getStationByName"
+    )
+
+    params = {
+        "serviceKey": urllib.parse.unquote(DATA_GO_KR_BUS_KEY),
+        "stSrch": keyword,
+        "resultType": "json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+
+        data = response.json()
+        header = data.get("msgHeader") or {}
+
+        if str(header.get("headerCd")) != "0":
+            raise HTTPException(
+                status_code=502,
+                detail=f"서울시 API 오류: {header.get('headerMsg')}"
+            )
+
+        body = data.get("msgBody") or {}
+        items = body.get("itemList") or []
+
+        if isinstance(items, dict):
+            items = [items]
+
+        stations = []
+
+        for item in items:
+            if str(item.get("arsId", "")) == "0":
+                continue
+
+            try:
+                longitude = float(item["tmX"])
+                latitude = float(item["tmY"])
+            except (KeyError, TypeError, ValueError):
+                continue
+
+            if not (126 <= longitude <= 128 and 37 <= latitude <= 38):
+                continue
+
+            stations.append({
+                "id": str(item.get("stId", "")),
+                "name": item.get("stNm", ""),
+                "arsId": str(item.get("arsId", "")),
+                "coords": [longitude, latitude]
+            })
+
+        return {
+            "status": "success",
+            "query": keyword,
+            "count": len(stations),
+            "stations": stations,
+            "source": "SEOUL_BUS_LIVE"
+        }
+
+    except httpx.HTTPError as exc:
+        logger.warning("Bus station search error: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="서울시 버스정류장 API 연결 실패"
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=502,
+            detail="서울시 API 응답 형식 오류"
+        )
+
+
+# ─────────────────────────────────────────────
+# 서울시 지도 주변 버스정류장 조회 API
+# ─────────────────────────────────────────────
+
+@app.get("/api/v1/transit/bus/stations/nearby", tags=["Live Public APIs"])
+async def get_nearby_bus_stations(
+    lat: float,
+    lng: float,
+    radius: int = 500
+):
+    from fastapi import HTTPException
+
+    if not (37.0 <= lat <= 38.0 and 126.0 <= lng <= 128.0):
+        raise HTTPException(
+            status_code=400,
+            detail="좌표 범위를 확인해 주세요."
+        )
+
+    if not (1 <= radius <= 1500):
+        raise HTTPException(
+            status_code=400,
+            detail="검색 반경은 1~1500m여야 합니다."
+        )
+
+    if not DATA_GO_KR_BUS_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="버스 API 인증키가 설정되지 않았습니다."
+        )
+
+    url = (
+        "http://ws.bus.go.kr/api/rest/"
+        "stationinfo/getStationByPos"
+    )
+
+    params = {
+        "serviceKey": urllib.parse.unquote(DATA_GO_KR_BUS_KEY),
+        "tmX": lng,
+        "tmY": lat,
+        "radius": radius,
+        "resultType": "json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+
+        data = response.json()
+        header = data.get("msgHeader") or {}
+
+        if str(header.get("headerCd")) != "0":
+            raise HTTPException(
+                status_code=502,
+                detail=f"서울시 API 오류: {header.get('headerMsg')}"
+            )
+
+        body = data.get("msgBody") or {}
+        items = body.get("itemList") or []
+
+        if isinstance(items, dict):
+            items = [items]
+
+        stations = []
+        seen_ids = set()
+
+        for item in items:
+            station_id = str(
+                item.get("stationId") or item.get("stId") or ""
+            )
+            ars_id = str(item.get("arsId") or "")
+
+            if not station_id or station_id in seen_ids:
+                continue
+
+            if ars_id == "0":
+                continue
+
+            try:
+                longitude = float(
+                    item.get("gpsX") or item.get("tmX")
+                )
+                latitude = float(
+                    item.get("gpsY") or item.get("tmY")
+                )
+            except (TypeError, ValueError):
+                continue
+
+            if not (126 <= longitude <= 128 and 37 <= latitude <= 38):
+                continue
+
+            seen_ids.add(station_id)
+
+            stations.append({
+                "id": station_id,
+                "name": item.get("stationNm") or item.get("stNm") or "",
+                "stId": station_id,
+                "arsId": ars_id,
+                "coords": [longitude, latitude],
+                "distance": item.get("dist")
+            })
+
+        return {
+            "status": "success",
+            "count": len(stations),
+            "center": [lng, lat],
+            "radius": radius,
+            "stations": stations,
+            "source": "SEOUL_BUS_LIVE"
+        }
+
+    except httpx.HTTPError as exc:
+        logger.warning("Nearby bus station API error: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="서울시 주변 정류장 API 연결 실패"
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=502,
+            detail="서울시 API 응답 형식 오류"
+        )
+
+
+# ─────────────────────────────────────────────
+# 서울시 버스 노선별 경유 정류장 조회 API
+# ─────────────────────────────────────────────
+
+@app.get("/api/v1/transit/bus/routes/{bus_route_id}/stations", tags=["Live Public APIs"])
+async def get_bus_route_stations(bus_route_id: str):
+    """서울시 버스 노선 ID로 경유 정류장 순서 및 WGS84 좌표 조회."""
+    route_id = bus_route_id.strip()
+
+    if not route_id.isdigit() or len(route_id) > 12:
+        raise HTTPException(
+            status_code=400,
+            detail="올바른 버스 노선 ID를 입력해 주세요."
+        )
+
+    if not DATA_GO_KR_BUS_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="버스 API 인증키가 설정되지 않았습니다."
+        )
+
+    url = (
+        "http://ws.bus.go.kr/api/rest/"
+        "busRouteInfo/getStaionByRoute"
+    )
+    params = {
+        "serviceKey": urllib.parse.unquote(DATA_GO_KR_BUS_KEY),
+        "busRouteId": route_id,
+        "resultType": "json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+
+        data = response.json()
+        header = data.get("msgHeader") or {}
+
+        if str(header.get("headerCd")) != "0":
+            raise HTTPException(
+                status_code=502,
+                detail=f"서울시 버스 노선 API 오류: {header.get('headerMsg', '알 수 없는 오류')}"
+            )
+
+        body = data.get("msgBody") or {}
+        items = body.get("itemList") or []
+        if isinstance(items, dict):
+            items = [items]
+
+        stations = []
+        for item in items:
+            try:
+                longitude = float(item["gpsX"])
+                latitude = float(item["gpsY"])
+            except (KeyError, TypeError, ValueError):
+                continue
+
+            if not (126.0 <= longitude <= 128.0 and 37.0 <= latitude <= 38.0):
+                continue
+
+            try:
+                sequence = int(item.get("seq"))
+            except (TypeError, ValueError):
+                continue
+
+            station_id = str(item.get("station") or item.get("stId") or "")
+            stations.append({
+                "sequence": sequence,
+                "name": item.get("stationNm") or "",
+                "stId": station_id,
+                "arsId": str(item.get("arsId") or ""),
+                "coords": [longitude, latitude]
+            })
+
+        stations.sort(key=lambda station: station["sequence"])
+
+        return {
+            "status": "success",
+            "bus_route_id": route_id,
+            "count": len(stations),
+            "stations": stations,
+            "source": "SEOUL_BUS_LIVE"
+        }
+
+    except httpx.HTTPError as exc:
+        logger.warning("Bus route stations API error: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="서울시 버스 노선 API 연결 실패"
+        )
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=502,
+            detail="서울시 버스 노선 API 응답 형식 오류"
+        )
+
+# ─────────────────────────────────────────────
+# 서울시 버스 노선별 실시간 차량 위치 조회 API
+# ─────────────────────────────────────────────
+
+@app.get("/api/v1/transit/bus/routes/{bus_route_id}/positions", tags=["Live Public APIs"])
+async def get_bus_route_positions(bus_route_id: str):
+    """서울시 노선 ID에 속한 운행 차량의 실시간 GPS 위치 조회."""
+    route_id = bus_route_id.strip()
+
+    if not route_id.isdigit() or len(route_id) > 12:
+        raise HTTPException(
+            status_code=400,
+            detail="올바른 버스 노선 ID를 입력해 주세요."
+        )
+
+    if not DATA_GO_KR_BUS_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="버스 API 인증키가 설정되지 않았습니다."
+        )
+
+    url = (
+        "http://ws.bus.go.kr/api/rest/"
+        "buspos/getBusPosByRtid"
+    )
+    params = {
+        "serviceKey": urllib.parse.unquote(DATA_GO_KR_BUS_KEY),
+        "busRouteId": route_id,
+        "resultType": "json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+
+        data = response.json()
+        header = data.get("msgHeader") or {}
+
+        if str(header.get("headerCd")) != "0":
+            raise HTTPException(
+                status_code=502,
+                detail=f"서울시 버스 위치 API 오류: {header.get('headerMsg', '알 수 없는 오류')}"
+            )
+
+        body = data.get("msgBody") or {}
+        items = body.get("itemList") or []
+        if isinstance(items, dict):
+            items = [items]
+
+        vehicles = []
+        seen_ids = set()
+
+        for item in items:
+            vehicle_id = str(item.get("vehId") or "")
+            if not vehicle_id or vehicle_id in seen_ids:
+                continue
+
+            # posX/posY는 투영좌표일 수 있으므로 GPS 또는 tmX/tmY만 사용
+            try:
+                longitude = float(item.get("gpsX") or item.get("tmX"))
+                latitude = float(item.get("gpsY") or item.get("tmY"))
+            except (TypeError, ValueError):
+                continue
+
+            if not (126.0 <= longitude <= 128.0 and 37.0 <= latitude <= 38.0):
+                continue
+
+            seen_ids.add(vehicle_id)
+            vehicles.append({
+                "vehicle_id": vehicle_id,
+                "plate_no": str(item.get("plainNo") or ""),
+                "coords": [longitude, latitude],
+                "section_order": item.get("sectOrd"),
+                "last_station_id": str(item.get("lastStnId") or ""),
+                "at_stop": str(item.get("stopFlag")) == "1",
+                "bus_type": item.get("busType"),
+                "congestion": item.get("congetion"),
+                "data_time": item.get("dataTm")
+            })
+
+        return {
+            "status": "success",
+            "bus_route_id": route_id,
+            "count": len(vehicles),
+            "vehicles": vehicles,
+            "source": "SEOUL_BUS_LIVE"
+        }
+
+    except httpx.HTTPError as exc:
+        logger.warning("Bus route positions API error: %s", exc)
+        raise HTTPException(status_code=502, detail="서울시 버스 위치 API 연결 실패")
+    except (ValueError, TypeError) as exc:
+        logger.warning("Bus route positions response error: %s", exc)
+        raise HTTPException(status_code=502, detail="서울시 버스 위치 API 응답 형식 오류")
+
+# ─────────────────────────────────────────────
+# 선택한 정류장에 가장 먼저 도착할 버스 2대의 실시간 위치
+# - 서울시 도착정보 vehId1/vehId2 와 위치정보 vehId 매칭
+# - 외부 API는 노선 단위로 응답하므로 백엔드에서 2대만 걸러 프론트에 전송
+# ─────────────────────────────────────────────
+_bus_approaching_cache: dict[str, tuple[float, dict]] = {}
+
+@app.get("/api/v1/transit/bus/routes/{bus_route_id}/approaching", tags=["Live Public APIs"])
+async def get_approaching_bus_positions(bus_route_id: str, stId: str):
+    route_id = bus_route_id.strip()
+    station_id = stId.strip()
+    if not route_id.isdigit() or not (1 <= len(route_id) <= 12):
+        raise HTTPException(status_code=400, detail="올바른 버스 노선 ID가 필요합니다.")
+    if not station_id.isdigit() or not (1 <= len(station_id) <= 12):
+        raise HTTPException(status_code=400, detail="올바른 정류장 ID가 필요합니다.")
+    if not DATA_GO_KR_BUS_KEY:
+        raise HTTPException(status_code=503, detail="버스 API 인증키가 설정되지 않았습니다.")
+
+    cache_key = f"{station_id}:{route_id}"
+    now = time.monotonic()
+    cached = _bus_approaching_cache.get(cache_key)
+    if cached and now - cached[0] < 20:
+        return cached[1]
+
+    # 도착정보에는 정류장을 향해 오는 첫 번째/두 번째 차량의 고유 ID가 제공됨.
+    # 기존 /arrival 와 같은 공공데이터 조회 API를 사용하되, vehId1/vehId2를 활용한다.
+    params = {
+        "serviceKey": urllib.parse.unquote(DATA_GO_KR_BUS_KEY),
+        "stId": station_id,
+        "resultType": "json"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(
+                "http://ws.bus.go.kr/api/rest/arrive/getLowArrInfoByStId",
+                params=params
+            )
+            res.raise_for_status()
+        arrival_data = res.json()
+        header = arrival_data.get("msgHeader") or {}
+        if str(header.get("headerCd")) != "0":
+            raise HTTPException(
+                status_code=502,
+                detail=f"서울시 버스 도착 API 오류: {header.get('headerMsg', '알 수 없는 오류')}"
+            )
+        arrival_items = (arrival_data.get("msgBody") or {}).get("itemList") or []
+        if isinstance(arrival_items, dict):
+            arrival_items = [arrival_items]
+    except httpx.HTTPError as exc:
+        logger.warning("Approaching bus arrival API error: %s", exc)
+        raise HTTPException(status_code=502, detail="서울시 버스 도착 API 연결 실패")
+    except (ValueError, TypeError, AttributeError) as exc:
+        logger.warning("Approaching bus arrival response error: %s", exc)
+        raise HTTPException(status_code=502, detail="서울시 버스 도착 API 응답 형식 오류")
+
+    matched_route = next(
+        (item for item in arrival_items if str(item.get("busRouteId") or "") == route_id),
+        None
+    )
+    requested_vehicles = []
+    if matched_route:
+        for order in (1, 2):
+            vehicle_id = str(matched_route.get(f"vehId{order}") or "").strip()
+            if vehicle_id and vehicle_id != "0" and all(
+                entry["vehicle_id"] != vehicle_id for entry in requested_vehicles
+            ):
+                requested_vehicles.append({
+                    "vehicle_id": vehicle_id,
+                    "arrival_order": order,
+                    "arrival_message": str(matched_route.get(f"arrmsg{order}") or "")
+                })
+
+    # 도착 예정 차량의 ID가 없는 경우에는 추정으로 다른 버스를 표시하지 않는다.
+    if not requested_vehicles:
+        payload = {
+            "status": "success", "bus_route_id": route_id, "station_id": station_id,
+            "count": 0, "vehicles": [],
+            "message": "현재 확인 가능한 첫차·다음 차 차량 ID가 없습니다.",
+            "source": "SEOUL_BUS_LIVE"
+        }
+        _bus_approaching_cache[cache_key] = (time.monotonic(), payload)
+        return payload
+
+    # 기존 실시간 위치 API의 검증/좌표 가공 코드를 재사용한다.
+    position_data = await get_bus_route_positions(route_id)
+    position_by_id = {
+        str(vehicle.get("vehicle_id")): vehicle
+        for vehicle in position_data.get("vehicles", [])
+    }
+    vehicles = []
+    for requested in requested_vehicles:
+        position = position_by_id.get(requested["vehicle_id"])
+        if position is None:
+            continue
+        vehicles.append({
+            **position,
+            "arrival_order": requested["arrival_order"],
+            "arrival_message": requested["arrival_message"]
+        })
+
+    payload = {
+        "status": "success", "bus_route_id": route_id, "station_id": station_id,
+        "count": len(vehicles), "vehicles": vehicles,
+        "message": "" if len(vehicles) == len(requested_vehicles) else "일부 차량의 GPS 위치가 아직 제공되지 않습니다.",
+        "source": "SEOUL_BUS_LIVE"
+    }
+    _bus_approaching_cache[cache_key] = (time.monotonic(), payload)
+    # 반복 조회 중 키가 무제한 늘지 않도록 오래된 캐시만 정리
+    if len(_bus_approaching_cache) > 200:
+        expiry = time.monotonic() - 60
+        for key, (saved_at, _) in list(_bus_approaching_cache.items()):
+            if saved_at < expiry:
+                _bus_approaching_cache.pop(key, None)
+    return payload

@@ -4,6 +4,7 @@ import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall
 import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
+import BusStationSearch, { type BusStationResult } from './BusStationSearch'
 
 type Page = 'main' | 'route' | 'map'
 
@@ -444,9 +445,9 @@ const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location) {
     const proto = window.location.protocol || 'http:'
     const host = window.location.hostname || 'localhost'
-    return `${proto}//${host}:8100`
+    return `${proto}//${host}:8000`
   }
-  return 'http://localhost:8100'
+  return 'http://localhost:8000'
 }
 const API_BASE_URL = getApiBaseUrl()
 
@@ -518,6 +519,7 @@ export default function App() {
   const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null)
   const [subwaySearchQuery, setSubwaySearchQuery] = useState('')
   const [focusedCoords, setFocusedCoords] = useState<[number, number] | null>(null)
+  const [selectedBusStation, setSelectedBusStation] = useState<BusStationResult | null>(null)
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showDepartureList, setShowDepartureList] = useState(false)
   const [showDestinationList, setShowDestinationList] = useState(false)
@@ -536,7 +538,7 @@ export default function App() {
   const [isConsoleLogging, setIsConsoleLogging] = useState(false)
 
   // ── AI 추론 백엔드 서버 연동 상태 ──
-  const [transportScores, setTransportScores] = useState(TRANSPORT_SCORES)
+  const [transportScores, setTransportScores] = useState<(typeof TRANSPORT_SCORES[number] & { predicted_volume?: number })[]>(TRANSPORT_SCORES)
   const [aiLatency, setAiLatency] = useState<number | null>(null)
   const [aiStatus, setAiStatus] = useState<'connected' | 'loading' | 'offline'>('loading')
   const [aiWeatherSummary, setAiWeatherSummary] = useState<{ condition: string; description: string } | null>(null)
@@ -585,6 +587,7 @@ export default function App() {
           if (liveSubway.status === 'success' && liveSubway.arrivals && liveSubway.arrivals.length > 0) {
             const firstTrain = liveSubway.arrivals[0]
             route.departureTrain = {
+              station: from,
               trainLineNm: firstTrain.destination,
               destinationOrNext: firstTrain.destination,
               arrivalMessage: firstTrain.message,
@@ -2232,6 +2235,7 @@ export default function App() {
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
             {/* 지하철역 검색 및 자동완성 입력창 */}
+            {mapTransport != 'bus' && (
             <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>🔍</span> 지하철역 검색 & 바로가기
@@ -2352,6 +2356,18 @@ export default function App() {
                 )
               })()}
             </div>
+            )}
+
+            {/* 버스정류장 검색 */}
+            {mapTransport === 'bus' && (
+              <BusStationSearch
+                onSelect={station => {
+                  setActiveRoute(null)
+                  setSelectedBusStation(station)
+                  setFocusedCoords(station.coords)
+                }}
+              />
+            )}
 
             {/* 교통수단 탭 */}
             <div style={{ display: 'flex', gap: 6, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -2947,6 +2963,7 @@ export default function App() {
               selectedTime={liveWeather ? `${parseInt(liveWeather.base_time.slice(0, 2), 10)}시` : `${new Date().getHours()}시`}
               liveWeather={liveWeather}
               focusedCoords={focusedCoords}
+              selectedBusStation={selectedBusStation}
               onSelectStop={handleSelectStop}
               activeRoute={activeRoute}
               onClearRoute={() => {

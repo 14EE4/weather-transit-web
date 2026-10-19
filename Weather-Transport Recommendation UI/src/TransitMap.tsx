@@ -13,11 +13,13 @@ const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location) {
     const proto = window.location.protocol || 'http:'
     const host = window.location.hostname || 'localhost'
-    return `${proto}//${host}:8100`
+    return `${proto}//${host}:8000`
   }
-  return 'http://localhost:8100'
+  return 'http://localhost:8000'
 }
 const API_BASE_URL = getApiBaseUrl()
+console.log('[API 환경변수]', import.meta.env.VITE_API_BASE_URL)
+console.log('[최종 API 주소]', API_BASE_URL)
 
 // ── 로컬 스토리지 키 (새로고침 시 지도 카메라 위치 및 선택 역 복원) ──
 const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'
@@ -147,6 +149,12 @@ interface TransitMapProps {
   selectedTime: string
   liveWeather?: any
   focusedCoords?: [number, number] | null
+  selectedBusStation?: {
+  id: string
+  name: string
+  arsId: string
+  coords: [number, number]
+} | null
   onSelectStop?: (stop: TransitStop | null, details?: StopDetailData) => void
   activeRoute?: TransitRouteResult | null
   onClearRoute?: () => void
@@ -159,7 +167,128 @@ interface MarkerItem {
   priority: number
 }
 
-export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
+// 🚌 서울시 버스 노선별 경유 정류장 데이터 (기존 지하철 경로 타입과 분리)
+type BusRouteStation = {
+  sequence: number
+  name: string
+  stId: string
+  arsId: string
+  coords: [number, number]
+}
+
+type SelectedBusRoute = {
+  id: string
+  name: string
+  stationId: string
+}
+
+// 서울시 도착정보와 GPS 위치를 차량 ID로 연결한 첫차·다음 차 정보
+type ApproachingBusVehicle = {
+  vehicle_id: string
+  plate_no: string
+  coords: [number, number]
+  section_order: string | number
+  at_stop: boolean
+  data_time?: string
+  arrival_order: number
+  arrival_message: string
+}
+
+// 버스 도착정보 표시
+type BusArrival = {
+  route_name: string
+  station_name: string
+  arrival_msg1: string
+  arrival_msg2: string
+  station_order: string
+  bus_route_id: string
+}
+
+async function loadBusArrivals(
+  stationId: string,
+  container: HTMLElement,
+  onSelectRoute?: (routeId: string, routeName: string, stationId: string) => void
+) {
+  container.textContent = '버스 도착정보 불러오는 중...'
+  container.style.color = '#94A3B8'
+  container.style.fontSize = '12px'
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(stationId)}`
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+    const arrivals: BusArrival[] = data.arrivals || []
+
+    container.replaceChildren()
+
+    if (arrivals.length === 0) {
+      container.textContent = '현재 조회 가능한 도착정보가 없습니다.'
+      return
+    }
+
+    for (const arrival of arrivals) {
+      const row = document.createElement('div')
+
+      Object.assign(row.style, {
+        marginTop: '12px',
+        paddingTop: '10px',
+        borderTop: '1px solid rgba(255,255,255,0.12)'
+      })
+
+      const route = document.createElement('button')
+      route.type = 'button'
+      route.textContent = `🚌 ${arrival.route_name}번  ·  노선 보기 ↗`
+      route.title = `${arrival.route_name}번 버스 노선 표시`
+      route.disabled = !arrival.bus_route_id || !onSelectRoute
+
+      Object.assign(route.style, {
+        color: '#34D399',
+        fontWeight: '700',
+        fontSize: '14px',
+        background: 'transparent',
+        border: 'none',
+        padding: '0',
+        cursor: route.disabled ? 'default' : 'pointer',
+        textAlign: 'left',
+        opacity: route.disabled ? '0.65' : '1'
+      })
+      if (!route.disabled && onSelectRoute) {
+        route.addEventListener('click', (event) => {
+          event.stopPropagation()
+          onSelectRoute(arrival.bus_route_id, arrival.route_name, stationId)
+        })
+      }
+
+      const firstArrival = document.createElement('div')
+      firstArrival.textContent =
+        `첫 번째: ${arrival.arrival_msg1 || '정보 없음'}`
+      firstArrival.style.color = '#F0F6FF'
+      firstArrival.style.marginTop = '6px'
+
+      const secondArrival = document.createElement('div')
+      secondArrival.textContent =
+        `두 번째: ${arrival.arrival_msg2 || '정보 없음'}`
+      secondArrival.style.color = '#94A3B8'
+      secondArrival.style.marginTop = '4px'
+
+      row.append(route, firstArrival, secondArrival)
+      container.appendChild(row)
+    }
+  } catch (error) {
+    console.error('버스 도착정보 조회 실패:', error)
+    container.textContent = '도착정보를 불러오지 못했습니다.'
+    container.style.color = '#FCA5A5'
+  }
+}
+
+
+export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation ,onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
@@ -173,6 +302,20 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [zoomLevel, setZoomLevel] = useState<number>(13)
+
+  // 🚌 선택한 버스 노선은 지하철 activeRoute와 별도 레이어로 관리
+  const [selectedBusRoute, setSelectedBusRoute] = useState<SelectedBusRoute | null>(null)
+  const [busRouteStations, setBusRouteStations] = useState<BusRouteStation[]>([])
+  const [busRouteLoading, setBusRouteLoading] = useState(false)
+  const [busRouteError, setBusRouteError] = useState('')
+  const [approachingBusVehicles, setApproachingBusVehicles] = useState<ApproachingBusVehicle[]>([])
+  const [approachingBusLoading, setApproachingBusLoading] = useState(false)
+  const [approachingBusError, setApproachingBusError] = useState('')
+  const [approachingBusMessage, setApproachingBusMessage] = useState('')
+  const selectBusRouteRef = useRef<(routeId: string, routeName: string, stationId: string) => void>(() => {})
+  selectBusRouteRef.current = (routeId, routeName, stationId) => {
+    if (routeId && stationId) setSelectedBusRoute({ id: routeId, name: routeName, stationId })
+  }
 
   // 클로저 트랩 방지용 최신 상태 참조 Refs
   const activeRouteRef = useRef<TransitRouteResult | null>(activeRoute || null)
@@ -409,6 +552,89 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       essential: true,
     })
   }, [focusedCoords, mapLoaded])
+
+  // 검색으로 선택한 버스정류장 마커 표시
+  useEffect(() => {
+    console.log('[버스 마커 확인]', {
+      mapLoaded,
+      selectedBusStation,
+      mapExists: !!mapInstanceRef.current,
+    })
+
+    if (!mapLoaded || !mapInstanceRef.current || !selectedBusStation) {
+      return
+    }
+
+    const map = mapInstanceRef.current
+
+    const el = document.createElement('div')
+    el.textContent = '🚌'
+    el.title = selectedBusStation.name
+
+    Object.assign(el.style, {
+      fontSize: '24px',
+      cursor: 'pointer',
+      background: '#111D35',
+      border: '2px solid #34D399',
+      borderRadius: '50%',
+      width: '42px',
+      height: '42px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      boxShadow: '0 0 18px rgba(52,211,153,0.5)',
+    })
+    const popupContent = document.createElement('div')
+
+    Object.assign(popupContent.style, {
+      padding: '10px 14px',
+      background: '#111D35',
+      borderRadius: '10px',
+      fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
+      minWidth: '180px'
+    })
+
+const title = document.createElement('strong')
+title.textContent = `🚌 ${selectedBusStation.name}`
+
+Object.assign(title.style, {
+  color: '#F0F6FF',
+  fontSize: '14px',
+  fontWeight: '800'
+})
+
+const number = document.createElement('div')
+number.textContent = `정류장 번호: ${selectedBusStation.arsId}`
+
+Object.assign(number.style, {
+  marginTop: '8px',
+  color: '#94A3B8',
+  fontSize: '11px'
+})
+
+popupContent.append(title, number)
+
+  const arrivalContainer = document.createElement('div')
+  popupContent.appendChild(arrivalContainer)
+
+  const popup = new maplibregl.Popup({ offset: 25 })
+    .setDOMContent(popupContent)
+
+  popup.on('open', () => {
+    loadBusArrivals(selectedBusStation.id, arrivalContainer, (id, name, stationId) => selectBusRouteRef.current(id, name, stationId))
+})
+
+
+  // 팝업은 위에서 한 번만 생성했으므로 다시 선언하지 않음
+  const marker = new maplibregl.Marker({ element: el })
+    .setLngLat(selectedBusStation.coords)
+    .setPopup(popup)
+    .addTo(map)
+
+  return () => {
+    marker.remove()
+  }
+}, [mapLoaded, selectedBusStation])
 
   // 역/정류소 중요도 가중치 계산 (환승역 및 주요 환승센터/대형 거점 우선 노출)
   const calculateStationPriority = (stop: TransitStop): number => {
@@ -671,6 +897,497 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   }
 
   updateCollisionsRef.current = updateCollisions
+
+
+  // 🚌 지도 주변 실제 버스정류장 자동 표시
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current) return
+    if (filterType !== 'bus' && filterType !== 'all') return
+
+    const map = mapInstanceRef.current
+    const sourceId = 'live-bus-stations'
+    const layerId = 'live-bus-stations-circle'
+
+    let controller: AbortController | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
+
+    // 주변 정류장 표시용 GeoJSON 소스
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: []
+      }
+    })
+
+    // 정류장을 초록색 원으로 표시
+    map.addLayer({
+      id: layerId,
+      type: 'circle',
+      source: sourceId,
+      minzoom: 15,
+      paint: {
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 4,
+          16, 7,
+          18, 10
+        ],
+        'circle-color': '#34D399',
+        'circle-stroke-color': '#FFFFFF',
+        'circle-stroke-width': 2,
+        'circle-opacity': 0.95
+      }
+    })
+
+    const setStations = (features: any[]) => {
+      const source = map.getSource(sourceId) as any
+      source?.setData({
+        type: 'FeatureCollection',
+        features
+      })
+    }
+
+    const loadNearbyStations = async () => {
+      controller?.abort()
+      controller = new AbortController()
+
+      // 너무 멀리 축소한 상태에서는 표시하지 않음
+      if (map.getZoom() < 15) {
+        setStations([])
+        return
+      }
+
+      const center = map.getCenter()
+      const bounds = map.getBounds()
+
+      try {
+        const url = new URL(
+          `${API_BASE_URL}/api/v1/transit/bus/stations/nearby`
+        )
+
+        url.searchParams.set('lat', String(center.lat))
+        url.searchParams.set('lng', String(center.lng))
+        url.searchParams.set('radius', '500')
+
+        const response = await fetch(url.toString(), {
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (disposed) return
+
+        const stations = (data.stations || []).filter(
+          (station: any) =>
+            station.id &&
+            station.coords &&
+            !station.name.includes('(미정차)') &&
+            bounds.contains(station.coords)
+        )
+
+        const features = stations.map((station: any) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: station.coords
+          },
+          properties: {
+            stId: station.stId,
+            name: station.name,
+            arsId: station.arsId
+          }
+        }))
+
+        setStations(features)
+        console.log(
+          `[서울 버스] 주변 정류장 ${features.length}개 표시`
+        )
+      } catch (error) {
+        if (controller?.signal.aborted || disposed) return
+
+        console.error('주변 버스정류장 조회 실패:', error)
+        setStations([])
+      }
+    }
+
+    // 지도 이동 후 잠시 기다렸다가 조회
+    const scheduleUpdate = () => {
+      if (timer) clearTimeout(timer)
+
+      controller?.abort()
+
+      timer = setTimeout(() => {
+        loadNearbyStations()
+      }, 350)
+    }
+
+    // 정류장 원 클릭 시 팝업 표시
+    const handleStationClick = (e: any) => {
+      const feature = e.features?.[0]
+      if (!feature || feature.geometry?.type !== 'Point') return
+
+      const coords = feature.geometry.coordinates as [number, number]
+      const properties = feature.properties || {}
+
+      const content = document.createElement('div')
+      content.style.padding = '10px'
+      content.style.background = '#111D35'
+      content.style.borderRadius = '8px'
+
+      const title = document.createElement('strong')
+      title.textContent = `🚌 ${properties.name || '버스정류장'}`
+      title.style.color = '#F0F6FF'
+
+      const number = document.createElement('div')
+      number.textContent = `정류장 번호: ${properties.arsId || '-'}`
+      number.style.color = '#94A3B8'
+      number.style.marginTop = '7px'
+
+      content.append(title, number)
+
+      // 주변 정류장에서도 검색 마커와 동일한 실시간 도착정보 제공
+      const arrivalContainer = document.createElement('div')
+      content.appendChild(arrivalContainer)
+
+      const popup = new maplibregl.Popup({ offset: 12 })
+        .setLngLat(coords)
+        .setDOMContent(content)
+
+      popup.on('open', () => {
+        const stationId = String(properties.stId || '')
+        if (stationId) {
+          loadBusArrivals(stationId, arrivalContainer, (id, name) => selectBusRouteRef.current(id, name, stationId))
+        } else {
+          arrivalContainer.textContent = '정류장 ID가 없어 도착정보를 조회할 수 없습니다.'
+          arrivalContainer.style.color = '#FCA5A5'
+        }
+      })
+
+      popup.addTo(map)
+    }
+
+    const onMouseEnter = () => {
+      map.getCanvas().style.cursor = 'pointer'
+    }
+
+    const onMouseLeave = () => {
+      map.getCanvas().style.cursor = ''
+    }
+
+    map.on('moveend', scheduleUpdate)
+    map.on('click', layerId, handleStationClick)
+    map.on('mouseenter', layerId, onMouseEnter)
+    map.on('mouseleave', layerId, onMouseLeave)
+
+    // 지도 로드 직후 최초 조회
+    scheduleUpdate()
+
+    return () => {
+      disposed = true
+      controller?.abort()
+      if (timer) clearTimeout(timer)
+
+      map.off('moveend', scheduleUpdate)
+      map.off('click', layerId, handleStationClick)
+      map.off('mouseenter', layerId, onMouseEnter)
+      map.off('mouseleave', layerId, onMouseLeave)
+
+      try {
+        if (map.getLayer(layerId)) map.removeLayer(layerId)
+        if (map.getSource(sourceId)) map.removeSource(sourceId)
+      } catch {
+        // 지도 자체가 이미 제거된 경우
+      }
+    }
+  }, [mapLoaded, filterType])
+
+  // 🚌 선택한 버스 노선 경유 정류장 조회 (지하철 activeRoute에는 영향 없음)
+  useEffect(() => {
+    if (!selectedBusRoute) {
+      setBusRouteStations([])
+      setBusRouteError('')
+      setBusRouteLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setBusRouteStations([])
+    setBusRouteError('')
+    setBusRouteLoading(true)
+
+    const loadRoute = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/v1/transit/bus/routes/${encodeURIComponent(selectedBusRoute.id)}/stations`,
+          { signal: controller.signal }
+        )
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const data = await response.json()
+        if (data.status !== 'success' || !Array.isArray(data.stations)) {
+          throw new Error('노선 조회 응답 형식 오류')
+        }
+        const stations: BusRouteStation[] = data.stations
+          .filter((station: BusRouteStation) =>
+            station && Array.isArray(station.coords) &&
+            station.coords.length === 2 &&
+            station.coords.every((value: number) => Number.isFinite(value))
+          )
+          .sort((a: BusRouteStation, b: BusRouteStation) => Number(a.sequence) - Number(b.sequence))
+        if (!controller.signal.aborted) {
+          setBusRouteStations(stations)
+          if (stations.length < 2) setBusRouteError('표시할 경유 정류장이 부족합니다.')
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        console.error('버스 노선 조회 실패:', error)
+        setBusRouteError('버스 노선을 불러오지 못했습니다.')
+      } finally {
+        if (!controller.signal.aborted) setBusRouteLoading(false)
+      }
+    }
+
+    loadRoute()
+    return () => controller.abort()
+  }, [selectedBusRoute])
+
+  // 🚌 노선 좌표를 별도 GeoJSON 레이어로 표시하고 경유 정류장 클릭 지원
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current || busRouteStations.length < 2) return
+    const map = mapInstanceRef.current
+    const lineSourceId = 'selected-bus-route-line-source'
+    const pointSourceId = 'selected-bus-route-stations-source'
+    const lineLayerId = 'selected-bus-route-line'
+    const pointLayerId = 'selected-bus-route-stations'
+    const coordinates = busRouteStations.map(station => station.coords)
+
+    map.addSource(lineSourceId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates }
+      }
+    })
+    map.addLayer({
+      id: lineLayerId,
+      type: 'line',
+      source: lineSourceId,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': '#F59E0B',
+        'line-width': 5,
+        'line-opacity': 0.9
+      }
+    })
+
+    map.addSource(pointSourceId, {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: busRouteStations.map(station => ({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: station.coords },
+          properties: {
+            sequence: station.sequence,
+            name: station.name,
+            stId: station.stId,
+            arsId: station.arsId
+          }
+        }))
+      }
+    })
+    map.addLayer({
+      id: pointLayerId,
+      type: 'circle',
+      source: pointSourceId,
+      paint: {
+        'circle-radius': 5,
+        'circle-color': '#FBBF24',
+        'circle-stroke-color': '#111D35',
+        'circle-stroke-width': 1.5
+      }
+    })
+
+    const onBusRouteStopClick = (event: any) => {
+      const feature = event.features?.[0]
+      if (!feature || feature.geometry?.type !== 'Point') return
+      const props = feature.properties || {}
+      const content = document.createElement('div')
+      Object.assign(content.style, {
+        padding: '10px 12px',
+        background: '#111D35',
+        borderRadius: '8px',
+        color: '#F0F6FF',
+        fontSize: '12px'
+      })
+      const heading = document.createElement('strong')
+      heading.textContent = `${props.sequence}번째 · ${props.name || '경유 정류장'}`
+      const number = document.createElement('div')
+      number.textContent = `정류장 번호: ${props.arsId || '-'}`
+      Object.assign(number.style, { marginTop: '6px', color: '#94A3B8' })
+      content.append(heading, number)
+      new maplibregl.Popup({ offset: 10 })
+        .setLngLat(feature.geometry.coordinates)
+        .setDOMContent(content)
+        .addTo(map)
+    }
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer' }
+    const onLeave = () => { map.getCanvas().style.cursor = '' }
+    map.on('click', pointLayerId, onBusRouteStopClick)
+    map.on('mouseenter', pointLayerId, onEnter)
+    map.on('mouseleave', pointLayerId, onLeave)
+
+    const bounds = new maplibregl.LngLatBounds()
+    coordinates.forEach(coord => bounds.extend(coord))
+    map.fitBounds(bounds, {
+      padding: { top: 95, right: 65, bottom: 85, left: 345 },
+      maxZoom: 13,
+      duration: 900,
+      essential: true
+    })
+
+    return () => {
+      map.off('click', pointLayerId, onBusRouteStopClick)
+      map.off('mouseenter', pointLayerId, onEnter)
+      map.off('mouseleave', pointLayerId, onLeave)
+      try {
+        if (map.getLayer(pointLayerId)) map.removeLayer(pointLayerId)
+        if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId)
+        if (map.getSource(pointSourceId)) map.removeSource(pointSourceId)
+        if (map.getSource(lineSourceId)) map.removeSource(lineSourceId)
+      } catch {
+        // 지도 컴포넌트가 제거된 경우
+      }
+    }
+  }, [mapLoaded, busRouteStations])
+
+
+  // 🚌 선택한 정류장에 가장 먼저 도착할 두 차량만 조회 (30초 간격)
+  useEffect(() => {
+    setApproachingBusVehicles([])
+    setApproachingBusError('')
+    setApproachingBusMessage('')
+    if (!selectedBusRoute) {
+      setApproachingBusLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
+    const routeId = selectedBusRoute.id
+    const stationId = selectedBusRoute.stationId
+
+    const refresh = async () => {
+      if (disposed) return
+      setApproachingBusLoading(true)
+      try {
+        const url = `${API_BASE_URL}/api/v1/transit/bus/routes/${encodeURIComponent(routeId)}/approaching?stId=${encodeURIComponent(stationId)}`
+        const response = await fetch(url, { signal: controller.signal })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const data = await response.json()
+        if (data.status !== 'success' || !Array.isArray(data.vehicles)) {
+          throw new Error('접근 차량 응답 형식 오류')
+        }
+        if (disposed) return
+        const vehicles: ApproachingBusVehicle[] = data.vehicles.filter((vehicle: ApproachingBusVehicle) =>
+          vehicle && (vehicle.arrival_order === 1 || vehicle.arrival_order === 2) &&
+          Array.isArray(vehicle.coords) && vehicle.coords.length === 2 &&
+          vehicle.coords.every((value: number) => Number.isFinite(value))
+        ).slice(0, 2)
+        setApproachingBusVehicles(vehicles)
+        setApproachingBusMessage(data.message || '')
+        setApproachingBusError('')
+      } catch (error) {
+        if (disposed || controller.signal.aborted) return
+        console.error('선택 노선 첫차·다음 차 위치 조회 실패:', error)
+        setApproachingBusVehicles([]) // 실패 시 과거 위치를 실시간처럼 표시하지 않음
+        setApproachingBusError('실시간 차량 위치를 불러오지 못했습니다.')
+      } finally {
+        if (!disposed) {
+          setApproachingBusLoading(false)
+          timer = setTimeout(refresh, 30000)
+        }
+      }
+    }
+
+    refresh()
+    return () => {
+      disposed = true
+      controller.abort()
+      if (timer) clearTimeout(timer)
+    }
+  }, [selectedBusRoute?.id, selectedBusRoute?.stationId])
+
+  // 🚌 첫차·다음 차 두 대만 표시하며 화살표는 노선 정류장 진행 방향을 따른다.
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current || !selectedBusRoute) return
+    const map = mapInstanceRef.current
+    const markers: any[] = []
+    const orderedStations = [...busRouteStations].sort((a, b) => a.sequence - b.sequence)
+
+    for (const vehicle of approachingBusVehicles) {
+      const first = vehicle.arrival_order === 1
+      const color = first ? '#10B981' : '#38BDF8'
+      const sectionOrder = Number(vehicle.section_order)
+      const hereIndex = orderedStations.findIndex(station => Number(station.sequence) === sectionOrder)
+      let rotation = 0
+      if (hereIndex >= 0 && orderedStations.length > 1) {
+        const here = orderedStations[hereIndex].coords
+        const next = orderedStations[Math.min(hereIndex + 1, orderedStations.length - 1)].coords
+        const previous = orderedStations[Math.max(0, hereIndex - 1)].coords
+        const from = hereIndex < orderedStations.length - 1 ? here : previous
+        const to = hereIndex < orderedStations.length - 1 ? next : here
+        // MapLibre의 프로젝트 좌표로 방향각 계산 (화면상 화살표 방향)
+        const fromPoint = map.project(from)
+        const toPoint = map.project(to)
+        rotation = Math.atan2(toPoint.x - fromPoint.x, fromPoint.y - toPoint.y) * 180 / Math.PI
+      }
+
+      const markerElement = document.createElement('div')
+      Object.assign(markerElement.style, {
+        background: '#111D35', border: `2px solid ${color}`, borderRadius: '12px',
+        padding: '5px 8px', color: '#FFFFFF', display: 'flex', alignItems: 'center',
+        gap: '5px', fontSize: '12px', fontWeight: '800', cursor: 'pointer',
+        whiteSpace: 'nowrap', boxShadow: `0 2px 15px ${color}99`
+      })
+      const arrow = document.createElement('span')
+      arrow.textContent = '▲'
+      arrow.style.color = color
+      arrow.style.display = 'inline-block'
+      arrow.style.transform = `rotate(${rotation}deg)`
+      const label = document.createElement('span')
+      label.textContent = first ? '🚌 첫차' : '🚌 다음 차'
+      markerElement.append(arrow, label)
+
+      const popupContent = document.createElement('div')
+      popupContent.style.cssText = 'padding:10px;background:#111D35;color:#F0F6FF;border-radius:8px;font-size:12px;'
+      const heading = document.createElement('strong')
+      heading.textContent = `${selectedBusRoute.name}번 · ${first ? '첫 번째' : '두 번째'} 도착 차량`
+      const details = document.createElement('div')
+      details.style.marginTop = '6px'
+      const rawTime = String(vehicle.data_time || '')
+      const timeLabel = /^\d{14}$/.test(rawTime) ? `${rawTime.slice(8, 10)}:${rawTime.slice(10, 12)}:${rawTime.slice(12, 14)}` : '정보 없음'
+      details.textContent = `${vehicle.plate_no || '차량번호 미제공'} · ${vehicle.at_stop ? '정차 중' : '운행 중'} · GPS ${timeLabel}`
+      const arrival = document.createElement('div')
+      arrival.textContent = vehicle.arrival_message || '도착정보 없음'
+      arrival.style.marginTop = '5px'
+      popupContent.append(heading, details, arrival)
+
+      const marker = new maplibregl.Marker({ element: markerElement })
+        .setLngLat(vehicle.coords)
+        .setPopup(new maplibregl.Popup({ offset: 18 }).setDOMContent(popupContent))
+        .addTo(map)
+      markers.push(marker)
+    }
+    // 지도 이동 시 마커를 유지하되, 정류장 표시처럼 클릭할 수 있게 함.
+    return () => { markers.forEach(marker => marker.remove()) }
+  }, [mapLoaded, selectedBusRoute?.id, approachingBusVehicles, busRouteStations])
 
   // 1-3. 필터 모드에 따른 지하철 노선망 배경 레이어 가시성 제어 (버스/따릉이 모드 시 은은하게 톤다운)
   useEffect(() => {
@@ -1693,6 +2410,71 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           📍 서울역·도심
         </button>
       </div>
+
+      {/* 🚌 버스 노선 정보 및 경유 정류장 목록 (기존 지하철 안내와 독립) */}
+      {selectedBusRoute && (
+        <div style={{
+          position: 'absolute', top: activeRoute ? 160 : 68, left: 16, zIndex: 12,
+          width: 'min(305px, calc(100% - 32px))', maxHeight: 'min(450px, 65vh)',
+          overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          background: 'rgba(17,29,53,0.96)', border: '1px solid #F59E0B',
+          borderRadius: 12, padding: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.55)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <strong style={{ color: '#FBBF24', fontSize: 14 }}>🚌 {selectedBusRoute.name}번 노선</strong>
+            <button
+              type="button"
+              onClick={() => setSelectedBusRoute(null)}
+              style={{ background: 'rgba(255,255,255,0.1)', color: '#F0F6FF', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
+            >닫기 ✕</button>
+          </div>
+          <div style={{ color: '#94A3B8', fontSize: 11, marginTop: 6, marginBottom: 8 }}>
+            {busRouteLoading ? '경유 정류장 불러오는 중...' :
+              busRouteError || `${busRouteStations.length}개 경유 정류장 · 점과 선은 정류장 좌표 기반`}
+          </div>
+          <div style={{ fontSize: 11, color: '#E2E8F0', marginBottom: 8, padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
+            <div style={{ fontWeight: 700, color: '#34D399' }}>📍 선택 정류장 접근 차량 (최대 2대)</div>
+            {approachingBusLoading && <div style={{ marginTop: 5, color: '#94A3B8' }}>실시간 위치 갱신 중...</div>}
+            {approachingBusError && <div style={{ marginTop: 5, color: '#FCA5A5' }}>{approachingBusError}</div>}
+            {!approachingBusLoading && !approachingBusError && approachingBusVehicles.length === 0 && (
+              <div style={{ marginTop: 5, color: '#94A3B8' }}>{approachingBusMessage || '현재 접근 차량 위치가 없습니다.'}</div>
+            )}
+            {approachingBusVehicles.map(vehicle => (
+              <button
+                key={vehicle.vehicle_id}
+                type="button"
+                onClick={() => mapInstanceRef.current?.flyTo({ center: vehicle.coords, zoom: 15, pitch: 30, duration: 700, essential: true })}
+                style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
+              >
+                {vehicle.arrival_order === 1 ? '🟢 첫차' : '🔵 다음 차'} · {vehicle.arrival_message || '도착정보 없음'}
+              </button>
+            ))}
+            <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 6 }}>30초마다 갱신 · ▲ 노선 진행 방향</div>
+          </div>
+          {!busRouteLoading && busRouteStations.length > 0 && (
+            <div style={{ overflowY: 'auto', minHeight: 0 }}>
+              {busRouteStations.map(station => (
+                <button
+                  type="button"
+                  key={`${selectedBusRoute.id}-${station.sequence}`}
+                  onClick={() => mapInstanceRef.current?.flyTo({
+                    center: station.coords, zoom: 16, pitch: 30, duration: 700, essential: true
+                  })}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    background: 'transparent', color: '#E2E8F0', border: 0,
+                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    padding: '7px 3px', fontSize: 11, cursor: 'pointer'
+                  }}
+                >
+                  <span style={{ color: '#FBBF24', marginRight: 8 }}>{station.sequence}</span>
+                  {station.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 활성 검색 경로 안내 플로팅 카드 */}
       {activeRoute && (

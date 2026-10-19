@@ -48,9 +48,14 @@ raw_data/
 
 # 서빙용 경량 ONNX 추론 모델(각 4.7MB) 및 지하철/시계열 데이터셋은 배포를 위해 Git 추적 허용
 !models/*.onnx
+!models/*.json
 !data/*.json
 !data/*.db
-# SQLite WAL 저널/공유메모리 임시 파일 (컨테이너 런타임 산출물 — 커밋 제외)
+# SQLite WAL 저널/공유메모리 임시 파일 및 런타임 캐시 (컨테이너 런타임 산출물 — 커밋 제외)
+timeseries_cache.db
+data/timeseries_cache.db
+*.db-shm
+*.db-wal
 data/*.db-shm
 data/*.db-wal
 

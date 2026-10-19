@@ -6,6 +6,35 @@
 
 ---
 
+## [2026-10-19]
+
+### 🐳 dev 브랜치 머지 후 Docker 동기화 결함 수정 및 런타임 캐시 관리 개선
+- **배경**:
+  - `dev` 브랜치 머지 후 Docker 이미지 빌드 시 신규 코드 및 신규 파일(`feature_schema.py`, `feature_schema.json`, 32차원 ONNX 모델)이 컨테이너 내부에 온전히 반영되지 않거나 이전 레이어 캐시로 인해 동기화되지 않는 현상 발생.
+  - 로컬 SQLite 런타임 캐시 파일인 `data/timeseries_cache.db`가 Git 인덱스에 추적(tracked)되어 불필요한 변경사항으로 감지되고, 도커 빌드 시 호스트의 로컬 DB가 컨테이너 이미지 레이어로 덮어씌워질 위험 존재.
+- **조치**:
+  1. **Git 형상 관리 정비 (`.gitignore`)**:
+     - `.gitignore`에 `timeseries_cache.db`, `data/timeseries_cache.db`, `*.db-shm`, `*.db-wal`을 등록하여 SQLite 런타임 캐시 및 임시 저널 파일을 Git 추적 대상에서 영구 제외.
+     - Git 인덱스에 기존 추적 중이던 `data/timeseries_cache.db`를 `git rm --cached data/timeseries_cache.db`로 인덱스에서 안전하게 언트랙(untrack) 처리.
+  2. **Docker 빌드 및 무시 목록 정비 (`.dockerignore`, `Dockerfile.backend`)**:
+     - `.dockerignore`에 `timeseries_cache.db`, `data/timeseries_cache.db`, `**/timeseries_cache.db`, `*.db-shm`, `*.db-wal`을 추가하여 이미지 빌드 시 호스트 로컬 DB가 이미지 내부로 복사되는 것을 방지.
+     - `Dockerfile.backend`의 복사 지시문을 `COPY *.py ./`로 개선하여 `main.py`, `timeseries_cache.py`, `feature_schema.py` 및 신규 파이썬 스크립트가 누락 없이 온전히 복사되도록 보장.
+     - `models/feature_schema.json`을 명시적으로 배치하고, `COPY benchmarks/2026-10-14/feature_schema.json ./models/feature_schema.json` 복사를 추가하여 컨테이너 내 `/app/models/`에 스키마 파일이 확실히 존재하도록 보장.
+  3. **Docker Compose 볼륨 마운트 구조 점검**:
+     - `docker-compose.yml`의 `volumes: - ./data:/app/data` 설정을 점검하여 런타임 데이터 및 캐시는 호스트-컨테이너 간에 안전하게 동기화되고, 애플리케이션 코드 및 ONNX 모델 자산은 이미지 빌드 시 온전히 패키징되어 독립 구동됨을 확인.
+- **검증 결과**:
+  1. **무캐시 재빌드 및 컨테이너 강제 재생성**:
+     - `docker compose build --no-cache` 및 `docker compose up -d --force-recreate` 정상 완료.
+     - backend 컨테이너가 15초 내 헬스체크 통과(`healthy`) 및 frontend 정상 기동.
+  2. **컨테이너 내부 모델 자산 검증 (`docker compose exec backend ls -la models/`)**:
+     - 신규 32차원 ONNX 3종(`lgb_bike_demand.onnx` 7.02MB, `lgb_bus_demand.onnx` 13.60MB, `lgb_subway_demand.onnx` 7.35MB) 및 피처 스키마(`feature_schema.json` 3.42KB) 정상 존재 확인.
+  3. **백엔드 헬스체크 및 32차원 모델 상태 검증 (`GET /health`)**:
+     - 3개 수단(bike, bus, subway) 32차원 모델 웜업 완료(`model_input_dims: {bike: 32, bus: 32, subway: 32}`).
+     - `feature_schema.status = verified` (경로: `models/feature_schema.json`, 버전: `v2-전처리_2-32d`, 차원: 32) 확인.
+- **산출물**: `.gitignore`, `.dockerignore`, `Dockerfile.backend`, `models/feature_schema.json`, `docs/CHANGELOG.md`
+
+---
+
 ## [2026-10-14]
 
 ### 0. 🤖 v2 실제 32차원 실피처 모델 3종 학습·반입 및 모델 자산 위치 확정

@@ -13,13 +13,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 소스, AI 모델 파일, 데이터셋 복사
-#  - feature_schema.py: main.py 가 import 하는 피처 스키마(SSoT) 검증 모듈 (누락 시 기동 실패)
-COPY main.py timeseries_cache.py feature_schema.py ./
+#  - *.py: main.py, timeseries_cache.py, feature_schema.py 등 신규 파이썬 스크립트 일괄 복사
+COPY *.py ./
 COPY models/ ./models/
 COPY data/ ./data/
 # 피처 스키마(SSoT) — 컨테이너에서도 기동 시 차원·순서 검증을 수행합니다.
-#  - models/feature_schema.json 이 있으면 그 스키마가 우선 사용됩니다(32차원 자산 교체 시 자연 승격).
+#  - models/feature_schema.json 및 benchmarks/ 경로 둘 다 온전히 배치되도록 보장
 COPY benchmarks/2026-10-14/feature_schema.json ./benchmarks/2026-10-14/feature_schema.json
+COPY benchmarks/2026-10-14/feature_schema.json ./models/feature_schema.json
 
 EXPOSE 8000
 

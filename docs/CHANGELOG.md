@@ -6,6 +6,69 @@
 
 ---
 
+## [2026-10-19]
+
+### 🐳 dev 브랜치 머지 후 Docker 동기화 결함 수정 및 런타임 캐시 관리 개선
+- **배경**:
+  - `dev` 브랜치 머지 후 Docker 이미지 빌드 시 신규 코드 및 신규 파일(`feature_schema.py`, `feature_schema.json`, 32차원 ONNX 모델)이 컨테이너 내부에 온전히 반영되지 않거나 이전 레이어 캐시로 인해 동기화되지 않는 현상 발생.
+  - 로컬 SQLite 런타임 캐시 파일인 `data/timeseries_cache.db`가 Git 인덱스에 추적(tracked)되어 불필요한 변경사항으로 감지되고, 도커 빌드 시 호스트의 로컬 DB가 컨테이너 이미지 레이어로 덮어씌워질 위험 존재.
+- **조치**:
+  1. **Git 형상 관리 정비 (`.gitignore`)**:
+     - `.gitignore`에 `timeseries_cache.db`, `data/timeseries_cache.db`, `*.db-shm`, `*.db-wal`을 등록하여 SQLite 런타임 캐시 및 임시 저널 파일을 Git 추적 대상에서 영구 제외.
+     - Git 인덱스에 기존 추적 중이던 `data/timeseries_cache.db`를 `git rm --cached data/timeseries_cache.db`로 인덱스에서 안전하게 언트랙(untrack) 처리.
+  2. **Docker 빌드 및 무시 목록 정비 (`.dockerignore`, `Dockerfile.backend`)**:
+     - `.dockerignore`에 `timeseries_cache.db`, `data/timeseries_cache.db`, `**/timeseries_cache.db`, `*.db-shm`, `*.db-wal`을 추가하여 이미지 빌드 시 호스트 로컬 DB가 이미지 내부로 복사되는 것을 방지.
+     - `Dockerfile.backend`의 복사 지시문을 `COPY *.py ./`로 개선하여 `main.py`, `timeseries_cache.py`, `feature_schema.py` 및 신규 파이썬 스크립트가 누락 없이 온전히 복사되도록 보장.
+     - `models/feature_schema.json`을 명시적으로 배치하고, `COPY benchmarks/2026-10-14/feature_schema.json ./models/feature_schema.json` 복사를 추가하여 컨테이너 내 `/app/models/`에 스키마 파일이 확실히 존재하도록 보장.
+  3. **Docker Compose 볼륨 마운트 구조 점검**:
+     - `docker-compose.yml`의 `volumes: - ./data:/app/data` 설정을 점검하여 런타임 데이터 및 캐시는 호스트-컨테이너 간에 안전하게 동기화되고, 애플리케이션 코드 및 ONNX 모델 자산은 이미지 빌드 시 온전히 패키징되어 독립 구동됨을 확인.
+- **검증 결과**:
+  1. **무캐시 재빌드 및 컨테이너 강제 재생성**:
+     - `docker compose build --no-cache` 및 `docker compose up -d --force-recreate` 정상 완료.
+     - backend 컨테이너가 15초 내 헬스체크 통과(`healthy`) 및 frontend 정상 기동.
+  2. **컨테이너 내부 모델 자산 검증 (`docker compose exec backend ls -la models/`)**:
+     - 신규 32차원 ONNX 3종(`lgb_bike_demand.onnx` 7.02MB, `lgb_bus_demand.onnx` 13.60MB, `lgb_subway_demand.onnx` 7.35MB) 및 피처 스키마(`feature_schema.json` 3.42KB) 정상 존재 확인.
+  3. **백엔드 헬스체크 및 32차원 모델 상태 검증 (`GET /health`)**:
+     - 3개 수단(bike, bus, subway) 32차원 모델 웜업 완료(`model_input_dims: {bike: 32, bus: 32, subway: 32}`).
+     - `feature_schema.status = verified` (경로: `models/feature_schema.json`, 버전: `v2-전처리_2-32d`, 차원: 32) 확인.
+- **산출물**: `.gitignore`, `.dockerignore`, `Dockerfile.backend`, `models/feature_schema.json`, `docs/CHANGELOG.md`
+
+### 🧭 지도 카메라 탑뷰 복원 및 실시간 버스 API 상대 경로 URL 파싱 결함 수정
+- **배경**:
+  - `dev` 브랜치 분기 시점 차이로 인해 PR #4(지도 탑뷰 pitch 0° 및 새로고침 시 초기화)가 누락되어 지도가 30° 틸트 상태로 복원되던 현상 발생.
+  - `dev` 병합 후 도커 Nginx 프록시 환경(`VITE_API_BASE_URL=""`)에서 지도 이동 시 `주변 버스정류장 조회 실패: TypeError: Failed to construct 'URL': Invalid URL` 에러가 발생하여 주변 정류장이 지도에 표시되지 않는 결함 발생.
+  - 버스 노선 뷰(`TransitMap.tsx`)에서 차량/정류장 클릭 시 `pitch: 30`으로 다시 틸트되는 잔여 하드코딩 존재.
+  - 공공데이터포털(data.go.kr)의 정류소·노선·버스위치 정보 오픈API 활용신청 권한 부재로 인한 401(등록되지 않은 서비스키) 에러 발생.
+- **조치**:
+  1. **`dev` 브랜치 병합 (`git merge dev`)**:
+     - PR #4(지도 시야각 0° 탑뷰 및 새로고침 시 pitch/bearing 무조건 초기화)와 최신 기능(모바일 UI, 서울 버스 실시간 API)을 현재 브랜치로 완전 병합.
+  2. **지도 카메라 탑뷰 완전 통일 (`TransitMap.tsx`)**:
+     - 버스 실시간 차량 클릭 및 경유 정류장 클릭 `flyTo` 핸들러 2곳의 `pitch: 30`을 `DEFAULT_MAP_PITCH`(0°) 상수로 통일(`commit f4265db`).
+  3. **상대 경로 `new URL()` 파싱 예외 수정 (`TransitMap.tsx`)**:
+     - 도커 리버스 프록시 환경에서 `API_BASE_URL`이 빈 문자열(`""`)일 때 `new URL("/api/...")` 호출 시 브라우저 표준 예외(`Invalid URL`)가 발생하던 문제를 `URLSearchParams`와 템플릿 문자열 결합 방식으로 수정(`commit 1b3bc4a`).
+  4. **공공데이터포털 서울시 버스 오픈API 4종 연동 정상화**:
+     - 서울특별시_정류소정보조회, 서울특별시_노선정보조회, 서울특별시_버스위치정보조회, 서울특별시_버스도착정보조회 서비스 권한 활성화를 통해 지도 위 정류소 마커, 노선 경로선, 실시간 버스 위치(🚌 첫차/다음차) 정상 출력 확인.
+- **검증 결과**:
+  - 프론트엔드 컨테이너 무캐시 재빌드(`docker compose build frontend && docker compose up -d frontend`) 배포 완료.
+  - 브라우저 개발자 도구 콘솔의 `Invalid URL` 에러 소멸 확인.
+  - 지도 이동 시 500m 반경 주변 버스정류소 마커 및 실시간 버스 위치 정상 렌더링 확인.
+  - 나침반 회전/틸트 조작 후 새로고침(`F5`) 시 항상 탑뷰(0°) 및 정북(0°)으로 정상 초기화 확인.
+- **산출물**: `Weather-Transport Recommendation UI/src/TransitMap.tsx`, `docs/CHANGELOG.md`
+
+### 📚 문서 갱신 (Docs) 및 브랜치 동기화 가이드 보강
+- **배경**:
+  - GitHub Web에서 이슈 기반 브랜치를 자동 생성할 때 기본 분기 기준 브랜치가 과거 커밋이거나 다른 브랜치로 설정되어 최신 `dev` 브랜치 변경 사항이 누락된 채 분기되는 위험 발견.
+  - 서울시 실시간 버스 기능(주변 정류장, 노선 궤적, 실시간 차량 위치, 환승 정보)을 완벽하게 구동하기 위해 공공데이터포털(data.go.kr)에서 동일한 계정으로 신청해야 하는 5종의 필수 오픈API 정보가 프로젝트 설정 안내에 부족했던 문제 개선 필요.
+- **조치**:
+  1. **브랜치 분기 및 최신화 가이드 추가 (`README.md`)**:
+     - GitHub 이슈에서 브랜치 생성 시 `Change source branch`를 통해 반드시 `dev`를 베이스로 선택하도록 명시.
+     - 로컬에서 작업 시작 전 `git checkout dev`, `git pull origin dev`, `git checkout <이슈-브랜치명>`, `git merge dev`로 최신 상태를 동기화하는 가이드 절차 추가.
+  2. **실시간 버스 필수 오픈API 5종 안내 추가 (`README.md`, `.env.example`)**:
+     - 공공데이터포털 내 필요한 5개 서비스(정류소정보조회, 노선정보조회, 버스도착정보조회, 버스위치정보조회, 환승동선조회)의 공식 URL과 발급 안내(`BUS_API_KEY`)를 문서 및 환경변수 템플릿에 명시.
+- **산출물**: `README.md`, `.env.example`, `docs/CHANGELOG.md`
+
+---
+
 ## [2026-10-14]
 
 ### 0. 🤖 v2 실제 32차원 실피처 모델 3종 학습·반입 및 모델 자산 위치 확정

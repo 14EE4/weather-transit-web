@@ -2443,7 +2443,7 @@ popupContent.append(title, number)
               <button
                 key={vehicle.vehicle_id}
                 type="button"
-                onClick={() => mapInstanceRef.current?.flyTo({ center: vehicle.coords, zoom: 15, pitch: 30, duration: 700, essential: true })}
+                onClick={() => mapInstanceRef.current?.flyTo({ center: vehicle.coords, zoom: 15, pitch: DEFAULT_MAP_PITCH, duration: 700, essential: true })}
                 style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
               >
                 {vehicle.arrival_order === 1 ? '🟢 첫차' : '🔵 다음 차'} · {vehicle.arrival_message || '도착정보 없음'}
@@ -2458,7 +2458,7 @@ popupContent.append(title, number)
                   type="button"
                   key={`${selectedBusRoute.id}-${station.sequence}`}
                   onClick={() => mapInstanceRef.current?.flyTo({
-                    center: station.coords, zoom: 16, pitch: 30, duration: 700, essential: true
+                    center: station.coords, zoom: 16, pitch: DEFAULT_MAP_PITCH, duration: 700, essential: true
                   })}
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',

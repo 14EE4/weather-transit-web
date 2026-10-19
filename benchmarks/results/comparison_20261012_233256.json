@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-10-12T23:32:54",
+  "csv": "data\\2025_서울25개구_시간대별_교통_날씨_통합_01-23시.csv",
+  "split": {
+    "train": "2025-01-01 ~ 2025-09-30",
+    "val": "2025-10-01 ~ 2025-11-15",
+    "test": "2025-11-16 ~ 2025-12-31"
+  },
+  "n_test": 26450,
+  "note": "MAPE 는 실측 0(심야 운휴 등) 제외. 32차원 모델은 노트북 [Cell 7-1] 방식(25 + 상수0 더미7).",
+  "models": {
+    "baseline_25d_production": {
+      "dir": "benchmarks\\original",
+      "targets": {
+        "bike": {
+          "r2": 0.9886667365056256,
+          "rmse": 16.41181349817824,
+          "mae": 9.829416406544485,
+          "mape_pct_nonzero": 16.808313589196235,
+          "n": 26450,
+          "input_dim": 25,
+          "file_size_bytes": 4719076,
+          "latency_ms_1row": 0.0235
+        },
+        "bus": {
+          "r2": 0.9881688292617802,
+          "rmse": 605.7841079071316,
+          "mae": 397.1223895997916,
+          "mape_pct_nonzero": 14.998962201875868,
+          "n": 26450,
+          "input_dim": 25,
+          "file_size_bytes": 4712686,
+          "latency_ms_1row": 0.0235
+        },
+        "subway": {
+          "r2": 0.9924017352965685,
+          "rmse": 828.6139419549593,
+          "mae": 374.7603679071922,
+          "mape_pct_nonzero": 5.651281413863463,
+          "n": 26450,
+          "input_dim": 25,
+          "file_size_bytes": 4696656,
+          "latency_ms_1row": 0.0164
+        }
+      }
+    },
+    "candidate_32d_tuned": {
+      "dir": "benchmarks\\2026-10-12\\tuned",
+      "targets": {
+        "bike": {
+          "r2": 0.9892577050064127,
+          "rmse": 15.978191326152059,
+          "mae": 9.431649241896737,
+          "mape_pct_nonzero": 16.20037440956579,
+          "n": 26450,
+          "input_dim": 32,
+          "file_size_bytes": 6782549,
+          "latency_ms_1row": 0.025
+        },
+        "bus": {
+          "r2": 0.990830690021442,
+          "rmse": 533.3009316643045,
+          "mae": 344.09931409505936,
+          "mape_pct_nonzero": 13.103202469474953,
+          "n": 26450,
+          "input_dim": 32,
+          "file_size_bytes": 13251388,
+          "latency_ms_1row": 0.0313
+        },
+        "subway": {
+          "r2": 0.9939623835418113,
+          "rmse": 738.6314359314538,
+          "mae": 302.81610483039964,
+          "mape_pct_nonzero": 4.40672476874712,
+          "n": 26450,
+          "input_dim": 32,
+          "file_size_bytes": 9805101,
+          "latency_ms_1row": 0.0254
+        }
+      }
+    }
+  }
+}

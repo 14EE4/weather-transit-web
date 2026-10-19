@@ -23,3 +23,8 @@ venv
 Thumbs.db
 tests
 api_example
+timeseries_cache.db
+data/timeseries_cache.db
+**/timeseries_cache.db
+*.db-shm
+*.db-wal

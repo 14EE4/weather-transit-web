@@ -1,0 +1,118 @@
+{
+  "model_version": "v2-전처리_2-25d-retrain-colab",
+  "feature_dim": 25,
+  "feature_cols": [
+    "month_sin",
+    "month_cos",
+    "hour_sin",
+    "hour_cos",
+    "dayofweek",
+    "is_weekend",
+    "is_holiday",
+    "is_rush_hour",
+    "temperature",
+    "wind_speed",
+    "humidity",
+    "precipitation",
+    "is_raining",
+    "rain_intensity",
+    "sensible_temp",
+    "discomfort_index",
+    "district_code",
+    "따릉이_대여_lag_1h",
+    "버스_승차_lag_1h",
+    "지하철_승차_lag_1h",
+    "따릉이_대여_roll_3h",
+    "버스_승차_roll_3h",
+    "지하철_승차_roll_3h",
+    "temp_diff_1h",
+    "rain_diff_1h"
+  ],
+  "layout": "25d-subset",
+  "order": [
+    "calendar(8)",
+    "weather(8)",
+    "spatial(1)",
+    "timeseries(6+2)"
+  ],
+  "derived_from": {
+    "model_version": "v2-전처리_2-32d",
+    "feature_dim_32d": 32,
+    "note": "v2 32차원 SSoT 의 25차원 서빙 서브셋 — main.py::prepare_session_input 과 순서 동일"
+  },
+  "targets": {
+    "bike": "따릉이_대여",
+    "bus": "버스_승차",
+    "subway": "지하철_승차"
+  },
+  "split": {
+    "train": "2025-01-01~2025-09-30",
+    "valid": "2025-10-01~2025-11-15",
+    "test": "2025-11-16~2025-12-31"
+  },
+  "split_source": "spec_dates",
+  "holiday_calendar": "KR_HOLIDAYS_2025 (19일, main.py::KR_HOLIDAYS 와 동일)",
+  "env": {
+    "runtime": "Google Colab",
+    "python": "3.13.16",
+    "lightgbm": "4.7.0",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3"
+  },
+  "metrics": {
+    "bike": {
+      "tuned": {
+        "r2": 0.9883123543088536,
+        "rmse": 16.66643062198574,
+        "mae": 9.676670135232538,
+        "mape_pct_nonzero": 16.19481556204565,
+        "best_iteration": 680
+      },
+      "best_params": {
+        "learning_rate": 0.08811950498925582,
+        "num_leaves": 109,
+        "max_depth": 10,
+        "subsample": 0.6523792755919405,
+        "colsample_bytree": 0.6790616323310082,
+        "reg_alpha": 0.0024082899040478675,
+        "reg_lambda": 0.011453737805966376
+      }
+    },
+    "bus": {
+      "tuned": {
+        "r2": 0.9911849700203399,
+        "rmse": 528.6187360351473,
+        "mae": 342.72112269266165,
+        "mape_pct_nonzero": 14.06959288077226,
+        "best_iteration": 1498
+      },
+      "best_params": {
+        "learning_rate": 0.09703869938657278,
+        "num_leaves": 126,
+        "max_depth": 10,
+        "subsample": 0.8605477792677568,
+        "colsample_bytree": 0.6661090758204229,
+        "reg_alpha": 3.2075582423454496,
+        "reg_lambda": 0.40019714909533227
+      }
+    },
+    "subway": {
+      "tuned": {
+        "r2": 0.9934503029427587,
+        "rmse": 769.3175383002115,
+        "mae": 330.8713269806191,
+        "mape_pct_nonzero": 4.9625026533471175,
+        "best_iteration": 446
+      },
+      "best_params": {
+        "learning_rate": 0.09807115232677817,
+        "num_leaves": 117,
+        "max_depth": 8,
+        "subsample": 0.6620109779156034,
+        "colsample_bytree": 0.7180910290353443,
+        "reg_alpha": 0.9148471286354888,
+        "reg_lambda": 0.085461631351953
+      }
+    }
+  }
+}

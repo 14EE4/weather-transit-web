@@ -143,3 +143,53 @@ html, body {
   transform: scale(1.1) !important;
   box-shadow: 0 2px 10px rgba(244, 63, 94, 0.6) !important;
 }
+
+
+/* 모바일 화면 */
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  #root * {
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  #root {
+    overflow-wrap: break-word;
+  }
+
+  .maplibregl-popup-content {
+    max-width: calc(100vw - 40px) !important;
+    padding: 10px !important;
+  }
+
+  .maplibregl-popup {
+    max-width: calc(100vw - 24px);
+  }
+
+  .maplibregl-popup-close-button {
+    min-width: 24px !important;
+    min-height: 24px !important;
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+}
+

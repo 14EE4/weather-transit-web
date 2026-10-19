@@ -1,0 +1,192 @@
+{
+  "generated_at": "2026-10-14T18:46:19",
+  "csv": "data\\2025_서울25개구_교통날씨_전처리_2.csv",
+  "evaluator": "benchmarks/evaluate_models.py (v2 · 실제 32차원 실피처)",
+  "feature_spec": {
+    "version": "v2-32d-real (상수 0 더미 7 폐기)",
+    "n_features": 32,
+    "feature_cols_32": [
+      "month_sin",
+      "month_cos",
+      "hour_sin",
+      "hour_cos",
+      "dayofweek",
+      "is_weekend",
+      "is_holiday",
+      "is_rush_hour",
+      "temperature",
+      "wind_speed",
+      "humidity",
+      "precipitation",
+      "is_raining",
+      "rain_intensity",
+      "sensible_temp",
+      "discomfort_index",
+      "district_code",
+      "district_subway_stations",
+      "district_bus_stops",
+      "district_bike_racks",
+      "commercial_density",
+      "따릉이_대여_lag_1h",
+      "버스_승차_lag_1h",
+      "지하철_승차_lag_1h",
+      "따릉이_대여_roll_3h",
+      "버스_승차_roll_3h",
+      "지하철_승차_roll_3h",
+      "same_day_last_week_bike",
+      "same_day_last_week_bus",
+      "same_day_last_week_sub",
+      "temp_diff_1h",
+      "rain_diff_1h"
+    ],
+    "feature_cols_25_subset": [
+      "month_sin",
+      "month_cos",
+      "hour_sin",
+      "hour_cos",
+      "dayofweek",
+      "is_weekend",
+      "is_holiday",
+      "is_rush_hour",
+      "temperature",
+      "wind_speed",
+      "humidity",
+      "precipitation",
+      "is_raining",
+      "rain_intensity",
+      "sensible_temp",
+      "discomfort_index",
+      "district_code",
+      "따릉이_대여_lag_1h",
+      "버스_승차_lag_1h",
+      "지하철_승차_lag_1h",
+      "따릉이_대여_roll_3h",
+      "버스_승차_roll_3h",
+      "지하철_승차_roll_3h",
+      "temp_diff_1h",
+      "rain_diff_1h"
+    ],
+    "holiday_calendar": [
+      "2025-01-01",
+      "2025-01-27",
+      "2025-01-28",
+      "2025-01-29",
+      "2025-01-30",
+      "2025-03-01",
+      "2025-03-03",
+      "2025-05-05",
+      "2025-05-06",
+      "2025-06-03",
+      "2025-06-06",
+      "2025-08-15",
+      "2025-10-03",
+      "2025-10-05",
+      "2025-10-06",
+      "2025-10-07",
+      "2025-10-08",
+      "2025-10-09",
+      "2025-12-25"
+    ],
+    "source_of_truth": "main.py (DISTRICT_CODE_MAP / DISTRICT_INFRA / KR_HOLIDAYS)"
+  },
+  "split": {
+    "source": "docs/AI_MODEL_SPEC.md §6.1 (spec_dates)",
+    "train": "2025-01-01 ~ 2025-09-30",
+    "val": "2025-10-01 ~ 2025-11-15",
+    "test": "2025-11-16 ~ 2025-12-31"
+  },
+  "n_test": 26450,
+  "models": {
+    "production_25d": {
+      "dir": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\original",
+      "targets": {
+        "bike": {
+          "r2": 0.9887215133665574,
+          "rmse": 16.372103995069466,
+          "mae": 9.815126277061852,
+          "mape_pct_nonzero": 16.737399297182282,
+          "n": 26450,
+          "input_dim": 25,
+          "file_size_bytes": 4719076,
+          "latency_ms_1row": 0.026,
+          "reference_ih0": {
+            "r2": 0.9887215133665574,
+            "rmse": 16.372103995069466,
+            "mae": 9.815126277061852,
+            "mape_pct_nonzero": 16.737399297182282,
+            "n": 26450
+          }
+        },
+        "bus": {
+          "r2": 0.989688131017089,
+          "rmse": 571.7410150132549,
+          "mae": 369.2996751044282,
+          "mape_pct_nonzero": 14.534102819855544,
+          "n": 26450,
+          "input_dim": 25,
+          "file_size_bytes": 4712686,
+          "latency_ms_1row": 0.0259,
+          "reference_ih0": {
+            "r2": 0.989688131017089,
+            "rmse": 571.7410150132549,
+            "mae": 369.2996751044282,
+            "mape_pct_nonzero": 14.534102819855544,
+            "n": 26450
+          }
+        },
+        "subway": {
+          "r2": 0.9924436692464784,
+          "rmse": 826.3242658976168,
+          "mae": 369.73201561751233,
+          "mape_pct_nonzero": 5.511503914991871,
+          "n": 26450,
+          "input_dim": 25,
+          "file_size_bytes": 4696656,
+          "latency_ms_1row": 0.0211,
+          "reference_ih0": {
+            "r2": 0.9924436692464784,
+            "rmse": 826.3242658976168,
+            "mae": 369.73201561751233,
+            "mape_pct_nonzero": 5.511503914991871,
+            "n": 26450
+          }
+        }
+      }
+    },
+    "tuned_32d_real": {
+      "dir": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\2026-10-14",
+      "targets": {
+        "bike": {
+          "r2": 0.9872871364222637,
+          "rmse": 17.382041133002836,
+          "mae": 9.66941675454716,
+          "mape_pct_nonzero": 16.37053873817144,
+          "n": 26450,
+          "input_dim": 32,
+          "file_size_bytes": 7020769,
+          "latency_ms_1row": 0.025
+        },
+        "bus": {
+          "r2": 0.9900592662307176,
+          "rmse": 561.3579486356991,
+          "mae": 370.44407706659484,
+          "mape_pct_nonzero": 18.090634650218917,
+          "n": 26450,
+          "input_dim": 32,
+          "file_size_bytes": 13596760,
+          "latency_ms_1row": 0.0288
+        },
+        "subway": {
+          "r2": 0.9951487839837879,
+          "rmse": 662.0950384947827,
+          "mae": 277.6328679682934,
+          "mape_pct_nonzero": 4.235882528751221,
+          "n": 26450,
+          "input_dim": 32,
+          "file_size_bytes": 7345447,
+          "latency_ms_1row": 0.0216
+        }
+      }
+    }
+  }
+}

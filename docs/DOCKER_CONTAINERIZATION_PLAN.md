@@ -99,9 +99,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 소스 및 AI 모델 복사
-COPY main.py timeseries_cache.py ./
+COPY main.py timeseries_cache.py feature_schema.py ./
 COPY models/ ./models/
 COPY data/ ./data/
+# 피처 스키마(SSoT) — 컨테이너에서도 기동 시 차원·순서 검증 (models/feature_schema.json 이 있으면 우선)
+COPY benchmarks/2026-10-14/feature_schema.json ./benchmarks/2026-10-14/feature_schema.json
 
 # 디렉터리 권한 및 포트 정의
 EXPOSE 8000
@@ -295,8 +297,12 @@ weather-transit-web/
 | **Phase 4-2** | `Dockerfile.backend` 작성 | `python:3.11-slim`, `libgomp1`, 헬스체크 설정 검증 | `Dockerfile.backend` |
 | **Phase 4-3** | `nginx.conf` 및 `Dockerfile.frontend` 작성 | 멀티스테이지 빌드 및 `/api/` 프록시 경로 검증 | `nginx.conf`, `Dockerfile.frontend` |
 | **Phase 4-4** | `docker-compose.yml` 작성 | `depends_on: service_healthy`, `.env` 주입, `./data` 볼륨 매핑 | `docker-compose.yml` |
-| **Phase 4-5** | 컨테이너 빌드 및 로컬 구동 검증 | `docker compose up --build -d` 실행 후 브라우저(`http://localhost:3000`) 정상 작동 확인 | 로컬 컨테이너 구동 |
+| **Phase 4-5** | 컨테이너 빌드 및 로컬 구동 검증 | `docker compose up --build -d` 실행 후 브라우저(`http://localhost:3100` — 기본 `FRONTEND_PORT`) 정상 작동 확인 | 로컬 컨테이너 구동 |
 | **Phase 4-6** | 엔드포인트 무결성 점검 | `http://localhost:3000/health`, 실시간 기상/지하철/버스 및 ONNX 추론 정상 확인 | 검증 보고서 |
+
+> **✅ 검증 이력 (2026-10-14 · Docker Desktop)** — **Phase 4-5**: `docker compose up -d --build` → `backend` = **`healthy`**(24초 내 · 호스트 `8100→8000`) · `frontend` = Up(`3100→80`). **Phase 4-6**: `GET :8100/health`(200 · `models_loaded=true` · 당시 `feature_schema.status=legacy-subset-25d` = 배포 모델 25차원 + 스키마 32차원 정상) · `POST :8100/api/v1/predict/recommendation`(200 · 추천 3건) · `GET :8100/api/v1/districts/live-congestion`(200) · Nginx 경유 `:3100/health`·`:3100/api/v1/predict/recommendation`(200) · SPA `:3100/` 정상 · 기동 로그 `[schema]` 검증 통과 및 3세션 warmup 완료 · `tests/test_feature_schema.py`·`test_inference.py`·`test_api.py` 통과.
+> **✅ 재검증 이력 (2026-10-14 · 배포 모델 전면 32차원 교체 후)** — `models/` 를 `benchmarks/2026-10-14/` ONNX 3종으로 반입한 뒤 동일 절차 재실행: `backend` = **`healthy`**(`8100→8000`) · `frontend` = Up(`3100→80`) · 기동 로그 `[schema] 피처 스키마 검증 통과: model_version=v2-전처리_2-32d | 32차원` + `{bike,bus,subway}: 입력 32차원 — 스키마 정렬 OK` + warmup `input dim: 32` · **`GET :8100/health` = `feature_schema.status=verified`**(dims `{bike:32,bus:32,subway:32}`) · `POST :8100/api/v1/predict/recommendation`(200 · 10.83ms) · `GET :8100/api/v1/districts/live-congestion`(200 · 14.67ms) · Nginx 경유 `:3100/health`·`:3100/api/v1/districts/live-congestion`(200) · SPA `:3100/`(text/html) · 회귀 테스트 6종 모두 통과(`test_feature_schema` 8종 · `test_inference` SLA 1.91ms · `test_api` · `test_mcda_calibration` · `test_timeseries_cache` · `test_station_pipeline`).
+> 실제 `docker-compose.yml` 의 기본 호스트 포트는 **백엔드 `8100` · 프론트 `3100`** 입니다(§3.3 예시의 `8000:8000`/`3000:80` 은 설계 초안 값 — 최신 포트는 `docs/API_STRUCTURE.md` §7 참조).
 
 ---
 

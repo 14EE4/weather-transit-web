@@ -1,0 +1,426 @@
+{
+  "generated_at": "2026-10-14T21:48:48",
+  "csv": "data\\2025_서울25개구_교통날씨_전처리_2.csv",
+  "evaluator": "benchmarks/evaluate_models.py (v2 · 세대별 피처 배치 병기)",
+  "feature_spec": {
+    "version": "v2-32d-real (상수 0 더미 7 폐기)",
+    "n_features": 32,
+    "feature_cols_32": [
+      "month_sin",
+      "month_cos",
+      "hour_sin",
+      "hour_cos",
+      "dayofweek",
+      "is_weekend",
+      "is_holiday",
+      "is_rush_hour",
+      "temperature",
+      "wind_speed",
+      "humidity",
+      "precipitation",
+      "is_raining",
+      "rain_intensity",
+      "sensible_temp",
+      "discomfort_index",
+      "district_code",
+      "district_subway_stations",
+      "district_bus_stops",
+      "district_bike_racks",
+      "commercial_density",
+      "따릉이_대여_lag_1h",
+      "버스_승차_lag_1h",
+      "지하철_승차_lag_1h",
+      "따릉이_대여_roll_3h",
+      "버스_승차_roll_3h",
+      "지하철_승차_roll_3h",
+      "same_day_last_week_bike",
+      "same_day_last_week_bus",
+      "same_day_last_week_sub",
+      "temp_diff_1h",
+      "rain_diff_1h"
+    ],
+    "feature_cols_25_subset": [
+      "month_sin",
+      "month_cos",
+      "hour_sin",
+      "hour_cos",
+      "dayofweek",
+      "is_weekend",
+      "is_holiday",
+      "is_rush_hour",
+      "temperature",
+      "wind_speed",
+      "humidity",
+      "precipitation",
+      "is_raining",
+      "rain_intensity",
+      "sensible_temp",
+      "discomfort_index",
+      "district_code",
+      "따릉이_대여_lag_1h",
+      "버스_승차_lag_1h",
+      "지하철_승차_lag_1h",
+      "따릉이_대여_roll_3h",
+      "버스_승차_roll_3h",
+      "지하철_승차_roll_3h",
+      "temp_diff_1h",
+      "rain_diff_1h"
+    ],
+    "feature_cols_32_v1": [
+      "month_sin",
+      "month_cos",
+      "hour_sin",
+      "hour_cos",
+      "dayofweek",
+      "is_weekend",
+      "is_holiday",
+      "is_rush_hour",
+      "temperature",
+      "wind_speed",
+      "humidity",
+      "precipitation",
+      "is_raining",
+      "rain_intensity",
+      "sensible_temp",
+      "discomfort_index",
+      "district_code",
+      "따릉이_대여_lag_1h",
+      "버스_승차_lag_1h",
+      "지하철_승차_lag_1h",
+      "따릉이_대여_roll_3h",
+      "버스_승차_roll_3h",
+      "지하철_승차_roll_3h",
+      "temp_diff_1h",
+      "rain_diff_1h",
+      "infra_dummy_0",
+      "infra_dummy_1",
+      "infra_dummy_2",
+      "infra_dummy_3",
+      "infra_dummy_4",
+      "infra_dummy_5",
+      "infra_dummy_6"
+    ],
+    "layouts": {
+      "v2-32d-real": "사양서 §3.2 순서 (8/8/5/11) 실제 32차원 실피처",
+      "v1-32d-dummy7": "v1 배치 (25차원 8/8/1/3/3/2 + 상수 0 더미 7) — 정보량 = 25차원",
+      "25d-subset": "배포본 25차원 부분집합 (공간 인프라 4 + same_day 3 제외)"
+    },
+    "holiday_calendar": [
+      "2025-01-01",
+      "2025-01-27",
+      "2025-01-28",
+      "2025-01-29",
+      "2025-01-30",
+      "2025-03-01",
+      "2025-03-03",
+      "2025-05-05",
+      "2025-05-06",
+      "2025-06-03",
+      "2025-06-06",
+      "2025-08-15",
+      "2025-10-03",
+      "2025-10-05",
+      "2025-10-06",
+      "2025-10-07",
+      "2025-10-08",
+      "2025-10-09",
+      "2025-12-25"
+    ],
+    "schema": {
+      "enabled": true,
+      "path": "benchmarks/2026-10-14/feature_schema.json",
+      "status": "PASS",
+      "model_version": "v2-전처리_2-32d",
+      "feature_dim": 32,
+      "layout": "32차원 실피처 배치(사양서 §3.2)",
+      "checks": [
+        "feature_cols 32차원 순서 == evaluate_models.py::FEATURE_COLS_32",
+        "targets 매핑 일치 (bike/bus/subway)",
+        "split 경계 일치 (train≤2025-09-30 / valid≤2025-11-15 / test=2025-11-16~2025-12-31)",
+        "25차원 레거시 서브셋 25개 명칭 일치"
+      ]
+    },
+    "source_of_truth": "feature_schema.json (피처 순서·차원) + main.py (DISTRICT_CODE_MAP / DISTRICT_INFRA / KR_HOLIDAYS)"
+  },
+  "split": {
+    "source": "docs/AI_MODEL_SPEC.md §6.1 (spec_dates)",
+    "train": "2025-01-01 ~ 2025-09-30",
+    "val": "2025-10-01 ~ 2025-11-15",
+    "test": "2025-11-16 ~ 2025-12-31"
+  },
+  "n_test": 26450,
+  "asset_sha256": {
+    "benchmarks/2026-10-12/tuned/lgb_bike_demand.onnx": "d0d25a7a47d76d9fb639becedd10d6a756c5efceb6c00ce9f440a6eaae4bee1b",
+    "benchmarks/2026-10-12/tuned/lgb_bus_demand.onnx": "afb55955bd42b76297c6a8ec4ca2f1fdc8c5997c57556229f4142203af31e61b",
+    "benchmarks/2026-10-12/tuned/lgb_subway_demand.onnx": "567203aed27d59d645412f86d4b219e51599860441f7c9294b525736b08116ea",
+    "benchmarks/2026-10-14/lgb_bike_demand.onnx": "a6854bc65f164787772db699c0f8bfd7ab48f317c5f48f28f67efa32f4e7fdd9",
+    "benchmarks/2026-10-14/lgb_bus_demand.onnx": "983a069bd3094f6c2309d821760149ace25c762c7c8deba2ec15eb05d51958b1",
+    "benchmarks/2026-10-14/lgb_subway_demand.onnx": "264e822fb01c37267d8e930ced9b33f894d701ae9156858ba6aff2d93804f0ed",
+    "benchmarks/2026-10-14/tuned_25d/lgb_bike_demand.onnx": "b525819a85450f36ef5bb3749e9a68aa442336e86353bc219fefd0ff247b571f",
+    "benchmarks/2026-10-14/tuned_25d/lgb_bus_demand.onnx": "3fe157730006ea6db3061b9090ca1d6c842d027eaebabb0bbc15058bdae572eb",
+    "benchmarks/2026-10-14/tuned_25d/lgb_subway_demand.onnx": "d55d695ae53e226d95ccdb8c5ea67c2d08acc1053adaceaa30a81a4c8ebfecf4",
+    "benchmarks/2026-10-14/tuned_25d_colab/lgb_bike_demand.onnx": "07840300adf762595b48d1cb2cc8a1f801935e71d8762f442e4ea5bf43d1f0ab",
+    "benchmarks/2026-10-14/tuned_25d_colab/lgb_bus_demand.onnx": "0fe31b1147454ed2cfcea75ee2881fb2edacfd969849615e7dcb97dc41b63aff",
+    "benchmarks/2026-10-14/tuned_25d_colab/lgb_subway_demand.onnx": "4718a41ff3b5b133d62fa10d87e7469c85276720517945565cd8bbb5f2eb2720",
+    "benchmarks/original/lgb_bike_demand.onnx": "4a46f8a78926ec842b5682a84895f5f7291aeef8fd21c7d6126d82af9d8d2d25",
+    "benchmarks/original/lgb_bus_demand.onnx": "fdbd76147902a9437c3541cde60b8caa04a72d229a0dd59f332a6e3109084cd0",
+    "benchmarks/original/lgb_subway_demand.onnx": "3a9e02ecad9daf465129cb10d4ef79a7ca9cbf0a85d618226337e30892bab8a5",
+    "models/lgb_bike_demand.onnx": "4a46f8a78926ec842b5682a84895f5f7291aeef8fd21c7d6126d82af9d8d2d25",
+    "models/lgb_bus_demand.onnx": "fdbd76147902a9437c3541cde60b8caa04a72d229a0dd59f332a6e3109084cd0",
+    "models/lgb_subway_demand.onnx": "3a9e02ecad9daf465129cb10d4ef79a7ca9cbf0a85d618226337e30892bab8a5"
+  },
+  "models": {
+    "production_25d": {
+      "dir": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\original",
+      "requested_layout": "v2",
+      "targets": {
+        "bike": {
+          "r2": 0.9887215133665574,
+          "rmse": 16.372103995069466,
+          "mae": 9.815126277061852,
+          "mape_pct_nonzero": 16.737399297182282,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 4719076,
+          "sha256": "4a46f8a78926ec842b5682a84895f5f7291aeef8fd21c7d6126d82af9d8d2d25",
+          "latency_ms_1row": 0.0234,
+          "reference_ih0": {
+            "r2": 0.9887215133665574,
+            "rmse": 16.372103995069466,
+            "mae": 9.815126277061852,
+            "mape_pct_nonzero": 16.737399297182282,
+            "n": 26450
+          }
+        },
+        "bus": {
+          "r2": 0.989688131017089,
+          "rmse": 571.7410150132549,
+          "mae": 369.2996751044282,
+          "mape_pct_nonzero": 14.534102819855544,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 4712686,
+          "sha256": "fdbd76147902a9437c3541cde60b8caa04a72d229a0dd59f332a6e3109084cd0",
+          "latency_ms_1row": 0.025,
+          "reference_ih0": {
+            "r2": 0.989688131017089,
+            "rmse": 571.7410150132549,
+            "mae": 369.2996751044282,
+            "mape_pct_nonzero": 14.534102819855544,
+            "n": 26450
+          }
+        },
+        "subway": {
+          "r2": 0.9924436692464784,
+          "rmse": 826.3242658976168,
+          "mae": 369.73201561751233,
+          "mape_pct_nonzero": 5.511503914991871,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 4696656,
+          "sha256": "3a9e02ecad9daf465129cb10d4ef79a7ca9cbf0a85d618226337e30892bab8a5",
+          "latency_ms_1row": 0.0325,
+          "reference_ih0": {
+            "r2": 0.9924436692464784,
+            "rmse": 826.3242658976168,
+            "mae": 369.73201561751233,
+            "mape_pct_nonzero": 5.511503914991871,
+            "n": 26450
+          }
+        }
+      }
+    },
+    "tuned_32d_real": {
+      "dir": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\2026-10-14",
+      "requested_layout": "v2",
+      "targets": {
+        "bike": {
+          "r2": 0.9872871364222637,
+          "rmse": 17.382041133002836,
+          "mae": 9.66941675454716,
+          "mape_pct_nonzero": 16.37053873817144,
+          "n": 26450,
+          "input_dim": 32,
+          "layout": "v2-32d-real",
+          "file_size_bytes": 7020769,
+          "sha256": "a6854bc65f164787772db699c0f8bfd7ab48f317c5f48f28f67efa32f4e7fdd9",
+          "latency_ms_1row": 0.0221
+        },
+        "bus": {
+          "r2": 0.9900592662307176,
+          "rmse": 561.3579486356991,
+          "mae": 370.44407706659484,
+          "mape_pct_nonzero": 18.090634650218917,
+          "n": 26450,
+          "input_dim": 32,
+          "layout": "v2-32d-real",
+          "file_size_bytes": 13596760,
+          "sha256": "983a069bd3094f6c2309d821760149ace25c762c7c8deba2ec15eb05d51958b1",
+          "latency_ms_1row": 0.0303
+        },
+        "subway": {
+          "r2": 0.9951487839837879,
+          "rmse": 662.0950384947827,
+          "mae": 277.6328679682934,
+          "mape_pct_nonzero": 4.235882528751221,
+          "n": 26450,
+          "input_dim": 32,
+          "layout": "v2-32d-real",
+          "file_size_bytes": 7345447,
+          "sha256": "264e822fb01c37267d8e930ced9b33f894d701ae9156858ba6aff2d93804f0ed",
+          "latency_ms_1row": 0.0249
+        }
+      }
+    },
+    "tuned_32d_v1": {
+      "dir": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\2026-10-12\\tuned",
+      "requested_layout": "v1",
+      "targets": {
+        "bike": {
+          "r2": 0.9893463708272514,
+          "rmse": 15.912113502819826,
+          "mae": 9.3872158922148,
+          "mape_pct_nonzero": 16.08828246177068,
+          "n": 26450,
+          "input_dim": 32,
+          "layout": "v1-32d-dummy7",
+          "file_size_bytes": 6782549,
+          "sha256": "d0d25a7a47d76d9fb639becedd10d6a756c5efceb6c00ce9f440a6eaae4bee1b",
+          "latency_ms_1row": 0.0263,
+          "reference_ih0": {
+            "r2": 0.9893463708272514,
+            "rmse": 15.912113502819826,
+            "mae": 9.3872158922148,
+            "mape_pct_nonzero": 16.08828246177068,
+            "n": 26450
+          }
+        },
+        "bus": {
+          "r2": 0.9922502824320862,
+          "rmse": 495.64826781166727,
+          "mae": 312.57106757167855,
+          "mape_pct_nonzero": 12.384256094756541,
+          "n": 26450,
+          "input_dim": 32,
+          "layout": "v1-32d-dummy7",
+          "file_size_bytes": 13251388,
+          "sha256": "afb55955bd42b76297c6a8ec4ca2f1fdc8c5997c57556229f4142203af31e61b",
+          "latency_ms_1row": 0.0323,
+          "reference_ih0": {
+            "r2": 0.9922502824320862,
+            "rmse": 495.64826781166727,
+            "mae": 312.57106757167855,
+            "mape_pct_nonzero": 12.384256094756541,
+            "n": 26450
+          }
+        },
+        "subway": {
+          "r2": 0.9940043884156208,
+          "rmse": 736.0575499698276,
+          "mae": 298.79645955498466,
+          "mape_pct_nonzero": 4.281372005290429,
+          "n": 26450,
+          "input_dim": 32,
+          "layout": "v1-32d-dummy7",
+          "file_size_bytes": 9805101,
+          "sha256": "567203aed27d59d645412f86d4b219e51599860441f7c9294b525736b08116ea",
+          "latency_ms_1row": 0.0219,
+          "reference_ih0": {
+            "r2": 0.9940043884156208,
+            "rmse": 736.0575499698276,
+            "mae": 298.79645955498466,
+            "mape_pct_nonzero": 4.281372005290429,
+            "n": 26450
+          }
+        }
+      }
+    },
+    "tuned_25d_colab": {
+      "dir": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\2026-10-14\\tuned_25d_colab",
+      "requested_layout": "v2",
+      "targets": {
+        "bike": {
+          "r2": 0.988312352993318,
+          "rmse": 16.666431559954038,
+          "mae": 9.676670687353848,
+          "mape_pct_nonzero": 16.1948163008907,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 5709941,
+          "sha256": "07840300adf762595b48d1cb2cc8a1f801935e71d8762f442e4ea5bf43d1f0ab",
+          "latency_ms_1row": 0.0214
+        },
+        "bus": {
+          "r2": 0.9911846662384477,
+          "rmse": 528.6278445360133,
+          "mae": 342.73198988680804,
+          "mape_pct_nonzero": 14.070017678887087,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 14574454,
+          "sha256": "0fe31b1147454ed2cfcea75ee2881fb2edacfd969849615e7dcb97dc41b63aff",
+          "latency_ms_1row": 0.0293
+        },
+        "subway": {
+          "r2": 0.9934502984173452,
+          "rmse": 769.3178040742852,
+          "mae": 330.87130475138616,
+          "mape_pct_nonzero": 4.962502475085662,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 3713077,
+          "sha256": "4718a41ff3b5b133d62fa10d87e7469c85276720517945565cd8bbb5f2eb2720",
+          "latency_ms_1row": 0.0176
+        }
+      }
+    },
+    "tuned_25d": {
+      "dir": "D:\\vscodeworkspace\\weather-transit-web\\benchmarks\\2026-10-14\\tuned_25d",
+      "requested_layout": "v2",
+      "targets": {
+        "bike": {
+          "r2": 0.988312352993318,
+          "rmse": 16.666431559954038,
+          "mae": 9.676670687353848,
+          "mape_pct_nonzero": 16.1948163008907,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 5709941,
+          "sha256": "b525819a85450f36ef5bb3749e9a68aa442336e86353bc219fefd0ff247b571f",
+          "latency_ms_1row": 0.0184
+        },
+        "bus": {
+          "r2": 0.9911846662384477,
+          "rmse": 528.6278445360133,
+          "mae": 342.73198988680804,
+          "mape_pct_nonzero": 14.070017678887087,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 14574454,
+          "sha256": "3fe157730006ea6db3061b9090ca1d6c842d027eaebabb0bbc15058bdae572eb",
+          "latency_ms_1row": 0.0241
+        },
+        "subway": {
+          "r2": 0.9934502984173452,
+          "rmse": 769.3178040742852,
+          "mae": 330.87130475138616,
+          "mape_pct_nonzero": 4.962502475085662,
+          "n": 26450,
+          "input_dim": 25,
+          "layout": "25d-subset",
+          "file_size_bytes": 3713077,
+          "sha256": "d55d695ae53e226d95ccdb8c5ea67c2d08acc1053adaceaa30a81a4c8ebfecf4",
+          "latency_ms_1row": 0.019
+        }
+      }
+    }
+  }
+}

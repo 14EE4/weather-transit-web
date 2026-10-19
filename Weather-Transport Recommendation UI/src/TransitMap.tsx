@@ -963,15 +963,14 @@ popupContent.append(title, number)
       const bounds = map.getBounds()
 
       try {
-        const url = new URL(
-          `${API_BASE_URL}/api/v1/transit/bus/stations/nearby`
-        )
+        const params = new URLSearchParams({
+          lat: String(center.lat),
+          lng: String(center.lng),
+          radius: '500'
+        })
+        const reqUrl = `${API_BASE_URL || ''}/api/v1/transit/bus/stations/nearby?${params.toString()}`
 
-        url.searchParams.set('lat', String(center.lat))
-        url.searchParams.set('lng', String(center.lng))
-        url.searchParams.set('radius', '500')
-
-        const response = await fetch(url.toString(), {
+        const response = await fetch(reqUrl, {
           signal: controller.signal
         })
 

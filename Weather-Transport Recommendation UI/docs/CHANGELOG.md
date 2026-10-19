@@ -6,6 +6,42 @@
 
 ---
 
+## [2026-10-16]
+
+### 0. 🗺️ MapLibre 지도 기본 카메라 시야각 탑뷰(Pitch 0°) 전환 — 3D 틸트 기본값 제거
+- **배경**:
+  - 지도 탭 진입 시 카메라가 3D 틸트 뷰(`pitch: 30°`)로 기울어진 상태에서 시작되어, 역·정류소의 상대 위치와 노선망 구조를 평면(정사영) 기준으로 파악하려는 사용자에게 원근 왜곡과 마커/팝업의 시각적 어긋남을 유발하던 문제 개선.
+- **원인 분석**:
+  - MapLibre 생성자의 초기 시야각(`initialPitch`)과 저장 뷰 복원 폴백(`getSavedMapView`)이 모두 `30`으로 하드코딩되어 있었고, 역 클릭·경로 핀 클릭·검색 포커스·권역 바로가기에서 실행되는 `flyTo` 애니메이션도 `pitch: 35`(검색 포커스는 `45`)를 강제하고 있어 **탑뷰 유지가 구조적으로 불가능**했음.
+- **해결 조치 (`TransitMap.tsx`)**:
+  1. **기본 카메라 시야각 상수 도입**: `DEFAULT_MAP_PITCH = 0`(시야각 0° = 탑뷰, 수직 하향) · `DEFAULT_MAP_BEARING = 0`(정북) 상수를 신설하고, 지도 생성자 초기값과 저장 뷰 복원 폴백값을 모두 탑뷰 기준으로 통일.
+  2. **프로그램적 카메라 이동 전면 탑뷰화**: 역 마커 클릭(1곳), 경로 출발지·환승역·도착지 핀 클릭(3곳), 검색 포커스(`focusedCoords`, 2곳), 권역 바로가기(1곳) — 총 **7곳의 `flyTo` 시야각을 `DEFAULT_MAP_PITCH`(0°)로 변경**. 어떤 진입 경로로 이동해도 시야각이 3D 틸트로 되돌아가지 않음.
+  3. **구버전 저장 뷰 1회 자동 이관(마이그레이션)**: 로컬 스토리지(`weather_transit_map_view`)에 스키마 버전 필드(`v: 2`)를 추가하고, 버전 필드가 없는 구 저장값(v1)은 구 기본 시야각 30°가 그대로 굳어 있으므로 **중심·줌·방위각은 보존한 채 시야각(Pitch)만 탑뷰 0°로 1회 이관**. 갱신 저장 시 `v: 2`가 기록되어 이후에는 사용자가 직접 기울인 시야각을 그대로 복원. → ⚠️ **아래 §1 에서 개정**: 새로고침 시 시야각·방위각 영속화 자체를 폐기하고 위치·줌만 복원하도록 변경(구버전 이관 로직 포함 제거).
+  4. **수동 3D 틸트 탐색 경로는 보존**: 우측 상단 `NavigationControl`의 `visualizePitch: true`는 유지하여, 사용자가 나침반을 드래그할 때만 3D 틸트로 전환 가능.
+- **검증**:
+  - `pitch` 하드코딩 잔존값 `30 / 35 / 45` **0건** — 지도 생성자 및 `flyTo` 7곳 모두 `DEFAULT_MAP_PITCH` 참조로 교체.
+  - `npx tsc --noEmit` — `TransitMap.tsx` 오류 0건 (전체 10건은 `App.tsx`·`subwayGraph.ts`의 기존 오류로, 변경 전후 동일함을 `git stash` 대조로 확인).
+  - `npm run build` — Vite 프로덕션 번들 빌드 성공.
+- **산출물**: `Weather-Transport Recommendation UI/src/TransitMap.tsx`, `Weather-Transport Recommendation UI/docs/CHANGELOG.md`, `docs/CHANGELOG.md`
+
+### 1. 🧭 새로고침 시 카메라 시야각·방위각 무조건 초기화 — 위치·줌만 복원 (탑뷰 검증성 개선)
+- **배경**:
+  - §0 조치 이후에도 새로고침하면 저장된 뷰포트의 시야각(틸트)·방위각이 그대로 되살아나, 로컬 스토리지에 3D 틸트 상태가 한 번이라도 기록된 브라우저에서는 **지도가 여전히 기울어진 채 열려 탑뷰 기본값을 검증할 수 없었음**.
+- **원인 분석**:
+  - `getSavedMapView`가 `pitch`·`bearing`까지 복원하고 `moveend`마다 다시 저장하는 영속화 구조를 유지했기 때문에, 기울어진 시점이 한 번 저장되면 이후 모든 새로고침에서 그 각도가 반복 복원되었음. (CSS `perspective/rotate` 변형·별도 카메라 API 등 다른 틸트 원인은 없음을 확인)
+- **해결 조치 (`TransitMap.tsx`)**:
+  1. **시야각·방위각 영속화 완전 폐기**: `SavedMapView` 규격을 `center`·`zoom`만 보유하도록 축소하고, `saveCurrentMapView`(=`moveend` 핸들러)도 위치·줌만 기록. §0에서 도입한 `STORAGE_MAP_VIEW_VERSION`(`v: 2`) 스키마 버전 필드와 구버전 이관 로직은 목적이 소멸하여 제거.
+  2. **지도 생성자에서 각도 고정**: `pitch: DEFAULT_MAP_PITCH`(0° = 탑뷰) · `bearing: DEFAULT_MAP_BEARING`(0° = 정북)을 항상 적용 → 새로고침(F5)·재진입 시 시야각과 방향이 무조건 초기화.
+  3. 같은 세션에서 나침반 드래그로 기울이거나 회전한 시점은 그대로 유지되지만, 새로고침하면 다시 탑뷰·정북으로 복귀.
+- **검증**:
+  - `pitch`·`bearing` 저장/복원 참조 **0건** — `STORAGE_MAP_VIEW_VERSION`·`parsed.pitch`·`savedView?.pitch` 잔존 없음. 남은 각도 지정은 지도 생성자와 `flyTo` 7곳(`DEFAULT_MAP_PITCH`)뿐.
+  - `npx tsc --noEmit` — `TransitMap.tsx` 오류 0건 (전체 10건은 `App.tsx`·`subwayGraph.ts`의 기존 오류).
+  - `npm run build` — Vite 프로덕션 번들 빌드 성공.
+- **검증 방법(수동)**: 브라우저에서 지도를 나침반으로 기울인 뒤 새로고침(F5) → 지도가 **탑뷰·정북**으로 시작하는지 확인.
+- **산출물**: `Weather-Transport Recommendation UI/src/TransitMap.tsx`, `Weather-Transport Recommendation UI/docs/CHANGELOG.md`, `docs/CHANGELOG.md` (§0·§1 동일 산출물)
+
+---
+
 ## [2026-10-06]
 
 ### 0. 🧹 경로 추천 탭 랜드마크 추천 경로 UI 및 입력창 기본값(Prefill) 완전 제거

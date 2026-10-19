@@ -33,6 +33,28 @@
      - `feature_schema.status = verified` (경로: `models/feature_schema.json`, 버전: `v2-전처리_2-32d`, 차원: 32) 확인.
 - **산출물**: `.gitignore`, `.dockerignore`, `Dockerfile.backend`, `models/feature_schema.json`, `docs/CHANGELOG.md`
 
+### 🧭 지도 카메라 탑뷰 복원 및 실시간 버스 API 상대 경로 URL 파싱 결함 수정
+- **배경**:
+  - `dev` 브랜치 분기 시점 차이로 인해 PR #4(지도 탑뷰 pitch 0° 및 새로고침 시 초기화)가 누락되어 지도가 30° 틸트 상태로 복원되던 현상 발생.
+  - `dev` 병합 후 도커 Nginx 프록시 환경(`VITE_API_BASE_URL=""`)에서 지도 이동 시 `주변 버스정류장 조회 실패: TypeError: Failed to construct 'URL': Invalid URL` 에러가 발생하여 주변 정류장이 지도에 표시되지 않는 결함 발생.
+  - 버스 노선 뷰(`TransitMap.tsx`)에서 차량/정류장 클릭 시 `pitch: 30`으로 다시 틸트되는 잔여 하드코딩 존재.
+  - 공공데이터포털(data.go.kr)의 정류소·노선·버스위치 정보 오픈API 활용신청 권한 부재로 인한 401(등록되지 않은 서비스키) 에러 발생.
+- **조치**:
+  1. **`dev` 브랜치 병합 (`git merge dev`)**:
+     - PR #4(지도 시야각 0° 탑뷰 및 새로고침 시 pitch/bearing 무조건 초기화)와 최신 기능(모바일 UI, 서울 버스 실시간 API)을 현재 브랜치로 완전 병합.
+  2. **지도 카메라 탑뷰 완전 통일 (`TransitMap.tsx`)**:
+     - 버스 실시간 차량 클릭 및 경유 정류장 클릭 `flyTo` 핸들러 2곳의 `pitch: 30`을 `DEFAULT_MAP_PITCH`(0°) 상수로 통일(`commit f4265db`).
+  3. **상대 경로 `new URL()` 파싱 예외 수정 (`TransitMap.tsx`)**:
+     - 도커 리버스 프록시 환경에서 `API_BASE_URL`이 빈 문자열(`""`)일 때 `new URL("/api/...")` 호출 시 브라우저 표준 예외(`Invalid URL`)가 발생하던 문제를 `URLSearchParams`와 템플릿 문자열 결합 방식으로 수정(`commit 1b3bc4a`).
+  4. **공공데이터포털 서울시 버스 오픈API 4종 연동 정상화**:
+     - 서울특별시_정류소정보조회, 서울특별시_노선정보조회, 서울특별시_버스위치정보조회, 서울특별시_버스도착정보조회 서비스 권한 활성화를 통해 지도 위 정류소 마커, 노선 경로선, 실시간 버스 위치(🚌 첫차/다음차) 정상 출력 확인.
+- **검증 결과**:
+  - 프론트엔드 컨테이너 무캐시 재빌드(`docker compose build frontend && docker compose up -d frontend`) 배포 완료.
+  - 브라우저 개발자 도구 콘솔의 `Invalid URL` 에러 소멸 확인.
+  - 지도 이동 시 500m 반경 주변 버스정류소 마커 및 실시간 버스 위치 정상 렌더링 확인.
+  - 나침반 회전/틸트 조작 후 새로고침(`F5`) 시 항상 탑뷰(0°) 및 정북(0°)으로 정상 초기화 확인.
+- **산출물**: `Weather-Transport Recommendation UI/src/TransitMap.tsx`, `docs/CHANGELOG.md`
+
 ---
 
 ## [2026-10-14]

@@ -188,7 +188,7 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
       "name": "따릉이",
       "score": 5,
       "scoreLabel": "비추천",
-      "scoreColor": "#94A3B8",
+      "scoreColor": "var(--color-muted)",
       "reasons": [
         "강수량 2.8mm로 노면 수막현상 및 미끄러짐 위험 극심",
         "우천 시 자전거 이용객 급감(-80% 이상) 패턴 관측",

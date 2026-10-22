@@ -36,7 +36,7 @@
             top: 16px;
             left: 16px;
             z-index: 10;
-            background: rgba(255, 255, 255, 0.92);
+            background: var(--app-nav);
             backdrop-filter: blur(8px);
             padding: 16px 20px;
             border-radius: 12px;
@@ -48,7 +48,7 @@
         .control-panel h1 {
             font-size: 16px;
             font-weight: 700;
-            color: #1a202c;
+            color: var(--app-text);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -57,7 +57,7 @@
 
         .control-panel p {
             font-size: 13px;
-            color: #4a5568;
+            color: var(--color-muted);
             line-height: 1.5;
             margin-bottom: 12px;
         }
@@ -67,7 +67,7 @@
             font-size: 11px;
             font-weight: 600;
             color: #2b6cb0;
-            background: #ebf8ff;
+            background: var(--color-primary-dim);
             padding: 2px 8px;
             border-radius: 9999px;
             margin-bottom: 12px;
@@ -80,8 +80,8 @@
         }
 
         .btn {
-            background: #3182ce;
-            color: #ffffff;
+            background: var(--color-primary);
+            color: var(--app-text);
             border: none;
             padding: 6px 12px;
             border-radius: 6px;
@@ -99,9 +99,9 @@
         .info-box {
             margin-top: 12px;
             padding-top: 10px;
-            border-top: 1px solid #edf2f7;
+            border-top: 1px solid var(--color-border);
             font-size: 12px;
-            color: #718096;
+            color: var(--color-muted);
             display: flex;
             justify-content: space-between;
         }

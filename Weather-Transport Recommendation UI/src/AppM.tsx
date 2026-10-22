@@ -7,6 +7,22 @@ import { resolveDistrict } from './districtResolver'
 
 type Page = 'main' | 'route' | 'map'
 
+type Theme = 'dark' | 'light'
+
+const getInitialTheme = (): Theme => {
+  try {
+    const saved = localStorage.getItem('weather-transit-theme')
+    if (saved === 'light' || saved === 'dark') {
+      return saved
+    }
+  } catch {
+    // localStorage를 사용할 수 없는 경우 기본 테마 사용
+  }
+
+  return 'dark'
+}
+
+
 // ── 서울 25개 자치구 및 수도권 주요 거점 권역별 데이터 ──
 export const DISTRICT_GROUPS = [
   {
@@ -178,13 +194,13 @@ const TRANSPORT_SCORES = [
     name: '따릉이',
     score: 14,
     scoreLabel: '비추천',
-    scoreColor: '#94A3B8',
+    scoreColor: 'var(--color-muted)',
     reasons: ['강수량 2.8mm — 운행 위험', '미끄러짐 사고 위험', '반납 지연 빈번'],
     time: '55분',
     price: '1,000원/시간',
     crowd: 8,
     crowdLabel: '여유',
-    crowdColor: '#94A3B8',
+    crowdColor: 'var(--color-muted)',
     dataset: '공공자전거 따릉이 대여이력',
   },
 ]
@@ -194,12 +210,12 @@ const TRANSPORT_SCORES = [
 // • 지하철: 우천 도로 정체 회피 및 실측 정시성(99.2%) 기반 수단 집중 선호 지수 (82 -> 88 -> 93 -> 97 -> 100 -> 98)
 // • 버스: 빗길 노면 감속(12~25% 지연) 및 우산 승하차 불편 반영 정시 효용 지수 (76 -> 72 -> 65 -> 56 -> 48 -> 36)
 const CORRELATION_DATA = [
-  { rain: 0,   subway: 82, bus: 76, bike: 100,  note: '맑음: 따릉이 최우선 추천 (기준 100%)' },
+  { rain: 0, subway: 82, bus: 76, bike: 100, note: '맑음: 따릉이 최우선 추천 (기준 100%)' },
   { rain: 0.5, subway: 88, bus: 72, bike: 27.2, note: '소우(0.5mm): 따릉이 실측 -72.8% 급감 이탈' },
   { rain: 1.0, subway: 93, bus: 65, bike: 18.9, note: '약한 비(1mm): 지하철 우천 집중 가속' },
   { rain: 2.0, subway: 97, bus: 56, bike: 16.0, note: '보통 비(2mm): 버스 노면 감속 지연 심화' },
   { rain: 3.0, subway: 100, bus: 48, bike: 13.8, note: '강한 비(3mm): 지하철 정시성(99.2%) 정점' },
-  { rain: 5.0, subway: 98, bus: 36, bike: 9.4,  note: '호우(5mm): 자전거 안전 한계(운행 중단권)' },
+  { rain: 5.0, subway: 98, bus: 36, bike: 9.4, note: '호우(5mm): 자전거 안전 한계(운행 중단권)' },
 ]
 
 // ── 권역별 주요 거점 교통 혼잡 현황 ──
@@ -217,7 +233,7 @@ const DISTRICT_DATA = [
 function CrowdBar({ value, color }: { value: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-card)' }}>
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${value}%`, background: color }} />
       </div>
       <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono', color, minWidth: 28 }}>{value}%</span>
@@ -227,14 +243,14 @@ function CrowdBar({ value, color }: { value: number; color: string }) {
 
 function StatCard({ label, value, unit, color, icon }: { label: string; value: string | number; unit?: string; color: string; icon: string }) {
   return (
-    <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="rounded-2xl p-4" style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
       <div className="flex items-center gap-2 mb-2">
         <span style={{ fontSize: 16 }}>{icon}</span>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.04em' }}>{label}</span>
+        <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.04em' }}>{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
         <span style={{ fontSize: 26, fontWeight: 800, color, fontFamily: 'JetBrains Mono', lineHeight: 1 }}>{value}</span>
-        {unit && <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{unit}</span>}
+        {unit && <span style={{ fontSize: 12, color: 'var(--app-text)' }}>{unit}</span>}
       </div>
     </div>
   )
@@ -267,7 +283,7 @@ function BarChart({ data }: { data: typeof HOURLY_DATA }) {
       {/* Labels */}
       <div className="flex gap-1.5 mt-1">
         {data.map((d, i) => (
-          <div key={d.hour} className="flex-1 text-center" style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono' }}>
+          <div key={d.hour} className="flex-1 text-center" style={{ fontSize: 9, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
             {d.hour.replace('시', '')}
           </div>
         ))}
@@ -279,19 +295,19 @@ function BarChart({ data }: { data: typeof HOURLY_DATA }) {
           style={{
             left: `${(hovered / data.length) * 100}%`,
             transform: 'translateX(-50%)',
-            background: '#1C2B50',
+            background: 'var(--color-card2)',
             border: '1px solid rgba(56,189,248,0.3)',
             whiteSpace: 'nowrap',
           }}
         >
           <div style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', marginBottom: 2 }}>{data[hovered].hour}</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontFamily: 'JetBrains Mono' }}>
+          <div style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
             🚇 {data[hovered].subway.toLocaleString()}명
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontFamily: 'JetBrains Mono' }}>
+          <div style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
             🚌 {data[hovered].bus.toLocaleString()}명
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontFamily: 'JetBrains Mono' }}>
+          <div style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
             🚲 {data[hovered].bike.toLocaleString()}명
           </div>
           <div style={{ fontSize: 10, color: '#FB923C', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
@@ -330,12 +346,12 @@ function CorrelationChart() {
               <span style={{ color: '#FB923C' }}>🚌 {activeItem.bus}%</span>
               <span style={{ color: '#34D399', fontWeight: 700 }}>🚲 {activeItem.bike}%</span>
             </div>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>
+            <span style={{ fontSize: 9, color: 'var(--app-text)' }}>
               ({activeItem.note})
             </span>
           </div>
         ) : (
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+          <span style={{ fontSize: 10, color: 'var(--app-text)' }}>
             💡 그래프 위로 마우스를 올리면 강수량별 실측 이용률을 확인할 수 있습니다
           </span>
         )}
@@ -345,7 +361,7 @@ function CorrelationChart() {
         <svg width="100%" height="100%" viewBox="0 0 300 112" preserveAspectRatio="none">
           {/* Grid */}
           {[0, 28, 56, 84, 112].map(y => (
-            <line key={y} x1="0" y1={y} x2="300" y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+            <line key={y} x1="0" y1={y} x2="300" y2={y} stroke="var(--app-text)" strokeWidth="1" />
           ))}
 
           {/* 호버 세로 하이라이트 가이드선 */}
@@ -355,7 +371,7 @@ function CorrelationChart() {
               y1={0}
               x2={(hoveredIdx / (CORRELATION_DATA.length - 1)) * 300}
               y2={112}
-              stroke="rgba(255,255,255,0.25)"
+              stroke="var(--app-text)"
               strokeWidth="1.5"
               strokeDasharray="3 2"
             />
@@ -423,7 +439,7 @@ function CorrelationChart() {
               key={d.rain}
               style={{
                 fontSize: 9,
-                color: hoveredIdx === i ? '#38BDF8' : 'rgba(255,255,255,0.3)',
+                color: hoveredIdx === i ? '#38BDF8' : 'var(--app-text)',
                 fontWeight: hoveredIdx === i ? 700 : 400,
                 fontFamily: 'JetBrains Mono',
                 transition: 'color 0.15s ease'
@@ -473,7 +489,7 @@ const getInitialPage = (): Page => {
     try {
       const saved = localStorage.getItem('weather_transit_page') as Page
       if (saved === 'main' || saved === 'route' || saved === 'map') return saved
-    } catch {}
+    } catch { }
   }
   return 'main'
 }
@@ -493,7 +509,7 @@ const getInitialDistrict = (): number => {
         const num = Number(savedIdx)
         if (!isNaN(num) && num >= 0 && num < DISTRICTS.length) return num
       }
-    } catch {}
+    } catch { }
   }
   return 0
 }
@@ -510,7 +526,7 @@ export default function AppM() {
         if (saved === 'all' || saved === 'subway' || saved === 'bus' || saved === 'bike') {
           return saved
         }
-      } catch {}
+      } catch { }
     }
     return 'all'
   })
@@ -530,6 +546,23 @@ export default function AppM() {
   const [stopWeatherData, setStopWeatherData] = useState<any | null>(null)
   const [stopAIData, setStopAIData] = useState<any | null>(null)
   const [stopDataLoading, setStopDataLoading] = useState(false)
+
+  const [theme, setTheme] = useState<Theme>(getInitialTheme)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+
+    try {
+      localStorage.setItem('weather-transit-theme', theme)
+    } catch {
+      // 저장에 실패해도 현재 화면 테마는 변경
+    }
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(current => current === 'dark' ? 'light' : 'dark')
+  }
+
 
   // ── 기상청 실시간 실황 데이터 연동 상태 (100% 진본 실시간) ──
   const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null)
@@ -621,7 +654,7 @@ export default function AppM() {
   useEffect(() => {
     try {
       localStorage.setItem('weather_transit_page', page)
-    } catch {}
+    } catch { }
     if (window.location.hash.replace(/^#/, '') !== page) {
       window.location.hash = page
     }
@@ -634,14 +667,14 @@ export default function AppM() {
       if (DISTRICTS[selectedDistrict]) {
         localStorage.setItem('weather_transit_district_name', DISTRICTS[selectedDistrict])
       }
-    } catch {}
+    } catch { }
   }, [selectedDistrict])
 
   // 지도 필터 교통수단(전체/지하철/버스/따릉이) 로컬 스토리지 동기화 (새로고침 시 유지)
   useEffect(() => {
     try {
       localStorage.setItem('weather_transit_map_transport', mapTransport)
-    } catch {}
+    } catch { }
   }, [mapTransport])
 
   useEffect(() => {
@@ -799,8 +832,8 @@ export default function AppM() {
           const arrivals = (arrivalData.status === 'success' && arrivalData.arrivals && arrivalData.arrivals.length > 0)
             ? arrivalData.arrivals
             : [
-                { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
-              ]
+              { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
+            ]
           setStopArrivalData({
             loading: false,
             subwayArrivals: arrivals,
@@ -815,9 +848,9 @@ export default function AppM() {
           const arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
             ? busData.arrivals
             : [
-                { route_name: '472', arrival_msg1: '곧 도착' },
-                { route_name: '140', arrival_msg1: '3분 후' }
-              ]
+              { route_name: '472', arrival_msg1: '곧 도착' },
+              { route_name: '140', arrival_msg1: '3분 후' }
+            ]
           setStopArrivalData({
             loading: false,
             busArrivals: arrivals,
@@ -975,8 +1008,8 @@ export default function AppM() {
           dataset: r.id === 'subway'
             ? '지하철 호선별 역별 시간대별 승하차 (AI 추론)'
             : r.id === 'bus'
-            ? '버스노선별 정류장별 시간대별 승하차 (AI 추론)'
-            : '공공자전거 따릉이 대여이력 (AI 추론)',
+              ? '버스노선별 정류장별 시간대별 승하차 (AI 추론)'
+              : '공공자전거 따릉이 대여이력 (AI 추론)',
           predicted_volume: r.predicted_volume
         }))
 
@@ -1076,21 +1109,86 @@ export default function AppM() {
   }, [selectedDistrict, liveWeather, activeRain, activeTemp])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0A1628', fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", color: '#F0F6FF' }}>
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--color-bg)',
+      fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
+      color: 'var(--app-text)',
+      transition: 'background-color 0.2s ease, color 0.2s ease',
+    }}
+    >
 
       {/* ── TOP NAV ── */}
-      <nav style={{ background: 'rgba(10,22,40,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 32px', display: 'flex', alignItems: 'center', height: 60, gap: 32 }}>
+      <nav style={{
+        background: 'var(--app-nav)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid var(--color-border)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: 1280,
+          boxSizing: 'border-box',
+          margin: '0 auto',
+          padding: '0 16px',
+          display: 'flex',
+          alignItems: 'center',
+          height: 60,
+          gap: 32
+        }}>
+
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#38BDF8,#22D3EE)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-              🌦
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            flexShrink: 0,
+          }}>
+            {/* Logo */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg,#38BDF8,#22D3EE)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 16,
+              }}>
+                🌦
+              </div>
+
+              {/* Logo Text */}
+              <div>
+                <div style={{
+                  fontSize: 15,
+                  fontWeight: 800,
+                  letterSpacing: '-0.3px',
+                  color: 'var(--app-text)',
+                }}>
+                  WeatherMove
+                </div>
+                <div style={{
+                  fontSize: 9,
+                  color: 'var(--color-muted)',
+                  fontFamily: 'JetBrains Mono',
+                  letterSpacing: '0.06em',
+                  marginTop: -1,
+                }}>
+                  SEOUL TRANSPORT AI
+                </div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', color: '#F0F6FF' }}>WeatherMove</div>
-              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em', marginTop: -1 }}>SEOUL TRANSPORT AI</div>
-            </div>
+
           </div>
+
 
           {/* Nav tabs */}
           <div style={{ display: 'flex', gap: 4, flex: 1 }}>
@@ -1106,7 +1204,7 @@ export default function AppM() {
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', borderRadius: 10,
                   background: page === nav.id ? 'rgba(56,189,248,0.15)' : 'transparent',
                   border: page === nav.id ? '1px solid rgba(56,189,248,0.35)' : '1px solid transparent',
-                  color: page === nav.id ? '#38BDF8' : 'rgba(255,255,255,0.5)',
+                  color: page === nav.id ? '#38BDF8' : 'var(--color-muted)',
                   fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
@@ -1115,6 +1213,34 @@ export default function AppM() {
               </button>
             ))}
           </div>
+
+          {/* Theme Toggle - 오른쪽 정렬 */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? '화이트 모드로 전환' : '다크 모드로 전환'}
+            aria-pressed={theme === 'dark'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              padding: '7px 10px',
+              marginLeft: 'auto',
+              flexShrink: 0,
+              borderRadius: 8,
+              background: 'var(--color-card)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--app-text)',
+              fontSize: 12,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+            }}
+          >
+            {theme === 'dark' ? '☀️ 화이트 모드' : '🌙 다크 모드'}
+          </button>
+
 
           {/* Live indicator & Console trigger button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
@@ -1132,9 +1258,11 @@ export default function AppM() {
             >
               <span>{isConsoleLogging ? '⏳' : '📡'}</span> {isConsoleLogging ? 'API 실시간 수신중...' : 'API 콘솔 로그 확인'}
             </button>
+
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#34D399', boxShadow: '0 0 8px #34D399', animation: 'pulse 2s infinite' }} />
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }}>LIVE · 실시간 연동</span>
+              <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>LIVE · 실시간 연동</span>
             </div>
           </div>
         </div>
@@ -1149,26 +1277,26 @@ export default function AppM() {
           {/* 지역 선택 + 헤더 */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, color: '#F0F6FF', margin: 0, letterSpacing: '-0.5px' }}>
+              <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--app-text)', margin: 0, letterSpacing: '-0.5px' }}>
                 날씨 기반 교통 현황
               </h1>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: '6px 0 0', lineHeight: 1.5 }}>
+              <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
                 서울시 날씨 + 버스·지하철·따릉이 이용 데이터를 실시간으로 분석합니다
               </p>
             </div>
 
             {/* 동 선택 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>지역</span>
+              <span style={{ fontSize: 13, color: 'var(--color-muted)', fontWeight: 600 }}>지역</span>
               <select
                 value={selectedDistrict}
                 onChange={e => setSelectedDistrict(Number(e.target.value))}
                 style={{
-                  background: '#162040', border: '1px solid rgba(56,189,248,0.3)',
-                  color: '#F0F6FF', borderRadius: 12, padding: '8px 14px', fontSize: 13,
+                  background: 'var(--color-card)', border: '1px solid rgba(56,189,248,0.3)',
+                  color: 'var(--app-text)', borderRadius: 12, padding: '8px 14px', fontSize: 13,
                   fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", outline: 'none', cursor: 'pointer',
                   maxWidth: 280, textOverflow: 'ellipsis',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.3)'
+                  boxShadow: '0 2px 12px var(--color-card2)'
                 }}
               >
                 {DISTRICT_GROUPS.map(group => (
@@ -1176,7 +1304,7 @@ export default function AppM() {
                     {group.items.map(d => {
                       const globalIdx = DISTRICTS.indexOf(d)
                       return (
-                        <option key={d} value={globalIdx} style={{ background: '#162040', color: '#F0F6FF', fontWeight: 400 }}>
+                        <option key={d} value={globalIdx} style={{ background: 'var(--color-card)', color: 'var(--app-text)', fontWeight: 400 }}>
                           {d}
                         </option>
                       )
@@ -1190,12 +1318,12 @@ export default function AppM() {
           {/* 기상청 실시간 관측 현황 바 (가상 시뮬레이션 완전 배제, 100% 실시간 공공 데이터) */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(22,32,64,0.9) 0%, rgba(13,27,58,0.9) 100%)',
-              border: '1px solid rgba(56,189,248,0.2)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
               borderRadius: 20,
               padding: '16px 24px',
               marginBottom: 24,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+              boxShadow: '0 8px 32px var(--app-shadow)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
@@ -1212,10 +1340,10 @@ export default function AppM() {
                   </span>
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>
                     {DISTRICTS[selectedDistrict] || '강남구 역삼동'} 실시간 기상 관측
                   </div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
                     {liveWeather ? `발표시각: ${liveWeather.base_date} ${liveWeather.base_time.slice(0, 2)}:00 | 격자 (${liveWeather.nx}, ${liveWeather.ny})` : '기상청 관측망 수신 대기 중...'}
                   </div>
                 </div>
@@ -1223,35 +1351,35 @@ export default function AppM() {
 
               {/* 우측: 실시간 기상 핵심 수치 4종 (기온, 강수, 습도, 풍속) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', padding: '6px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
                   <span style={{ fontSize: 16 }}>🌡️</span>
                   <div>
-                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>기온</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{activeTemp}°C</div>
+                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>기온</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{activeTemp}°C</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: activeRain > 0 ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.04)', padding: '6px 14px', borderRadius: 12, border: activeRain > 0 ? '1px solid rgba(56,189,248,0.4)' : '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: activeRain > 0 ? 'var(--color-card)' : '', padding: '6px 14px', borderRadius: 12, border: activeRain > 0 ? '1px solid rgba(56,189,248,0.4)' : '1px solid var(--color-border)' }}>
                   <span style={{ fontSize: 16 }}>{isRaining ? '🌧️' : '☀️'}</span>
                   <div>
-                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>강수량 ({activePtyDesc})</div>
+                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>강수량 ({activePtyDesc})</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: activeRain > 0 ? '#38BDF8' : '#34D399', fontFamily: 'JetBrains Mono' }}>{activeRain} mm/h</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', padding: '6px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
                   <span style={{ fontSize: 16 }}>💧</span>
                   <div>
-                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>습도</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{activeHumidity}%</div>
+                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>습도</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{activeHumidity}%</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', padding: '6px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
                   <span style={{ fontSize: 16 }}>💨</span>
                   <div>
-                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>풍속</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{activeWind} m/s</div>
+                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>풍속</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{activeWind} m/s</div>
                   </div>
                 </div>
 
@@ -1270,9 +1398,9 @@ export default function AppM() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 24 }}>
 
             {/* 날씨 카드 */}
-            <div style={{ background: 'linear-gradient(135deg, #162040 0%, #0D1B3A 100%)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 24, padding: 24, gridColumn: '1' }}>
+            <div style={{ background: 'linear-gradient(135deg, var(--color-card) 0%, var(--weather-gradient-end) 100%)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 24, gridColumn: '1' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
                   날씨 데이터 · {DISTRICTS[selectedDistrict]}
                 </div>
                 <span style={{ fontSize: 9, color: '#34D399', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
@@ -1282,7 +1410,7 @@ export default function AppM() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
                 <span style={{ fontSize: 52 }}>{isRaining ? '🌧' : '☀️'}</span>
                 <div>
-                  <div style={{ fontSize: 52, fontWeight: 800, color: '#F0F6FF', lineHeight: 1, letterSpacing: '-2px', fontFamily: 'JetBrains Mono' }}>
+                  <div style={{ fontSize: 52, fontWeight: 800, color: 'var(--app-text)', lineHeight: 1, letterSpacing: '-2px', fontFamily: 'JetBrains Mono' }}>
                     {activeTemp}°
                   </div>
                   <div style={{ fontSize: 13, color: isRaining ? '#38BDF8' : '#FB923C', fontWeight: 600 }}>
@@ -1297,26 +1425,26 @@ export default function AppM() {
                   { label: '강수량', value: `${activeRain}mm`, icon: '🌧' },
                   { label: '체감온도', value: `${Math.round(activeTemp - 2)}°C`, icon: '🌡' },
                 ].map(item => (
-                  <div key={item.label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: '10px 12px' }}>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', marginBottom: 2 }}>
+                  <div key={item.label} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 2 }}>
                       {item.icon} {item.label}
                     </div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'JetBrains Mono', color: '#F0F6FF' }}>{item.value}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'JetBrains Mono', color: 'var(--app-text)' }}>{item.value}</div>
                   </div>
                 ))}
               </div>
               {liveWeather && (
-                <div style={{ marginTop: 14, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ marginTop: 14, fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', display: 'flex', justifyContent: 'space-between' }}>
                   <span>KMA 격자 ({liveWeather.nx}, {liveWeather.ny})</span>
-                  <span>{liveWeather.base_date.slice(4,6)}/{liveWeather.base_date.slice(6,8)} {liveWeather.base_time.slice(0,2)}:00 발표</span>
+                  <span>{liveWeather.base_date.slice(4, 6)}/{liveWeather.base_date.slice(6, 8)} {liveWeather.base_time.slice(0, 2)}:00 발표</span>
                 </div>
               )}
             </div>
 
             {/* 이용자 현황 (실제 AI 머신러닝 추론 이용객 수 실시간 연동) */}
-            <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
+            <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
                   교통 수요 예측 현황 · 실시간 ({new Date().getHours()}시)
                 </div>
                 <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)', padding: '2px 7px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
@@ -1368,7 +1496,7 @@ export default function AppM() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 18 }}>{t.icon}</span>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#F0F6FF' }}>{t.name}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--app-text)' }}>{t.name}</span>
                             <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${t.crowdColor}22`, color: t.crowdColor, fontWeight: 700, fontFamily: 'JetBrains Mono' }}>
                               {t.crowdLabel} {t.crowd}%
                             </span>
@@ -1377,7 +1505,7 @@ export default function AppM() {
                             {t.value.toLocaleString()}{t.unit}
                           </span>
                         </div>
-                        <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: 6, background: 'var(--color-card2)', borderRadius: 3, overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${Math.min(100, Math.max(5, t.crowd))}%`, background: t.color, borderRadius: 3, transition: 'width 0.5s ease' }} />
                         </div>
                       </div>
@@ -1395,9 +1523,9 @@ export default function AppM() {
             </div>
 
             {/* AI 추천 카드 */}
-            <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
+            <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
                   모델 추천 결과 · 실시간 ({new Date().getHours()}시)
                 </div>
                 {/* 실시간 AI 연결 배지 */}
@@ -1409,7 +1537,7 @@ export default function AppM() {
                   }} />
                   <span style={{
                     fontSize: 10,
-                    color: aiStatus === 'connected' ? '#34D399' : 'rgba(255,255,255,0.4)',
+                    color: aiStatus === 'connected' ? '#34D399' : 'var(--app-text)',
                     fontFamily: 'JetBrains Mono', fontWeight: 600
                   }}>
                     {aiStatus === 'connected' ? `ONNX AI (${aiLatency}ms)` : aiStatus === 'loading' ? '추론 중...' : '오프라인'}
@@ -1422,19 +1550,19 @@ export default function AppM() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 12, marginBottom: i < 2 ? 12 : 0,
                     padding: '10px 12px', borderRadius: 14,
-                    background: i === 0 ? 'rgba(56,189,248,0.08)' : 'rgba(255,255,255,0.03)',
-                    border: i === 0 ? '1px solid rgba(56,189,248,0.2)' : '1px solid rgba(255,255,255,0.06)',
+                    background: i === 0 ? 'rgba(56,189,248,0.08)' : 'var(--color-card)',
+                    border: i === 0 ? '1px solid rgba(56,189,248,0.2)' : '1px solid var(--app-text)',
                   }}
                 >
                   <span style={{ fontSize: 24 }}>{t.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{t.name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{t.name}</span>
                       <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: `${t.scoreColor}22`, color: t.scoreColor, fontWeight: 600 }}>
                         {t.scoreLabel}
                       </span>
                     </div>
-                    <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: 4, background: 'var(--color-card)', borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${t.score}%`, background: t.scoreColor, borderRadius: 2 }} />
                     </div>
                   </div>
@@ -1447,7 +1575,7 @@ export default function AppM() {
                 onClick={() => setPage('route')}
                 style={{
                   width: '100%', marginTop: 14, padding: '10px', borderRadius: 14, cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
+                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: 'var(--color-bg)',
                   fontSize: 13, fontWeight: 700, border: 'none', letterSpacing: '0.02em',
                 }}
               >
@@ -1460,28 +1588,28 @@ export default function AppM() {
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20 }}>
 
             {/* 시간대별 이용자 추이 (24시간 전일 ONNX AI 시계열 예측) */}
-            <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
+            <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>시간대별 이용자 추이</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--app-text)' }}>시간대별 이용자 추이</span>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       padding: '2px 8px', borderRadius: 9999,
-                      background: hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.05)',
-                      border: `1px solid ${hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)'}`
+                      background: hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.12)' : 'var(--app-text)',
+                      border: `1px solid ${hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.3)' : 'solid var(--color-border)'}`
                     }}>
                       <span style={{
                         width: 6, height: 6, borderRadius: '50%',
                         background: hourlyLiveStatus === 'live' ? '#10B981' : hourlyLiveStatus === 'loading' ? '#FBBF24' : '#64748B',
                         boxShadow: hourlyLiveStatus === 'live' ? '0 0 6px #10B981' : 'none'
                       }} />
-                      <span style={{ fontSize: 10, color: hourlyLiveStatus === 'live' ? '#34D399' : 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
+                      <span style={{ fontSize: 10, color: hourlyLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
                         {hourlyLiveStatus === 'live' ? '24H ONNX AI 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '시계열 기본값'}
                       </span>
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
                     전일 24시간 날씨 연동 수요 추론 곡선 (00시 ~ 23시)
                   </div>
                 </div>
@@ -1490,7 +1618,7 @@ export default function AppM() {
                   {[['🚇', '지하철', '#38BDF8'], ['🚌', '버스', '#FB923C'], ['🚲', '따릉이', '#34D399']].map(([icon, name, color]) => (
                     <div key={name as string} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <div style={{ width: 8, height: 3, background: color as string, borderRadius: 2 }} />
-                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>{name as string}</span>
+                      <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>{name as string}</span>
                     </div>
                   ))}
                 </div>
@@ -1501,7 +1629,7 @@ export default function AppM() {
                 const hoverItem = hourlyHovered !== null ? hourlyForecast[hourlyHovered] : null
                 if (!hoverItem) {
                   return (
-                    <div style={{ height: 22, marginBottom: 8, display: 'flex', alignItems: 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono' }}>
+                    <div style={{ height: 22, marginBottom: 8, display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
                       💡 마우스를 그래프에 올리면 시간대별 정밀 AI 예측 수요를 확인할 수 있습니다.
                     </div>
                   )
@@ -1524,7 +1652,7 @@ export default function AppM() {
                     <span style={{ color: '#A7F3D0' }}>
                       🚲 {hoverItem.bike.toLocaleString()}대
                     </span>
-                    <span style={{ color: 'rgba(255,255,255,0.5)', marginLeft: 'auto' }}>
+                    <span style={{ color: 'var(--color-muted)', marginLeft: 'auto' }}>
                       🌡️ {hoverItem.temp}°C {hoverItem.rain > 0 ? `· 🌧️ ${hoverItem.rain}mm` : ''}
                     </span>
                   </div>
@@ -1561,7 +1689,7 @@ export default function AppM() {
                     <svg width="100%" height="140" viewBox="0 0 560 140" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
                       {/* Grid 수평선 */}
                       {[15, 45, 75, 105, 135].map(y => (
-                        <line key={y} x1="0" y1={y} x2="560" y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                        <line key={y} x1="0" y1={y} x2="560" y2={y} stroke="var(--color-card)" strokeWidth="1" />
                       ))}
 
                       {/* 강수(Rain) 감지 시간대 음영 컬럼 */}
@@ -1642,10 +1770,10 @@ export default function AppM() {
                         const hx = getX(hourlyHovered)
                         return (
                           <g pointerEvents="none">
-                            <line x1={hx} y1={0} x2={hx} y2={140} stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeDasharray="2 2" />
-                            <circle cx={hx} cy={getSubY(hItem.subway)} r={4} fill="#38BDF8" stroke="#0A1628" strokeWidth="2" />
-                            <circle cx={hx} cy={getBusY(hItem.bus)} r={4} fill="#FB923C" stroke="#0A1628" strokeWidth="2" />
-                            <circle cx={hx} cy={getBikeY(hItem.bike)} r={4} fill="#34D399" stroke="#0A1628" strokeWidth="2" />
+                            <line x1={hx} y1={0} x2={hx} y2={140} stroke="var(--app-text)" strokeWidth="1" strokeDasharray="2 2" />
+                            <circle cx={hx} cy={getSubY(hItem.subway)} r={4} fill="#38BDF8" stroke="var(--color-bg)" strokeWidth="2" />
+                            <circle cx={hx} cy={getBusY(hItem.bus)} r={4} fill="#FB923C" stroke="var(--color-bg)" strokeWidth="2" />
+                            <circle cx={hx} cy={getBikeY(hItem.bike)} r={4} fill="#34D399" stroke="var(--color-bg)" strokeWidth="2" />
                           </g>
                         )
                       })()}
@@ -1682,7 +1810,7 @@ export default function AppM() {
                       key={d.hour}
                       style={{
                         fontSize: 9,
-                        color: hourlyHovered === i ? '#38BDF8' : isVisibleLabel ? 'rgba(255,255,255,0.45)' : 'transparent',
+                        color: hourlyHovered === i ? '#38BDF8' : isVisibleLabel ? 'var(--color-muted)' : 'transparent',
                         fontFamily: 'JetBrains Mono',
                         fontWeight: isVisibleLabel || hourlyHovered === i ? 600 : 400,
                         transition: 'color 0.15s ease',
@@ -1696,11 +1824,11 @@ export default function AppM() {
             </div>
 
             {/* 동별 혼잡도 */}
-            <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
+            <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>동별 교통 혼잡도</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>서울시 8대 핵심 거점 실시간 현황</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--app-text)' }}>동별 교통 혼잡도</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>서울시 8대 핵심 거점 실시간 현황</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{
@@ -1708,7 +1836,7 @@ export default function AppM() {
                     background: districtLiveStatus === 'live' ? '#10B981' : districtLiveStatus === 'loading' ? '#FBBF24' : '#64748B',
                     boxShadow: districtLiveStatus === 'live' ? '0 0 8px #10B981' : 'none'
                   }} />
-                  <span style={{ fontSize: 10, color: districtLiveStatus === 'live' ? '#34D399' : 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
+                  <span style={{ fontSize: 10, color: districtLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
                     {districtLiveStatus === 'live' ? 'ONNX 실시간 연동' : districtLiveStatus === 'loading' ? '추론 중...' : '기본값'}
                   </span>
                 </div>
@@ -1725,8 +1853,8 @@ export default function AppM() {
                       }
                     }}
                     style={{
-                      padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 14,
-                      border: '1px solid rgba(255,255,255,0.06)',
+                      padding: '10px 14px', background: 'var(--color-card)', borderRadius: 14,
+                      border: '1px solid var(--app-text)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
@@ -1735,34 +1863,34 @@ export default function AppM() {
                       e.currentTarget.style.borderColor = 'rgba(56,189,248,0.25)'
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                      e.currentTarget.style.background = 'var(--color-card)'
+                      e.currentTarget.style.borderColor = 'var(--app-text)'
                     }}
                     title="클릭 시 해당 권역으로 대시보드 전환"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 14 }}>{d.weather}</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#F0F6FF' }}>{d.name}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--app-text)' }}>{d.name}</span>
                         {d.district && (
-                          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono' }}>
+                          <span style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
                             ({d.district})
                           </span>
                         )}
                       </div>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>{d.temp}°C</span>
+                      <span style={{ fontSize: 12, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>{d.temp}°C</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                       <div>
-                        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>지하철</div>
+                        <div style={{ fontSize: 9, color: 'var(--app-text)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>지하철</div>
                         <CrowdBar value={d.subway} color="#38BDF8" />
                       </div>
                       <div>
-                        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>버스</div>
+                        <div style={{ fontSize: 9, color: 'var(--app-text)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>버스</div>
                         <CrowdBar value={d.bus} color="#FB923C" />
                       </div>
                       <div>
-                        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>따릉이</div>
+                        <div style={{ fontSize: 9, color: 'var(--app-text)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>따릉이</div>
                         <CrowdBar value={d.bike} color="#34D399" />
                       </div>
                     </div>
@@ -1773,15 +1901,15 @@ export default function AppM() {
           </div>
 
           {/* 데이터 출처 */}
-          <div style={{ marginTop: 24, padding: '16px 20px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'JetBrains Mono' }}>DATA SOURCES</span>
+          <div style={{ marginTop: 24, padding: '16px 20px', background: 'var(--color-card)', border: '1px solid var(--app-text)', borderRadius: 16, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>DATA SOURCES</span>
             {[
               '서울시 버스노선별 정류장별 시간대별 승하차',
               '서울시 지하철 호선별 역별 시간대별 승하차',
               '서울시 공공자전거 따릉이 대여이력',
               '기상청 동단위 시간별 날씨 데이터',
             ].map(src => (
-              <span key={src} style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono' }}>
+              <span key={src} style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
                 · {src}
               </span>
             ))}
@@ -1795,10 +1923,10 @@ export default function AppM() {
       {page === 'route' && (
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 32px 64px' }}>
           <div style={{ marginBottom: 28 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#F0F6FF', margin: 0, letterSpacing: '-0.5px' }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--app-text)', margin: 0, letterSpacing: '-0.5px' }}>
               경로 추천
             </h1>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: '6px 0 0' }}>
+            <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: '6px 0 0' }}>
               현재 날씨를 반영해 최적 교통수단과 경로를 추천합니다
             </p>
           </div>
@@ -1812,14 +1940,14 @@ export default function AppM() {
                 <span style={{ fontSize: 22 }}>🌧</span>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#38BDF8' }}>강남구 역삼동 · 비 · 14°C · 강수 2.8mm/h</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>현재 날씨 기준으로 교통수단을 추천합니다</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 1 }}>현재 날씨 기준으로 교통수단을 추천합니다</div>
                 </div>
               </div>
 
               {/* 출발/도착 입력 (지하철역 실시간 자동완성 검색 연동) */}
-              <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, marginBottom: 16 }}>
+              <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 20, marginBottom: 16 }}>
                 {/* 출발지 */}
-                <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
+                <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
                   <div style={{ fontSize: 10, color: '#34D399', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 6 }}>
                     🟢  출발지 (지하철역 검색)
                   </div>
@@ -1871,7 +1999,7 @@ export default function AppM() {
                     placeholder="출발역 이름 입력 (예: 구로역, 강남역, 시청역...)"
                     style={{
                       width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                      fontSize: 15, fontWeight: 500, color: '#F0F6FF',
+                      fontSize: 15, fontWeight: 500, color: 'var(--app-text)',
                       fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
                     }}
                   />
@@ -1883,10 +2011,10 @@ export default function AppM() {
                     return (
                       <div style={{
                         position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                        background: '#111D35', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 12,
+                        background: 'var(--color-surface)', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 12,
                         boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 240, overflowY: 'auto',
                       }}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--app-text)', display: 'flex', justifyContent: 'space-between' }}>
                           <span>검색 결과 {results.length}건</span>
                           <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
                         </div>
@@ -1902,7 +2030,7 @@ export default function AppM() {
                               setFocusedCoords(st.coords)
                             }}
                             style={{
-                              padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              padding: '10px 14px', borderBottom: '1px solid var(--app-text)',
                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                               background: idx === selectedDepartureIndex ? 'rgba(52,211,153,0.22)' : 'transparent',
                               borderLeft: idx === selectedDepartureIndex ? '3px solid #34D399' : '3px solid transparent',
@@ -1912,7 +2040,7 @@ export default function AppM() {
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontSize: 14 }}>🚇</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{st.name}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
                               <span style={{ fontSize: 10, color: '#34D399', background: 'rgba(52,211,153,0.15)', padding: '2px 6px', borderRadius: 4 }}>
                                 {st.lines.join(', ')}
                               </span>
@@ -1978,7 +2106,7 @@ export default function AppM() {
                     placeholder="도착역 이름 입력 (예: 강남역, 여의도역, 판교역...)"
                     style={{
                       width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                      fontSize: 15, fontWeight: 500, color: '#F0F6FF',
+                      fontSize: 15, fontWeight: 500, color: 'var(--app-text)',
                       fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
                     }}
                   />
@@ -1990,10 +2118,10 @@ export default function AppM() {
                     return (
                       <div style={{
                         position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                        background: '#111D35', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 12,
+                        background: 'var(--color-surface)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 12,
                         boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 240, overflowY: 'auto',
                       }}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--app-text)', display: 'flex', justifyContent: 'space-between' }}>
                           <span>검색 결과 {results.length}건</span>
                           <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
                         </div>
@@ -2008,7 +2136,7 @@ export default function AppM() {
                               setShowDestinationList(false)
                             }}
                             style={{
-                              padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              padding: '10px 14px', borderBottom: '1px solid var(--app-text)',
                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                               background: idx === selectedDestinationIndex ? 'rgba(56,189,248,0.22)' : 'transparent',
                               borderLeft: idx === selectedDestinationIndex ? '3px solid #38BDF8' : '3px solid transparent',
@@ -2018,7 +2146,7 @@ export default function AppM() {
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontSize: 14 }}>🚇</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{st.name}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
                               <span style={{ fontSize: 10, color: '#38BDF8', background: 'rgba(56,189,248,0.15)', padding: '2px 6px', borderRadius: 4 }}>
                                 {st.lines.join(', ')}
                               </span>
@@ -2038,7 +2166,7 @@ export default function AppM() {
                 onClick={() => handleSearchRoute(departure, destination)}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 16, cursor: 'pointer', marginBottom: 20,
-                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
+                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: 'var(--color-bg)',
                   fontSize: 15, fontWeight: 800, border: 'none',
                   boxShadow: '0 8px 32px rgba(56,189,248,0.3)',
                 }}
@@ -2048,7 +2176,7 @@ export default function AppM() {
 
               {/* 자주 찾는 경로 */}
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: 'var(--app-text)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em', marginBottom: 10 }}>
                   자주 찾는 경로
                 </div>
                 {[
@@ -2072,19 +2200,19 @@ export default function AppM() {
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 12,
                         padding: '10px 14px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
-                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                        background: 'var(--color-card)', border: '1px solid var(--color-border)',
                         textAlign: 'left', transition: 'all 0.15s',
                       }}
                     >
                       <span style={{ fontSize: 18 }}>{item.icon}</span>
                       <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: '#F0F6FF' }}>{item.from}</span>
-                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '0 6px' }}>→</span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: '#F0F6FF' }}>{item.to}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--app-text)' }}>{item.from}</span>
+                        <span style={{ fontSize: 12, color: 'var(--app-text)', margin: '0 6px' }}>→</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--app-text)' }}>{item.to}</span>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>{timeStr}</div>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }} title={r?.fareBreakdown}>
+                        <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }} title={r?.fareBreakdown}>
                           {fareStr} <span style={{ fontSize: 9, color: 'rgba(56,189,248,0.7)' }}>{distStr}</span>
                         </div>
                       </div>
@@ -2097,7 +2225,7 @@ export default function AppM() {
             {/* 추천 결과 */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>
                   날씨 기반 교통수단 추천 결과
                 </div>
                 {aiStatus === 'connected' && (
@@ -2111,33 +2239,33 @@ export default function AppM() {
                   <div
                     key={t.id}
                     style={{
-                      background: i === 0 ? 'rgba(56,189,248,0.06)' : '#162040',
-                      border: i === 0 ? '1px solid rgba(56,189,248,0.25)' : '1px solid rgba(255,255,255,0.08)',
+                      background: i === 0 ? 'rgba(56,189,248,0.06)' : 'var(--color-card)',
+                      border: i === 0 ? '1px solid rgba(56,189,248,0.25)' : '1px solid var(--color-border)',
                       borderRadius: 20, padding: 20,
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
                       <div style={{
-                        width: 52, height: 52, borderRadius: 16, background: 'rgba(255,255,255,0.06)',
+                        width: 52, height: 52, borderRadius: 16, background: 'var(--color-card2)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0,
                       }}>
                         {t.icon}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 17, fontWeight: 800, color: '#F0F6FF' }}>{t.name}</span>
+                          <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--app-text)' }}>{t.name}</span>
                           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: `${t.scoreColor}22`, color: t.scoreColor, fontWeight: 700 }}>
                             {t.scoreLabel}
                           </span>
                           {i === 0 && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 999, background: 'rgba(52,211,153,0.15)', color: '#34D399', fontWeight: 700 }}>AI 추천</span>}
                         </div>
-                        <div style={{ height: 5, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: 5, background: 'var(--color-border)', borderRadius: 3, overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${t.score}%`, background: t.scoreColor, borderRadius: 3 }} />
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{ fontSize: 36, fontWeight: 900, color: t.scoreColor, fontFamily: 'JetBrains Mono', lineHeight: 1 }}>{t.score}</div>
-                        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: 'JetBrains Mono' }}>/ 100</div>
+                        <div style={{ fontSize: 9, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>/ 100</div>
                       </div>
                     </div>
 
@@ -2155,8 +2283,8 @@ export default function AppM() {
                         },
                         { label: '혼잡도', value: t.crowdLabel },
                       ].map(item => (
-                        <div key={item.label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>
+                        <div key={item.label} style={{ background: 'var(--color-card)', borderRadius: 12, padding: '10px 12px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 3 }}>
                             {item.label}
                             {item.label === '예상 요금' && t.id === 'subway' && activeRoute && (
                               <span style={{ fontSize: 9, color: 'rgba(56,189,248,0.7)', marginLeft: 4 }}>
@@ -2164,7 +2292,7 @@ export default function AppM() {
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: item.label === '혼잡도' ? t.crowdColor : '#F0F6FF' }}>{item.value}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: item.label === '혼잡도' ? t.crowdColor : 'var(--app-text)' }}>{item.value}</div>
                         </div>
                       ))}
                     </div>
@@ -2175,7 +2303,7 @@ export default function AppM() {
                           key={reason}
                           style={{
                             fontSize: 11, padding: '3px 10px', borderRadius: 999,
-                            background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
+                            background: 'var(--color-card2)', color: 'var(--color-muted)',
                           }}
                         >
                           {reason}
@@ -2183,7 +2311,7 @@ export default function AppM() {
                       ))}
                     </div>
 
-                    <div style={{ marginTop: 10, fontSize: 10, color: 'rgba(255,255,255,0.2)', fontFamily: 'JetBrains Mono' }}>
+                    <div style={{ marginTop: 10, fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
                       데이터: {t.dataset}
                     </div>
                   </div>
@@ -2191,11 +2319,11 @@ export default function AppM() {
               </div>
 
               {/* 강수량-이용률 상관관계 차트 */}
-              <div style={{ marginTop: 20, background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 20 }}>
+              <div style={{ marginTop: 20, background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 20, padding: 20 }}>
                 <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>강수량 vs 교통수단 이용률 상관관계</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>20.9만 건 서울시 교통카드·기상청 실측 빅데이터 교정</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--app-text)' }}>강수량 vs 교통수단 이용률 상관관계</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>20.9만 건 서울시 교통카드·기상청 실측 빅데이터 교정</div>
                   </div>
                   <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(56,189,248,0.1)', color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
                     실측 교정 완료
@@ -2203,12 +2331,12 @@ export default function AppM() {
                 </div>
                 <CorrelationChart />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'JetBrains Mono' }}>강수량(mm/h) →</span>
+                  <span style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>강수량(mm/h) →</span>
                   <div style={{ display: 'flex', gap: 14 }}>
                     {[['#38BDF8', '지하철'], ['#FB923C', '버스'], ['#34D399', '따릉이']].map(([c, n]) => (
                       <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <div style={{ width: 12, height: 2, background: c as string, borderRadius: 1 }} />
-                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }}>{n}</span>
+                        <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>{n}</span>
                       </div>
                     ))}
                   </div>
@@ -2227,16 +2355,16 @@ export default function AppM() {
 
           {/* 사이드패널 */}
           <div className="mobile-map-sidebar" style={{
-            width: 360, flexShrink: 0, background: '#111D35',
-            borderRight: '1px solid rgba(255,255,255,0.08)',
+            width: 360, flexShrink: 0, background: 'var(--color-surface)',
+            borderRight: '1px solid var(--color-border)',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
             {/* 지하철역 검색 및 자동완성 입력창 */}
-            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
+            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>🔍</span> 지하철역 검색 & 바로가기
               </div>
-              <div style={{ background: '#162040', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ background: 'var(--color-card)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 14 }}>🚇</span>
                 <input
                   value={subwaySearchQuery}
@@ -2279,7 +2407,7 @@ export default function AppM() {
                     }
                   }}
                   placeholder="지하철역 이름 입력 (예: 강남, 시청, 구로...)"
-                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: '#F0F6FF', fontFamily: "'Outfit','Noto Sans KR',sans-serif" }}
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--app-text)', fontFamily: "'Outfit','Noto Sans KR',sans-serif" }}
                 />
                 {subwaySearchQuery && (
                   <button
@@ -2287,7 +2415,7 @@ export default function AppM() {
                       setSubwaySearchQuery('')
                       setShowSearchResults(false)
                     }}
-                    style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 12 }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12 }}
                   >
                     ✕
                   </button>
@@ -2300,11 +2428,11 @@ export default function AppM() {
                 return (
                   <div style={{
                     position: 'absolute', top: '100%', left: 20, right: 20, zIndex: 100,
-                    background: '#111D35', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 12,
+                    background: 'var(--color-surface)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 12,
                     boxShadow: '0 8px 30px rgba(0,0,0,0.6)', maxHeight: 260, overflowY: 'auto',
                   }}>
                     {results.length > 0 && (
-                      <div style={{ padding: '6px 12px', fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--app-text)', display: 'flex', justifyContent: 'space-between' }}>
                         <span>검색 결과 {results.length}건</span>
                         <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
                       </div>
@@ -2318,7 +2446,7 @@ export default function AppM() {
                           }}
                           onClick={() => handleSelectStation(st)}
                           style={{
-                            padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            padding: '10px 14px', borderBottom: '1px solid var(--app-text)',
                             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             background: idx === selectedSubwayIndex ? 'rgba(56,189,248,0.22)' : 'transparent',
                             borderLeft: idx === selectedSubwayIndex ? '3px solid #38BDF8' : '3px solid transparent',
@@ -2328,13 +2456,13 @@ export default function AppM() {
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 15 }}>🚇</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{st.name}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
                             <span style={{ fontSize: 10, color: '#38BDF8', background: 'rgba(56,189,248,0.15)', padding: '2px 6px', borderRadius: 4 }}>
                               {st.lines[0]}
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>
+                            <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
                               {st.zone}
                             </span>
                             {idx === selectedSubwayIndex && (
@@ -2344,7 +2472,7 @@ export default function AppM() {
                         </div>
                       ))
                     ) : (
-                      <div style={{ padding: '14px', fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
+                      <div style={{ padding: '14px', fontSize: 12, color: 'var(--color-muted)', textAlign: 'center' }}>
                         검색된 지하철역이 없습니다.
                       </div>
                     )}
@@ -2354,7 +2482,7 @@ export default function AppM() {
             </div>
 
             {/* 교통수단 탭 */}
-            <div style={{ display: 'flex', gap: 6, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', gap: 6, padding: '14px 20px', borderBottom: '1px solid var(--color-border)' }}>
               {[
                 { id: 'all', icon: '🌐', label: '전체' },
                 { id: 'subway', icon: '🚇', label: '지하철' },
@@ -2367,12 +2495,12 @@ export default function AppM() {
                   style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                     padding: '8px 4px', borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',
-                    background: mapTransport === t.id ? 'rgba(56,189,248,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: mapTransport === t.id ? '1px solid rgba(56,189,248,0.4)' : '1px solid rgba(255,255,255,0.07)',
+                    background: mapTransport === t.id ? 'rgba(56,189,248,0.15)' : 'var(--color-card)',
+                    border: mapTransport === t.id ? '1px solid rgba(56,189,248,0.4)' : '1px solid var(--color-border)',
                   }}
                 >
                   <span style={{ fontSize: 18 }}>{t.icon}</span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: mapTransport === t.id ? '#38BDF8' : 'rgba(255,255,255,0.5)' }}>{t.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: mapTransport === t.id ? '#38BDF8' : 'var(--color-muted)' }}>{t.label}</span>
                 </button>
               ))}
             </div>
@@ -2403,7 +2531,7 @@ export default function AppM() {
                         setActiveRoute(null)
                         setFocusedCoords(null)
                       }}
-                      style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer' }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', fontSize: 11, cursor: 'pointer' }}
                     >
                       초기화 ✕
                     </button>
@@ -2411,7 +2539,7 @@ export default function AppM() {
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#F0F6FF' }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--app-text)' }}>
                         {activeRoute.from} ➔ {activeRoute.to}
                       </div>
                       <div style={{ fontSize: 11, color: '#38BDF8', marginTop: 2 }}>
@@ -2422,23 +2550,23 @@ export default function AppM() {
                       <div style={{ fontSize: 26, fontWeight: 900, color: '#38BDF8', fontFamily: 'JetBrains Mono', lineHeight: 1 }}>
                         {activeRoute.estimatedMinutes}
                       </div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }}>분 소요</div>
+                      <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>분 소요</div>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>환승 횟수</div>
+                    <div style={{ flex: 1, background: 'var(--color-card2)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--app-text)' }}>환승 횟수</div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24' }}>
                         {activeRoute.transferCount === 0 ? '0회 (직통)' : `${activeRoute.transferCount}회`}
                       </div>
                     </div>
-                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>경유 역</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.stationCount}개 역</div>
+                    <div style={{ flex: 1, background: 'var(--color-card2)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--app-text)' }}>경유 역</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.stationCount}개 역</div>
                     </div>
-                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>이동 요금 ({activeRoute.distanceKm}km)</div>
+                    <div style={{ flex: 1, background: 'var(--color-card2)', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--app-text)' }}>이동 요금 ({activeRoute.distanceKm}km)</div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }} title={activeRoute.fareBreakdown}>
                         {activeRoute.fareKrw.toLocaleString()}원
                       </div>
@@ -2449,7 +2577,7 @@ export default function AppM() {
                   {activeRoute.fareBreakdown && (
                     <div style={{
                       fontSize: 10,
-                      color: 'rgba(255,255,255,0.7)',
+                      color: 'var(--app-text)',
                       background: 'rgba(56,189,248,0.08)',
                       border: '1px solid rgba(56,189,248,0.2)',
                       borderRadius: 8,
@@ -2465,7 +2593,7 @@ export default function AppM() {
                   )}
 
                   {/* 실시간 열차 탑승 안내 박스 (몇 분 후 탑승) */}
-                  <div style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ background: 'var(--color-card)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid var(--app-text)' }}>
                     <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 800, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span>⏱️</span>
                       <span>실시간 열차 도착 정보 (몇 분 후 탑승)</span>
@@ -2473,14 +2601,14 @@ export default function AppM() {
 
                     {/* 출발역 열차 */}
                     {activeRoute.departureTrain && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: activeRoute.transferTrains && activeRoute.transferTrains.length > 0 ? '1px dashed rgba(255,255,255,0.08)' : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: activeRoute.transferTrains && activeRoute.transferTrains.length > 0 ? '1px dashed var(--color-card)' : 'none' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 13 }}>🟢</span>
                           <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--app-text)' }}>
                               {activeRoute.from} <span style={{ fontSize: 10, color: '#38BDF8' }}>[{activeRoute.departureTrain.line}]</span>
                             </div>
-                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                            <div style={{ fontSize: 10, color: 'var(--color-muted)' }}>
                               {activeRoute.departureTrain.destinationOrNext} 방면 ({activeRoute.departureTrain.arrivalMessage})
                             </div>
                           </div>
@@ -2489,7 +2617,7 @@ export default function AppM() {
                           <div style={{ fontSize: 14, fontWeight: 900, color: '#34D399', fontFamily: 'JetBrains Mono' }}>
                             {activeRoute.departureTrain.remainingMinutes}분 후
                           </div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>탑승 대기</div>
+                          <div style={{ fontSize: 9, color: 'var(--app-text)' }}>탑승 대기</div>
                         </div>
                       </div>
                     )}
@@ -2503,7 +2631,7 @@ export default function AppM() {
                             <div style={{ fontSize: 12, fontWeight: 700, color: '#FBBF24' }}>
                               {tr.station} <span style={{ fontSize: 10, color: '#FDE68A' }}>[{tr.line} 환승]</span>
                             </div>
-                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                            <div style={{ fontSize: 10, color: 'var(--color-muted)' }}>
                               {tr.destinationOrNext} 방면 ({tr.arrivalMessage})
                             </div>
                           </div>
@@ -2512,18 +2640,18 @@ export default function AppM() {
                           <div style={{ fontSize: 14, fontWeight: 900, color: '#FBBF24', fontFamily: 'JetBrains Mono' }}>
                             {tr.remainingMinutes}분 후
                           </div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>환승 도착</div>
+                          <div style={{ fontSize: 9, color: 'var(--app-text)' }}>환승 도착</div>
                         </div>
                       </div>
                     ))}
                   </div>
 
                   {/* 경유역 경로 리스트 */}
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginBottom: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6 }}>
                     경유 역 목록 (클릭 시 해당 역 위치로 이동):
                   </div>
                   <div style={{
-                    maxHeight: 150, overflowY: 'auto', background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '6px 10px',
+                    maxHeight: 150, overflowY: 'auto', background: 'var(--color-card2)', borderRadius: 8, padding: '6px 10px',
                     display: 'flex', flexDirection: 'column', gap: 4
                   }}>
                     {activeRoute.path.map((p, idx) => (
@@ -2542,7 +2670,7 @@ export default function AppM() {
                             {idx === 0 ? '🟢' : idx === activeRoute.path.length - 1 ? '🔴' : p.isTransfer ? '🔄' : '○'}
                           </span>
                           <span style={{
-                            color: idx === 0 || idx === activeRoute.path.length - 1 ? '#FFFFFF' : p.isTransfer ? '#FBBF24' : 'rgba(255,255,255,0.75)',
+                            color: idx === 0 || idx === activeRoute.path.length - 1 ? 'var(--app-text)' : p.isTransfer ? '#FBBF24' : 'var(--color-muted)',
                             fontWeight: idx === 0 || idx === activeRoute.path.length - 1 || p.isTransfer ? 700 : 400
                           }}>
                             {p.name}
@@ -2581,19 +2709,19 @@ export default function AppM() {
                     <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>선택된 거점 상세 정보</div>
                     <button
                       onClick={() => handleSelectStop(null)}
-                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 14, padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 14, padding: 0 }}
                       title="선택 해제"
                     >
                       ✕
                     </button>
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: '#F0F6FF', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--app-text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>{selectedStop.type === 'subway' ? '🚇' : selectedStop.type === 'bus' ? '🚌' : '🚲'} {selectedStop.name}</span>
-                    <span style={{ fontSize: 10, color: '#94A3B8', background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 4 }}>
+                    <span style={{ fontSize: 10, color: 'var(--color-muted)', background: 'var(--color-card)', padding: '2px 6px', borderRadius: 4 }}>
                       {resolveDistrict(selectedStop.name, selectedStop.coords)}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 10, fontFamily: 'monospace' }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 10, fontFamily: 'monospace' }}>
                     {selectedStop.lineInfo}
                   </div>
 
@@ -2601,7 +2729,7 @@ export default function AppM() {
                   {stopDataLoading && !stopWeatherData ? (
                     <div style={{ background: 'rgba(14, 165, 233, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
                       <div style={{ fontSize: 11, color: '#38BDF8', fontWeight: 700, marginBottom: 2 }}>⏳ 기상청 실시간 관측 데이터 조회 중...</div>
-                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>좌표 기반 KMA LCC 격자 산출 및 초단기실황 연동</div>
+                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>좌표 기반 KMA LCC 격자 산출 및 초단기실황 연동</div>
                     </div>
                   ) : stopWeatherData ? (
                     <div style={{ background: 'rgba(14, 165, 233, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
@@ -2609,35 +2737,35 @@ export default function AppM() {
                         <span style={{ fontSize: 11, fontWeight: 800, color: '#38BDF8', display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span>🌦️</span> {stopWeatherData.district} 국지 기상 실황
                         </span>
-                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono' }}>
+                        <span style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
                           격자 ({stopWeatherData.nx}, {stopWeatherData.ny})
                         </span>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, textAlign: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '6px 4px', marginBottom: 6 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, textAlign: 'center', background: 'var(--color-card2)', borderRadius: 8, padding: '6px 4px', marginBottom: 6 }}>
                         <div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>기온</div>
+                          <div style={{ fontSize: 9, color: 'var(--color-muted)' }}>기온</div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: '#F8FAFC', fontFamily: 'JetBrains Mono' }}>{stopWeatherData.temp}°C</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>강수</div>
+                          <div style={{ fontSize: 9, color: 'var(--color-muted)' }}>강수</div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: stopWeatherData.rain > 0 ? '#60A5FA' : '#34D399', fontFamily: 'JetBrains Mono' }}>{stopWeatherData.rain}mm</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>습도</div>
+                          <div style={{ fontSize: 9, color: 'var(--color-muted)' }}>습도</div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: '#F8FAFC', fontFamily: 'JetBrains Mono' }}>{stopWeatherData.humidity}%</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>풍속</div>
+                          <div style={{ fontSize: 9, color: 'var(--color-muted)' }}>풍속</div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: '#F8FAFC', fontFamily: 'JetBrains Mono' }}>{stopWeatherData.wind}m/s</div>
                         </div>
                       </div>
                       <div style={{ fontSize: 10, color: '#BAE6FD', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span>{stopWeatherData.rain > 0 ? `🌧️ ${stopWeatherData.pty_desc || '비'} (강수 영향 반영)` : '☀️ 맑음 (평시 통행 패턴)'}</span>
-                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>출처: 기상청 APIHUB</span>
+                        <span style={{ fontSize: 9, color: 'var(--color-muted)' }}>출처: 기상청 APIHUB</span>
                       </div>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 11, color: '#F0F6FF', background: 'rgba(0,0,0,0.25)', padding: '8px 10px', borderRadius: 8, lineHeight: 1.5, marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, color: 'var(--app-text)', background: 'var(--color-card2)', padding: '8px 10px', borderRadius: 8, lineHeight: 1.5, marginBottom: 10 }}>
                       {activeRain > 0 ? (
                         <>🌧 실시간 비({activeRain}mm)로 인해 <b>{selectedStop.type === 'bike' ? '따릉이 이용 위험 및 비추천' : '실내 환승 및 지하철 이용 집중'}</b> 상태입니다.</>
                       ) : (
@@ -2650,7 +2778,7 @@ export default function AppM() {
                   {stopDataLoading && !stopAIData ? (
                     <div style={{ background: 'rgba(124, 58, 237, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
                       <div style={{ fontSize: 11, color: '#C084FC', fontWeight: 700, marginBottom: 2 }}>⚡ AI 모델 32차원 피처 추론 연산 중...</div>
-                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>시계열 래그 및 기상 차분 반영 ONNX 인메모리 추론</div>
+                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 및 기상 차분 반영 ONNX 인메모리 추론</div>
                     </div>
                   ) : stopAIData ? (() => {
                     const rec = stopAIData.recommendations?.find((r: any) => r.id === selectedStop.type) || stopAIData.recommendations?.[0]
@@ -2665,17 +2793,17 @@ export default function AppM() {
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
-                          <span style={{ color: '#E2E8F0' }}>
+                          <span style={{ color: 'var(--app-text)' }}>
                             예측 혼잡도: <strong style={{ color: rec.crowdColor }}>{rec.crowd}%</strong> ({rec.crowdLabel})
                           </span>
-                          <span style={{ color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono', fontSize: 10 }}>
+                          <span style={{ color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', fontSize: 10 }}>
                             시간당 {rec.predicted_volume?.toLocaleString()}명
                           </span>
                         </div>
-                        <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+                        <div style={{ height: 6, background: 'var(--color-card)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
                           <div style={{ width: `${rec.crowd}%`, height: '100%', background: rec.crowdColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
                         </div>
-                        <div style={{ fontSize: 10, color: '#DDD6FE', background: 'rgba(0,0,0,0.3)', padding: '6px 8px', borderRadius: 6, borderLeft: '2px solid #A855F7', lineHeight: 1.4 }}>
+                        <div style={{ fontSize: 10, color: '#DDD6FE', background: 'var(--color-card2)', padding: '6px 8px', borderRadius: 6, borderLeft: '2px solid #A855F7', lineHeight: 1.4 }}>
                           {rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석 완료'}
                         </div>
                       </div>
@@ -2684,19 +2812,19 @@ export default function AppM() {
 
                   {/* 실시간 지하철 열차 도착 정보 */}
                   {selectedStop.type === 'subway' && (
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
+                    <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <span style={{ fontSize: 11, fontWeight: 800, color: '#38BDF8', display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span>🚇</span> 실시간 열차 도착 정보
                         </span>
                         {stopArrivalData.lastUpdated && (
-                          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>
+                          <span style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
                             {stopArrivalData.lastUpdated} 기준
                           </span>
                         )}
                       </div>
                       {stopArrivalData.loading ? (
-                        <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', padding: '10px 0', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
                           ⏳ 실시간 열차 운행 정보 수신 중...
                         </div>
                       ) : stopArrivalData.subwayArrivals && stopArrivalData.subwayArrivals.length > 0 ? (
@@ -2705,7 +2833,7 @@ export default function AppM() {
                             <div
                               key={idx}
                               style={{
-                                background: 'rgba(0,0,0,0.35)',
+                                background: 'var(--color-card2)',
                                 border: '1px solid rgba(56,189,248,0.2)',
                                 borderRadius: 8,
                                 padding: '7px 10px',
@@ -2723,7 +2851,7 @@ export default function AppM() {
                                     {arr.destination}
                                   </span>
                                 </div>
-                                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--color-muted)' }}>
                                   {arr.updn_line || '운행구간'} {arr.train_status && arr.train_status !== '일반' ? `· ${arr.train_status}` : ''}
                                 </div>
                               </div>
@@ -2732,7 +2860,7 @@ export default function AppM() {
                                   {arr.message}
                                 </div>
                                 {arr.remaining_minutes > 0 && (
-                                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
+                                  <div style={{ fontSize: 9, color: 'var(--color-muted)', marginTop: 1 }}>
                                     약 {arr.remaining_minutes}분 후
                                   </div>
                                 )}
@@ -2741,7 +2869,7 @@ export default function AppM() {
                           ))}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 11, color: '#94A3B8', padding: '6px 0', textAlign: 'center' }}>
+                        <div style={{ fontSize: 11, color: 'var(--color-muted)', padding: '6px 0', textAlign: 'center' }}>
                           배차 간격 2~5분 정상 운행중입니다.
                         </div>
                       )}
@@ -2750,19 +2878,19 @@ export default function AppM() {
 
                   {/* 실시간 버스 도착 정보 */}
                   {selectedStop.type === 'bus' && (
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
+                    <div style={{ borderTop: '1px solid var(--color-border', paddingTop: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <span style={{ fontSize: 11, fontWeight: 800, color: '#34D399', display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span>🚌</span> 실시간 버스 도착 정보
                         </span>
                         {stopArrivalData.lastUpdated && (
-                          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>
+                          <span style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
                             {stopArrivalData.lastUpdated} 기준
                           </span>
                         )}
                       </div>
                       {stopArrivalData.loading ? (
-                        <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', padding: '10px 0', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
                           ⏳ 실시간 버스 정보 수신 중...
                         </div>
                       ) : stopArrivalData.busArrivals && stopArrivalData.busArrivals.length > 0 ? (
@@ -2771,7 +2899,7 @@ export default function AppM() {
                             <div
                               key={idx}
                               style={{
-                                background: 'rgba(0,0,0,0.35)',
+                                background: 'var(--color-card2)',
                                 border: '1px solid rgba(52,211,153,0.2)',
                                 borderRadius: 8,
                                 padding: '7px 10px',
@@ -2782,7 +2910,7 @@ export default function AppM() {
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{ fontSize: 12, fontWeight: 800, color: '#34D399' }}>{b.route_name || b.rtNm}</span>
-                                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>간선</span>
+                                <span style={{ fontSize: 10, color: 'var(--color-muted)' }}>간선</span>
                               </div>
                               <span style={{ fontSize: 11, fontWeight: 700, color: '#FCD34D', fontFamily: 'JetBrains Mono' }}>
                                 {b.arrival_msg1 || b.arrmsg1 || '운행중'}
@@ -2791,7 +2919,7 @@ export default function AppM() {
                           ))}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 11, color: '#94A3B8', padding: '6px 0', textAlign: 'center' }}>
+                        <div style={{ fontSize: 11, color: 'var(--color-muted)', padding: '6px 0', textAlign: 'center' }}>
                           실시간 버스 도착 정보가 없습니다.
                         </div>
                       )}
@@ -2800,11 +2928,11 @@ export default function AppM() {
 
                   {/* 따릉이 거치 현황 */}
                   {selectedStop.type === 'bike' && (
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
+                    <div style={{ borderTop: '1px solid var(--color-border', paddingTop: 10 }}>
                       <div style={{ fontSize: 11, fontWeight: 800, color: '#10B981', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                         <span>🚲</span> 따릉이 실시간 거치 현황
                       </div>
-                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 10px', borderRadius: 8, fontSize: 11, color: '#E2E8F0' }}>
+                      <div style={{ background: 'var(--color-card2)', padding: '8px 10px', borderRadius: 8, fontSize: 11, color: 'var(--app-text)' }}>
                         {selectedStop.lineInfo}
                       </div>
                     </div>
@@ -2814,8 +2942,8 @@ export default function AppM() {
                 <div style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#F0F6FF' }}>강남구청 → 잠실역</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--app-text)' }}>강남구청 → 잠실역</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
                         {mapTransport === 'subway' ? '지하철 2호선' : mapTransport === 'bus' ? '버스 145' : '따릉이 대여'}
                       </div>
                     </div>
@@ -2823,7 +2951,7 @@ export default function AppM() {
                       <div style={{ fontSize: 28, fontWeight: 900, color: '#38BDF8', fontFamily: 'JetBrains Mono', lineHeight: 1 }}>
                         {mapTransport === 'subway' ? '28' : mapTransport === 'bus' ? '42' : '55'}
                       </div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }}>분</div>
+                      <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>분</div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -2831,9 +2959,9 @@ export default function AppM() {
                       ['💰', mapTransport === 'subway' ? '1,550원~ (거리비례)' : mapTransport === 'bus' ? '1,300원' : '1,000원/h'],
                       ['👥', activeRain > 3 ? (mapTransport === 'bike' ? '운행중단' : '매우혼잡') : (mapTransport === 'bike' ? '여유' : '보통')],
                     ].map(([icon, val]) => (
-                      <div key={val as string} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div key={val as string} style={{ flex: 1, background: 'var(--color-card2)', borderRadius: 10, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ fontSize: 13 }}>{icon}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#F0F6FF' }}>{val}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--app-text)' }}>{val}</span>
                       </div>
                     ))}
                   </div>
@@ -2841,13 +2969,13 @@ export default function AppM() {
               )}
 
               {/* 안내 문구 */}
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5, background: 'rgba(255,255,255,0.02)', padding: '10px 12px', borderRadius: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--color-muted)', lineHeight: 1.5, background: 'var(--color-card)', padding: '10px 12px', borderRadius: 10 }}>
                 💡 <b>안내</b>: 지도 위의 마커를 클릭하면 해당 정류장 및 역의 상세 혼잡도와 날씨 민감도 분석을 확인하실 수 있습니다.
               </div>
             </div>
 
             {/* 안내 시작 버튼 */}
-            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)' }}>
               <button
                 onClick={() => {
                   if (!activeRoute) {
@@ -2861,7 +2989,7 @@ export default function AppM() {
                 }}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 16, cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
+                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: 'var(--color-bg)',
                   fontSize: 15, fontWeight: 800, border: 'none',
                   boxShadow: '0 8px 24px rgba(56,189,248,0.35)',
                 }}
@@ -2896,10 +3024,10 @@ export default function AppM() {
           50% { opacity: 0.4; }
         }
         * { scrollbar-width: thin; scrollbar-color: rgba(56,189,248,0.3) transparent; }
-        input::placeholder { color: rgba(255,255,255,0.2); }
+        input::placeholder { color: var(--color-muted); }
         button { transition: all 0.15s ease; }
         button:hover { opacity: 0.88; }
-        select option { background: #162040; }
+        select option { background: var(--color-card); }
 
         /* ── 모바일 전용 레이아웃: AppM에서만 사용 ── */
         @media (max-width: 768px) {

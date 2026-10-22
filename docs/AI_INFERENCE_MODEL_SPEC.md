@@ -233,7 +233,7 @@ FEATURE_SCHEMA = {
       "name": "따릉이",
       "score": 14,
       "scoreLabel": "비추천",
-      "scoreColor": "#94A3B8",
+      "scoreColor": "var(--color-muted)",
       "reasons": [
         "강수량 2.8mm로 노면 수막현상 및 미끄러짐 위험 극심",
         "우천 시 자전거 이용객 82% 감소 패턴 관측",

@@ -1273,7 +1273,7 @@ export default function AppM() {
                 }}
               >
                 {DISTRICT_GROUPS.map(group => (
-                  <optgroup key={group.zone} label={group.zone} style={{ background: '#0D1B3A', color: '#38BDF8', fontWeight: 700 }}>
+                  <optgroup key={group.zone} label={group.zone} style={{ background: 'var(--color-card)', color: 'var(--app-text)', fontWeight: 700 }}>
                     {group.items.map(d => {
                       const globalIdx = DISTRICTS.indexOf(d)
                       return (
@@ -1524,7 +1524,7 @@ export default function AppM() {
                     display: 'flex', alignItems: 'center', gap: 12, marginBottom: i < 2 ? 12 : 0,
                     padding: '10px 12px', borderRadius: 14,
                     background: i === 0 ? 'rgba(56,189,248,0.08)' : 'var(--color-card)',
-                    border: i === 0 ? '1px solid rgba(56,189,248,0.2)' : '1px solid var(--app-text)',
+                    border: i === 0 ? '1px solid rgba(56,189,248,0.2)' : '1px solid var(--color-border)',
                   }}
                 >
                   <span style={{ fontSize: 24 }}>{t.icon}</span>
@@ -1987,7 +1987,7 @@ export default function AppM() {
                         background: 'var(--color-surface)', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 12,
                         boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 240, overflowY: 'auto',
                       }}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--app-text)', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
                           <span>검색 결과 {results.length}건</span>
                           <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
                         </div>
@@ -2003,7 +2003,7 @@ export default function AppM() {
                               setFocusedCoords(st.coords)
                             }}
                             style={{
-                              padding: '10px 14px', borderBottom: '1px solid var(--app-text)',
+                              padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                               background: idx === selectedDepartureIndex ? 'rgba(52,211,153,0.22)' : 'transparent',
                               borderLeft: idx === selectedDepartureIndex ? '3px solid #34D399' : '3px solid transparent',
@@ -2094,7 +2094,7 @@ export default function AppM() {
                         background: 'var(--color-surface)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 12,
                         boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 240, overflowY: 'auto',
                       }}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--app-text)', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
                           <span>검색 결과 {results.length}건</span>
                           <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
                         </div>
@@ -2109,7 +2109,7 @@ export default function AppM() {
                               setShowDestinationList(false)
                             }}
                             style={{
-                              padding: '10px 14px', borderBottom: '1px solid var(--app-text)',
+                              padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                               background: idx === selectedDestinationIndex ? 'rgba(56,189,248,0.22)' : 'transparent',
                               borderLeft: idx === selectedDestinationIndex ? '3px solid #38BDF8' : '3px solid transparent',
@@ -2405,7 +2405,7 @@ export default function AppM() {
                     boxShadow: '0 8px 30px rgba(0,0,0,0.6)', maxHeight: 260, overflowY: 'auto',
                   }}>
                     {results.length > 0 && (
-                      <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--app-text)', display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
                         <span>검색 결과 {results.length}건</span>
                         <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
                       </div>
@@ -2419,7 +2419,7 @@ export default function AppM() {
                           }}
                           onClick={() => handleSelectStation(st)}
                           style={{
-                            padding: '10px 14px', borderBottom: '1px solid var(--app-text)',
+                            padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
                             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             background: idx === selectedSubwayIndex ? 'rgba(56,189,248,0.22)' : 'transparent',
                             borderLeft: idx === selectedSubwayIndex ? '3px solid #38BDF8' : '3px solid transparent',

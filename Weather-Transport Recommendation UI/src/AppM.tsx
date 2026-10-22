@@ -1187,6 +1187,7 @@ export default function AppM() {
               </div>
             </div>
 
+            
           </div>
 
 
@@ -1213,34 +1214,6 @@ export default function AppM() {
               </button>
             ))}
           </div>
-
-          {/* Theme Toggle - 오른쪽 정렬 */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={theme === 'dark' ? '화이트 모드로 전환' : '다크 모드로 전환'}
-            aria-pressed={theme === 'dark'}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              padding: '7px 10px',
-              marginLeft: 'auto',
-              flexShrink: 0,
-              borderRadius: 8,
-              background: 'var(--color-card)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--app-text)',
-              fontSize: 12,
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-            }}
-          >
-            {theme === 'dark' ? '☀️ 화이트 모드' : '🌙 다크 모드'}
-          </button>
-
 
           {/* Live indicator & Console trigger button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
@@ -1854,7 +1827,7 @@ export default function AppM() {
                     }}
                     style={{
                       padding: '10px 14px', background: 'var(--color-card)', borderRadius: 14,
-                      border: '1px solid var(--app-text)',
+                      border: '1px solid var(--color-border)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
@@ -1901,7 +1874,7 @@ export default function AppM() {
           </div>
 
           {/* 데이터 출처 */}
-          <div style={{ marginTop: 24, padding: '16px 20px', background: 'var(--color-card)', border: '1px solid var(--app-text)', borderRadius: 16, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 24, padding: '16px 20px', background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 16, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>DATA SOURCES</span>
             {[
               '서울시 버스노선별 정류장별 시간대별 승하차',
@@ -2593,7 +2566,7 @@ export default function AppM() {
                   )}
 
                   {/* 실시간 열차 탑승 안내 박스 (몇 분 후 탑승) */}
-                  <div style={{ background: 'var(--color-card)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid var(--app-text)' }}>
+                  <div style={{ background: 'var(--color-card)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid var(--color-border)' }}>
                     <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 800, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span>⏱️</span>
                       <span>실시간 열차 도착 정보 (몇 분 후 탑승)</span>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
+import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logBikeApiCall, logBikeNearbyCall } from './apiLogger'
 import { SUBWAY_STATIONS } from './subwayData'
 import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
@@ -301,6 +301,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const isInitialRestoringRef = useRef<boolean>(false)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  // 실시간 API로 불러온 거점 외 따릉이 대여소 (기존 마커 파이프라인에 합쳐 표시)
+  const [liveBikeStops, setLiveBikeStops] = useState<TransitStop[]>([])
   const [zoomLevel, setZoomLevel] = useState<number>(13)
 
   // 🚌 선택한 버스 노선은 지하철 activeRoute와 별도 레이어로 관리
@@ -1106,6 +1108,102 @@ popupContent.append(title, number)
     }
   }, [mapLoaded, filterType])
 
+  // 🚲 지도 주변 실제 따릉이 대여소를 기존 거점 마커와 동일한 마커/팝업(AI 모델 + 실시간 잔여 수)으로 통합 표시
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current) return
+    if (filterType !== 'bike' && filterType !== 'all') return
+
+    const map = mapInstanceRef.current
+    let controller: AbortController | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
+
+    const hubNos = new Set(BIKE_STATIONS.map(b => b.stationNo))
+    const avgRainSensitivity =
+      BIKE_STATIONS.reduce((sum, b) => sum + b.rainSensitivity, 0) / Math.max(1, BIKE_STATIONS.length)
+
+    const loadNearbyBikeStations = async () => {
+      controller?.abort()
+      controller = new AbortController()
+
+      // 따릉이 필터에서만, 충분히 확대했을 때만 조회 (전체 모드에서는 기존 거점만 표시)
+      if (filterType !== 'bike' || map.getZoom() < 14.5) return
+
+      const center = map.getCenter()
+      const bounds = map.getBounds()
+
+      try {
+        const params = new URLSearchParams({
+          lat: String(center.lat),
+          lng: String(center.lng),
+          radius: '800',
+          limit: '150'
+        })
+        const reqUrl = `${API_BASE_URL || ''}/api/v1/transit/bike/stations/nearby?${params.toString()}`
+        const response = await fetch(reqUrl, { signal: controller.signal })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+        const data = await response.json()
+        if (disposed) return
+        logBikeNearbyCall({ lat: center.lat, lng: center.lng, radius: 800 }, data)
+
+        const added: TransitStop[] = []
+        for (const s of data.stations || []) {
+          if (!s.id || !s.coords || !bounds.contains(s.coords)) continue
+          const rawName = String(s.name || '')
+          const stationNo = rawName.split('.')[0].trim()
+          // 모델 기반 거점 마커(BIKE_STATIONS)와 중복되는 대여소는 기존 마커를 사용
+          if (hubNos.has(stationNo)) continue
+          added.push({
+            id: `bike-live-${s.id}`,
+            name: rawName.replace(/^\d+\.\s*/, '').trim() || '따릉이 대여소',
+            type: 'bike',
+            coords: s.coords,
+            lineInfo: '서울자전거 따릉이',
+            // 거점 데이터가 없는 대여소는 기본 이용 수요도를 사용하고, 잔여 수는 팝업에서 실시간 값으로 채움
+            baseCrowd: 45,
+            rainSensitivity: avgRainSensitivity,
+            stationNo,
+            rackCount: Number(s.rackTotal) || undefined
+          })
+        }
+
+        // 정보 팝업이 열려 있는 동안 마커를 재생성하면 팝업이 닫히므로, 닫힌 뒤 다음 이동 시 반영
+        if (activePopupRef.current) return
+
+        setLiveBikeStops(prev => {
+          const known = new Set(prev.map(p => p.id))
+          const fresh = added.filter(a => !known.has(a.id))
+          if (fresh.length === 0) return prev
+          // 마커 폭증 방지: 누적 상한 유지 (오래된 항목부터 제거)
+          return [...prev, ...fresh].slice(-600)
+        })
+        console.log(`[서울 따릉이] 주변 대여소 ${added.length}개 통합 (${data.source})`)
+      } catch (error) {
+        if (controller?.signal.aborted || disposed) return
+        console.error('주변 따릉이 대여소 조회 실패:', error)
+      }
+    }
+
+    const scheduleUpdate = () => {
+      if (timer) clearTimeout(timer)
+      controller?.abort()
+      timer = setTimeout(() => {
+        loadNearbyBikeStations()
+      }, 400)
+    }
+
+    map.on('moveend', scheduleUpdate)
+    scheduleUpdate()
+
+    return () => {
+      disposed = true
+      controller?.abort()
+      if (timer) clearTimeout(timer)
+      map.off('moveend', scheduleUpdate)
+    }
+  }, [mapLoaded, filterType])
+
   // 🚌 선택한 버스 노선 경유 정류장 조회 (지하철 activeRoute에는 영향 없음)
   useEffect(() => {
     if (!selectedBusRoute) {
@@ -1409,9 +1507,10 @@ popupContent.append(title, number)
     markerItemsRef.current.forEach(item => item.marker.remove())
     markerItemsRef.current = []
 
+    const allStops = liveBikeStops.length > 0 ? [...TRANSIT_STOPS, ...liveBikeStops] : TRANSIT_STOPS
     const filtered = filterType === 'all'
-      ? TRANSIT_STOPS
-      : TRANSIT_STOPS.filter(s => s.type === filterType)
+      ? allStops
+      : allStops.filter(s => s.type === filterType)
 
     // 우선순위 정렬 (환승역, 주요 거점 역이 우선적으로 지도에 표시됨)
     const sortedStops = [...filtered].sort((a, b) => calculateStationPriority(b) - calculateStationPriority(a))
@@ -1727,10 +1826,13 @@ popupContent.append(title, number)
             `
           }
         } else if (stop.type === 'bike') {
-          const rackTotal = stop.rackCount || 20
-          // 혼잡도와 강수량에 따른 실시간 대여 가능 잔여 대수 추정
+          const liveBike = (arrivalsList || []).find((x: any) => x && x.bikeLive)
+          const rackTotal = liveBike ? liveBike.rackTotal : (stop.rackCount || 20)
+          // 실시간 값이 있으면 사용, 없으면 혼잡도·강수량 기반 추정
           const crowdRatio = (displayCrowd || 60) / 100
-          const availableBikes = rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65)))
+          const availableBikes = liveBike
+            ? liveBike.availableBikes
+            : (rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65))))
           arrivalSection = `
             <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
@@ -1738,12 +1840,12 @@ popupContent.append(title, number)
                   <span>🚲</span> 따릉이 실시간 거치 현황
                 </span>
                 <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">
-                  ${stop.stationNo ? `대여소 #${stop.stationNo}` : '거점 대여소'}
+                  ${liveBike ? '실시간 API' : (stop.stationNo ? `대여소 #${stop.stationNo} · 추정` : '거점 대여소 · 추정')}
                 </span>
               </div>
               <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.35); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
                 <span style="color: #E2E8F0;">대여 가능 자전거</span>
-                <span style="color: #34D399; font-weight: 800; font-family: monospace;">약 ${availableBikes}대 / 총 ${rackTotal}대</span>
+                <span style="color: #34D399; font-weight: 800; font-family: monospace;">${liveBike ? '' : '약 '}${availableBikes}대 / 총 ${rackTotal}대</span>
               </div>
               ${rainMm > 0 ? `
                 <div style="margin-top: 4px; font-size: 9px; color: #FCA5A5; text-align: center;">
@@ -1939,9 +2041,52 @@ popupContent.append(title, number)
               ]
               logBusApiCall(r1, targetStId, arrivals)
             }
+          } else if (stop.type === 'bike') {
+            // 서울시 따릉이 실시간 대여정보(잔여 자전거 수)로 시뮬레이션 값을 대체
+            let live: any = null
+            let method: 'by-number' | 'nearest-200m' | 'estimated' = 'estimated'
+            let proxyPath = ''
+            let rawPayload: any = null
+            try {
+              if (stop.stationNo) {
+                proxyPath = `/api/v1/transit/bike/stations/by-number/${encodeURIComponent(stop.stationNo)}`
+                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+                if (r.ok) {
+                  rawPayload = await r.json()
+                  live = rawPayload.station
+                  method = 'by-number'
+                  // 하드코딩된 대여소 번호가 실제와 다른 경우 대비: 좌표가 250m 넘게 어긋나면 번호 매칭을 폐기
+                  if (live?.coords) {
+                    const dLat = (live.coords[1] - stop.coords[1]) * 111320
+                    const dLng = (live.coords[0] - stop.coords[0]) * 111320 * Math.cos(stop.coords[1] * Math.PI / 180)
+                    if (Math.hypot(dLat, dLng) > 250) {
+                      console.warn(`[따릉이] 대여소 번호 #${stop.stationNo}(${live.name})가 '${stop.name}'과 250m 이상 떨어져 있어 최근접 대여소로 대체합니다.`)
+                      live = null
+                      method = 'estimated'
+                    }
+                  }
+                }
+              }
+              if (!live) {
+                // 대여소 번호로 못 찾으면 좌표 기준 가장 가까운 실제 대여소(200m 이내)로 대체
+                const params = new URLSearchParams({ lat: String(stop.coords[1]), lng: String(stop.coords[0]), radius: '200', limit: '1' })
+                proxyPath = `/api/v1/transit/bike/stations/nearby?${params.toString()}`
+                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+                if (r.ok) {
+                  rawPayload = await r.json()
+                  live = (rawPayload.stations || [])[0] || null
+                  if (live) method = 'nearest-200m'
+                }
+              }
+              if (live) arrivals = [{ bikeLive: true, rackTotal: live.rackTotal, availableBikes: live.availableBikes, name: live.name }]
+            } catch (e) {
+              console.warn('따릉이 실시간 조회 실패, 추정값 사용:', e)
+            }
+            logBikeApiCall({ stationNo: stop.stationNo, stationName: stop.name, method, proxyPath }, live, rawPayload)
           }
 
           // 최종 통합 데이터로 팝업 갱신
+
           if (activePopupRef.current === popup) {
             popup.setHTML(buildPopupContent({
               weather: weatherData,
@@ -2049,7 +2194,7 @@ popupContent.append(title, number)
       map.off('resize', onMapMove)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
-  }, [filterType, rainMm, mapLoaded, selectedTime])
+  }, [filterType, rainMm, mapLoaded, selectedTime, liveBikeStops])
 
   // focusedCoords, activeStop 또는 activeRoute 변경 시 즉시 마커 겹침 표시 갱신
   useEffect(() => {

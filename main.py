@@ -48,6 +48,8 @@ MODEL_DIR = BASE_DIR / "models"
 # 공공데이터 인증키
 KMA_AUTH_KEY = os.getenv("KMA_APIHUB_KEY")
 SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")
+# 따릉이 실시간 대여정보(bikeList)용 인증키: 전용 키 우선, 없으면 서울 열린데이터광장 일반 인증키 재사용
+SEOUL_BIKE_KEY = os.getenv("SEOUL_BIKE_API_KEY") or os.getenv("SEOUL_DATA_API_KEY")
 DATA_GO_KR_BUS_KEY = os.getenv("DATA_GO_KR_API_KEY")
 
 # 서울시 25개 자치구 및 수도권 주요 인접 도시 기상청 격자좌표 (nx, ny) 매핑
@@ -161,6 +163,7 @@ class CircuitBreaker:
 kma_circuit_breaker = CircuitBreaker("KMA_WEATHER", failure_threshold=3, recovery_timeout=45.0)
 subway_circuit_breaker = CircuitBreaker("SEOUL_SUBWAY", failure_threshold=3, recovery_timeout=30.0)
 bus_circuit_breaker = CircuitBreaker("SEOUL_BUS", failure_threshold=3, recovery_timeout=30.0)
+bike_circuit_breaker = CircuitBreaker("SEOUL_BIKE", failure_threshold=3, recovery_timeout=30.0)
 
 # 공공 API 인메모리 단기 캐시 (과도한 외부 호출 방지 및 SLA 10ms 보장)
 _weather_cache: dict[str, tuple[float, dict]] = {}
@@ -171,6 +174,10 @@ _bus_cache: dict[str, tuple[float, dict]] = {}
 _weather_last_good: dict[str, dict] = {}
 _subway_last_good: dict[str, dict] = {}
 _bus_last_good: dict[str, dict] = {}
+
+# 따릉이 전체 대여소 스냅샷 (단일 캐시: (수집시각, 대여소 목록))
+_bike_snapshot_cache: Optional[tuple[float, list[dict]]] = None
+_bike_snapshot_last_good: Optional[list[dict]] = None
 
 # ==============================================================================
 # 1. 서울시 25개 자치구 정수 매핑 딕셔너리 및 인프라/용량 기준 메타데이터
@@ -1179,11 +1186,13 @@ async def get_circuit_breakers_status():
             "kma_weather": kma_circuit_breaker.get_status(),
             "seoul_subway": subway_circuit_breaker.get_status(),
             "seoul_bus": bus_circuit_breaker.get_status(),
+            "seoul_bike": bike_circuit_breaker.get_status(),
         },
         "snapshot_cache_counts": {
             "weather_last_good": len(_weather_last_good),
             "subway_last_good": len(_subway_last_good),
             "bus_last_good": len(_bus_last_good),
+            "bike_last_good": 1 if _bike_snapshot_last_good else 0,
         }
     }
 
@@ -2656,3 +2665,164 @@ async def get_approaching_bus_positions(bus_route_id: str, stId: str):
             if saved_at < expiry:
                 _bus_approaching_cache.pop(key, None)
     return payload
+
+# ─────────────────────────────────────────────
+# 서울시 따릉이(공공자전거) 실시간 대여소 API
+# ─────────────────────────────────────────────
+
+BIKE_SNAPSHOT_TTL_SEC = 60
+BIKE_PAGE_SIZE = 1000
+BIKE_MAX_PAGES = 5
+
+
+def _haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = p2 - p1
+    dlmb = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _parse_bike_row(row: dict) -> Optional[dict]:
+    try:
+        lat = float(row.get("stationLatitude"))
+        lng = float(row.get("stationLongitude"))
+        rack_total = int(float(row.get("rackTotCnt") or 0))
+        bikes = int(float(row.get("parkingBikeTotCnt") or 0))
+    except (TypeError, ValueError):
+        return None
+    if not (37.0 <= lat <= 38.0 and 126.0 <= lng <= 128.0):
+        return None
+    station_id = str(row.get("stationId") or "")
+    if not station_id:
+        return None
+    return {
+        "id": station_id,
+        "name": str(row.get("stationName") or "").strip(),
+        "coords": [lng, lat],
+        "rackTotal": rack_total,
+        "availableBikes": bikes,
+        "shared": int(float(row.get("shared") or 0)),
+    }
+
+
+async def _fetch_bike_snapshot() -> tuple[list[dict], str]:
+    """전체 대여소 스냅샷을 반환한다. (stations, source)
+    1) 60초 인메모리 캐시 → 2) 서킷 OPEN 시 last_good → 3) 라이브 호출 → 4) 실패 시 last_good
+    모두 불가하면 HTTPException(503)을 발생시켜 프론트가 정적 데이터로 fallback 하도록 한다.
+    """
+    global _bike_snapshot_cache, _bike_snapshot_last_good
+    now = time.time()
+
+    if _bike_snapshot_cache and now - _bike_snapshot_cache[0] < BIKE_SNAPSHOT_TTL_SEC:
+        return _bike_snapshot_cache[1], "SEOUL_BIKE_LIVE"
+
+    if not SEOUL_BIKE_KEY:
+        raise HTTPException(status_code=503, detail="따릉이 API 인증키가 설정되지 않았습니다.")
+
+    if not bike_circuit_breaker.can_execute():
+        if _bike_snapshot_last_good:
+            return _bike_snapshot_last_good, "SEOUL_BIKE_CIRCUIT_OPEN_STALE"
+        raise HTTPException(status_code=503, detail="따릉이 API 일시 차단(서킷 OPEN)")
+
+    stations: dict[str, dict] = {}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            for page in range(BIKE_MAX_PAGES):
+                start = page * BIKE_PAGE_SIZE + 1
+                end = start + BIKE_PAGE_SIZE - 1
+                url = f"http://openapi.seoul.go.kr:8088/{SEOUL_BIKE_KEY}/json/bikeList/{start}/{end}/"
+                res = await client.get(url)
+                res.raise_for_status()
+                body = res.json().get("rentBikeStatus")
+                if not body:
+                    raise ValueError("bikeList 응답 형식 오류")
+                code = (body.get("RESULT") or {}).get("CODE")
+                if code == "INFO-200":  # 해당 범위 데이터 없음 → 종료
+                    break
+                if code != "INFO-000":
+                    raise ValueError(f"bikeList 오류 코드: {code}")
+                rows = body.get("row") or []
+                for row in rows:
+                    parsed = _parse_bike_row(row)
+                    if parsed:
+                        stations[parsed["id"]] = parsed
+                if len(rows) < BIKE_PAGE_SIZE:
+                    break
+        if not stations:
+            raise ValueError("대여소 데이터가 비어 있습니다.")
+    except Exception as exc:
+        logger.warning("Seoul bike API error: %s", exc)
+        bike_circuit_breaker.record_failure(str(exc))
+        if _bike_snapshot_last_good:
+            return _bike_snapshot_last_good, "SEOUL_BIKE_CACHED_STALE"
+        raise HTTPException(status_code=503, detail="서울시 따릉이 API 연결 실패")
+
+    result = list(stations.values())
+    bike_circuit_breaker.record_success()
+    _bike_snapshot_cache = (now, result)
+    _bike_snapshot_last_good = result
+    return result, "SEOUL_BIKE_LIVE"
+
+
+@app.get("/api/v1/transit/bike/stations/nearby", tags=["Live Public APIs"])
+async def get_nearby_bike_stations(lat: float, lng: float, radius: int = 500, limit: int = 100):
+    if not (37.0 <= lat <= 38.0 and 126.0 <= lng <= 128.0):
+        raise HTTPException(status_code=400, detail="좌표 범위를 확인해 주세요.")
+    if not (1 <= radius <= 3000):
+        raise HTTPException(status_code=400, detail="검색 반경은 1~3000m여야 합니다.")
+    limit = max(1, min(limit, 300))
+
+    stations, source = await _fetch_bike_snapshot()
+    nearby = []
+    for s in stations:
+        dist = _haversine_m(lat, lng, s["coords"][1], s["coords"][0])
+        if dist <= radius:
+            nearby.append({**s, "distance": round(dist)})
+    nearby.sort(key=lambda s: s["distance"])
+    nearby = nearby[:limit]
+    return {
+        "status": "success",
+        "count": len(nearby),
+        "center": [lng, lat],
+        "radius": radius,
+        "stations": nearby,
+        "source": source,
+    }
+
+
+@app.get("/api/v1/transit/bike/stations/search", tags=["Live Public APIs"])
+async def search_bike_stations(q: str, limit: int = 30):
+    keyword = q.strip()
+    if len(keyword) < 2:
+        raise HTTPException(status_code=400, detail="검색어는 2자 이상 입력해 주세요.")
+    limit = max(1, min(limit, 100))
+
+    stations, source = await _fetch_bike_snapshot()
+    matched = [s for s in stations if keyword in s["name"]][:limit]
+    return {
+        "status": "success",
+        "count": len(matched),
+        "stations": matched,
+        "source": source,
+    }
+
+
+@app.get("/api/v1/transit/bike/stations/by-number/{station_no}", tags=["Live Public APIs"])
+async def get_bike_station_by_number(station_no: str):
+    """따릉이 대여소 번호(예: 2301)로 실시간 상태를 조회한다. 대여소명이 '2301. ...' 형식인 점을 이용."""
+    prefix = f"{station_no.strip()}."
+    stations, source = await _fetch_bike_snapshot()
+    for s in stations:
+        if s["name"].startswith(prefix):
+            return {"status": "success", "station": s, "source": source}
+    raise HTTPException(status_code=404, detail="해당 번호의 대여소를 찾을 수 없습니다.")
+
+@app.get("/api/v1/transit/bike/stations/{station_id}", tags=["Live Public APIs"])
+async def get_bike_station(station_id: str):
+    stations, source = await _fetch_bike_snapshot()
+    for s in stations:
+        if s["id"] == station_id:
+            return {"status": "success", "station": s, "source": source}
+    raise HTTPException(status_code=404, detail="해당 대여소를 찾을 수 없습니다.")

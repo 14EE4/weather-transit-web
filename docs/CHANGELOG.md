@@ -12,8 +12,8 @@
 - **배경**: 따릉이는 `bikeStopData.ts` 하드코딩 약 52개 대여소와 시뮬레이션 값으로 표시되어 실제 잔여 자전거 수와 달랐음.
 - **조치**:
   1. **백엔드 (`main.py`)**: 서울 열린데이터광장 `bikeList` 연동 (1000건씩 페이지 병합), 60초 스냅샷 캐시, `SEOUL_BIKE` 서킷브레이커, last-good 스냅샷 fallback, `/api/v1/system/circuit-breakers`에 bike 추가.
-  2. **엔드포인트**: `GET /api/v1/transit/bike/stations/nearby`, `/search`, `/{station_id}`.
-  3. **프론트엔드 (`TransitMap.tsx`)**: 따릉이 필터에서 지도 주변 대여소를 잔여 비율 색상(부족/보통/여유) 원으로 표시, 클릭 시 실시간 대여 가능 대수 팝업 (`new URL()` 미사용).
+  2. **엔드포인트**: `GET /api/v1/transit/bike/stations/nearby`, `/search`, `/by-number/{station_no}`, `/{station_id}`.
+  3. **프론트엔드 (`TransitMap.tsx`)**: 모델(ONNX) 기반 기존 거점 대여소 마커(52개)는 유지하고, 클릭 시 팝업의 잔여 자전거 수를 시뮬레이션 추정값 대신 실시간 API 값으로 채움 (대여소 번호 `by-number` 조회 → 실패 시 200m 이내 최근접 대여소 → 실패 시 기존 추정값 + "추정" 표기). `new URL()` 미사용.
   4. **설정**: `SEOUL_BIKE_API_KEY`(선택) 추가, 미설정 시 `SEOUL_DATA_API_KEY` 재사용.
 - **산출물**: `main.py`, `Weather-Transport Recommendation UI/src/TransitMap.tsx`, `.env.example`, `docs/CHANGELOG.md`
 

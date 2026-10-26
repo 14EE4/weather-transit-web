@@ -2809,6 +2809,16 @@ async def search_bike_stations(q: str, limit: int = 30):
     }
 
 
+@app.get("/api/v1/transit/bike/stations/by-number/{station_no}", tags=["Live Public APIs"])
+async def get_bike_station_by_number(station_no: str):
+    """따릉이 대여소 번호(예: 2301)로 실시간 상태를 조회한다. 대여소명이 '2301. ...' 형식인 점을 이용."""
+    prefix = f"{station_no.strip()}."
+    stations, source = await _fetch_bike_snapshot()
+    for s in stations:
+        if s["name"].startswith(prefix):
+            return {"status": "success", "station": s, "source": source}
+    raise HTTPException(status_code=404, detail="해당 번호의 대여소를 찾을 수 없습니다.")
+
 @app.get("/api/v1/transit/bike/stations/{station_id}", tags=["Live Public APIs"])
 async def get_bike_station(station_id: str):
     stations, source = await _fetch_bike_snapshot()

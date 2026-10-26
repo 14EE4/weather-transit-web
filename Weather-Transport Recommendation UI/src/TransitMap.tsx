@@ -2055,6 +2055,16 @@ popupContent.append(title, number)
                   rawPayload = await r.json()
                   live = rawPayload.station
                   method = 'by-number'
+                  // 하드코딩된 대여소 번호가 실제와 다른 경우 대비: 좌표가 250m 넘게 어긋나면 번호 매칭을 폐기
+                  if (live?.coords) {
+                    const dLat = (live.coords[1] - stop.coords[1]) * 111320
+                    const dLng = (live.coords[0] - stop.coords[0]) * 111320 * Math.cos(stop.coords[1] * Math.PI / 180)
+                    if (Math.hypot(dLat, dLng) > 250) {
+                      console.warn(`[따릉이] 대여소 번호 #${stop.stationNo}(${live.name})가 '${stop.name}'과 250m 이상 떨어져 있어 최근접 대여소로 대체합니다.`)
+                      live = null
+                      method = 'estimated'
+                    }
+                  }
                 }
               }
               if (!live) {

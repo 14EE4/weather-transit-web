@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
+import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logBikeApiCall, logBikeNearbyCall } from './apiLogger'
 import { SUBWAY_STATIONS } from './subwayData'
 import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
@@ -1145,6 +1145,7 @@ popupContent.append(title, number)
 
         const data = await response.json()
         if (disposed) return
+        logBikeNearbyCall({ lat: center.lat, lng: center.lng, radius: 800 }, data)
 
         const added: TransitStop[] = []
         for (const s of data.stations || []) {
@@ -2042,22 +2043,36 @@ popupContent.append(title, number)
             }
           } else if (stop.type === 'bike') {
             // 서울시 따릉이 실시간 대여정보(잔여 자전거 수)로 시뮬레이션 값을 대체
+            let live: any = null
+            let method: 'by-number' | 'nearest-200m' | 'estimated' = 'estimated'
+            let proxyPath = ''
+            let rawPayload: any = null
             try {
-              let live: any = null
               if (stop.stationNo) {
-                const r = await fetch(`${API_BASE_URL}/api/v1/transit/bike/stations/by-number/${encodeURIComponent(stop.stationNo)}`)
-                if (r.ok) live = (await r.json()).station
+                proxyPath = `/api/v1/transit/bike/stations/by-number/${encodeURIComponent(stop.stationNo)}`
+                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+                if (r.ok) {
+                  rawPayload = await r.json()
+                  live = rawPayload.station
+                  method = 'by-number'
+                }
               }
               if (!live) {
                 // 대여소 번호로 못 찾으면 좌표 기준 가장 가까운 실제 대여소(200m 이내)로 대체
                 const params = new URLSearchParams({ lat: String(stop.coords[1]), lng: String(stop.coords[0]), radius: '200', limit: '1' })
-                const r = await fetch(`${API_BASE_URL}/api/v1/transit/bike/stations/nearby?${params.toString()}`)
-                if (r.ok) live = ((await r.json()).stations || [])[0] || null
+                proxyPath = `/api/v1/transit/bike/stations/nearby?${params.toString()}`
+                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+                if (r.ok) {
+                  rawPayload = await r.json()
+                  live = (rawPayload.stations || [])[0] || null
+                  if (live) method = 'nearest-200m'
+                }
               }
               if (live) arrivals = [{ bikeLive: true, rackTotal: live.rackTotal, availableBikes: live.availableBikes, name: live.name }]
             } catch (e) {
               console.warn('따릉이 실시간 조회 실패, 추정값 사용:', e)
             }
+            logBikeApiCall({ stationNo: stop.stationNo, stationName: stop.name, method, proxyPath }, live, rawPayload)
           }
 
           // 최종 통합 데이터로 팝업 갱신

@@ -1106,6 +1106,174 @@ popupContent.append(title, number)
     }
   }, [mapLoaded, filterType])
 
+  // 🚲 지도 주변 실제 따릉이 대여소(실시간 잔여 자전거) 자동 표시
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current) return
+    if (filterType !== 'bike') return
+
+    const map = mapInstanceRef.current
+    const sourceId = 'live-bike-stations'
+    const layerId = 'live-bike-stations-circle'
+
+    let controller: AbortController | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    })
+
+    // 잔여 자전거 비율에 따라 색상 구분 (부족: 빨강 / 보통: 노랑 / 여유: 초록)
+    map.addLayer({
+      id: layerId,
+      type: 'circle',
+      source: sourceId,
+      minzoom: 15,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 4, 16, 7, 18, 10],
+        'circle-color': [
+          'case',
+          ['<=', ['get', 'availableBikes'], 0], '#9CA3AF',
+          ['<', ['get', 'ratio'], 0.2], '#F87171',
+          ['<', ['get', 'ratio'], 0.5], '#FBBF24',
+          '#34D399'
+        ],
+        'circle-stroke-color': '#FFFFFF',
+        'circle-stroke-width': 2,
+        'circle-opacity': 0.95
+      }
+    })
+
+    const setStations = (features: any[]) => {
+      const source = map.getSource(sourceId) as any
+      source?.setData({ type: 'FeatureCollection', features })
+    }
+
+    const loadNearbyBikeStations = async () => {
+      controller?.abort()
+      controller = new AbortController()
+
+      if (map.getZoom() < 15) {
+        setStations([])
+        return
+      }
+
+      const center = map.getCenter()
+      const bounds = map.getBounds()
+
+      try {
+        const params = new URLSearchParams({
+          lat: String(center.lat),
+          lng: String(center.lng),
+          radius: '700'
+        })
+        const reqUrl = `${API_BASE_URL || ''}/api/v1/transit/bike/stations/nearby?${params.toString()}`
+        const response = await fetch(reqUrl, { signal: controller.signal })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+        const data = await response.json()
+        if (disposed) return
+
+        const features = (data.stations || [])
+          .filter((s: any) => s.id && s.coords && bounds.contains(s.coords))
+          .map((s: any) => {
+            const rackTotal = Number(s.rackTotal) || 0
+            const availableBikes = Number(s.availableBikes) || 0
+            return {
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: s.coords },
+              properties: {
+                id: s.id,
+                name: s.name,
+                rackTotal,
+                availableBikes,
+                // 실제 데이터는 잔여 수가 거치대 수를 넘는 경우가 있어 1.0으로 제한
+                ratio: rackTotal > 0 ? Math.min(1, availableBikes / rackTotal) : 0
+              }
+            }
+          })
+
+        setStations(features)
+        console.log(`[서울 따릉이] 주변 대여소 ${features.length}개 표시 (${data.source})`)
+      } catch (error) {
+        if (controller?.signal.aborted || disposed) return
+        console.error('주변 따릉이 대여소 조회 실패:', error)
+        setStations([])
+      }
+    }
+
+    const scheduleUpdate = () => {
+      if (timer) clearTimeout(timer)
+      controller?.abort()
+      timer = setTimeout(() => {
+        loadNearbyBikeStations()
+      }, 350)
+    }
+
+    const handleStationClick = (e: any) => {
+      const feature = e.features?.[0]
+      if (!feature || feature.geometry?.type !== 'Point') return
+
+      const coords = feature.geometry.coordinates as [number, number]
+      const p = feature.properties || {}
+
+      const content = document.createElement('div')
+      content.style.padding = '10px'
+      content.style.background = '#111D35'
+      content.style.borderRadius = '8px'
+
+      const title = document.createElement('strong')
+      title.textContent = `🚲 ${p.name || '따릉이 대여소'}`
+      title.style.color = '#F0F6FF'
+
+      const status = document.createElement('div')
+      status.textContent = `대여 가능 ${p.availableBikes}대 / 거치대 ${p.rackTotal}개`
+      status.style.color = '#34D399'
+      status.style.fontWeight = '800'
+      status.style.marginTop = '7px'
+
+      content.append(title, status)
+
+      new maplibregl.Popup({ offset: 12 })
+        .setLngLat(coords)
+        .setDOMContent(content)
+        .addTo(map)
+    }
+
+    const onMouseEnter = () => {
+      map.getCanvas().style.cursor = 'pointer'
+    }
+    const onMouseLeave = () => {
+      map.getCanvas().style.cursor = ''
+    }
+
+    map.on('moveend', scheduleUpdate)
+    map.on('click', layerId, handleStationClick)
+    map.on('mouseenter', layerId, onMouseEnter)
+    map.on('mouseleave', layerId, onMouseLeave)
+
+    scheduleUpdate()
+
+    return () => {
+      disposed = true
+      controller?.abort()
+      if (timer) clearTimeout(timer)
+
+      map.off('moveend', scheduleUpdate)
+      map.off('click', layerId, handleStationClick)
+      map.off('mouseenter', layerId, onMouseEnter)
+      map.off('mouseleave', layerId, onMouseLeave)
+
+      try {
+        if (map.getLayer(layerId)) map.removeLayer(layerId)
+        if (map.getSource(sourceId)) map.removeSource(sourceId)
+      } catch {
+        // 지도 자체가 이미 제거된 경우
+      }
+    }
+  }, [mapLoaded, filterType])
+
   // 🚌 선택한 버스 노선 경유 정류장 조회 (지하철 activeRoute에는 영향 없음)
   useEffect(() => {
     if (!selectedBusRoute) {

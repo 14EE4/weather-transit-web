@@ -301,6 +301,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const isInitialRestoringRef = useRef<boolean>(false)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  // 실시간 API로 불러온 거점 외 따릉이 대여소 (기존 마커 파이프라인에 합쳐 표시)
+  const [liveBikeStops, setLiveBikeStops] = useState<TransitStop[]>([])
   const [zoomLevel, setZoomLevel] = useState<number>(13)
 
   // 🚌 선택한 버스 노선은 지하철 activeRoute와 별도 레이어로 관리
@@ -1106,62 +1108,26 @@ popupContent.append(title, number)
     }
   }, [mapLoaded, filterType])
 
-  // 🚲 지도 주변 실제 따릉이 대여소(실시간 잔여 자전거) 자동 표시
+  // 🚲 지도 주변 실제 따릉이 대여소를 기존 거점 마커와 동일한 마커/팝업(AI 모델 + 실시간 잔여 수)으로 통합 표시
   useEffect(() => {
     if (!mapLoaded || !mapInstanceRef.current) return
-    if (filterType !== 'bike') return
+    if (filterType !== 'bike' && filterType !== 'all') return
 
     const map = mapInstanceRef.current
-    const sourceId = 'live-bike-stations'
-    const layerId = 'live-bike-stations-circle'
-
     let controller: AbortController | null = null
     let timer: ReturnType<typeof setTimeout> | null = null
     let disposed = false
 
-    map.addSource(sourceId, {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] }
-    })
-
-    // 잔여 자전거 비율에 따라 색상 구분 (부족: 빨강 / 보통: 노랑 / 여유: 초록)
-    map.addLayer({
-      id: layerId,
-      type: 'circle',
-      source: sourceId,
-      minzoom: 15,
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 4, 16, 7, 18, 10],
-        'circle-color': [
-          'case',
-          ['<=', ['get', 'availableBikes'], 0], '#9CA3AF',
-          ['<', ['get', 'ratio'], 0.2], '#F87171',
-          ['<', ['get', 'ratio'], 0.5], '#FBBF24',
-          '#34D399'
-        ],
-        'circle-stroke-color': '#FFFFFF',
-        'circle-stroke-width': 2,
-        'circle-opacity': 0.95
-      }
-    })
-
-    // 기존 모델 기반 거점 마커(BIKE_STATIONS)와 중복 표시되지 않도록 대여소 번호('2301. ...')로 제외
     const hubNos = new Set(BIKE_STATIONS.map(b => b.stationNo))
-    const isHubBikeStation = (name: string) => hubNos.has(String(name || '').split('.')[0].trim())
-
-    const setStations = (features: any[]) => {
-      const source = map.getSource(sourceId) as any
-      source?.setData({ type: 'FeatureCollection', features })
-    }
+    const avgRainSensitivity =
+      BIKE_STATIONS.reduce((sum, b) => sum + b.rainSensitivity, 0) / Math.max(1, BIKE_STATIONS.length)
 
     const loadNearbyBikeStations = async () => {
       controller?.abort()
       controller = new AbortController()
 
-      if (map.getZoom() < 15) {
-        setStations([])
-        return
-      }
+      // 따릉이 필터에서만, 충분히 확대했을 때만 조회 (전체 모드에서는 기존 거점만 표시)
+      if (filterType !== 'bike' || map.getZoom() < 14.5) return
 
       const center = map.getCenter()
       const bounds = map.getBounds()
@@ -1170,7 +1136,8 @@ popupContent.append(title, number)
         const params = new URLSearchParams({
           lat: String(center.lat),
           lng: String(center.lng),
-          radius: '700'
+          radius: '800',
+          limit: '150'
         })
         const reqUrl = `${API_BASE_URL || ''}/api/v1/transit/bike/stations/nearby?${params.toString()}`
         const response = await fetch(reqUrl, { signal: controller.signal })
@@ -1179,31 +1146,41 @@ popupContent.append(title, number)
         const data = await response.json()
         if (disposed) return
 
-        const features = (data.stations || [])
-          .filter((s: any) => s.id && s.coords && bounds.contains(s.coords) && !isHubBikeStation(s.name))
-          .map((s: any) => {
-            const rackTotal = Number(s.rackTotal) || 0
-            const availableBikes = Number(s.availableBikes) || 0
-            return {
-              type: 'Feature',
-              geometry: { type: 'Point', coordinates: s.coords },
-              properties: {
-                id: s.id,
-                name: s.name,
-                rackTotal,
-                availableBikes,
-                // 실제 데이터는 잔여 수가 거치대 수를 넘는 경우가 있어 1.0으로 제한
-                ratio: rackTotal > 0 ? Math.min(1, availableBikes / rackTotal) : 0
-              }
-            }
+        const added: TransitStop[] = []
+        for (const s of data.stations || []) {
+          if (!s.id || !s.coords || !bounds.contains(s.coords)) continue
+          const rawName = String(s.name || '')
+          const stationNo = rawName.split('.')[0].trim()
+          // 모델 기반 거점 마커(BIKE_STATIONS)와 중복되는 대여소는 기존 마커를 사용
+          if (hubNos.has(stationNo)) continue
+          added.push({
+            id: `bike-live-${s.id}`,
+            name: rawName.replace(/^\d+\.\s*/, '').trim() || '따릉이 대여소',
+            type: 'bike',
+            coords: s.coords,
+            lineInfo: '서울자전거 따릉이',
+            // 거점 데이터가 없는 대여소는 기본 이용 수요도를 사용하고, 잔여 수는 팝업에서 실시간 값으로 채움
+            baseCrowd: 45,
+            rainSensitivity: avgRainSensitivity,
+            stationNo,
+            rackCount: Number(s.rackTotal) || undefined
           })
+        }
 
-        setStations(features)
-        console.log(`[서울 따릉이] 주변 대여소 ${features.length}개 표시 (${data.source})`)
+        // 정보 팝업이 열려 있는 동안 마커를 재생성하면 팝업이 닫히므로, 닫힌 뒤 다음 이동 시 반영
+        if (activePopupRef.current) return
+
+        setLiveBikeStops(prev => {
+          const known = new Set(prev.map(p => p.id))
+          const fresh = added.filter(a => !known.has(a.id))
+          if (fresh.length === 0) return prev
+          // 마커 폭증 방지: 누적 상한 유지 (오래된 항목부터 제거)
+          return [...prev, ...fresh].slice(-600)
+        })
+        console.log(`[서울 따릉이] 주변 대여소 ${added.length}개 통합 (${data.source})`)
       } catch (error) {
         if (controller?.signal.aborted || disposed) return
         console.error('주변 따릉이 대여소 조회 실패:', error)
-        setStations([])
       }
     }
 
@@ -1212,69 +1189,17 @@ popupContent.append(title, number)
       controller?.abort()
       timer = setTimeout(() => {
         loadNearbyBikeStations()
-      }, 350)
-    }
-
-    const handleStationClick = (e: any) => {
-      const feature = e.features?.[0]
-      if (!feature || feature.geometry?.type !== 'Point') return
-
-      const coords = feature.geometry.coordinates as [number, number]
-      const p = feature.properties || {}
-
-      const content = document.createElement('div')
-      content.style.padding = '10px'
-      content.style.background = '#111D35'
-      content.style.borderRadius = '8px'
-
-      const title = document.createElement('strong')
-      title.textContent = `🚲 ${p.name || '따릉이 대여소'}`
-      title.style.color = '#F0F6FF'
-
-      const status = document.createElement('div')
-      status.textContent = `대여 가능 ${p.availableBikes}대 / 거치대 ${p.rackTotal}개`
-      status.style.color = '#34D399'
-      status.style.fontWeight = '800'
-      status.style.marginTop = '7px'
-
-      content.append(title, status)
-
-      new maplibregl.Popup({ offset: 12 })
-        .setLngLat(coords)
-        .setDOMContent(content)
-        .addTo(map)
-    }
-
-    const onMouseEnter = () => {
-      map.getCanvas().style.cursor = 'pointer'
-    }
-    const onMouseLeave = () => {
-      map.getCanvas().style.cursor = ''
+      }, 400)
     }
 
     map.on('moveend', scheduleUpdate)
-    map.on('click', layerId, handleStationClick)
-    map.on('mouseenter', layerId, onMouseEnter)
-    map.on('mouseleave', layerId, onMouseLeave)
-
     scheduleUpdate()
 
     return () => {
       disposed = true
       controller?.abort()
       if (timer) clearTimeout(timer)
-
       map.off('moveend', scheduleUpdate)
-      map.off('click', layerId, handleStationClick)
-      map.off('mouseenter', layerId, onMouseEnter)
-      map.off('mouseleave', layerId, onMouseLeave)
-
-      try {
-        if (map.getLayer(layerId)) map.removeLayer(layerId)
-        if (map.getSource(sourceId)) map.removeSource(sourceId)
-      } catch {
-        // 지도 자체가 이미 제거된 경우
-      }
     }
   }, [mapLoaded, filterType])
 
@@ -1581,9 +1506,10 @@ popupContent.append(title, number)
     markerItemsRef.current.forEach(item => item.marker.remove())
     markerItemsRef.current = []
 
+    const allStops = liveBikeStops.length > 0 ? [...TRANSIT_STOPS, ...liveBikeStops] : TRANSIT_STOPS
     const filtered = filterType === 'all'
-      ? TRANSIT_STOPS
-      : TRANSIT_STOPS.filter(s => s.type === filterType)
+      ? allStops
+      : allStops.filter(s => s.type === filterType)
 
     // 우선순위 정렬 (환승역, 주요 거점 역이 우선적으로 지도에 표시됨)
     const sortedStops = [...filtered].sort((a, b) => calculateStationPriority(b) - calculateStationPriority(a))
@@ -2243,7 +2169,7 @@ popupContent.append(title, number)
       map.off('resize', onMapMove)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
-  }, [filterType, rainMm, mapLoaded, selectedTime])
+  }, [filterType, rainMm, mapLoaded, selectedTime, liveBikeStops])
 
   // focusedCoords, activeStop 또는 activeRoute 변경 시 즉시 마커 겹침 표시 갱신
   useEffect(() => {

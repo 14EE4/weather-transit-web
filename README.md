@@ -136,7 +136,7 @@ flowchart TD
     subgraph S4 ["4. 서빙 엔진 (Serving & Inference)"]
         ONNX["ONNX Runtime 경량 엔진 (models/*.onnx)"]
         ES --> ONNX
-        API["FastAPI 백엔드 엔진 (main.py)<br>- 인메모리 ONNX 추론 (지연시간 1~3ms)<br>- timeseries_cache 시계열 캐싱<br>- MCDA 최적 교통수단 추천 (기상 57% + 정시성 29% + 혼잡도 14%)"]
+        API["FastAPI 백엔드 엔진 (main.py)<br>- 인메모리 ONNX 추론 (지연시간 1~3ms)<br>- timeseries_cache 시계열 캐싱<br>- MCDA 최적 교통수단 추천 (기상 57% + 정시성 29% + 혼잡도 14%)<br>- kma_forecast 24시간 단기예보 격자 연동"]
         ONNX --> API
     end
 
@@ -149,13 +149,32 @@ flowchart TD
         EXT1 & EXT2 & EXT3 & EXT4 --> API
     end
 
-    %% 6. Presentation
-    subgraph S6 ["6. 대화형 웹 프론트엔드 (Presentation)"]
+    %% 6. LangGraph & FactChat Multimodal Orchestration
+    subgraph S6 ["6. LangGraph × FactChat 멀티모달 오케스트레이션 (multimodal_router.py)"]
+        N1["1. parse_context_node<br>(출발/도착 좌표, 단기예보, 32D ONNX 혼잡도)"]
+        GATE{"2. weather_gate_router<br>(강수>0mm or 강풍 or 혹한)"}
+        TOOL_CLEAR["3A. clear_multimodal_tools_node<br>(지하철 + 버스 + 따릉이 First/Last-Mile)"]
+        TOOL_RAIN["3B. rain_safe_tools_node<br>(따릉이 차단, 지하철 최소환승 + 실내 버스)"]
+        FUSION["4. candidate_fusion_node<br>(다목적 효용 랭킹, 19개 노선 물리속도·배차)"]
+        BRIEF["5. factchat_llm_briefing_node<br>(FactChat/BAZE Gateway gpt-6-luna 브리핑)"]
+
+        API --> N1
+        N1 --> GATE
+        GATE -- "맑음 (CLEAR)" --> TOOL_CLEAR
+        GATE -- "악천후 (RAIN/WIND/COLD)" --> TOOL_RAIN
+        TOOL_CLEAR & TOOL_RAIN --> FUSION
+        FUSION --> BRIEF
+    end
+
+    %% 7. Presentation Layer
+    subgraph S7 ["7. 대화형 웹 프론트엔드 (Presentation Layer)"]
         UI1["실시간 AI 추천 카드 및 시간대별 예보 슬라이더 (App.tsx)"]
         UI2["인터랙티브 대중교통 지도 (TransitMap.tsx - MapLibre GL)"]
-        UI3["실시간 기상 및 AI 추천 브리핑 (단기예보 + 추천 이유)"]
+        UI3["멀티모달 경로 패널 & 5단계 트레이스 (MultimodalRoutePanel.tsx)"]
         UI4["B2B 모빌리티 재배치 관제 대시보드 (EnterpriseView.tsx)"]
-        API --> UI1 & UI2 & UI3 & UI4
+        API --> UI1 & UI2 & UI4
+        BRIEF --> UI3
+        FUSION -. "GeoJSON 세그먼트 컬러 폴리라인" .-> UI2
     end
 ```
 

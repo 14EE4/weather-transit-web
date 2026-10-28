@@ -22,6 +22,8 @@
      - `README.md`의 테스트 섹션을 간결화하고 해당 가이드로의 바로가기 링크 제공.
   3. **README 내 핵심 기술 문서 색인(Index) 표 수록 (`README.md`)**:
      - 아키텍처, AI 모델 사양서, 성능 보고서, 백엔드 서버, API 테스트, 데이터 전처리, Docker 배포, 변경 이력, 프론트엔드 등 총 10개 핵심 문서에 대한 일람표(문서명, 핵심 내용, 바로가기 링크) 수록.
+   4. **기술 스택(Tech Stack) 섹션 고도화 및 체계화 (`README.md`)**:
+     - 기존의 단순 라이브러리 목록을 탈피하고, AI & ML(LightGBM, Optuna, ONNX Runtime, AHP), Agent/LLM(LangGraph, FactChat), Backend & Data(FastAPI, Pydantic, timeseries_cache), Frontend & GIS(React 18, MapLibre GL, 충돌 방지 알고리즘), DevOps(Docker Compose, Nginx), Data Ingestion(기상청, 버스, 지하철, 따릉이) 등 6대 도메인별 체계적 기술 스택 표로 전면 개편.
 - **산출물**:
   - `README.md`
   - `docs/SYSTEM_ARCHITECTURE.md`

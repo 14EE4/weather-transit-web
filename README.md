@@ -214,9 +214,16 @@ KMA_APIHUB_KEY=your_kma_apihub_key_here
 
 # 서울 열린데이터광장 (https://data.seoul.go.kr - 지하철 실시간 도착 정보)
 SEOUL_SUBWAY_API_KEY=your_seoul_subway_key_here
+SEOUL_DATA_API_KEY=your_seoul_subway_key_here
 
-# 공공데이터포털 (https://www.data.go.kr - 서울특별시 버스도착정보조회)
+# 공공데이터포털 (https://www.data.go.kr - 서울특별시 버스도착정보조회 5종)
 DATA_GO_KR_API_KEY=your_data_go_kr_key_here
+
+# FactChat / BAZE API Gateway (https://docs.factchat.kr - 멀티모달 경로 탐색 외부 LLM)
+# - OpenAI 호환 ChatCompletions 인터페이스
+FACTCHAT_BASE_URL=https://api.baze.co/v1/gateway
+FACTCHAT_API_KEY=your_factchat_api_key_here
+FACTCHAT_MODEL_NAME=gpt-6-luna
 
 # 백엔드 서버 URL (프론트엔드 연동 시)
 VITE_API_BASE_URL=http://localhost:8000
@@ -387,8 +394,18 @@ git push origin <작업-브랜치명>
 
 
 4. **따릉이 실시간 대여정보 (`SEOUL_DATA_API_KEY`, 선택: `SEOUL_BIKE_API_KEY`)**
-- [서울 열린데이터광장](https://data.seoul.go.kr/)의 `서울특별시 공공자전거 실시간 대여정보(bikeList)` 사용 (기존 `SEOUL_DATA_API_KEY` 일반 인증키로 동작)
-- 전용 키를 쓰려면 `.env`에 `SEOUL_BIKE_API_KEY`를 지정 (미설정 시 `SEOUL_DATA_API_KEY` 재사용)
+   - [서울 열린데이터광장](https://data.seoul.go.kr/)의 `서울특별시 공공자전거 실시간 대여정보(bikeList)` 사용 (기존 `SEOUL_DATA_API_KEY` 일반 인증키로 동작)
+   - 전용 키를 쓰려면 `.env`에 `SEOUL_BIKE_API_KEY`를 지정 (미설정 시 `SEOUL_DATA_API_KEY` 재사용)
+
+5. **FactChat / BAZE API Gateway (`FACTCHAT_API_KEY`, `FACTCHAT_BASE_URL`)**
+   - [FactChat 공식 문서](https://docs.factchat.kr) 또는 [BAZE Gateway](https://api.baze.co)에서 API 키 발급
+   - LangGraph 5단계 멀티모달 경로 탐색 엔진의 최적 수단 추천 사유, 날씨 조언 및 환승 팁을 자연어 브리핑(`gpt-6-luna`)으로 생성하는 데 활용됩니다.
+   - **OpenAI 호환 인터페이스**: `ChatCompletions` 표준 규격을 따르며, 엔드포인트 URL은 기본값인 `https://api.baze.co/v1/gateway`로 설정됩니다.
+   - **[Graceful Fallback 내장]**:
+     - API 키가 미설정되어 있거나 외부 게이트웨이 지연/장애 발생 시, 서비스가 중단되지 않고 **로컬 규칙 기반 XAI 브리핑 엔진**으로 100% 자동 폴백되어 정상 동작합니다.
+
+---
+
 ## 📁 디렉토리 구조
 
 ```text

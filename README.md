@@ -44,6 +44,65 @@
 
 ---
 
+## 🏛️ 전체 시스템 및 데이터 파이프라인 아키텍처
+
+```mermaid
+flowchart TD
+    %% 1. Raw Data & Collection
+    subgraph S1 ["1. 데이터 엔지니어링 (Data Engineering)"]
+        D1["서울시 25개 자치구 시간대별 교통량<br>(따릉이 대여 / 버스 승차 / 지하철 승하차)"]
+        D2["기상청 AWS 관측 데이터<br>(기온 / 강수량 / 풍속 / 습도)"]
+        D3["서울시 인프라 및 2025 공휴일<br>(역/정류소/거치대 수, 19일 공휴일)"]
+        D1 --> DP["데이터 정제 및 전처리 (전처리_2.csv)<br>- 완전 그리드(209,875행) 무결성<br>- 심야 운휴 0 대체 / 시계열 결측 보간"]
+        D2 --> DP
+        D3 --> DP
+    end
+
+    %% 2. Feature Engineering & Dataset Split
+    subgraph S2 ["2. 특성 공학 및 분할 (Feature & Split)"]
+        FE["32차원 입력 피처 파이프라인 (SSoT)<br>• 캘린더 (8D) + 기상 (8D) + 공간/인프라 (5D) + 시계열/추세 (11D)"]
+        DP --> FE
+        FE --> SP["시계열 순차 분할 (Temporal Split)<br>• Train: 01-01 ~ 09-30 (15.7만 행)<br>• Valid: 10-01 ~ 11-15 (2.6만 행)<br>• Test: 11-16 ~ 12-31 (2.6만 행)<br>※ 클린 테스트 셋: 11-01 ~ 11-27 (버스 결측 배제)"]
+    end
+
+    %% 3. Modeling & Optimization
+    subgraph S3 ["3. AI 모델링 & Optuna 튜닝 (Modeling)"]
+        M1["LightGBM Multi-Regressor (GBDT)"]
+        OPT["Optuna 베이지안 튜닝<br>(lr, leaves, depth, subsample, reg_alpha/lambda)"]
+        ES["조기 종료 적용 (Early Stopping 50)<br>• BIKE: 834 트리 (R²=0.9873)<br>• BUS: 1390 트리 (R²=0.9901)<br>• SUBWAY: 865 트리 (R²=0.9951)"]
+        SP --> M1
+        M1 <--> OPT
+        OPT --> ES
+    end
+
+    %% 4. ONNX & FastAPI
+    subgraph S4 ["4. 서빙 엔진 (Serving & Inference)"]
+        ONNX["ONNX Runtime 경량 엔진 (models/*.onnx)"]
+        ES --> ONNX
+        API["FastAPI 백엔드 엔진 (main.py)<br>- 인메모리 ONNX 추론 (지연시간 1~3ms)<br>- timeseries_cache 시계열 캐싱<br>- MCDA 최적 교통수단 추천 (기상 57% + 정시성 29% + 혼잡도 14%)"]
+        ONNX --> API
+    end
+
+    %% 5. Real-Time External APIs
+    subgraph S5 ["5. 실시간 데이터 수집 (Real-Time Ingestion)"]
+        EXT1["기상청 API허브 (초단기 실황)"]
+        EXT2["서울 열린데이터광장 (지하철 실시간)"]
+        EXT3["공공데이터포털 (버스 실시간)"]
+        EXT4["서울 열린데이터광장 (따릉이 실시간)"]
+        EXT1 & EXT2 & EXT3 & EXT4 --> API
+    end
+
+    %% 6. Presentation
+    subgraph S6 ["6. 대화형 웹 프론트엔드 (Presentation)"]
+        UI1["실시간 AI 추천 카드 및 시간대별 수요 차트"]
+        UI2["인터랙티브 대중교통 지도 (TransitMap.tsx - MapLibre GL)"]
+        UI3["What-If 가상 날씨 시뮬레이터 (슬라이더 조작 시 20ms 즉각 반응)"]
+        API --> UI1 & UI2 & UI3
+    end
+```
+
+---
+
 ## 🛠️ 기술 스택 및 환경
 
 - **언어**: Python 3.10+

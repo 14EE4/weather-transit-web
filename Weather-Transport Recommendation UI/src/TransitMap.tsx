@@ -747,14 +747,24 @@ popupContent.append(title, number)
 
       // 1. 활성 경로가 있는 경우: 경로에 포함된 역 이외의 모든 역/정류소는 완전히 숨김
       if (hasActiveRoute && routeStationNames && currentRoute) {
-        if (!routeStationNames.has(item.stop.name)) {
+        if (item.stop.type !== 'subway' || !routeStationNames.has(item.stop.name)) {
           item.el.style.display = 'none'
           continue
         }
-        // 출발역, 도착역, 환승역은 전용 핀 마커가 배치되므로 일반 알약 마커는 숨겨서 중복 방지
+        const firstPathStep = currentRoute.path[0]
+        const lastPathStep = currentRoute.path[currentRoute.path.length - 1]
+        const nearStartPin = firstPathStep && Math.abs(lng - firstPathStep.coords[0]) < 0.0015 && Math.abs(lat - firstPathStep.coords[1]) < 0.0015
+        const nearEndPin = lastPathStep && Math.abs(lng - lastPathStep.coords[0]) < 0.0015 && Math.abs(lat - lastPathStep.coords[1]) < 0.0015
+        const isTransferPin = (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name)) ||
+                              (currentRoute.transferTrains && currentRoute.transferTrains.some(t => t.station === item.stop.name))
+        // 출발역, 도착역, 환승역(또는 출발/도착 핀 반경 150m 이내 역)은 전용 핀 마커가 배치되므로 일반 알약 마커를 완전히 숨겨서 겹침 원천 방지
         const isSpecialPinStation = item.stop.name === currentRoute.from || 
                                     item.stop.name === currentRoute.to || 
-                                    (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name))
+                                    item.stop.name === firstPathStep?.name ||
+                                    item.stop.name === lastPathStep?.name ||
+                                    nearStartPin ||
+                                    nearEndPin ||
+                                    isTransferPin
         if (isSpecialPinStation) {
           item.el.style.display = 'none'
           continue

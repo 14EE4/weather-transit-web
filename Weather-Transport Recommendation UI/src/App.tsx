@@ -593,8 +593,9 @@ export default function App() {
         if (res.ok) {
           const liveSubway = await res.json()
           if (liveSubway.status === 'success' && liveSubway.arrivals && liveSubway.arrivals.length > 0) {
-            const firstTrain = liveSubway.arrivals[0]
-            route.departureTrain = {
+            const expectedLine = route.departureTrain?.line || route.path[0]?.lineUsed || ''
+            const firstTrain = liveSubway.arrivals.find((a: any) => a.line && expectedLine && (a.line.includes(expectedLine) || expectedLine.includes(a.line)))
+            if (firstTrain) route.departureTrain = {
               station: from,
               trainLineNm: firstTrain.destination,
               destinationOrNext: firstTrain.destination,
@@ -2269,6 +2270,8 @@ export default function App() {
                 humidity={displayHumidity}
                 wind={displayWind}
                 onSelectRouteForMap={mmRoute => {
+                  setFocusedCoords(null)
+                  setSelectedStop(null)
                   setActiveRoute(mmRoute)
                   setPage('map')
                   if (mapTransport === 'bus' || mapTransport === 'bike') {

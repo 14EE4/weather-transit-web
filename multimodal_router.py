@@ -395,12 +395,14 @@ class MultimodalRoutingEngine:
         # (priority, counter, transfers, stops, curr_station, curr_line, path_list)
         pq: List[Tuple[float, int, int, int, str, Optional[str], List[Tuple[str, Optional[str]]]]] = []
         counter = 0
+        low_freq_lines = {"경의중앙선", "경춘선", "경강선", "서해선", "수인분당선"}
 
         start_lines = start_st.get("lines") or ["지하철"]
         for line in start_lines:
             counter += 1
+            init_pen = 0.08 if line in low_freq_lines else 0.0
             heapq.heappush(
-                pq, (1.0, counter, 0, 1, s_name, line, [(s_name, line)])
+                pq, (1.0 + init_pen, counter, 0, 1, s_name, line, [(s_name, line)])
             )
 
         best_cost: Dict[Tuple[str, str], float] = {}
@@ -431,10 +433,11 @@ class MultimodalRoutingEngine:
                 if curr_line and curr_line in common_lines:
                     next_transfers = transfers
                     next_stops = stops + 1
+                    line_pen = (0.08 * next_stops) if curr_line in low_freq_lines else 0.0
                     next_cost = (
-                        next_transfers * 10000 + next_stops
+                        next_transfers * 10000 + next_stops + line_pen
                         if mode == "min_transfer"
-                        else next_stops * 2.2 + next_transfers * 4.5
+                        else next_stops * 2.2 + next_transfers * 4.5 + line_pen
                     )
                     n_key = (nbr, curr_line)
                     if best_cost.get(n_key, 1e18) > next_cost:
@@ -456,10 +459,11 @@ class MultimodalRoutingEngine:
                     for nl in target_lines:
                         next_transfers = transfers + 1
                         next_stops = stops + 1
+                        line_pen = (0.08 * next_stops) if nl in low_freq_lines else 0.0
                         next_cost = (
-                            next_transfers * 10000 + next_stops
+                            next_transfers * 10000 + next_stops + line_pen
                             if mode == "min_transfer"
-                            else next_stops * 2.2 + next_transfers * 4.5
+                            else next_stops * 2.2 + next_transfers * 4.5 + line_pen
                         )
                         n_key = (nbr, nl or "")
                         if best_cost.get(n_key, 1e18) > next_cost:
@@ -1313,19 +1317,38 @@ class MultimodalRoutingEngine:
                 if not all_coords or all_coords[-1] != c:
                     all_coords.append(c)
 
-        # TransitMap.tsx 호환용 path 배열 생성
-        compat_path = list(base_subway_route.get("path") or [])
+        # TransitMap.tsx 호환용 path 배열 및 출발/환승/도착 핀 메타데이터 정규화
+        compat_path = [dict(p) for p in (base_subway_route.get("path") or [])]
+        transfer_stations = list(base_subway_route.get("transferStations") or [])
+        transfer_trains = [dict(t) for t in (base_subway_route.get("transferTrains") or [])]
+        departure_train = base_subway_route.get("departureTrain")
+
         if override_origin_coords and compat_path:
+            actual_origin_name = segments[0].get("from_name", compat_path[0]["name"])
+            sub_boarding_station = compat_path[0]["name"]
+            # 따릉이 First-Mile 하차 후 지하철 탑승하는 역(예: 숙대입구역)을 환승역 핀으로 전환
+            if sub_boarding_station and sub_boarding_station != actual_origin_name:
+                compat_path[0]["isTransfer"] = True
+                compat_path[0]["transferInfo"] = f"🚲 따릉이 반납 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
+                if sub_boarding_station not in transfer_stations:
+                    transfer_stations = [sub_boarding_station] + transfer_stations
+                if departure_train:
+                    transfer_trains = [dict(departure_train)] + transfer_trains
+                departure_train = None
+
             compat_path = [
                 {
-                    "name": segments[0].get("from_name", base_subway_route["from"]),
+                    "name": actual_origin_name,
                     "coords": override_origin_coords,
                     "lines": ["따릉이 First-Mile"],
-                    "lineUsed": "따릉이",
-                    "isTransfer": True,
-                    "transferInfo": f"🚲 따릉이 ➔ 🚇 {compat_path[0]['name']} 환승",
+                    "lineUsed": "🚲 따릉이",
+                    "isTransfer": False,
+                    "transferInfo": None,
                 }
             ] + compat_path
+
+        actual_from = compat_path[0]["name"] if compat_path else base_subway_route.get("from", "")
+        actual_to = compat_path[-1]["name"] if compat_path else base_subway_route.get("to", "")
 
         return {
             "id": route_id,
@@ -1348,16 +1371,16 @@ class MultimodalRoutingEngine:
             "segments": segments,
             "geometry": all_coords,
             # 기존 TransitRouteResult 호환 필드 (지도 즉시 연동용)
-            "from": base_subway_route.get("from", ""),
-            "to": base_subway_route.get("to", ""),
+            "from": actual_from,
+            "to": actual_to,
             "estimatedMinutes": total_minutes,
             "fareKrw": total_fare_krw,
             "distanceKm": total_distance_km,
             "transferCount": transfer_count,
-            "transferStations": base_subway_route.get("transferStations", []),
-            "stationCount": base_subway_route.get("stationCount", len(compat_path)),
-            "departureTrain": base_subway_route.get("departureTrain"),
-            "transferTrains": base_subway_route.get("transferTrains", []),
+            "transferStations": transfer_stations,
+            "stationCount": len(compat_path),
+            "departureTrain": departure_train,
+            "transferTrains": transfer_trains,
             "fareBreakdown": base_subway_route.get("fareBreakdown", ""),
             "summary": f"{title} · 약 {total_minutes}분 ({total_distance_km}km / {total_fare_krw:,}원)",
             "path": compat_path,

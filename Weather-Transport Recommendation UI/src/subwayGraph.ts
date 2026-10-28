@@ -3109,6 +3109,8 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
   // 비용 가중치: transfers * 10,000 + stops (환승 최소화가 무조건 1순위, 그 다음 정거장 수 최소화)
   const pq = new PriorityQueue<SearchState>()
   const startLines = startSt.lines || []
+  const getLineTiePenalty = (l: string | null) =>
+    l === '경의중앙선' || l === '경춘선' || l === '경강선' || l === '서해선' ? 0.08 : 0
 
   if (startLines.length > 0) {
     for (const line of startLines) {
@@ -3120,7 +3122,7 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
           currLine: line,
           path: [{ station: startSt.name, lineUsed: line }],
         },
-        1
+        1 + getLineTiePenalty(line)
       )
     }
   } else {
@@ -3177,7 +3179,7 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
         // 동일 호선 계속 탑승 (환승 0회)
         const nextTransfers = transfers
         const nextStops = stops + 1
-        const prio = nextTransfers * 10000 + nextStops
+        const prio = nextTransfers * 10000 + nextStops + getLineTiePenalty(currLine) * nextStops
         const nbrKey = `${neighbor}|${currLine}`
         if (!bestMap.has(nbrKey) || bestMap.get(nbrKey)! > prio) {
           pq.push(
@@ -3205,7 +3207,7 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
         for (const nextLine of targetLines) {
           const nextTransfers = transfers + 1
           const nextStops = stops + 1
-          const prio = nextTransfers * 10000 + nextStops
+          const prio = nextTransfers * 10000 + nextStops + getLineTiePenalty(nextLine) * nextStops
           const nbrKey = `${neighbor}|${nextLine || ''}`
           if (!bestMap.has(nbrKey) || bestMap.get(nbrKey)! > prio) {
             pq.push(

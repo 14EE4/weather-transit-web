@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from 'react'
+import { SUBWAY_STATIONS } from './subwayData'
 import { MultimodalSegment, TransitRouteResult } from './subwayGraph'
+
+const VALID_STATION_NAMES = new Set(
+  SUBWAY_STATIONS.flatMap(st => [st.name, st.name.replace(/역$/, '')])
+)
 
 export interface MultimodalBriefing {
   headline: string
@@ -122,7 +127,13 @@ export default function MultimodalRoutePanel({
 
   const cleanFrom = (fromStation || '').trim()
   const cleanTo = (toStation || '').trim()
-  const hasValidRouteInput = Boolean(cleanFrom && cleanTo && cleanFrom !== cleanTo)
+  const hasValidRouteInput = Boolean(
+    cleanFrom &&
+      cleanTo &&
+      cleanFrom !== cleanTo &&
+      VALID_STATION_NAMES.has(cleanFrom) &&
+      VALID_STATION_NAMES.has(cleanTo)
+  )
 
   useEffect(() => {
     if (!hasValidRouteInput) {

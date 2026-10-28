@@ -6,6 +6,25 @@
 
 ---
 
+## [2026-10-28]
+
+### 0. 🧠 LangGraph × FactChat LLM 멀티모달 경로 추천 패널, 로컬 캐싱 및 지도 폴리라인·마커 정합성 개선 (이슈 #18)
+- **배경**:
+  - 백엔드 LangGraph 5단계 멀티모달 경로 탐색 엔진(`POST /api/v1/routes/multimodal-search`)과 연동하여 도보 + 따릉이(First/Last-Mile) + 버스 + 지하철 복합 경로를 시각화하고, 탭 전환 시 재로딩 방지 및 지도 상 출발/도착 알약 마커 겹침 문제를 해결함.
+- **해결 조치 (`MultimodalRoutePanel.tsx`, `App.tsx`, `AppM.tsx`, `TransitMap.tsx`, `subwayGraph.ts`)**:
+  1. **`MultimodalRoutePanel.tsx` 신설 및 이중 캐싱(`MULTIMODAL_MEMORY_CACHE` + `localStorage`)**:
+     - FactChat LLM 브리핑 카드, 기상 안전 게이트 배지, LangGraph 5단계 노드 트레이스 뷰어, 후보 경로 선택 탭 및 구간별(`🚶 도보`, `🚲 따릉이`, `🚌 버스`, `🚇 지하철`) 상세 타임라인 렌더링.
+     - 경로 검색 중 인라인 로딩 배너 표출 및 브라우저 콘솔(`F12`)에 5단계 노드 트레이스·후보 비교표(`console.table`) 실시간 출력.
+     - 검색 결과를 메모리 + `localStorage`(`weather_transit_multimodal_cache_v3`, TTL 30분)에 저장하고 `App.tsx`/`AppM.tsx`의 `departure`/`destination` 상태를 `localStorage`에 영속화하여, `지도` ↔ `경로 추천` 탭 전환 시 API 재호출 없이 0ms 즉시 복원.
+  2. **`TransitMap.tsx` 멀티모달 컬러 폴리라인 및 마커 겹침 해소**:
+     - `multimodal-segments` GeoJSON 레이어로 수단별 고유 색상(도보 슬레이트 점선, 따릉이 에메랄드, 버스 오렌지, 지하철 노선 고유색) 폴리라인 렌더링.
+     - 다중 호선 환승역(예: 서울역)이 경의중앙선으로 고정 표출되던 문제를 실제 탑승 호선(`displayStartLine`) 동적 매칭으로 해결.
+     - 경로 활성화 시 출발역·환승역·도착역의 기본 알약 마커(`서울역 33%`)를 자동 숨김 처리하여 경로 전용 핀(`출발 · 서울역`)과 겹치지 않도록 조치.
+  3. **`subwayGraph.ts` 정거장 수 off-by-one 교정**:
+     - 구간 정거장 수 계산식을 `seg.steps.length`에서 `Math.max(1, seg.steps.length - 1)`로 수정하여 백엔드 물리 주행시간 산식과 100% 일치 보장.
+
+---
+
 ## [2026-10-16]
 
 ### 0. 🗺️ MapLibre 지도 기본 카메라 시야각 탑뷰(Pitch 0°) 전환 — 3D 틸트 기본값 제거

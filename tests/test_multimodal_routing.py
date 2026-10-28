@@ -144,6 +144,49 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
                     self.assertNotIn("서울식물원", seg.get("to_name", ""))
                     self.assertNotIn("서울식물원", seg.get("from_name", ""))
 
+    def test_verified_travel_times_and_headway_consistency(self):
+        """역간 실거리·노선별 주행속도 기반 이동시간, 실시간/시간대별 배차간격, 총 소요시간=구간 합계 정합성 검증"""
+        # 1) 송내역 -> 중동역 (1호선 1개 역 이동: 약 2분)
+        songnae_res = multimodal_routing_engine.run_multimodal_search(
+            from_query="송내역",
+            to_query="중동역",
+            district="구로구",
+            hour=14,
+            weather_context={"temp": 18.0, "rain": 0.0, "humidity": 45.0, "wind": 1.8},
+        )
+        sub_opt = next(r for r in songnae_res["routes"] if r["id"] == "route-subway-optimal")
+        self.assertEqual(sub_opt["stationCount"], 1)
+        self.assertIn(sub_opt["total_minutes"], (2, 3))
+        self.assertEqual(sub_opt["total_minutes"], sum(int(s["minutes"]) for s in sub_opt["segments"]))
+
+        # 2) 서울역 -> 홍대입구역 (공항철도 2개 역 이동: 약 7분 + 실시간 도착정보 주입 검증)
+        live_arrs = [
+            {
+                "line": "공항철도",
+                "destination": "인천공항2터미널행 - 공덕방면",
+                "message": "3분 후 (서울출발)",
+                "remaining_minutes": 3,
+                "remaining_seconds": 180,
+            }
+        ]
+        seoul_hongdae = multimodal_routing_engine.run_multimodal_search(
+            from_query="서울역",
+            to_query="홍대입구역",
+            district="용산구",
+            hour=8,
+            weather_context={"temp": 15.0, "rain": 0.0, "humidity": 50.0, "wind": 2.0},
+            live_subway_arrivals=live_arrs,
+        )
+        sh_top = seoul_hongdae["routes"][0]
+        self.assertEqual(sh_top["id"], "route-subway-optimal")
+        self.assertEqual(sh_top["stationCount"], 2)
+        self.assertIn(sh_top["total_minutes"], (6, 7, 8))
+        self.assertTrue(sh_top["departureTrain"]["isLive"])
+        self.assertEqual(sh_top["departureTrain"]["remainingMinutes"], 3)
+        self.assertIn("실시간 3분 후 도착", sh_top["segments"][0]["live_badge"])
+        for r in seoul_hongdae["routes"]:
+            self.assertEqual(r["total_minutes"], sum(int(s["minutes"]) for s in r["segments"]))
+
 
 if __name__ == "__main__":
     unittest.main()

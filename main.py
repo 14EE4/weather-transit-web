@@ -3169,8 +3169,19 @@ async def _execute_multimodal_search(
         except Exception as exc:
             logger.warning(f"멀티모달 ONNX 추론 폴백: {exc}")
 
-    # 3. 인메모리 캐시된 실시간 따릉이 스냅샷 참조 (비차단 고속 조회)
+    # 3. 인메모리 캐시된 실시간 따릉이 스냅샷 및 실시간 지하철 도착 정보 연동
     live_bikes = _bike_snapshot_cache[1] if _bike_snapshot_cache else (_bike_snapshot_last_good or [])
+    live_subway_arrs: list[dict] = []
+    if SEOUL_SUBWAY_KEY:
+        try:
+            sub_resp = await get_subway_arrival(from_station)
+            if sub_resp and sub_resp.source == 'SEOUL_SUBWAY_LIVE' and sub_resp.arrivals:
+                live_subway_arrs = [
+                    a.model_dump() if hasattr(a, 'model_dump') else (a.dict() if hasattr(a, 'dict') else dict(a))
+                    for a in sub_resp.arrivals
+                ]
+        except Exception as exc:
+            logger.debug('멀티모달 실시간 지하철 도착 연동 스킵: %s', exc)
 
     # 4. LangGraph StateGraph 파이프라인 실행
     result = multimodal_routing_engine.run_multimodal_search(
@@ -3181,6 +3192,7 @@ async def _execute_multimodal_search(
         weather_context=w_ctx,
         ai_congestion=ai_cong,
         live_bike_snapshot=live_bikes,
+        live_subway_arrivals=live_subway_arrs,
     )
     result["district"] = norm_d
     result["hour"] = target_hour

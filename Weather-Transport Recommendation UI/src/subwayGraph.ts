@@ -3272,15 +3272,19 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
     }
   })
 
-  const stationCount = pathSteps.length
+  const stationCount = Math.max(1, pathSteps.length - 1)
   const transferCount = transferStations.length
-  // 소요 시간: 역 당 2.5분 + 환승 1회당 4분 가산
-  const estimatedMinutes = Math.max(5, Math.round(stationCount * 2.5 + transferCount * 4))
 
   // 거리 비례제 운임 및 실연장 거리(km) 계산
   const pathCoords: [number, number][] = pathSteps.map(p => p.coords)
   const pathNames: string[] = pathSteps.map(p => p.name)
   const { fareKrw, distanceKm, innerDistanceKm, outerDistanceKm, fareBreakdown } = calculateSubwayFare(pathCoords, pathNames)
+
+  // 물리 주행 공식: (실연장 거리 / 노선 주행속도) * 60 + (정차역 수 * 역당 정차시간) + (환승 횟수 * 4분)
+  const mainLine = pathSteps[0]?.lineUsed || '2호선'
+  const runSpeedKmh = mainLine === 'GTX-A' ? 95 : (mainLine === '공항철도' || mainLine === '신분당선' ? 56 : 45)
+  const dwellMin = mainLine === '공항철도' || mainLine === '신분당선' || mainLine === 'GTX-A' ? 0.55 : 0.45
+  const estimatedMinutes = Math.max(2, Math.round((distanceKm / runSpeedKmh) * 60 + stationCount * dwellMin + transferCount * 4))
 
   const summary = transferCount === 0
     ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`

@@ -519,6 +519,27 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         },
       })
 
+      // 멀티모달 구간별(따릉이/버스/지하철/도보) 컬러 폴리라인 소스 및 레이어
+      map.addSource('multimodal-segments', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+      })
+
+      map.addLayer({
+        id: 'multimodal-segments-line',
+        type: 'line',
+        source: 'multimodal-segments',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': ['coalesce', ['get', 'color'], '#38BDF8'],
+          'line-width': 6,
+          'line-opacity': 0.95,
+        },
+      })
+
       setMapLoaded(true)
     })
 
@@ -2211,6 +2232,7 @@ popupContent.append(title, number)
     routeMarkersRef.current = []
 
     const source = map.getSource('active-route')
+    const mmSource = map.getSource('multimodal-segments')
 
     if (!activeRoute || activeRoute.path.length < 2) {
       if (source) {
@@ -2221,6 +2243,12 @@ popupContent.append(title, number)
             type: 'LineString',
             coordinates: [],
           },
+        })
+      }
+      if (mmSource) {
+        mmSource.setData({
+          type: 'FeatureCollection',
+          features: [],
         })
       }
       // 경로 닫기 시 모든 마커의 display를 원상 복원하고 충돌 필터링 재계산
@@ -2243,7 +2271,9 @@ popupContent.append(title, number)
       return
     }
 
-    const coords = activeRoute.path.map(p => p.coords)
+    const coords = (activeRoute.geometry && activeRoute.geometry.length >= 2)
+      ? activeRoute.geometry
+      : activeRoute.path.map(p => p.coords)
     if (source) {
       source.setData({
         type: 'Feature',
@@ -2252,6 +2282,26 @@ popupContent.append(title, number)
           type: 'LineString',
           coordinates: coords,
         },
+      })
+    }
+    if (mmSource) {
+      const segFeatures = (activeRoute.segments || [])
+        .filter(seg => Array.isArray(seg.coords) && seg.coords.length >= 2)
+        .map(seg => ({
+          type: 'Feature',
+          properties: {
+            mode: seg.mode,
+            color: seg.color || '#38BDF8',
+            label: seg.label,
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: seg.coords,
+          },
+        }))
+      mmSource.setData({
+        type: 'FeatureCollection',
+        features: segFeatures,
       })
     }
 

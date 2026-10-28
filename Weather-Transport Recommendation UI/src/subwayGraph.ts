@@ -2682,7 +2682,33 @@ export interface TrainArrivalInfo {
   trainLineNm: string
 }
 
+export interface MultimodalSegment {
+  mode: 'walk' | 'bike' | 'bus' | 'subway'
+  label: string
+  line_name?: string
+  from_name: string
+  to_name: string
+  detail: string
+  minutes: number
+  distance_km: number
+  fare_krw: number
+  color: string
+  stops_count?: number
+  coords: [number, number][]
+  live_badge?: string
+}
+
 export interface TransitRouteResult {
+  id?: string
+  category?: string
+  title?: string
+  badge?: string
+  badge_color?: string
+  is_ai_recommended?: boolean
+  modes_used?: string[]
+  highlights?: string[]
+  segments?: MultimodalSegment[]
+  geometry?: [number, number][]
   from: string
   to: string
   path: RouteStep[]

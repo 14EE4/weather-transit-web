@@ -8,6 +8,34 @@
 
 ## [2026-10-28]
 
+### 🧠 LangGraph 및 FactChat LLM 기반 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 엔진 구축 (이슈 #18)
+- **배경**:
+  - 기존 단일 지하철 역-역 탐색을 넘어, 기상 실황/단기예보와 32차원 ONNX 수단별 혼잡도 및 실시간 따릉이 잔여 대수를 종합해 **도보 + 따릉이(First/Last-Mile) + 버스 + 지하철** 복합 경로를 오케스트레이션하는 지능형 라우팅 엔진 구축.
+- **주요 조치**:
+  1. **LangGraph `StateGraph` 5단계 멀티모달 라우팅 엔진 구현 (`multimodal_router.py`, `models/transit_network.json`)**:
+     - `parse_context_node`: 출발/도착지 좌표 해석, 시간대별 기상청 단기예보(`kma_forecast_manager`) 및 32차원 ONNX 혼잡도 로드.
+     - `weather_gate_router` (조건부 분기): 강수(`rain > 0mm`)·강풍(`>= 8m/s`)·혹한(`<= -5°C`) 시 `RAIN_SAFE_ONLY`로 분기하여 따릉이(PM) 구간을 자동 차단하고 실내 철도/버스 환승 경로로 우회.
+     - `clear_multimodal_tools_node` / `rain_safe_tools_node`: 지하철 다익스트라(최소환승/최단시간), 인근 버스정류소, 실시간 따릉이 스냅샷(`_bike_snapshot_cache`) 연동.
+     - `candidate_fusion_node`: `AI 멀티모달 최적(따릉이 First-Mile + 지하철)`, `지하철 최소환승`, `버스+지하철 복합 환승` 등 맞춤형 후보 경로 및 구간별(`segments`) 타임라인·운임·GeoJSON 좌표 생성.
+     - `factchat_llm_briefing_node`: FactChat / BAZE 게이트웨이(`gpt-6-luna`) 연동 자연어 AI 브리핑 생성 (5분 TTL 캐시 및 XAI 폴백 내장).
+  2. **백엔드 멀티모달 경로 탐색 엔드포인트 신설 (`main.py`)**:
+     - `POST /api/v1/routes/multimodal-search` 및 `GET /api/v1/routes/multimodal-search` 추가.
+  3. **프론트엔드 멀티모달 경로 추천 UI 및 지도 컬러 폴리라인 연동 (`MultimodalRoutePanel.tsx`, `App.tsx`, `AppM.tsx`, `TransitMap.tsx`)**:
+     - `경로 추천` 페이지에 FactChat LLM 브리핑 배너, Weather Gate 상태 배지, LangGraph 노드 실행 트레이스 뷰어, 3종 멀티모달 후보 탭 및 구간별(`🚶 도보`, `🚲 따릉이`, `🚌 버스`, `🚇 지하철`) 상세 타임라인 카드 탑재.
+     - `경로 추천` 페이지 좌측 날씨 현황 배지에 실시간 기상청 단기예보 연동 및 출발 시각 슬라이더(`00:00~23:00`) 추가.
+     - `TransitMap.tsx`에 `multimodal-segments` GeoJSON 레이어를 추가하여 수단별 고유 색상 폴리라인 및 지도 사이드바 멀티모달 구간 요약 표시.
+  4. **통합 테스트 및 문서 최신화 (`tests/test_multimodal_routing.py`)**:
+     - 맑은 날 따릉이 First-Mile 활성화 vs 우천 시 따릉이 자동 차단 및 FactChat LLM 브리핑 검증 테스트 통과.
+- **산출물**:
+  - `multimodal_router.py` (신규)
+  - `models/transit_network.json` (신규)
+  - `main.py`, `requirements.txt`
+  - `Weather-Transport Recommendation UI/src/MultimodalRoutePanel.tsx` (신규)
+  - `Weather-Transport Recommendation UI/src/App.tsx`, `AppM.tsx`, `TransitMap.tsx`, `subwayGraph.ts`
+  - `tests/test_multimodal_routing.py` (신규)
+  - `README.md`, `docs/SYSTEM_ARCHITECTURE.md`, `docs/BACKEND_INFERENCE_SERVER.md`, `docs/API_TEST_GUIDE.md`, `docs/CHANGELOG.md`, `docs/TODO.md`
+
+
 ### 🌦️ 기상청 단기예보(getVilageFcst/nph-dfs_shrt_grd) 연동 및 시간대별 동적 기상 자동 동기화 (이슈 #24)
 - **배경**:
   - 기존에는 초단기실황(getUltraSrtNcst) API만 연동되어 현재 시점 단일 관측값만 제공되었으며, 시간대 슬라이더를 변경하거나 미래 시간대를 조회할 때 실제 예보 날씨가 연동되지 못하고 단순 sine 곡선 추정에 의존하던 한계 개선.

@@ -365,3 +365,16 @@ pip install -r requirements.txt
 4. **추론 지연 시간(SLA) 10회 연속 측정**:
    - 평균 지연 시간: **1.54 ms** (Min: 1.20 ms, Max: 2.48 ms)
    - 사양서 SLA 기준(**15ms 이하**) 대비 **9배 이상 빠른 성능** 달성
+
+
+---
+
+## 9. LangGraph × FactChat LLM 멀티모달 통합 경로 탐색 API (`multimodal_router.py`)
+
+- **엔드포인트**: `POST /api/v1/routes/multimodal-search` 및 `GET /api/v1/routes/multimodal-search`
+- **파이프라인**:
+  1. `parse_context_node`: 출발/도착지 좌표 해석 + 기상청 단기예보(`kma_forecast_manager`) + 32차원 ONNX 수단별 혼잡도 로드
+  2. `weather_gate_router`: 강수(`rain > 0mm`)/강풍 시 `RAIN_SAFE_ONLY` 노드로 분기하여 따릉이(PM) 탐색 자동 차단
+  3. `clear_multimodal_tools_node` / `rain_safe_tools_node`: 지하철 다익스트라(최소환승/최단시간), 인근 버스정류소, 실시간 따릉이 대여소(`_bike_snapshot_cache`) 통합 수집
+  4. `candidate_fusion_node`: `AI 멀티모달 최적(따릉이 First-Mile + 지하철)`, `지하철 최소환승`, `버스+지하철 복합 환승` 후보 생성 및 구간별(`segments`) GeoJSON 폴리라인 구성
+  5. `factchat_llm_briefing_node`: FactChat / BAZE 게이트웨이(`gpt-6-luna`) 연동 자연어 브리핑 생성 (5분 인메모리 캐시 및 XAI 규칙 엔진 폴백 내장)

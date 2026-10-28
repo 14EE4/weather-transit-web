@@ -1,0 +1,84 @@
+import unittest
+from fastapi.testclient import TestClient
+
+import main
+from multimodal_router import multimodal_routing_engine
+
+
+class TestMultimodalRoutingEngine(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        main.registry.load_models()
+        cls.client = TestClient(main.app)
+
+    def test_clear_weather_enables_bike_first_mile(self):
+        """맑은 날(rain=0.0) 호출 시 Weather Gate가 CLEAR_MULTIMODAL로 분기하고 따릉이 복합 경로를 1순위로 생성해야 함"""
+        res = multimodal_routing_engine.run_multimodal_search(
+            from_query="강남역",
+            to_query="서울역",
+            district="강남구",
+            hour=14,
+            weather_context={"temp": 18.5, "rain": 0.0, "humidity": 50.0, "wind": 2.0},
+        )
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["weather_gate"], "CLEAR_MULTIMODAL")
+        self.assertTrue(res["weather_context"]["bike_enabled"])
+        self.assertGreaterEqual(len(res["routes"]), 3)
+        top_route = res["routes"][0]
+        self.assertTrue(top_route["is_ai_recommended"])
+        self.assertIn("bike", top_route["modes_used"])
+        self.assertEqual(len(res["langgraph_trace"]), 4)
+
+    def test_rainy_weather_blocks_bike_via_weather_gate(self):
+        """우천 시(rain=10.5mm) Weather Gate가 RAIN_SAFE_ONLY로 분기하여 따릉이(PM) 후보를 자동 배제해야 함"""
+        res = multimodal_routing_engine.run_multimodal_search(
+            from_query="강남역",
+            to_query="서울역",
+            district="강남구",
+            hour=18,
+            weather_context={"temp": 13.0, "rain": 10.5, "humidity": 85.0, "wind": 4.5},
+        )
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["weather_gate"], "RAIN_SAFE_ONLY")
+        self.assertFalse(res["weather_context"]["bike_enabled"])
+        for route in res["routes"]:
+            self.assertNotIn("bike", route["modes_used"])
+        summary = res["ai_briefing"]["summary"]
+        self.assertTrue(
+            any(kw in summary for kw in ("강수", "비", "우천", "따릉이", "지하철")),
+            f"Unexpected briefing summary: {summary}",
+        )
+
+    def test_fastapi_post_and_get_multimodal_endpoints(self):
+        """FastAPI POST 및 GET /api/v1/routes/multimodal-search 엔드포인트 스키마 및 32D ONNX 연동 검증"""
+        post_resp = self.client.post(
+            "/api/v1/routes/multimodal-search",
+            json={
+                "from_station": "홍대입구역",
+                "to_station": "여의도역",
+                "district": "마포구",
+                "hour": 9,
+                "weather": {"temp": 17.0, "rain": 0.0, "humidity": 55.0, "wind": 2.0},
+            },
+        )
+        self.assertEqual(post_resp.status_code, 200)
+        data = post_resp.json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["origin"]["name"], "홍대입구역")
+        self.assertEqual(data["destination"]["name"], "여의도역")
+        self.assertIn("ai_briefing", data)
+        self.assertIn("routes", data)
+        self.assertGreater(len(data["routes"]), 0)
+
+        get_resp = self.client.get(
+            "/api/v1/routes/multimodal-search?from_station=잠실역&to_station=건대입구역&district=송파구&hour=19&rain=8.0&temp=14.0"
+        )
+        self.assertEqual(get_resp.status_code, 200)
+        g_data = get_resp.json()
+        self.assertEqual(g_data["weather_gate"], "RAIN_SAFE_ONLY")
+        self.assertFalse(g_data["weather_context"]["bike_enabled"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+

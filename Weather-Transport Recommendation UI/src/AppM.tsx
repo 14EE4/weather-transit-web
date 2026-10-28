@@ -1906,12 +1906,32 @@ export default function AppM() {
 
             {/* 입력 패널 */}
             <div>
-              {/* 날씨 현황 배지 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 16, marginBottom: 16 }}>
-                <span style={{ fontSize: 22 }}>🌧</span>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#38BDF8' }}>강남구 역삼동 · 비 · 14°C · 강수 2.8mm/h</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>현재 날씨 기준으로 교통수단을 추천합니다</div>
+              {/* 날씨 현황 배지 + 시간대 슬라이더 (기상청 단기예보 연동) */}
+              <div style={{ padding: '14px 16px', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.22)', borderRadius: 16, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <span style={{ fontSize: 22 }}>{isRaining ? '🌧' : '☀️'}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#38BDF8' }}>
+                      {DISTRICTS[selectedDistrict]} · {String(selectedHour).padStart(2, '0')}:00 · {displayPtyDesc} · {displayTemp}°C · 강수 {displayRain}mm/h
+                    </div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>
+                      기상청 단기예보 및 32차원 ONNX 혼잡도 기반 멀티모달 경로 탐색
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    🕒 출발 시각 {String(selectedHour).padStart(2, '0')}:00
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={23}
+                    step={1}
+                    value={selectedHour}
+                    onChange={e => setSelectedHour(Number(e.target.value))}
+                    style={{ flex: 1, accentColor: '#38BDF8', cursor: 'pointer', height: 5 }}
+                  />
                 </div>
               </div>
 
@@ -2193,8 +2213,26 @@ export default function AppM() {
               </div>
             </div>
 
-            {/* 추천 결과 */}
+            {/* 추천 결과 (LangGraph × FactChat 멀티모달 경로 + 수단별 추천 점수) */}
             <div>
+              <MultimodalRoutePanel
+                apiBaseUrl={API_BASE_URL}
+                fromStation={departure}
+                toStation={destination}
+                district={DISTRICTS[selectedDistrict] || '강남구'}
+                selectedHour={selectedHour}
+                temp={displayTemp}
+                rain={displayRain}
+                humidity={displayHumidity}
+                wind={displayWind}
+                onSelectRouteForMap={mmRoute => {
+                  setActiveRoute(mmRoute)
+                  setPage('map')
+                  if (mapTransport === 'bus' || mapTransport === 'bike') {
+                    setMapTransport('all')
+                  }
+                }}
+              />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em' }}>
                   날씨 기반 교통수단 추천 결과
@@ -2483,7 +2521,7 @@ export default function AppM() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 800 }}>
-                        ⚡ 최소 환승 우선 추천 경로
+                        ⚡ {activeRoute.badge || '최소 환승 우선 추천 경로'}
                       </span>
                       <span style={{
                         background: activeRoute.transferCount === 0 ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)',
@@ -2543,6 +2581,28 @@ export default function AppM() {
                       </div>
                     </div>
                   </div>
+
+                  {/* 멀티모달 구간 타임라인 요약 (LangGraph 경로 선택 시 표시) */}
+                  {activeRoute.segments && activeRoute.segments.length > 0 && (
+                    <div style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 10, padding: '8px 10px', marginBottom: 10, border: '1px solid rgba(56,189,248,0.2)' }}>
+                      <div style={{ fontSize: 9.5, color: '#C084FC', fontFamily: 'JetBrains Mono', fontWeight: 800, marginBottom: 6 }}>
+                        🧠 LangGraph 멀티모달 구간 안내
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {activeRoute.segments.map((seg, sIdx) => (
+                          <div key={sIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10.5, borderLeft: `3px solid ${seg.color || '#38BDF8'}`, paddingLeft: 7 }}>
+                            <div style={{ color: '#F0F6FF', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 6 }}>
+                              <span style={{ color: seg.color || '#38BDF8', fontWeight: 800, marginRight: 4 }}>{seg.label}</span>
+                              {seg.from_name} ➔ {seg.to_name}
+                            </div>
+                            <span style={{ color: '#FCD34D', fontFamily: 'JetBrains Mono', fontWeight: 700, flexShrink: 0 }}>
+                              {seg.minutes}분
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 수도권 거리비례 운임 산정 내역 */}
                   {activeRoute.fareBreakdown && (

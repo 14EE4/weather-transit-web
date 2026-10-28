@@ -43,7 +43,12 @@
    - 우천 및 피크 시간대 따릉이(PM) 잉여 회수(Recall) 및 긴급 추가 배치(Deploy) 권고 수량 산출
    - 시내버스 혼잡 구간 배차 증차 가이드, 상위 5대 긴급 조치 구역 랭킹 및 일일 운영 계획 CSV 다운로드 기능 제공
 
-4. **서울시 지하철 실시간 도착 정보**
+4. **LangGraph × FactChat LLM 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 엔진 (`POST /api/v1/routes/multimodal-search`)**
+   - **5단계 LangGraph `StateGraph` 파이프라인**: `parse_context_node` ➔ `weather_gate_router`(조건부 분기) ➔ `clear_multimodal_tools_node` / `rain_safe_tools_node` ➔ `candidate_fusion_node` ➔ `factchat_llm_briefing_node`
+   - **기상 안전 게이트 (Weather Gate)**: 강수(`rain > 0mm`)·강풍(`>= 8m/s`)·혹한(`<= -5°C`) 감지 시 First/Last-Mile 따릉이(PM) 구간을 자동 차단하고 실내 환승·지하철/버스 안전 경로로 우회
+   - **FactChat LLM (`gpt-6-luna`) 자연어 브리핑**: 기상청 단기예보, 32차원 ONNX 수단별 혼잡도, 실시간 따릉이 잔여 대수를 종합해 최적 멀티모달 조합 사유를 브리핑 (키 미설정/지연 시 XAI 엔진 자동 폴백)
+
+5. **서울시 지하철 실시간 도착 정보**
    - 지하철역별 실시간 열차 도착 현황 (방면, 도착 메시지, 남은 시간, 급행/일반 여부)
    - 서울 열린데이터광장 OpenAPI 연동
 

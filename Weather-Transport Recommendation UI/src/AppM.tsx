@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'
-import { findSubwayRoute, calculateSubwayFare, TransitRouteResult } from './subwayGraph'
+import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
 
 type Page = 'main' | 'route' | 'map'
@@ -637,6 +637,34 @@ export default function AppM() {
       }
     } else {
       alert(`'${from}'에서 '${to}'까지의 지하철 경로를 찾을 수 없습니다. 역 이름을 정확히 입력해주세요.`)
+    }
+  }
+
+  // 출발지 및 도착지 초기화 함수
+  const handleResetRoute = () => {
+    setDeparture('')
+    setDestination('')
+    setActiveRoute(null)
+    setShowDepartureList(false)
+    setShowDestinationList(false)
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('weather_transit_route_departure')
+        localStorage.removeItem('weather_transit_route_destination')
+      } catch {}
+    }
+  }
+
+  // 출발지 ↔ 도착지 맞바꾸기
+  const handleSwapRoute = () => {
+    const prevDep = departure
+    const prevDest = destination
+    setDeparture(prevDest)
+    setDestination(prevDep)
+    setShowDepartureList(false)
+    setShowDestinationList(false)
+    if (prevDest && prevDep) {
+      handleSearchRoute(prevDest, prevDep, false)
     }
   }
 
@@ -1967,9 +1995,28 @@ export default function AppM() {
               {/* 출발/도착 입력 (지하철역 실시간 자동완성 검색 연동) */}
               <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, marginBottom: 16 }}>
                 {/* 출발지 */}
-                <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
-                  <div style={{ fontSize: 10, color: '#34D399', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 6 }}>
-                    🟢  출발지 (지하철역 검색)
+                <div style={{ padding: '14px 18px 12px', position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, color: '#34D399', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                      🟢  출발지 (지하철역 검색)
+                    </div>
+                    {departure && (
+                      <button
+                        onClick={() => {
+                          setDeparture('')
+                          setShowDepartureList(false)
+                          setActiveRoute(null)
+                        }}
+                        title="출발지 지우기"
+                        style={{
+                          background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 999,
+                          padding: '2px 8px', fontSize: 10, color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 3,
+                        }}
+                      >
+                        <span>✕</span> 지우기
+                      </button>
+                    )}
                   </div>
                   <input
                     type="text"
@@ -2075,10 +2122,46 @@ export default function AppM() {
                   })()}
                 </div>
 
+                {/* 출발 ↔ 도착 맞바꾸기 구분선 */}
+                <div style={{ position: 'relative', height: 1, background: 'rgba(255,255,255,0.07)' }}>
+                  <button
+                    onClick={handleSwapRoute}
+                    title="출발지 ↔ 도착지 맞바꾸기"
+                    style={{
+                      position: 'absolute', right: 18, top: -14, width: 28, height: 28,
+                      borderRadius: '50%', background: '#1E293B', border: '1px solid rgba(255,255,255,0.18)',
+                      color: '#38BDF8', fontSize: 13, cursor: 'pointer', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', zIndex: 10,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'all 0.15s ease',
+                    }}
+                  >
+                    ⇅
+                  </button>
+                </div>
+
                 {/* 도착지 */}
-                <div style={{ padding: '12px 18px 16px', position: 'relative' }}>
-                  <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em', marginBottom: 6 }}>
-                    🔵  도착지 (지하철역 검색)
+                <div style={{ padding: '12px 18px 14px', position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+                      🔵  도착지 (지하철역 검색)
+                    </div>
+                    {destination && (
+                      <button
+                        onClick={() => {
+                          setDestination('')
+                          setShowDestinationList(false)
+                          setActiveRoute(null)
+                        }}
+                        title="도착지 지우기"
+                        style={{
+                          background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 999,
+                          padding: '2px 8px', fontSize: 10, color: 'rgba(255,255,255,0.6)', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 3,
+                        }}
+                      >
+                        <span>✕</span> 지우기
+                      </button>
+                    )}
                   </div>
                   <input
                     type="text"
@@ -2182,17 +2265,36 @@ export default function AppM() {
                 </div>
               </div>
 
-              <button
-                onClick={() => handleSearchRoute(departure, destination)}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: 16, cursor: 'pointer', marginBottom: 20,
-                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
-                  fontSize: 15, fontWeight: 800, border: 'none',
-                  boxShadow: '0 8px 32px rgba(56,189,248,0.3)',
-                }}
-              >
-                🔍  최적 경로 검색
-              </button>
+              {/* 검색 및 초기화 버튼 바 */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                <button
+                  onClick={() => handleSearchRoute(departure, destination)}
+                  style={{
+                    flex: 1, padding: '14px', borderRadius: 16, cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: '#0A1628',
+                    fontSize: 15, fontWeight: 800, border: 'none',
+                    boxShadow: '0 8px 32px rgba(56,189,248,0.3)',
+                  }}
+                >
+                  🔍  최적 경로 검색
+                </button>
+                {(departure || destination || activeRoute) && (
+                  <button
+                    onClick={handleResetRoute}
+                    title="출발·도착 초기화"
+                    style={{
+                      padding: '0 16px', borderRadius: 16, cursor: 'pointer',
+                      background: 'rgba(255,255,255,0.08)', color: '#E2E8F0',
+                      fontSize: 13, fontWeight: 700, border: '1px solid rgba(255,255,255,0.15)',
+                      display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>🔄</span>
+                    <span>초기화</span>
+                  </button>
+                )}
+              </div>
 
               {/* 자주 찾는 경로 */}
               <div style={{ marginBottom: 20 }}>
@@ -2206,7 +2308,7 @@ export default function AppM() {
                   { from: '여의도역', to: '시청역', icon: '🚇' },
                 ].map(item => {
                   const r = findSubwayRoute(item.from, item.to)
-                  const timeStr = r ? `${r.estimatedMinutes}분` : '25분'
+                  const timeStr = r ? formatDurationMinutes(r.estimatedMinutes) : '25분'
                   const fareStr = r ? `${r.fareKrw.toLocaleString()}원` : '1,550원'
                   const distStr = r ? `(${r.distanceKm}km)` : ''
                   return (
@@ -2313,7 +2415,7 @@ export default function AppM() {
                       {[
                         {
                           label: '예상 소요',
-                          value: (t.id === 'subway' && activeRoute) ? `${activeRoute.estimatedMinutes}분` : t.time
+                          value: (t.id === 'subway' && activeRoute) ? formatDurationMinutes(activeRoute.estimatedMinutes) : t.time
                         },
                         {
                           label: '예상 요금',
@@ -2587,10 +2689,10 @@ export default function AppM() {
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 26, fontWeight: 900, color: '#38BDF8', fontFamily: 'JetBrains Mono', lineHeight: 1 }}>
-                        {activeRoute.estimatedMinutes}
+                      <div style={{ fontSize: activeRoute.estimatedMinutes >= 60 ? 20 : 26, fontWeight: 900, color: '#38BDF8', fontFamily: 'JetBrains Mono', lineHeight: 1 }}>
+                        {formatDurationMinutes(activeRoute.estimatedMinutes)}
                       </div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }}>분 소요</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono' }}>소요</div>
                     </div>
                   </div>
 

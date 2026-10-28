@@ -8,6 +8,50 @@
 
 ## [2026-10-28]
 
+### 🚀 멀티모달 경로 탐색 정밀화: 서울시 버스·지하철 실환승 API 연동, 환승역별 실측 도보시간 및 급행열차 반영 (이슈 #27)
+- **배경**:
+  - 기존 멀티모달 탐색에서 환승역별 보행 시간이 일률적인 2.0분(또는 프론트엔드 4분)으로 고정되어 있던 한계를 극복하고, 서울교통공사 실측 통계 기반 정밀 환승 도보 시간 및 환승 난이도를 반영.
+  - 9호선 급행, 1호선 경인/경부 급행 등 수도권 급행열차의 일반역 무정차 통과(Skip) 다이어 및 소요시간 단축 모델링 구축.
+  - 서울시 대중교통 실시간 버스 도착 API(`get_bus_arrival`) 및 버스-지하철 환승 API(`getPathInfoByBusNSub`)를 연계하여 버스+지하철 하이브리드 경로에 실시간 잔여시간 및 정류소 정보를 실시간 주입.
+- **주요 조치**:
+  1. **주요 환승역 실측 도보시간 및 환승거리 마스터 데이터 구축 (`models/station_transfer_times.json`)**:
+     - 서울역(1호선↔공항철도 5.5분/350m, 1호선↔4호선 2.8분/180m), 노원역(4호선↔7호선 6.2분/312m), 종로3가역(1호선↔5호선 6.5분/420m), 고속터미널역(3호선↔7호선 4.5분, 7호선↔9호선 4.2분), 김포공항역(5호선↔9호선 0.8분, 9호선↔공항철도 0.5분 평면환승), 금정역(1호선↔4호선 0.5분/30m) 등 40+ 환승 페어 마스터 데이터 구축.
+     - 백엔드 `multimodal_router.py`와 프론트엔드 `subwayGraph.ts`에 동시 적용하여 환승 도보 세그먼트 정밀화 및 다익스트라 최단시간(`min_time`) 라우팅 비용에 직접 반영.
+  2. **수도권 지하철 급행열차(Express) 운행 스펙 및 정차역 스킵 모델링 (`multimodal_router.py`)**:
+     - `EXPRESS_SPECS` 정의: 9호선 급행, 1호선 경인/경부급행, 수인분당선 급행의 정차역 리스트, 운행속도(55~60km/h), 통과역당 절약시간(1.05~1.15분) 탑재.
+     - `_build_subway_segment`: 양 끝 정차역이 급행 정차역이고 통과하는 일반역이 2개 이상일 때 급행열차로 자동 감지, `🚇 {line_name}(급행)` 라벨링, 통과역 수 및 절약 시간(`time_saved_minutes`) 자동 계산.
+  3. **실시간 버스 도착 API(`get_bus_arrival`) 및 대중교통 연계 (`main.py`)**:
+     - `_execute_multimodal_search`에서 출발지 인근 버스 정류소의 실시간 버스 도착 정보(`DATA_GO_KR_BUS_KEY`)를 호출하여 `live_bus_arrivals`로 멀티모달 엔진에 전달.
+     - 버스+지하철 하이브리드 경로(`route-bus-subway-hybrid`)의 버스 세그먼트에 실시간 도착 뱃지(`🟢 실시간: {도착메시지}`) 및 노선명 매칭 주입.
+  4. **단위 테스트 및 빌드 검증 (`tests/test_multimodal_routing.py`)**:
+     - 실측 환승시간 조회, 9호선 급행 스킵 감지(김포공항➔신논현 14개 역 무정차 통과, 16분 단축), 실시간 버스 도착 뱃지 주입 등 신규 테스트 추가 (총 11개 테스트 통과).
+     - Docker 컨테이너 재빌드(`backend`, `frontend`) 및 `/health`, `/api/v1/routes/multimodal-search` 정상 동작 검증 완료.
+  5. **경로 추천 페이지 출발/도착 초기화 및 60분 이상 시간-분 포맷팅 적용**:
+     - 프론트엔드(`App.tsx`, `AppM.tsx`, `MultimodalRoutePanel.tsx`, `subwayGraph.ts`):
+       - 출발지/도착지 입력창에 개별 삭제(✕ 지우기) 버튼 및 출발·도착 맞바꿈(⇅) 버튼 추가.
+       - `🔄 초기화` 버튼을 검색 버튼 우측에 배치하여 출발지, 도착지, 추천 경로 선택 상태 및 로컬 스토리지 일괄 초기화 지원.
+       - 예상 소요시간이 60분 이상일 경우 `X시간 Y분` 포맷(`formatDurationMinutes`)으로 환산 표기 (예: 65분 ➔ `1시간 5분`, 60분 ➔ `1시간`).
+       - 멀티모달 후보 카드, 상세 요약, 세그먼트별 소요시간 툴팁, 지도 액티브 경로 카드 및 최근 검색 경로까지 일관된 시간 포맷 적용.
+     - 백엔드(`multimodal_router.py`):
+       - `format_duration_kr` 유틸리티 함수 구현 및 후보 경로 `formatted_duration`, `summary` 필드에 시간-분 포맷팅 적용.
+  6. **구로역 분기(경인·경부) 및 1·2·5·경의중앙선 지선 토폴로지/분기역 환승 규칙 동기화**:
+     - 백엔드 `models/transit_network.json`, `data/subway_stations_with_coords.json`, `data/subway_graph.json`을 프론트엔드 마스터(`subwayData.ts`, `subwayGraph.ts`, 614개 역)와 100% 동기화하여 구로역↔가산디지털단지역 단절 및 1호선 지선(광명셔틀·서동탄지선·연천) 오연결 해결.
+     - `multimodal_router.py`에 7대 분기역(`구로역`, `금천구청역`, `병점역`, `강동역`, `가좌역`, `성수역`, `신도림역`) 계통 환승 규칙(`BRANCH_TRANSFER_RULES` / `check_branch_transfer`) 및 수도권 외 구간(평택~신창, 가평~춘천) 운임 특례 이식.
+     - `MultimodalRoutePanel.tsx` 로컬스토리지 캐시 버전(`v4`) 갱신 및 `test_guro_branch_and_line1_branch_topology` 회귀 방지 단위 테스트 추가.
+- **산출물**:
+  - `models/station_transfer_times.json` (신규)
+  - `models/transit_network.json`
+  - `data/subway_stations_with_coords.json`
+  - `data/subway_graph.json`
+  - `multimodal_router.py`
+  - `main.py`
+  - `Weather-Transport Recommendation UI/src/App.tsx`
+  - `Weather-Transport Recommendation UI/src/AppM.tsx`
+  - `Weather-Transport Recommendation UI/src/MultimodalRoutePanel.tsx`
+  - `Weather-Transport Recommendation UI/src/subwayGraph.ts`
+  - `tests/test_multimodal_routing.py`
+  - `docs/CHANGELOG.md`
+
 ### 🏛️ 시스템 아키텍처 다이어그램 및 명세서에 LangGraph 및 FactChat LLM 파이프라인 반영 (이슈 #31)
 - **배경**:
   - 이슈 #18을 통해 구축된 LangGraph 5단계 멀티모달 라우팅 엔진 및 FactChat LLM 브리핑 파이프라인을 `README.md` 및 `docs/SYSTEM_ARCHITECTURE.md` 다이어그램과 명세서에 전면 반영하여 시스템 설계 문서의 정합성 확보.

@@ -437,7 +437,8 @@ weather-transit-web/
 │   ├── lgb_bike_demand.onnx            # 따릉이 대여 수요 예측 ONNX 모델
 │   ├── lgb_bus_demand.onnx             # 버스 승차 수요 예측 ONNX 모델
 │   ├── lgb_subway_demand.onnx          # 지하철 승하차 수요 예측 ONNX 모델
-│   └── transit_network.json            # 수도권 561개 지하철역 그래프 및 버스/따릉이 거점 마스터
+│   ├── transit_network.json            # 수도권 561개 지하철역 그래프 및 버스/따릉이 거점 마스터
+│   └── station_transfer_times.json     # 서울교통공사 주요 환승역 실측 도보시간 및 환승거리 마스터
 ├── data/                               # 📊 정류장 및 교통 마스터 데이터
 │   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋
 ├── docs/                               # 📖 시스템 아키텍처 및 요구사항 명세서

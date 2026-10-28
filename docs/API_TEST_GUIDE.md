@@ -98,7 +98,23 @@ python -m unittest tests/test_kma_forecast.py
 
 ---
 
-## 4. 공공 API 장애 및 오류 해결 가이드 (Troubleshooting)
+## 4. LangGraph × FactChat LLM 멀티모달 경로 탐색 테스트 (`tests/test_multimodal_routing.py`)
+
+기상 조건(맑음 vs 우천)에 따른 `LangGraph` `StateGraph`의 조건부 라우팅(`Weather Gate`), 따릉이 First-Mile 결합/배제, 32차원 ONNX 혼잡도 연동 및 `FactChat LLM` (`gpt-6-luna`) 브리핑 생성을 검증합니다.
+
+### 실행 방법
+```bash
+python -m unittest tests/test_multimodal_routing.py -v
+```
+
+### 주요 검증 항목
+1. **맑은 날 멀티모달 결합 (`CLEAR_MULTIMODAL`)**: `rain=0.0mm` 시 따릉이 First-Mile + 지하철 복합 경로가 AI 1순위로 생성되는지 검증
+2. **우천 시 안전 게이트 작동 (`RAIN_SAFE_ONLY`)**: `rain>0mm` 시 모든 후보 경로에서 `bike` 수단이 자동 배제되고 실내 철도/버스 환승 경로가 추천되는지 검증
+3. **REST API 엔드포인트 (`POST/GET /api/v1/routes/multimodal-search`)**: `weather_context`, `ai_briefing`, `langgraph_trace`, `routes` 응답 스키마 무결성 검증
+
+---
+
+## 5. 공공 API 장애 및 오류 해결 가이드 (Troubleshooting)
 
 | 증상 | 원인 | 조치 방안 |
 | :--- | :--- | :--- |

@@ -370,3 +370,11 @@ sequenceDiagram
 3. **보안 정책**:
    - 외부 API 키는 서버 측 `.env`로 격리 관리하며 브라우저 클라이언트에는 마스킹된 형태로 전달
    - CORS 허용 정책을 통해 프론트엔드 포트(8443)와의 안전한 통신 지원
+
+
+---
+
+## 8. LangGraph × FactChat LLM 멀티모달 라우팅 아키텍처 (Issue #18)
+
+- **모듈**: `multimodal_router.py` (`MultimodalRoutingEngine`), `models/transit_network.json` (지하철 561개 역·인접 그래프 + 버스 거점 61개 + 따릉이 거점 52개)
+- **프론트엔드 연동**: `Weather-Transport Recommendation UI/src/MultimodalRoutePanel.tsx`, `App.tsx`, `AppM.tsx`, `TransitMap.tsx` (`multimodal-segments` 컬러 폴리라인 레이어)

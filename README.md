@@ -43,18 +43,27 @@
    - 우천 및 피크 시간대 따릉이(PM) 잉여 회수(Recall) 및 긴급 추가 배치(Deploy) 권고 수량 산출
    - 시내버스 혼잡 구간 배차 증차 가이드, 상위 5대 긴급 조치 구역 랭킹 및 일일 운영 계획 CSV 다운로드 기능 제공
 
-4. **서울시 지하철 실시간 도착 정보**
-   - 지하철역별 실시간 열차 도착 현황 (방면, 도착 메시지, 남은 시간, 급행/일반 여부)
-   - 서울 열린데이터광장 OpenAPI 연동
+4. **LangGraph × FactChat LLM 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 엔진 (`POST /api/v1/routes/multimodal-search`)**
+   - **5단계 LangGraph `StateGraph` 파이프라인**: `parse_context_node` ➔ `weather_gate_router`(조건부 분기) ➔ `clear_multimodal_tools_node` / `rain_safe_tools_node` ➔ `candidate_fusion_node` ➔ `factchat_llm_briefing_node`
+   - **다목적 효용 함수(Multi-Objective Utility Score) 랭킹**: 소요시간(분)·환승횟수·운임(원)·32차원 ONNX 혼잡도·기상 조건을 종합 산출하여 무조건 따릉이를 1순위로 고정하지 않고 실제 최단·최적 수단(직통 지하철 vs 따릉이 환승단축 vs 버스+지하철)을 합리적으로 1순위 추천
+   - **기상 안전 게이트 (Weather Gate) & 서울시 따릉이 권역 검증**: 강수(`rain > 0mm`)·강풍(`>= 8m/s`)·혹한(`<= -5°C`) 시 따릉이(PM) 구간을 자동 차단하고, 출발/반납 거점이 서울특별시 행정구역(`is_in_seoul`) 외곽(부천 송내·중동, 인천 부평, 경기 수원·판교 등)일 경우 서울시 전용 따릉이를 자동 배제하며 반경 850m 이내 실제 대여소/정류소만 매칭
+   - **19개 노선별 주행속도·배차간격 물리 산식 & 실시간 열차 도착 연동**: 수도권 19개 전철 노선별 실측 표정속도·정차시간(`LINE_OPERATING_SPECS`), 시간대별(첨두/평시/심야) 배차간격(`get_line_headway`), 서울 열린데이터광장 실시간 열차 도착 API(`realtimeStationArrival`) 대기시간을 결합하여 구간 합계 = 총 소요시간 100% 정합성 보장
+   - **FactChat LLM (`gpt-6-luna`) 자연어 브리핑 & 로컬 캐시 영속화**: 경로별 장단점과 추천 사유를 실시간 브리핑하며, 검색 결과를 메모리 + `localStorage`에 캐싱하여 `지도` ↔ `경로 추천` 탭 전환 시 재로딩 없이 즉시(0ms) 복원 및 브라우저 콘솔(`F12`)에 5단계 노드 트레이스 로깅
 
-3. **서울시 버스 도착 정보 (공공데이터포털)**
+5. **서울시 지하철 실시간 도착 정보**
+   - 지하철역별 실시간 열차 도착 현황 (방면, 도착 메시지, 남은 시간, 급행/일반 여부)
+   - 서울 열린데이터광장 OpenAPI 연동 (`서울`/`서울역` 병렬 쿼리로 1·4·경의중앙·공항철도·GTX-A 전 노선 누락 방지)
+
+6. **서울시 버스 도착 및 실시간 차량 위치 정보 (공공데이터포털)**
    - **노선 전체 정류소 도착 예정 정보 조회 (`getArrInfoByRouteAll`)**: 노선 ID(`busRouteId`) 기준 전체 경유 정류소별 첫차/막차 도착 예정 메시지(`arrmsg1`, `arrmsg2`) 및 정류소 순번(`staOrd`) 제공
    - **정류소별 저상버스 도착 예정 정보 조회 (`getLowArrInfoByStId`)**: 정류소 고유 ID(`stId`, 9자리) 기준 저상버스 실시간 도착 정보 제공
-4. **서울시 따릉이 실시간 대여정보 (서울 열린데이터광장 `bikeList`)**
-- **대여소별 잔여 자전거/거치대 수**: 지도 마커 팝업에 실시간 값을 표시하고, 따릉이 필터에서 줌 14.5 이상이면 주변 실제 대여소를 AI 모델 추론 마커와 동일한 UI로 통합 표시 (`/api/v1/transit/bike/stations/{nearby|search|by-number/{no}|{id}}`)
+   - **노선 버스 실시간 GPS 추적**: 정류소 도착 목록에서 노선 클릭 시 노선 폴리라인 및 운행 중인 버스 차량 실시간 위치 마커 표시
+
+7. **서울시 따릉이 실시간 대여정보 (서울 열린데이터광장 `bikeList`)**
+   - **대여소별 잔여 자전거/거치대 수**: 지도 마커 팝업에 실시간 값을 표시하고, 따릉이 필터에서 줌 14.5 이상이면 주변 실제 대여소를 AI 모델 추론 마커와 동일한 UI로 통합 표시 (`/api/v1/transit/bike/stations/{nearby|search|by-number/{no}|{id}}`)
    - `resultType="json"` 응답 처리 및 인증키 이중 인코딩(Double Encoding) 방지 적용
 
-4. **실시간 대화형 대시보드 & MapLibre GL 지도 (React)**
+8. **실시간 대화형 대시보드 & MapLibre GL 지도 (React)**
    - OpenStreetMap(OSM) 래스터 타일 기반의 실시간 대화형 웹 지도
    - **수도권 전체 561개 지하철역 정밀 GPS 좌표 완벽 매핑**:
      - 서울 열린데이터광장 역사마스터(`subwayStationMaster`) API 전수 검증을 거친 소수점 6자리 정밀 GPS 좌표 탑재
@@ -85,6 +94,8 @@
 | **테스트** | 🧪 **공공 API 및 추론 연동 테스트 가이드** | 외부 공공 API 및 AI 추론 통합 테스트 스위트 실행 방법 및 트러블슈팅 | [`API_TEST_GUIDE.md`](docs/API_TEST_GUIDE.md) |
 | **데이터** | 📦 **데이터 전처리 인수 검수 보고서** | 2025 서울시 20.9만 건 교통·기상 데이터 무결성 검수 및 결측치 현황 | [`DATA_PREPROCESSING_HANDOFF.md`](docs/DATA_PREPROCESSING_HANDOFF.md) |
 | **인프라** | 🐳 **Docker 컨테이너화 운영 가이드** | 백엔드-프론트엔드 멀티 컨테이너 패키징 및 운영 환경 구성안 | [`DOCKER_CONTAINERIZATION_PLAN.md`](docs/DOCKER_CONTAINERIZATION_PLAN.md) |
+| **백로그** | 📋 **기술 부채 및 기능 확장 TODO** | 잔여 기술 과제, 실도로망/급행/버스 환승 API 고도화 로드맵 | [`TODO.md`](docs/TODO.md) |
+| **데이터검수** | 🔍 **목업·하드코딩·미검증 데이터 전수 조사** | 정적 상수, 근사 산식, 폴백 데이터 현황 및 실시간 API 전환 방안 | [`TODO_MOCK_AND_UNVERIFIED_DATA.md`](docs/TODO_MOCK_AND_UNVERIFIED_DATA.md) |
 | **이력** | 📋 **프로젝트 변경 이력 (CHANGELOG)** | 버전별·날짜별 주요 신규 기능 구현, 버그 수정 및 인프라 개선 기록 | [`CHANGELOG.md`](docs/CHANGELOG.md) |
 | **프론트** | 🖥️ **프론트엔드 대시보드 가이드** | React 18, MapLibre GL JS 인터랙티브 지도 컴포넌트 구조 및 개발 가이드 | [Frontend README](Weather-Transport%20Recommendation%20UI/README.md) |
 
@@ -372,6 +383,8 @@ weather-transit-web/
 ├── .gitignore                          # Git 추적 제외 목록 (.env, venv 등)
 ├── requirements.txt                    # Python 의존성 라이브러리 목록
 ├── main.py                             # ⚡ FastAPI 백엔드 AI 추론 서버 (ONNX 인메모리 로딩 & 서빙)
+├── multimodal_router.py                # 🧠 LangGraph × FactChat LLM 5단계 멀티모달 경로 탐색 엔진
+├── kma_forecast.py                     # 🌦️ 기상청 단기예보 149×253 격자 파서 및 24시간 캐시 매니저
 ├── timeseries_cache.py                 # ⏱️ 시계열 AI 추론 인메모리 캐싱 레이어
 ├── scripts/                            # 🛠️ 데이터 빌드 및 역사 좌표 검증 스크립트 모음
 │   ├── build_full_subway_data.py       # 수도권 전철 마스터 데이터 빌더
@@ -379,17 +392,21 @@ weather-transit-web/
 ├── tests/                              # 🧪 테스트 및 검증 스위트 디렉토리
 │   ├── __init__.py                     # 테스트 패키지 초기화
 │   ├── test_inference.py               # ONNX 모델 및 추천 API 통합 검증 스크립트
+│   ├── test_multimodal_routing.py      # LangGraph 멀티모달 경로 탐색·권역 제한·배차간격 검증 스위트
+│   ├── test_kma_forecast.py            # 기상청 단기예보 24시간 시계열 검증 스위트
 │   └── test_api.py                     # 날씨/버스/지하철 외부 공공 API 연동 검증 스크립트
 ├── README.md                           # 프로젝트 전체 안내 문서
-├── models/                             # 🧠 학습 완료된 ONNX 머신러닝 모델 가중치 파일
+├── models/                             # 🧠 학습 완료된 ONNX 머신러닝 모델 가중치 및 네트워크 그래프
 │   ├── lgb_bike_demand.onnx            # 따릉이 대여 수요 예측 ONNX 모델
 │   ├── lgb_bus_demand.onnx             # 버스 승차 수요 예측 ONNX 모델
-│   └── lgb_subway_demand.onnx          # 지하철 승하차 수요 예측 ONNX 모델
+│   ├── lgb_subway_demand.onnx          # 지하철 승하차 수요 예측 ONNX 모델
+│   └── transit_network.json            # 수도권 561개 지하철역 그래프 및 버스/따릉이 거점 마스터
 ├── data/                               # 📊 정류장 및 교통 마스터 데이터
 │   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋
 ├── docs/                               # 📖 시스템 아키텍처 및 요구사항 명세서
 │   ├── CHANGELOG.md                    # 통합 변경 이력
-│   ├── TODO.md                         # 📋 향후 개발 백로그 (모바일 UI 반응형 최적화 등)
+│   ├── TODO.md                         # 📋 향후 개발 백로그 및 고도화 과제
+│   ├── TODO_MOCK_AND_UNVERIFIED_DATA.md # 🔍 하드코딩·목업·미검증 데이터 전수 조사 및 수정 방안
 │   ├── SERVER_DEPLOYMENT_GUIDE.md      # 🚀 리눅스 홈서버 / 미니 PC (PM2, Docker, NPM) 배포 가이드
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드

@@ -20,6 +20,7 @@ import onnxruntime as ort
 import httpx
 
 from timeseries_cache import timeseries_cache
+from multimodal_router import multimodal_routing_engine
 from kma_forecast import (
     kma_forecast_manager,
     District24hForecast,
@@ -3063,3 +3064,180 @@ async def get_bike_station(station_id: str):
         if s["id"] == station_id:
             return {"status": "success", "station": s, "source": source}
     raise HTTPException(status_code=404, detail="해당 대여소를 찾을 수 없습니다.")
+
+
+# ==============================================================================
+# 9. LangGraph × FactChat LLM 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 API (Issue #18)
+# ==============================================================================
+
+class MultimodalRouteRequest(BaseModel):
+    from_station: str = Field("강남역", description="출발역 또는 출발 거점명")
+    to_station: str = Field("서울역", description="도착역 또는 도착 거점명")
+    district: str = Field("강남구", description="기준 자치구명")
+    hour: Optional[int] = Field(None, ge=0, le=23, description="탐색 시간대 (0~23시)")
+    weather: Optional[WeatherInput] = Field(None, description="기상 조건 오버라이드 (미지정 시 KMA 단기예보/실황 연동)")
+
+
+async def _execute_multimodal_search(
+    from_station: str,
+    to_station: str,
+    district: str = "강남구",
+    hour: Optional[int] = None,
+    weather_override: Optional[WeatherInput] = None,
+) -> dict:
+    norm_d = normalize_district_name(district)
+    target_hour = hour if hour is not None else datetime.now().hour
+
+    # 1. 기상 컨텍스트 결정 (명시적 오버라이드 우선 -> KMA 단기예보 시간대별 기상 연동)
+    if weather_override is not None:
+        w_in = weather_override
+        w_ctx = {
+            "temp": w_in.temp,
+            "rain": w_in.rain,
+            "humidity": w_in.humidity,
+            "wind": w_in.wind,
+            "pty_desc": "비" if w_in.rain > 0 else "맑음",
+            "source": "USER_OVERRIDE",
+        }
+    else:
+        try:
+            h_fcst = await kma_forecast_manager.get_hour_weather(norm_d, target_hour, auth_key=KMA_AUTH_KEY)
+            w_in = WeatherInput(
+                temp=h_fcst.temp,
+                rain=h_fcst.rain,
+                humidity=75.0 if h_fcst.rain > 0 else 55.0,
+                wind=2.2,
+            )
+            w_ctx = {
+                "temp": h_fcst.temp,
+                "rain": h_fcst.rain,
+                "humidity": w_in.humidity,
+                "wind": w_in.wind,
+                "pty_desc": h_fcst.pty_desc,
+                "sky_desc": h_fcst.sky_desc,
+                "source": "KMA_SHORT_TERM_FORECAST",
+            }
+        except Exception:
+            w_in = WeatherInput(temp=16.5, rain=0.0, humidity=55.0, wind=2.0)
+            w_ctx = {
+                "temp": 16.5,
+                "rain": 0.0,
+                "humidity": 55.0,
+                "wind": 2.0,
+                "pty_desc": "맑음",
+                "source": "FALLBACK_WEATHER",
+            }
+
+    # 2. 32차원 ONNX 모델 추론으로 수단별 혼잡도 및 MCDA 점수 산출
+    ai_cong = {
+        "subway_crowd": 52,
+        "bus_crowd": 58,
+        "bike_crowd": 22,
+        "subway_score": 88,
+        "bus_score": 79,
+        "bike_score": 82,
+        "subway_volume": 28500,
+        "bus_volume": 19200,
+        "bike_volume": 340,
+    }
+    if registry.is_loaded:
+        try:
+            f_vec = build_feature_vector(norm_d, target_hour, w_in)
+            sub_t = prepare_session_input(f_vec, registry.subway_session)
+            bus_t = prepare_session_input(f_vec, registry.bus_session)
+            bike_t = prepare_session_input(f_vec, registry.bike_session)
+
+            s_v = max(0.0, float(registry.subway_session.run(None, {"float_input": sub_t})[0].flatten()[0]))
+            bu_v = max(0.0, float(registry.bus_session.run(None, {"float_input": bus_t})[0].flatten()[0]))
+            bi_v = max(0.0, float(registry.bike_session.run(None, {"float_input": bike_t})[0].flatten()[0]))
+
+            s_c, s_sc, _ = evaluate_subway(s_v, w_in.rain, norm_d)
+            bu_c, bu_sc, _ = evaluate_bus(bu_v, w_in.rain, norm_d)
+            bi_c, bi_sc, _ = evaluate_bike(bi_v, w_in.rain, norm_d)
+
+            ai_cong = {
+                "subway_crowd": int(s_c),
+                "bus_crowd": int(bu_c),
+                "bike_crowd": int(bi_c),
+                "subway_score": int(s_sc),
+                "bus_score": int(bu_sc),
+                "bike_score": int(bi_sc),
+                "subway_volume": int(round(s_v)),
+                "bus_volume": int(round(bu_v)),
+                "bike_volume": int(round(bi_v)),
+            }
+        except Exception as exc:
+            logger.warning(f"멀티모달 ONNX 추론 폴백: {exc}")
+
+    # 3. 인메모리 캐시된 실시간 따릉이 스냅샷 및 실시간 지하철 도착 정보 연동
+    live_bikes = _bike_snapshot_cache[1] if _bike_snapshot_cache else (_bike_snapshot_last_good or [])
+    live_subway_arrs: list[dict] = []
+    if SEOUL_SUBWAY_KEY:
+        try:
+            sub_resp = await get_subway_arrival(from_station)
+            if sub_resp and sub_resp.source == 'SEOUL_SUBWAY_LIVE' and sub_resp.arrivals:
+                live_subway_arrs = [
+                    a.model_dump() if hasattr(a, 'model_dump') else (a.dict() if hasattr(a, 'dict') else dict(a))
+                    for a in sub_resp.arrivals
+                ]
+        except Exception as exc:
+            logger.debug('멀티모달 실시간 지하철 도착 연동 스킵: %s', exc)
+
+    # 4. LangGraph StateGraph 파이프라인 실행
+    result = multimodal_routing_engine.run_multimodal_search(
+        from_query=from_station,
+        to_query=to_station,
+        district=norm_d,
+        hour=target_hour,
+        weather_context=w_ctx,
+        ai_congestion=ai_cong,
+        live_bike_snapshot=live_bikes,
+        live_subway_arrivals=live_subway_arrs,
+    )
+    result["district"] = norm_d
+    result["hour"] = target_hour
+    return result
+
+
+@app.post("/api/v1/routes/multimodal-search", tags=["Multimodal Routing"])
+async def post_multimodal_route_search(req: MultimodalRouteRequest):
+    """
+    LangGraph StateGraph 및 FactChat LLM 기반 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 API
+    - 강수/강풍 시 Weather Gate가 자동으로 따릉이(PM) First/Last-Mile 구간을 배제하고 안전 실내 환승 경로로 우회
+    - 32차원 ONNX 실시간 혼잡도 예측 및 FactChat LLM (또는 XAI 엔진) 자연어 브리핑 제공
+    """
+    return await _execute_multimodal_search(
+        from_station=req.from_station,
+        to_station=req.to_station,
+        district=req.district,
+        hour=req.hour,
+        weather_override=req.weather,
+    )
+
+
+@app.get("/api/v1/routes/multimodal-search", tags=["Multimodal Routing"])
+async def get_multimodal_route_search(
+    from_station: str = "강남역",
+    to_station: str = "서울역",
+    district: str = "강남구",
+    hour: Optional[int] = None,
+    rain: Optional[float] = None,
+    temp: Optional[float] = None,
+):
+    """GET 방식 멀티모달 통합 경로 탐색 API (쿼리 파라미터 기반)"""
+    w_override = None
+    if rain is not None or temp is not None:
+        w_override = WeatherInput(
+            temp=temp if temp is not None else 16.5,
+            rain=max(0.0, rain if rain is not None else 0.0),
+            humidity=75.0 if (rain or 0.0) > 0 else 55.0,
+            wind=2.2,
+        )
+    return await _execute_multimodal_search(
+        from_station=from_station,
+        to_station=to_station,
+        district=district,
+        hour=hour,
+        weather_override=w_override,
+    )
+

@@ -8,6 +8,42 @@
 
 ## [2026-10-28]
 
+### 🧠 LangGraph 및 FactChat LLM 기반 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 엔진 구축 및 정밀 교정 (이슈 #18)
+- **배경**:
+  - 기존 단일 지하철 역-역 탐색을 넘어, 기상 실황/단기예보와 32차원 ONNX 수단별 혼잡도 및 실시간 따릉이 잔여 대수를 종합해 **도보 + 따릉이(First/Last-Mile) + 버스 + 지하철** 복합 경로를 오케스트레이션하는 지능형 라우팅 엔진 구축.
+  - 초기 구현 후 발견된 ① 서울역 출발 시 회현역 경유 후 다시 서울역으로 돌아오는 제자리걸음 루프 버그, ② 무조건 따릉이를 1순위로 고정하던 문제, ③ 부천 송내역 등 비서울권에서 서울시 전용 따릉이(서울식물원 등 15km 점프)가 추천되던 문제, ④ 정거장 수 off-by-one 및 노선별 주행시간·배차간격 미검증 문제, ⑤ 탭 전환 시 재로딩 및 지도 알약 마커 겹침 문제를 전수 해결.
+- **주요 조치**:
+  1. **LangGraph `StateGraph` 5단계 멀티모달 라우팅 엔진 구현 (`multimodal_router.py`, `models/transit_network.json`)**:
+     - `parse_context_node`: 출발/도착지 좌표 해석, 시간대별 기상청 단기예보(`kma_forecast_manager`) 및 32차원 ONNX 혼잡도 로드.
+     - `weather_gate_router` (조건부 분기): 강수(`rain > 0mm`)·강풍(`>= 8m/s`)·혹한(`<= -5°C`) 시 `RAIN_SAFE_ONLY`로 분기하여 따릉이(PM) 구간을 자동 차단하고 실내 철도/버스 환승 경로로 우회.
+     - `clear_multimodal_tools_node` / `rain_safe_tools_node`: 지하철 다익스트라(최소환승/최단시간), 인근 버스정류소, 실시간 따릉이 스냅샷(`_bike_snapshot_cache`) 연동.
+     - `candidate_fusion_node`: `AI 멀티모달 최적(따릉이 First-Mile + 지하철)`, `지하철 최소환승`, `버스+지하철 복합 환승` 등 맞춤형 후보 경로 및 구간별(`segments`) 타임라인·운임·GeoJSON 좌표 생성.
+     - `factchat_llm_briefing_node`: FactChat / BAZE 게이트웨이(`gpt-6-luna`) 연동 자연어 AI 브리핑 생성 (5분 TTL 캐시 및 XAI 폴백 내장).
+  2. **다목적 효용 함수(Multi-Objective Utility Score) 및 루프 방지·권역 검증 (`multimodal_router.py`)**:
+     - **제자리걸음 루프 차단**: First-Mile 따릉이 반납역이 출발역과 동일하거나 반납역에서 도착역까지의 남은 지하철 경로가 출발역 자체를 다시 경유하는 경우 후보에서 제외하고, 출발역보다 목적지에 실질적으로 가까워지거나 환승 횟수를 줄여주는 직접 환승 허브(예: `서울역 ➔ 공덕역` 후 공항철도/경의중앙선 무환승 1정거장)를 탐색하도록 개선.
+     - **합리적 1순위 산정 (`_evaluate_route_utility`)**: 소요시간(분)·환승횟수·요금(원)·혼잡도(%)·기상을 종합한 효용 점수로 후보를 정렬하여, 직통 지하철이 더 빠르고 저렴하면 지하철을 1순위로, 따릉이가 환승과 시간을 단축하면 따릉이 멀티모달을 1순위로 동적 추천.
+     - **서울시 행정구역(`is_in_seoul`) 경계 검증 및 반경 850m 제한**: 부천(`송내역`, `중동역`, `부천역`), 인천(`부평역`), 경기(`수원역`, `판교역`) 등 비서울권 역사에서 서울시 전용 공공자전거인 따릉이를 자동 배제하고, 인근 정류소/대여소 매칭 반경을 850m 이내로 제한하여 원거리 직선 점프 폴리라인 버그 원천 차단.
+  3. **19개 노선별 주행속도·배차간격 물리 산식 및 실시간 열차 도착 연동 (`multimodal_router.py`, `main.py`, `subwayGraph.ts`)**:
+     - 수도권 19개 노선별 표정속도·역 정차시간(`LINE_OPERATING_SPECS`) 및 첨두/평시/심야 배차간격(`get_line_headway`) 테이블 구축.
+     - 정거장 수 off-by-one 버그(`len(steps)` ➔ `max(1, len(steps) - 1)`) 수정으로 1정거장 이동 시 정확히 `1정거장 (2~3분)` 산출.
+     - 서울 열린데이터광장 실시간 지하철 도착 API(`get_subway_arrival`)를 멀티모달 라우터에 직접 주입하여 실제 열차 대기시간 반영 및 `구간 소요시간 합계 == 총 소요시간(total_minutes)` 100% 일치 보장.
+  4. **프론트엔드 멀티모달 UI, 로컬 캐싱 및 지도 마커 겹침 해결 (`MultimodalRoutePanel.tsx`, `App.tsx`, `AppM.tsx`, `TransitMap.tsx`)**:
+     - 인메모리 + `localStorage`(`weather_transit_multimodal_cache_v3`, `weather_transit_route_departure/destination`) 캐싱으로 `지도` ↔ `경로 추천` 탭 전환 시 재로딩 없이 0ms 즉시 복원.
+     - 경로 탐색 중 로딩 배너 표시 및 브라우저 콘솔(`F12`)에 LangGraph 5단계 노드 트레이스·후보 테이블 실시간 로깅.
+     - `TransitMap.tsx`: 다중 호선 환승역(예: 서울역)이 경의중앙선으로 잘못 고정되던 현상을 실제 탑승 호선으로 동적 보정하고, 경로 핀(`출발 · 서울역`)과 기본 역 알약 마커(`서울역 33%`)가 겹치던 현상을 기본 마커 숨김 처리로 완벽 해결.
+  5. **통합 테스트 및 하드코딩/목업 데이터 전수 감사 (`tests/test_multimodal_routing.py`, `docs/TODO.md`, `docs/TODO_MOCK_AND_UNVERIFIED_DATA.md`)**:
+     - 맑은 날/비 오는 날/다목적 효용 랭킹/비서울권(송내역) 따릉이 배제/물리적 주행시간·배차간격 정합성 6대 자동화 테스트 통과.
+     - 코드베이스 내 잔존 하드코딩·미검증 근사치·정적 폴백 데이터를 전수 조사하여 `docs/TODO.md` 및 `docs/TODO_MOCK_AND_UNVERIFIED_DATA.md`에 수정 방안 문서화 완료.
+- **산출물**:
+  - `multimodal_router.py` (신규)
+  - `models/transit_network.json` (신규)
+  - `main.py`, `requirements.txt`
+  - `Weather-Transport Recommendation UI/src/MultimodalRoutePanel.tsx` (신규)
+  - `Weather-Transport Recommendation UI/src/App.tsx`, `AppM.tsx`, `TransitMap.tsx`, `subwayGraph.ts`
+  - `tests/test_multimodal_routing.py` (신규)
+  - `README.md`, `docs/SYSTEM_ARCHITECTURE.md`, `docs/BACKEND_INFERENCE_SERVER.md`, `docs/API_TEST_GUIDE.md`, `docs/CHANGELOG.md`, `docs/TODO.md`
+
+
 ### 🌦️ 기상청 단기예보(getVilageFcst/nph-dfs_shrt_grd) 연동 및 시간대별 동적 기상 자동 동기화 (이슈 #24)
 - **배경**:
   - 기존에는 초단기실황(getUltraSrtNcst) API만 연동되어 현재 시점 단일 관측값만 제공되었으며, 시간대 슬라이더를 변경하거나 미래 시간대를 조회할 때 실제 예보 날씨가 연동되지 못하고 단순 sine 곡선 추정에 의존하던 한계 개선.

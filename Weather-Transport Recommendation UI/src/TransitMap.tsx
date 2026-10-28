@@ -519,6 +519,27 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         },
       })
 
+      // 멀티모달 구간별(따릉이/버스/지하철/도보) 컬러 폴리라인 소스 및 레이어
+      map.addSource('multimodal-segments', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+      })
+
+      map.addLayer({
+        id: 'multimodal-segments-line',
+        type: 'line',
+        source: 'multimodal-segments',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': ['coalesce', ['get', 'color'], '#38BDF8'],
+          'line-width': 6,
+          'line-opacity': 0.95,
+        },
+      })
+
       setMapLoaded(true)
     })
 
@@ -726,14 +747,24 @@ popupContent.append(title, number)
 
       // 1. 활성 경로가 있는 경우: 경로에 포함된 역 이외의 모든 역/정류소는 완전히 숨김
       if (hasActiveRoute && routeStationNames && currentRoute) {
-        if (!routeStationNames.has(item.stop.name)) {
+        if (item.stop.type !== 'subway' || !routeStationNames.has(item.stop.name)) {
           item.el.style.display = 'none'
           continue
         }
-        // 출발역, 도착역, 환승역은 전용 핀 마커가 배치되므로 일반 알약 마커는 숨겨서 중복 방지
+        const firstPathStep = currentRoute.path[0]
+        const lastPathStep = currentRoute.path[currentRoute.path.length - 1]
+        const nearStartPin = firstPathStep && Math.abs(lng - firstPathStep.coords[0]) < 0.0015 && Math.abs(lat - firstPathStep.coords[1]) < 0.0015
+        const nearEndPin = lastPathStep && Math.abs(lng - lastPathStep.coords[0]) < 0.0015 && Math.abs(lat - lastPathStep.coords[1]) < 0.0015
+        const isTransferPin = (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name)) ||
+                              (currentRoute.transferTrains && currentRoute.transferTrains.some(t => t.station === item.stop.name))
+        // 출발역, 도착역, 환승역(또는 출발/도착 핀 반경 150m 이내 역)은 전용 핀 마커가 배치되므로 일반 알약 마커를 완전히 숨겨서 겹침 원천 방지
         const isSpecialPinStation = item.stop.name === currentRoute.from || 
                                     item.stop.name === currentRoute.to || 
-                                    (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name))
+                                    item.stop.name === firstPathStep?.name ||
+                                    item.stop.name === lastPathStep?.name ||
+                                    nearStartPin ||
+                                    nearEndPin ||
+                                    isTransferPin
         if (isSpecialPinStation) {
           item.el.style.display = 'none'
           continue
@@ -2211,6 +2242,7 @@ popupContent.append(title, number)
     routeMarkersRef.current = []
 
     const source = map.getSource('active-route')
+    const mmSource = map.getSource('multimodal-segments')
 
     if (!activeRoute || activeRoute.path.length < 2) {
       if (source) {
@@ -2221,6 +2253,12 @@ popupContent.append(title, number)
             type: 'LineString',
             coordinates: [],
           },
+        })
+      }
+      if (mmSource) {
+        mmSource.setData({
+          type: 'FeatureCollection',
+          features: [],
         })
       }
       // 경로 닫기 시 모든 마커의 display를 원상 복원하고 충돌 필터링 재계산
@@ -2243,7 +2281,9 @@ popupContent.append(title, number)
       return
     }
 
-    const coords = activeRoute.path.map(p => p.coords)
+    const coords = (activeRoute.geometry && activeRoute.geometry.length >= 2)
+      ? activeRoute.geometry
+      : activeRoute.path.map(p => p.coords)
     if (source) {
       source.setData({
         type: 'Feature',
@@ -2252,6 +2292,26 @@ popupContent.append(title, number)
           type: 'LineString',
           coordinates: coords,
         },
+      })
+    }
+    if (mmSource) {
+      const segFeatures = (activeRoute.segments || [])
+        .filter(seg => Array.isArray(seg.coords) && seg.coords.length >= 2)
+        .map(seg => ({
+          type: 'Feature',
+          properties: {
+            mode: seg.mode,
+            color: seg.color || '#38BDF8',
+            label: seg.label,
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: seg.coords,
+          },
+        }))
+      mmSource.setData({
+        type: 'FeatureCollection',
+        features: segFeatures,
       })
     }
 

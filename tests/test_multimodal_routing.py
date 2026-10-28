@@ -329,6 +329,51 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         self.assertEqual(drc_mullae["transferStations"], ["신도림역"])
 
 
+
+    def test_hybrid_bus_subway_route_and_bus_polyline_corridor(self):
+        """이슈 #34: 버스+지하철 복합 환승 경로의 compat_path 정합성 및 버스 도로 복도 폴리라인 검증"""
+        res = multimodal_routing_engine.run_multimodal_search(
+            from_query="송내역",
+            to_query="두정역",
+            district="강남구",
+            hour=23,
+            weather_context={"temp": 4.5, "rain": 0.0},
+        )
+        hybrid_routes = [r for r in res.get("routes", []) if r.get("id") == "route-bus-subway-hybrid"]
+        self.assertTrue(len(hybrid_routes) > 0, "route-bus-subway-hybrid 경로가 생성되어야 함")
+        hybrid = hybrid_routes[0]
+
+        # 1. 환승역 검증: 지하철 직결 경로의 구로역 환승이 제거되고 금천구청역 환승만 존재해야 함
+        self.assertEqual(hybrid.get("transferStations"), ["금천구청역"])
+        self.assertNotIn("구로역", hybrid.get("transferStations", []))
+
+        # 2. 환승 열차 정보 검증: 구로역이 아닌 금천구청역 출발 열차가 바인딩되어야 함
+        tr_trains = hybrid.get("transferTrains") or []
+        self.assertTrue(len(tr_trains) > 0)
+        self.assertEqual(tr_trains[0].get("station"), "금천구청역")
+
+        # 3. compat_path 정합성 검증: 1호선 북부 중복 역들(중동, 부천, 온수, 구로 등)이 제거되어야 함
+        path_names = [p["name"] for p in hybrid.get("path", [])]
+        self.assertIn("송내역", path_names)
+        self.assertIn("금천구청역", path_names)
+        self.assertIn("두정역", path_names)
+        self.assertNotIn("중동역", path_names)
+        self.assertNotIn("부천역", path_names)
+        self.assertNotIn("구로역", path_names)
+        self.assertNotIn("가산디지털단지역", path_names)
+
+        # 4. 버스 세그먼트 좌표 검증: 단순 2점 직선이 아닌 15개 이상의 도로 복도(Corridor) 좌표열이어야 함
+        bus_segs = [s for s in hybrid.get("segments", []) if s.get("mode") == "bus"]
+        self.assertTrue(len(bus_segs) > 0)
+        bus_coords = bus_segs[0].get("coords", [])
+        self.assertGreaterEqual(len(bus_coords), 15, "버스 경로는 도로형 복도 좌표열(15개 이상)로 생성되어야 함")
+
+        # 5. 전체 지오메트리 연결성 검증
+        geom = hybrid.get("geometry", [])
+        self.assertGreaterEqual(len(geom), 30)
+        self.assertEqual(geom[0], hybrid["path"][0]["coords"])
+        self.assertEqual(geom[-1], hybrid["path"][-1]["coords"])
+
 if __name__ == "__main__":
     unittest.main()
 

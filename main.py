@@ -2672,6 +2672,7 @@ async def get_bus_route_stations(bus_route_id: str):
             })
 
         stations.sort(key=lambda station: station["sequence"])
+        multimodal_routing_engine.bus_route_stations_cache[route_id] = stations
 
         return {
             "status": "success",

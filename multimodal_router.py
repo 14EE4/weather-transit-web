@@ -456,6 +456,7 @@ class MultimodalRoutingEngine:
         self.bus_stops: List[Dict[str, Any]] = []
         self.bike_stations: List[Dict[str, Any]] = []
         self.station_transfer_times: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+        self.bus_route_stations_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._llm_cache: Dict[Tuple[str, str, float, float, str], Tuple[float, Dict[str, Any]]] = {}
 
         self._load_network()
@@ -655,6 +656,80 @@ class MultimodalRoutingEngine:
                 }
             )
         return scored[:limit]
+
+    def generate_bus_corridor_coords(
+        self,
+        start_coords: List[float],
+        end_coords: List[float],
+        bus_route_id: Optional[str] = None,
+    ) -> List[List[float]]:
+        """
+        버스 이동 구간에 대한 도로망·정류소 기반 현실적 폴리라인 좌표열 생성.
+        1. bus_route_id가 제공되고 경유 정류장 캐시 정보가 있으면 실제 정류소 구간 슬라이스 반환
+        2. 폴백: 수도권 정류소/역사 네트워크 복도(corridor) 분석 및 도로망 보간으로 자연스러운 도로 주행 경로 생성
+        """
+        if bus_route_id and bus_route_id in self.bus_route_stations_cache:
+            st_list = self.bus_route_stations_cache[bus_route_id]
+            if len(st_list) >= 2:
+                idx_start = min(
+                    range(len(st_list)),
+                    key=lambda i: haversine_km(
+                        start_coords[1], start_coords[0], st_list[i]["coords"][1], st_list[i]["coords"][0]
+                    ),
+                )
+                idx_end = min(
+                    range(len(st_list)),
+                    key=lambda i: haversine_km(
+                        end_coords[1], end_coords[0], st_list[i]["coords"][1], st_list[i]["coords"][0]
+                    ),
+                )
+                if abs(idx_end - idx_start) >= 1:
+                    step = 1 if idx_end >= idx_start else -1
+                    sliced = [st_list[i]["coords"] for i in range(idx_start, idx_end + step, step)]
+                    res_coords = [start_coords] + [c for c in sliced if c != start_coords and c != end_coords] + [end_coords]
+                    if len(res_coords) >= 2:
+                        return res_coords
+
+        d_total = haversine_km(start_coords[1], start_coords[0], end_coords[1], end_coords[0])
+        if d_total < 0.35:
+            return [start_coords, end_coords]
+
+        candidates = []
+        for st in self.subway_stations + self.bus_stops:
+            c = st.get("coords")
+            if not c or len(c) < 2:
+                continue
+            d1 = haversine_km(start_coords[1], start_coords[0], c[1], c[0])
+            d2 = haversine_km(c[1], c[0], end_coords[1], end_coords[0])
+            if 0.4 < d1 < d_total - 0.4 and (d1 + d2) <= d_total * 1.25:
+                ratio = d1 / (d1 + d2)
+                candidates.append((ratio, c))
+
+        candidates.sort(key=lambda x: x[0])
+
+        selected = [start_coords]
+        last_ratio = 0.0
+        for ratio, c in candidates:
+            if ratio - last_ratio >= 0.08:
+                selected.append(c)
+                last_ratio = ratio
+        selected.append(end_coords)
+
+        dense_path: List[List[float]] = []
+        for i in range(len(selected) - 1):
+            pt_a = selected[i]
+            pt_b = selected[i + 1]
+            dense_path.append(pt_a)
+            leg_dist = haversine_km(pt_a[1], pt_a[0], pt_b[1], pt_b[0])
+            if leg_dist > 1.2:
+                num_sub = min(4, int(leg_dist // 0.8))
+                for k in range(1, num_sub + 1):
+                    t = k / (num_sub + 1)
+                    mid_lng = pt_a[0] + (pt_b[0] - pt_a[0]) * t
+                    mid_lat = pt_a[1] + (pt_b[1] - pt_a[1]) * t
+                    dense_path.append([round(mid_lng, 6), round(mid_lat, 6)])
+        dense_path.append(end_coords)
+        return dense_path
 
     def find_nearby_bike_stations(
         self,
@@ -1770,6 +1845,10 @@ class MultimodalRoutingEngine:
                 and origin["name"] not in {p["name"] for p in (sub_after_hub.get("path") or [])}
             ):
                 hub_sub_line = (sub_after_hub.get("path") or [{}])[0].get("lineUsed", "지하철")
+                bus_route_id_val = str(matched_bus.get("bus_route_id") or "") if matched_bus else None
+                bus_coords = self.generate_bus_corridor_coords(
+                    bus_stop["coords"], hub_coords, bus_route_id=bus_route_id_val
+                )
                 hybrid_segments = [
                     {
                         "mode": "walk",
@@ -1795,7 +1874,7 @@ class MultimodalRoutingEngine:
                         "distance_km": bus_dist_km,
                         "fare_krw": 1500,
                         "color": "#FB923C",
-                        "coords": [bus_stop["coords"], hub_coords],
+                        "coords": bus_coords,
                         "live_badge": bus_badge,
                     },
                     {
@@ -1819,6 +1898,60 @@ class MultimodalRoutingEngine:
                 hybrid_fare, _ = calculate_subway_fare(hybrid_km)
                 hybrid_crowd = int(round(bus_crowd * 0.4 + sub_crowd * 0.6))
 
+                # TransitMap.tsx 호환용 복합 경로(도보➔버스➔지하철) 전용 compat_path 구성
+                sub_steps = list(sub_after_hub.get("path") or [])
+                hub_step_sub = sub_steps[0] if sub_steps else {
+                    "name": hub_name, "coords": hub_coords, "lines": [hub_sub_line], "lineUsed": hub_sub_line
+                }
+
+                hybrid_compat_path = [
+                    {
+                        "name": origin["name"],
+                        "coords": origin["coords"],
+                        "lines": ["도보"],
+                        "lineUsed": "🚶 도보",
+                        "isTransfer": False,
+                        "transferInfo": None,
+                    },
+                    {
+                        "name": bus_stop["name"],
+                        "coords": bus_stop["coords"],
+                        "lines": [bus_line_name],
+                        "lineUsed": f"🚌 {bus_line_name}",
+                        "isTransfer": True,
+                        "transferInfo": f"🚌 {bus_line_name} 탑승",
+                    },
+                    {
+                        "name": hub_name,
+                        "coords": hub_coords,
+                        "lines": hub_step_sub.get("lines", [hub_sub_line]),
+                        "lineUsed": hub_step_sub.get("lineUsed", hub_sub_line),
+                        "isTransfer": True,
+                        "transferInfo": f"🚌 {bus_line_name} 하차 ➔ 🚇 {hub_step_sub.get('lineUsed', hub_sub_line)} 환승",
+                    },
+                ] + [dict(p) for p in sub_steps[1:]]
+
+                hub_dep_train = sub_after_hub.get("departureTrain")
+                if hub_dep_train:
+                    hub_dep_tr_dict = dict(hub_dep_train)
+                    hub_dep_tr_dict["station"] = hub_name
+                    hybrid_transfer_trains = [hub_dep_tr_dict] + list(sub_after_hub.get("transferTrains") or [])
+                else:
+                    hybrid_transfer_trains = list(sub_after_hub.get("transferTrains") or [])
+
+                bus_departure_train = {
+                    "line": bus_line_name,
+                    "trainLineNm": f"{bus_line_name} ({bus_stop['name']})",
+                    "destinationOrNext": f"{hub_name} 방면",
+                    "arrivalMessage": bus_badge,
+                    "remainingMinutes": 3 if is_peak_hour else 4,
+                    "remainingSeconds": (3 if is_peak_hour else 4) * 60,
+                }
+
+                hybrid_transfer_stations = [hub_name] + [
+                    s for s in (sub_after_hub.get("transferStations") or []) if s != hub_name
+                ]
+
                 routes.append(
                     self._pack_route_candidate(
                         route_id="route-bus-subway-hybrid",
@@ -1841,7 +1974,11 @@ class MultimodalRoutingEngine:
                             f"💳 수도권 통합환승할인 적용 ({hybrid_fare:,}원)",
                         ],
                         segments=hybrid_segments,
-                        base_subway_route=base_sub,
+                        base_subway_route=sub_after_hub,
+                        custom_compat_path=hybrid_compat_path,
+                        custom_transfer_stations=hybrid_transfer_stations,
+                        custom_transfer_trains=hybrid_transfer_trains,
+                        custom_departure_train=bus_departure_train,
                     )
                 )
 
@@ -1979,6 +2116,10 @@ class MultimodalRoutingEngine:
         segments: List[Dict[str, Any]],
         base_subway_route: Dict[str, Any],
         override_origin_coords: Optional[List[float]] = None,
+        custom_compat_path: Optional[List[Dict[str, Any]]] = None,
+        custom_transfer_stations: Optional[List[str]] = None,
+        custom_transfer_trains: Optional[List[Dict[str, Any]]] = None,
+        custom_departure_train: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if crowd_percent >= 75:
             crowd_label = "혼잡"
@@ -2000,34 +2141,40 @@ class MultimodalRoutingEngine:
                     all_coords.append(c)
 
         # TransitMap.tsx 호환용 path 배열 및 출발/환승/도착 핀 메타데이터 정규화
-        compat_path = [dict(p) for p in (base_subway_route.get("path") or [])]
-        transfer_stations = list(base_subway_route.get("transferStations") or [])
-        transfer_trains = [dict(t) for t in (base_subway_route.get("transferTrains") or [])]
-        departure_train = base_subway_route.get("departureTrain")
+        if custom_compat_path is not None:
+            compat_path = [dict(p) for p in custom_compat_path]
+            transfer_stations = list(custom_transfer_stations) if custom_transfer_stations is not None else []
+            transfer_trains = [dict(t) for t in custom_transfer_trains] if custom_transfer_trains is not None else []
+            departure_train = custom_departure_train
+        else:
+            compat_path = [dict(p) for p in (base_subway_route.get("path") or [])]
+            transfer_stations = list(base_subway_route.get("transferStations") or [])
+            transfer_trains = [dict(t) for t in (base_subway_route.get("transferTrains") or [])]
+            departure_train = base_subway_route.get("departureTrain")
 
-        if override_origin_coords and compat_path:
-            actual_origin_name = segments[0].get("from_name", compat_path[0]["name"])
-            sub_boarding_station = compat_path[0]["name"]
-            # 따릉이 First-Mile 하차 후 지하철 탑승하는 역(예: 숙대입구역)을 환승역 핀으로 전환
-            if sub_boarding_station and sub_boarding_station != actual_origin_name:
-                compat_path[0]["isTransfer"] = True
-                compat_path[0]["transferInfo"] = f"🚲 따릉이 반납 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
-                if sub_boarding_station not in transfer_stations:
-                    transfer_stations = [sub_boarding_station] + transfer_stations
-                if departure_train:
-                    transfer_trains = [dict(departure_train)] + transfer_trains
-                departure_train = None
+            if override_origin_coords and compat_path:
+                actual_origin_name = segments[0].get("from_name", compat_path[0]["name"])
+                sub_boarding_station = compat_path[0]["name"]
+                # 따릉이 First-Mile 하차 후 지하철 탑승하는 역(예: 숙대입구역)을 환승역 핀으로 전환
+                if sub_boarding_station and sub_boarding_station != actual_origin_name:
+                    compat_path[0]["isTransfer"] = True
+                    compat_path[0]["transferInfo"] = f"🚲 따릉이 반납 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
+                    if sub_boarding_station not in transfer_stations:
+                        transfer_stations = [sub_boarding_station] + transfer_stations
+                    if departure_train:
+                        transfer_trains = [dict(departure_train)] + transfer_trains
+                    departure_train = None
 
-            compat_path = [
-                {
-                    "name": actual_origin_name,
-                    "coords": override_origin_coords,
-                    "lines": ["따릉이 First-Mile"],
-                    "lineUsed": "🚲 따릉이",
-                    "isTransfer": False,
-                    "transferInfo": None,
-                }
-            ] + compat_path
+                compat_path = [
+                    {
+                        "name": actual_origin_name,
+                        "coords": override_origin_coords,
+                        "lines": ["따릉이 First-Mile"],
+                        "lineUsed": "🚲 따릉이",
+                        "isTransfer": False,
+                        "transferInfo": None,
+                    }
+                ] + compat_path
 
         actual_from = compat_path[0]["name"] if compat_path else base_subway_route.get("from", "")
         actual_to = compat_path[-1]["name"] if compat_path else base_subway_route.get("to", "")

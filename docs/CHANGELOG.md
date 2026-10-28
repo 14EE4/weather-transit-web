@@ -23,28 +23,34 @@
   3. **실시간 버스 도착 API(`get_bus_arrival`) 및 대중교통 연계 (`main.py`)**:
      - `_execute_multimodal_search`에서 출발지 인근 버스 정류소의 실시간 버스 도착 정보(`DATA_GO_KR_BUS_KEY`)를 호출하여 `live_bus_arrivals`로 멀티모달 엔진에 전달.
      - 버스+지하철 하이브리드 경로(`route-bus-subway-hybrid`)의 버스 세그먼트에 실시간 도착 뱃지(`🟢 실시간: {도착메시지}`) 및 노선명 매칭 주입.
-  4. **단위 테스트 및 빌드 검증 (	ests/test_multimodal_routing.py)**:
-     - 실측 환승시간 조회, 9호선 급행 스킵 감지(김포공항➔신논현 14개 역 무정차 통과, 16분 단축), 실시간 버스 도착 뱃지 주입 등 신규 테스트 3종 추가 (총 9개 테스트 통과).
-     - Docker 컨테이너 재빌드(ackend, rontend) 및 /health, /api/v1/routes/multimodal-search 정상 동작 검증 완료.
+  4. **단위 테스트 및 빌드 검증 (`tests/test_multimodal_routing.py`)**:
+     - 실측 환승시간 조회, 9호선 급행 스킵 감지(김포공항➔신논현 14개 역 무정차 통과, 16분 단축), 실시간 버스 도착 뱃지 주입 등 신규 테스트 추가 (총 11개 테스트 통과).
+     - Docker 컨테이너 재빌드(`backend`, `frontend`) 및 `/health`, `/api/v1/routes/multimodal-search` 정상 동작 검증 완료.
   5. **경로 추천 페이지 출발/도착 초기화 및 60분 이상 시간-분 포맷팅 적용**:
-     - 프론트엔드(App.tsx, AppM.tsx, MultimodalRoutePanel.tsx, subwayGraph.ts):
+     - 프론트엔드(`App.tsx`, `AppM.tsx`, `MultimodalRoutePanel.tsx`, `subwayGraph.ts`):
        - 출발지/도착지 입력창에 개별 삭제(✕ 지우기) 버튼 및 출발·도착 맞바꿈(⇅) 버튼 추가.
-       - 🔄 초기화 버튼을 검색 버튼 우측에 배치하여 출발지, 도착지, 추천 경로 선택 상태 및 로컬 스토리지 일괄 초기화 지원.
-       - 예상 소요시간이 60분 이상일 경우 X시간 Y분 포맷(ormatDurationMinutes)으로 환산 표기 (예: 65분 ➔ 1시간 5분, 60분 ➔ 1시간).
+       - `🔄 초기화` 버튼을 검색 버튼 우측에 배치하여 출발지, 도착지, 추천 경로 선택 상태 및 로컬 스토리지 일괄 초기화 지원.
+       - 예상 소요시간이 60분 이상일 경우 `X시간 Y분` 포맷(`formatDurationMinutes`)으로 환산 표기 (예: 65분 ➔ `1시간 5분`, 60분 ➔ `1시간`).
        - 멀티모달 후보 카드, 상세 요약, 세그먼트별 소요시간 툴팁, 지도 액티브 경로 카드 및 최근 검색 경로까지 일관된 시간 포맷 적용.
-     - 백엔드(multimodal_router.py):
-       - ormat_duration_kr 유틸리티 함수 구현 및 후보 경로 ormatted_duration, summary 필드에 시간-분 포맷팅 적용.
-     - 테스트 검증: 	ests/test_multimodal_routing.py에 포맷팅 단위 검증 테스트 추가 (총 10개 테스트 전원 통과).
+     - 백엔드(`multimodal_router.py`):
+       - `format_duration_kr` 유틸리티 함수 구현 및 후보 경로 `formatted_duration`, `summary` 필드에 시간-분 포맷팅 적용.
+  6. **구로역 분기(경인·경부) 및 1·2·5·경의중앙선 지선 토폴로지/분기역 환승 규칙 동기화**:
+     - 백엔드 `models/transit_network.json`, `data/subway_stations_with_coords.json`, `data/subway_graph.json`을 프론트엔드 마스터(`subwayData.ts`, `subwayGraph.ts`, 614개 역)와 100% 동기화하여 구로역↔가산디지털단지역 단절 및 1호선 지선(광명셔틀·서동탄지선·연천) 오연결 해결.
+     - `multimodal_router.py`에 7대 분기역(`구로역`, `금천구청역`, `병점역`, `강동역`, `가좌역`, `성수역`, `신도림역`) 계통 환승 규칙(`BRANCH_TRANSFER_RULES` / `check_branch_transfer`) 및 수도권 외 구간(평택~신창, 가평~춘천) 운임 특례 이식.
+     - `MultimodalRoutePanel.tsx` 로컬스토리지 캐시 버전(`v4`) 갱신 및 `test_guro_branch_and_line1_branch_topology` 회귀 방지 단위 테스트 추가.
 - **산출물**:
-  - models/station_transfer_times.json (신규)
-  - multimodal_router.py
-  - main.py
-  - Weather-Transport Recommendation UI/src/App.tsx
-  - Weather-Transport Recommendation UI/src/AppM.tsx
-  - Weather-Transport Recommendation UI/src/MultimodalRoutePanel.tsx
-  - Weather-Transport Recommendation UI/src/subwayGraph.ts
-  - 	ests/test_multimodal_routing.py
-  - docs/CHANGELOG.md
+  - `models/station_transfer_times.json` (신규)
+  - `models/transit_network.json`
+  - `data/subway_stations_with_coords.json`
+  - `data/subway_graph.json`
+  - `multimodal_router.py`
+  - `main.py`
+  - `Weather-Transport Recommendation UI/src/App.tsx`
+  - `Weather-Transport Recommendation UI/src/AppM.tsx`
+  - `Weather-Transport Recommendation UI/src/MultimodalRoutePanel.tsx`
+  - `Weather-Transport Recommendation UI/src/subwayGraph.ts`
+  - `tests/test_multimodal_routing.py`
+  - `docs/CHANGELOG.md`
 
 ### 🏛️ 시스템 아키텍처 다이어그램 및 명세서에 LangGraph 및 FactChat LLM 파이프라인 반영 (이슈 #31)
 - **배경**:

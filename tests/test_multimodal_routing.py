@@ -280,6 +280,54 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
             self.assertIn("분", r["formatted_duration"])
             self.assertIn(r["formatted_duration"], r["summary"])
 
+    def test_guro_branch_and_line1_branch_topology(self):
+        """구로역 분기(경인선↔경부선), 1호선 지선(광명셔틀·서동탄지선) 및 2/5/경의중앙선 분기역 환승 규칙 검증"""
+        # 1. 구로역 토폴로지: 가산디지털단지역, 구일역, 신도림역 3방향 모두 연결되어야 함
+        guro_nbrs = multimodal_routing_engine.subway_graph.get("구로역", [])
+        self.assertEqual(sorted(guro_nbrs), ["가산디지털단지역", "구일역", "신도림역"])
+
+        # 2. 구로역 -> 가산디지털단지역 (1호선 경부선 직통 1정거장, 무환승)
+        guro_gasan = multimodal_routing_engine.search_subway_route("구로역", "가산디지털단지역")
+        self.assertIsNotNone(guro_gasan)
+        self.assertEqual(guro_gasan["transferCount"], 0)
+        self.assertEqual(guro_gasan["stationCount"], 1)
+
+        # 3. 구일역(경인선) -> 가산디지털단지역(경부선): 구로역 1회 필수 환승 (1호선(경인) ➔ 1호선(경부))
+        guil_gasan = multimodal_routing_engine.search_subway_route("구일역", "가산디지털단지역")
+        self.assertIsNotNone(guil_gasan)
+        self.assertEqual(guil_gasan["transferCount"], 1)
+        self.assertEqual(guil_gasan["transferStations"], ["구로역"])
+        seg_labels = [s["label"] for s in guil_gasan["lineSegments"]]
+        self.assertIn("🚇 1호선(경인)", seg_labels)
+        self.assertIn("🚇 1호선(경부)", seg_labels)
+
+        # 4. 1호선 광명셔틀 지선: 광명역은 금천구청역에만 연결되어야 하며, 광명역 -> 석수역은 금천구청역 1회 환승
+        self.assertEqual(multimodal_routing_engine.subway_graph.get("광명역"), ["금천구청역"])
+        gm_seoksu = multimodal_routing_engine.search_subway_route("광명역", "석수역")
+        self.assertIsNotNone(gm_seoksu)
+        self.assertEqual(gm_seoksu["transferCount"], 1)
+        self.assertEqual(gm_seoksu["transferStations"], ["금천구청역"])
+
+        # 5. 1호선 서동탄지선: 서동탄역은 병점역에만 연결되어야 하며, 서동탄역 -> 세마역은 병점역 1회 환승
+        self.assertEqual(multimodal_routing_engine.subway_graph.get("서동탄역"), ["병점역"])
+        sdt_sema = multimodal_routing_engine.search_subway_route("서동탄역", "세마역")
+        self.assertIsNotNone(sdt_sema)
+        self.assertEqual(sdt_sema["transferCount"], 1)
+        self.assertEqual(sdt_sema["transferStations"], ["병점역"])
+
+        # 6. 5호선 강동역 분기(길동역 <-> 둔촌동역) 및 2호선 성수지선/신정지선 분기 환승 검증
+        gd_dunchon = multimodal_routing_engine.search_subway_route("길동역", "둔촌동역")
+        self.assertEqual(gd_dunchon["transferCount"], 1)
+        self.assertEqual(gd_dunchon["transferStations"], ["강동역"])
+
+        yd_ttukseom = multimodal_routing_engine.search_subway_route("용답역", "뚝섬역")
+        self.assertEqual(yd_ttukseom["transferCount"], 1)
+        self.assertEqual(yd_ttukseom["transferStations"], ["성수역"])
+
+        drc_mullae = multimodal_routing_engine.search_subway_route("도림천역", "문래역")
+        self.assertEqual(drc_mullae["transferCount"], 1)
+        self.assertEqual(drc_mullae["transferStations"], ["신도림역"])
+
 
 if __name__ == "__main__":
     unittest.main()

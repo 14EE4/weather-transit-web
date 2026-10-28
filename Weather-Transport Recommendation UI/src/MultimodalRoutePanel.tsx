@@ -7,7 +7,7 @@ const VALID_STATION_NAMES = new Set(
 )
 
 const MULTIMODAL_MEMORY_CACHE = new Map<string, MultimodalSearchResponse>()
-const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v3'
+const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v4'
 
 function getCachedMultimodalResult(key: string): MultimodalSearchResponse | null {
   if (!key) return null

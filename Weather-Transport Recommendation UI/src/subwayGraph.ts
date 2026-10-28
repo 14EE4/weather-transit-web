@@ -3226,10 +3226,10 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
       const commonLines = [...currLines].filter(l => nbrLines.has(l))
       const branchTransfer = checkBranchTransfer(curr, prevStation, neighbor)
 
+      const baseCurrLine = currLine ? currLine.replace(/\(.*?\)/g, '').trim() : null
       const isSameLine = !branchTransfer && currLine && (
         commonLines.includes(currLine) ||
-        (currLine.startsWith('1호선') && commonLines.includes('1호선')) ||
-        (currLine.startsWith('5호선') && commonLines.includes('5호선'))
+        (baseCurrLine ? commonLines.includes(baseCurrLine) : false)
       )
 
       if (isSameLine) {
@@ -3257,8 +3257,9 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
           : (commonLines.length > 0 ? commonLines : (nbrLines.size > 0 ? [...nbrLines] : [null]))
 
         // 지선 분기 환승 시 이전 탑승 경로의 노선 표기를 fromLine으로 동기화하여 이전 구간 0환승 유지 및 curr역 환승 표출
+        const fromBaseLine = branchTransfer ? branchTransfer.fromLine.replace(/\(.*?\)/g, '').trim() : null
         const updatedPath = branchTransfer
-          ? path.map(p => (p.lineUsed === '1호선' || !p.lineUsed ? { ...p, lineUsed: branchTransfer.fromLine } : p))
+          ? path.map(p => (p.lineUsed === fromBaseLine || !p.lineUsed ? { ...p, lineUsed: branchTransfer.fromLine } : p))
           : path
 
         for (const nextLine of targetLines) {

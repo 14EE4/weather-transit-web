@@ -23,6 +23,7 @@ import json
 import logging
 import math
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
@@ -104,10 +105,18 @@ except Exception:
 # ── 호선별 표준 색상 매핑 ──
 LINE_COLORS: Dict[str, str] = {
     "1호선": "#0052A4",
+    "1호선(경인)": "#0052A4",
+    "1호선(경부)": "#0052A4",
+    "1호선(광명셔틀)": "#0052A4",
+    "1호선(서동탄지선)": "#0052A4",
     "2호선": "#00A84D",
+    "2호선(성수지선)": "#00A84D",
+    "2호선(신정지선)": "#00A84D",
     "3호선": "#EF7C1C",
     "4호선": "#00A5DE",
     "5호선": "#996CAC",
+    "5호선(하남선)": "#996CAC",
+    "5호선(마천지선)": "#996CAC",
     "6호선": "#CD7C2F",
     "7호선": "#747F00",
     "8호선": "#E6186C",
@@ -115,14 +124,119 @@ LINE_COLORS: Dict[str, str] = {
     "수인분당선": "#FABE00",
     "신분당선": "#D4003B",
     "경의중앙선": "#77C4A3",
+    "경의중앙선(본선)": "#77C4A3",
+    "경의중앙선(서울역지선)": "#77C4A3",
     "공항철도": "#0090D2",
     "경춘선": "#0C8E72",
+    "경강선": "#003DA5",
     "우이신설선": "#B7C452",
     "신림선": "#6789CA",
     "김포골드라인": "#A17800",
     "서해선": "#8FC31F",
+    "인천1호선": "#7CA8D5",
+    "인천2호선": "#ED8B00",
     "GTX-A": "#9A6292",
 }
+
+
+def normalize_base_line_name(line_name: Optional[str]) -> str:
+    """지선/계통 표기(예: '1호선(경인)', '5호선(마천지선)')에서 기본 호선명('1호선', '5호선') 추출"""
+    if not line_name:
+        return "지하철"
+    return re.sub(r"\(.*?\)", "", line_name).strip() or line_name
+
+
+# ── 지선 분기 및 계통 환승 규칙 (동일 호선 내 분기역 필수 환승 처리) ──
+BRANCH_TRANSFER_RULES: List[Dict[str, Any]] = [
+    {
+        "junction": "구로역",
+        "branch_a": ["구일역"],
+        "branch_b": ["가산디지털단지역"],
+        "line_a_name": "1호선(경인)",
+        "line_b_name": "1호선(경부)",
+    },
+    {
+        "junction": "금천구청역",
+        "branch_a": ["석수역"],
+        "branch_b": ["광명역"],
+        "line_a_name": "1호선",
+        "line_b_name": "1호선(광명셔틀)",
+    },
+    {
+        "junction": "병점역",
+        "branch_a": ["세마역"],
+        "branch_b": ["서동탄역"],
+        "line_a_name": "1호선",
+        "line_b_name": "1호선(서동탄지선)",
+    },
+    {
+        "junction": "강동역",
+        "branch_a": ["길동역"],
+        "branch_b": ["둔촌동역"],
+        "line_a_name": "5호선(하남선)",
+        "line_b_name": "5호선(마천지선)",
+    },
+    {
+        "junction": "가좌역",
+        "branch_a": ["홍대입구역"],
+        "branch_b": ["신촌역"],
+        "line_a_name": "경의중앙선(본선)",
+        "line_b_name": "경의중앙선(서울역지선)",
+    },
+    {
+        "junction": "성수역",
+        "branch_a": ["뚝섬역", "건대입구역"],
+        "branch_b": ["용답역"],
+        "line_a_name": "2호선",
+        "line_b_name": "2호선(성수지선)",
+    },
+    {
+        "junction": "신도림역",
+        "branch_a": ["대림역", "문래역"],
+        "branch_b": ["도림천역"],
+        "line_a_name": "2호선",
+        "line_b_name": "2호선(신정지선)",
+    },
+]
+
+
+def check_branch_transfer(
+    junction: str, prev_station: Optional[str], next_station: str
+) -> Optional[Dict[str, str]]:
+    """분기역(구로, 금천구청, 병점, 강동, 가좌, 성수, 신도림)에서 직결되지 않는 지선 간 이동 시 환승 정보 반환"""
+    if not prev_station:
+        return None
+    for rule in BRANCH_TRANSFER_RULES:
+        if rule["junction"] == junction:
+            if prev_station in rule["branch_a"] and next_station in rule["branch_b"]:
+                return {"from_line": rule["line_a_name"], "to_line": rule["line_b_name"]}
+            if prev_station in rule["branch_b"] and next_station in rule["branch_a"]:
+                return {"from_line": rule["line_b_name"], "to_line": rule["line_a_name"]}
+    return None
+
+
+# ── 수도권 외 구간 정의 (코레일 / 수도권 전철 운임 규정) ──
+# 1호선: 평택역 초과 ~ 신창역 (경계: 평택역)
+# 경춘선: 가평역 초과 ~ 춘천역 (경계: 가평역)
+OUTER_SECTION_STATIONS = {
+    "성환역", "직산역", "두정역", "천안역", "봉명역", "쌍용역", "쌍용(나사렛대)역",
+    "아산역", "탕정역", "배방역", "온양온천역", "신창역", "신창(순천향대)역",
+    "굴봉산역", "백양리역", "강촌역", "김유정역", "남춘천역", "춘천역",
+}
+BOUNDARY_STATIONS = {"평택역", "가평역"}
+
+
+def is_outer_edge(st_a: Optional[str], st_b: Optional[str]) -> bool:
+    if not st_a or not st_b:
+        return False
+    clean_a = st_a.strip() if st_a.strip().endswith("역") else f"{st_a.strip()}역"
+    clean_b = st_b.strip() if st_b.strip().endswith("역") else f"{st_b.strip()}역"
+    a_outer = clean_a in OUTER_SECTION_STATIONS
+    b_outer = clean_b in OUTER_SECTION_STATIONS
+    a_bound = clean_a in BOUNDARY_STATIONS
+    b_bound = clean_b in BOUNDARY_STATIONS
+    return (a_outer and b_outer) or (a_bound and b_outer) or (b_bound and a_outer)
+
 
 # ── 19개 노선별 물리 주행 스펙 및 시간대별 실측 배차간격 테이블 ──
 # run_speed_kmh: 정차 시간을 제외한 역간 순수 주행속도 (km/h)
@@ -140,10 +254,18 @@ DEFAULT_LINE_SPEC: Dict[str, Any] = {
 
 LINE_OPERATING_SPECS: Dict[str, Dict[str, Any]] = {
     "1호선": {"run_speed_kmh": 45.0, "dwell_min": 0.45, "peak": (3, 5), "normal": (4, 7), "night": (8, 13)},
+    "1호선(경인)": {"run_speed_kmh": 45.0, "dwell_min": 0.45, "peak": (3, 5), "normal": (4, 7), "night": (8, 13)},
+    "1호선(경부)": {"run_speed_kmh": 48.0, "dwell_min": 0.45, "peak": (4, 7), "normal": (6, 10), "night": (10, 15)},
+    "1호선(광명셔틀)": {"run_speed_kmh": 50.0, "dwell_min": 0.45, "peak": (35, 45), "normal": (40, 50), "night": (45, 60)},
+    "1호선(서동탄지선)": {"run_speed_kmh": 45.0, "dwell_min": 0.45, "peak": (10, 15), "normal": (15, 22), "night": (20, 30)},
     "2호선": {"run_speed_kmh": 44.0, "dwell_min": 0.45, "peak": (2, 3), "normal": (3, 5), "night": (6, 10)},
+    "2호선(성수지선)": {"run_speed_kmh": 40.0, "dwell_min": 0.45, "peak": (4, 6), "normal": (6, 8), "night": (9, 13)},
+    "2호선(신정지선)": {"run_speed_kmh": 40.0, "dwell_min": 0.45, "peak": (5, 8), "normal": (8, 10), "night": (10, 15)},
     "3호선": {"run_speed_kmh": 45.0, "dwell_min": 0.45, "peak": (3, 5), "normal": (4, 6), "night": (7, 11)},
     "4호선": {"run_speed_kmh": 45.0, "dwell_min": 0.45, "peak": (3, 5), "normal": (4, 6), "night": (7, 11)},
     "5호선": {"run_speed_kmh": 44.0, "dwell_min": 0.45, "peak": (3, 5), "normal": (5, 7), "night": (8, 12)},
+    "5호선(하남선)": {"run_speed_kmh": 45.0, "dwell_min": 0.45, "peak": (6, 9), "normal": (9, 12), "night": (12, 16)},
+    "5호선(마천지선)": {"run_speed_kmh": 44.0, "dwell_min": 0.45, "peak": (6, 9), "normal": (9, 12), "night": (12, 16)},
     "6호선": {"run_speed_kmh": 42.0, "dwell_min": 0.45, "peak": (4, 6), "normal": (6, 8), "night": (9, 13)},
     "7호선": {"run_speed_kmh": 45.0, "dwell_min": 0.45, "peak": (3, 5), "normal": (5, 7), "night": (8, 12)},
     "8호선": {"run_speed_kmh": 44.0, "dwell_min": 0.45, "peak": (4, 6), "normal": (6, 8), "night": (9, 13)},
@@ -152,11 +274,16 @@ LINE_OPERATING_SPECS: Dict[str, Dict[str, Any]] = {
     "신분당선": {"run_speed_kmh": 58.0, "dwell_min": 0.50, "peak": (3, 5), "normal": (5, 8), "night": (8, 12)},
     "수인분당선": {"run_speed_kmh": 46.0, "dwell_min": 0.48, "peak": (5, 8), "normal": (7, 11), "night": (12, 18)},
     "경의중앙선": {"run_speed_kmh": 48.0, "dwell_min": 0.50, "peak": (8, 12), "normal": (11, 16), "night": (15, 22)},
+    "경의중앙선(본선)": {"run_speed_kmh": 48.0, "dwell_min": 0.50, "peak": (8, 12), "normal": (11, 16), "night": (15, 22)},
+    "경의중앙선(서울역지선)": {"run_speed_kmh": 46.0, "dwell_min": 0.50, "peak": (15, 25), "normal": (25, 35), "night": (30, 45)},
     "경춘선": {"run_speed_kmh": 52.0, "dwell_min": 0.50, "peak": (12, 18), "normal": (16, 22), "night": (20, 28)},
+    "경강선": {"run_speed_kmh": 55.0, "dwell_min": 0.50, "peak": (12, 16), "normal": (16, 22), "night": (20, 28)},
     "우이신설선": {"run_speed_kmh": 38.0, "dwell_min": 0.40, "peak": (3, 4), "normal": (4, 6), "night": (7, 10)},
     "신림선": {"run_speed_kmh": 38.0, "dwell_min": 0.40, "peak": (3, 5), "normal": (4, 6), "night": (7, 10)},
     "김포골드라인": {"run_speed_kmh": 45.0, "dwell_min": 0.42, "peak": (3, 4), "normal": (4, 6), "night": (7, 11)},
     "서해선": {"run_speed_kmh": 48.0, "dwell_min": 0.50, "peak": (8, 12), "normal": (11, 15), "night": (15, 20)},
+    "인천1호선": {"run_speed_kmh": 44.0, "dwell_min": 0.45, "peak": (4, 6), "normal": (7, 9), "night": (10, 14)},
+    "인천2호선": {"run_speed_kmh": 43.0, "dwell_min": 0.42, "peak": (3, 5), "normal": (6, 8), "night": (9, 13)},
     "GTX-A": {"run_speed_kmh": 95.0, "dwell_min": 0.60, "peak": (8, 12), "normal": (12, 16), "night": (15, 20)},
 }
 
@@ -200,7 +327,10 @@ EXPRESS_SPECS: Dict[str, Dict[str, Any]] = {
 
 def get_line_headway(line_name: str, hour: int = 14) -> Tuple[int, int, int, str]:
     """호선 및 시간대(0~23시)에 따른 (최소배차, 최대배차, 평균대기시간_분, 시간대라벨) 반환"""
-    spec = LINE_OPERATING_SPECS.get(line_name, DEFAULT_LINE_SPEC)
+    spec = LINE_OPERATING_SPECS.get(
+        line_name,
+        LINE_OPERATING_SPECS.get(normalize_base_line_name(line_name), DEFAULT_LINE_SPEC),
+    )
     if hour in (7, 8, 9, 18, 19, 20):
         h_min, h_max = spec["peak"]
         period = "첨두시"
@@ -228,27 +358,54 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return 2 * r * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
 
 
-def calculate_subway_fare(distance_km: float) -> Tuple[int, str]:
-    """수도권 도시철도 거리비례제 운임 계산 (교통카드 성인 기준)"""
+def calculate_subway_fare(
+    distance_km: float,
+    inner_km: Optional[float] = None,
+    outer_km: float = 0.0,
+) -> Tuple[int, str]:
+    """수도권 도시철도 거리비례제 운임 계산 (교통카드 성인 기준 + 수도권 외 구간 특례 반영)"""
     base_fare = 1550
-    if distance_km <= 10.0:
-        return base_fare, f"기본운임 1,550원 (10km 이내 · {distance_km:.1f}km)"
-    elif distance_km <= 50.0:
-        extra_km = distance_km - 10.0
-        extra_Fare = math.ceil(extra_km / 5.0) * 100
-        total = base_fare + extra_Fare
-        return (
-            total,
-            f"기본 1,550원 + 거리추가 {extra_Fare:,}원 (10~50km 구간 5km당 100원 · 총 {distance_km:.1f}km)",
-        )
+    rounded_outer = round(max(0.0, outer_km), 1)
+    rounded_inner = round(max(0.0, distance_km - rounded_outer if inner_km is None else inner_km), 1)
+    total_dist = round(rounded_inner + rounded_outer, 1)
+
+    if rounded_inner > 0:
+        inner_fare = base_fare
+        if rounded_inner > 50.0:
+            inner_fare += 800 + math.ceil((rounded_inner - 50.0) / 8.0) * 100
+        elif rounded_inner > 10.0:
+            inner_fare += math.ceil((rounded_inner - 10.0) / 5.0) * 100
+
+        if rounded_outer > 0:
+            outer_fare = math.ceil(rounded_outer / 4.0) * 100
+            total = inner_fare + outer_fare
+            return (
+                total,
+                f"수도권 내 {rounded_inner:.1f}km ({inner_fare:,}원) + 수도권 외 {rounded_outer:.1f}km ({outer_fare:,}원)",
+            )
+        if total_dist <= 10.0:
+            return inner_fare, f"기본운임 1,550원 (10km 이내 · {total_dist:.1f}km)"
+        elif total_dist <= 50.0:
+            extra = inner_fare - base_fare
+            return (
+                inner_fare,
+                f"기본 1,550원 + 거리추가 {extra:,}원 (10~50km 구간 5km당 100원 · 총 {total_dist:.1f}km)",
+            )
+        else:
+            extra = inner_fare - base_fare
+            return (
+                inner_fare,
+                f"기본 1,550원 + 거리추가 {extra:,}원 (50km 초과 구간 8km당 100원 · 총 {total_dist:.1f}km)",
+            )
     else:
-        extra_10_50 = math.ceil(40.0 / 5.0) * 100
-        extra_over_50 = math.ceil((distance_km - 50.0) / 8.0) * 100
-        extra_total = extra_10_50 + extra_over_50
-        total = base_fare + extra_total
+        outer_fare = base_fare
+        if rounded_outer > 10.0:
+            outer_fare += math.ceil((rounded_outer - 10.0) / 4.0) * 100
+        if rounded_outer <= 10.0:
+            return outer_fare, f"수도권 외 기본운임 1,550원 (10km 이내 · {rounded_outer:.1f}km)"
         return (
-            total,
-            f"기본 1,550원 + 거리추가 {extra_total:,}원 (50km 초과 구간 8km당 100원 · 총 {distance_km:.1f}km)",
+            outer_fare,
+            f"수도권 외 기본 1,550원 + 가산 {(outer_fare - base_fare):,}원 ({rounded_outer:.1f}km)",
         )
 
 
@@ -332,6 +489,17 @@ class MultimodalRoutingEngine:
                 self.station_by_name[name] = st
                 clean = name[:-1] if name.endswith("역") else name
                 self.station_by_name.setdefault(clean, st)
+                no_space = name.replace(" ", "")
+                self.station_by_name.setdefault(no_space, st)
+                if name == "4.19민주묘지역":
+                    self.station_by_name.setdefault("4.19 민주묘지역", st)
+                # 괄호 제거 역명 별칭 (예: 양평역(5호선) -> 양평역, 양평)
+                base_name = re.sub(r"\(.*?\)", "", name).strip()
+                if base_name and base_name not in self.station_by_name:
+                    self.station_by_name[base_name] = st
+                    self.station_by_name.setdefault(
+                        base_name[:-1] if base_name.endswith("역") else base_name, st
+                    )
 
         # ── 서울교통공사 주요 환승역 실측 도보시간 및 환승거리 테이블 적재 ──
         tr_file = base_dir / "models" / "station_transfer_times.json"
@@ -368,12 +536,15 @@ class MultimodalRoutingEngine:
     ) -> Dict[str, Any]:
         """환승역별 실측 도보시간(분) 및 환승거리(m) 조회 (서울교통공사 마스터 데이터 연동)"""
         st_clean = (station or "").replace("역", "").strip()
-        key = (st_clean, line_a, line_b)
-        if key in self.station_transfer_times:
-            return self.station_transfer_times[key]
-        key_rev = (st_clean, line_b, line_a)
-        if key_rev in self.station_transfer_times:
-            return self.station_transfer_times[key_rev]
+        for la, lb in [
+            (line_a, line_b),
+            (line_b, line_a),
+            (normalize_base_line_name(line_a), normalize_base_line_name(line_b)),
+            (normalize_base_line_name(line_b), normalize_base_line_name(line_a)),
+        ]:
+            key = (st_clean, la, lb)
+            if key in self.station_transfer_times:
+                return self.station_transfer_times[key]
 
         # 기본 디폴트 환승값: 도보 2.0분, 거리 130m
         return {
@@ -629,6 +800,7 @@ class MultimodalRoutingEngine:
             curr_st_obj = self.station_by_name.get(curr, {})
             curr_lines = set(curr_st_obj.get("lines", []))
             visited = {p[0] for p in path}
+            prev_station = path[-2][0] if len(path) >= 2 else None
 
             for nbr in self.subway_graph.get(curr, []):
                 if nbr in visited:
@@ -636,17 +808,24 @@ class MultimodalRoutingEngine:
                 nbr_st_obj = self.station_by_name.get(nbr, {})
                 nbr_lines = set(nbr_st_obj.get("lines", []))
                 common_lines = [l for l in curr_lines if l in nbr_lines]
+                branch_transfer = check_branch_transfer(curr, prev_station, nbr)
+                base_curr_line = normalize_base_line_name(curr_line)
+                is_same_line = (
+                    (not branch_transfer)
+                    and bool(curr_line)
+                    and (curr_line in common_lines or base_curr_line in common_lines)
+                )
 
-                if curr_line and curr_line in common_lines:
+                if is_same_line:
                     next_transfers = transfers
                     next_stops = stops + 1
-                    line_pen = (0.08 * next_stops) if curr_line in low_freq_lines else 0.0
+                    line_pen = (0.08 * next_stops) if base_curr_line in low_freq_lines else 0.0
                     next_cost = (
                         next_transfers * 10000 + next_stops + line_pen
                         if mode == "min_transfer"
                         else next_stops * 2.0 + next_transfers * 4.5 + line_pen
                     )
-                    n_key = (nbr, curr_line)
+                    n_key = (nbr, curr_line or "")
                     if best_cost.get(n_key, 1e18) > next_cost:
                         counter += 1
                         heapq.heappush(
@@ -662,11 +841,27 @@ class MultimodalRoutingEngine:
                             ),
                         )
                 else:
-                    target_lines = common_lines or list(nbr_lines) or [curr_line]
+                    if branch_transfer:
+                        target_lines = [branch_transfer["to_line"]]
+                        from_base = normalize_base_line_name(branch_transfer["from_line"])
+                        updated_path = [
+                            (
+                                st_p,
+                                branch_transfer["from_line"]
+                                if (ln_p == from_base or not ln_p)
+                                else ln_p,
+                            )
+                            for (st_p, ln_p) in path
+                        ]
+                    else:
+                        target_lines = common_lines or list(nbr_lines) or [curr_line]
+                        updated_path = path
+
                     for nl in target_lines:
                         next_transfers = transfers + 1
                         next_stops = stops + 1
-                        line_pen = (0.08 * next_stops) if nl in low_freq_lines else 0.0
+                        base_nl = normalize_base_line_name(nl)
+                        line_pen = (0.08 * next_stops) if base_nl in low_freq_lines else 0.0
                         tr_info = self.get_station_transfer_info(curr, curr_line or "", nl or "")
                         tr_walk = float(tr_info.get("walk_minutes", 2.0))
                         next_cost = (
@@ -686,7 +881,7 @@ class MultimodalRoutingEngine:
                                     next_stops,
                                     nbr,
                                     nl,
-                                    path + [(nbr, nl)],
+                                    updated_path + [(nbr, nl)],
                                 ),
                             )
 
@@ -739,15 +934,26 @@ class MultimodalRoutingEngine:
                 }
             )
 
-        # 실연장 거리(km) 계산 (노선 굴곡 계수 1.18 반영)
-        total_dist_km = 0.0
+        # 실연장 거리(km) 및 수도권 내/외 구간 분리 계산 (노선 굴곡 계수 1.18 반영)
+        inner_dist_km = 0.0
+        outer_dist_km = 0.0
         for i in range(1, len(path_steps)):
             c1 = path_steps[i - 1]["coords"]
             c2 = path_steps[i]["coords"]
-            total_dist_km += haversine_km(c1[1], c1[0], c2[1], c2[0]) * 1.18
-        total_dist_km = round(max(0.9, total_dist_km), 1)
+            edge_km = max(0.8, haversine_km(c1[1], c1[0], c2[1], c2[0]) * 1.18)
+            st_a = path_steps[i - 1]["name"]
+            st_b = path_steps[i]["name"]
+            if is_outer_edge(st_a, st_b):
+                outer_dist_km += edge_km
+            else:
+                inner_dist_km += edge_km
+        inner_dist_km = round(inner_dist_km, 1)
+        outer_dist_km = round(outer_dist_km, 1)
+        total_dist_km = round(max(0.9, inner_dist_km + outer_dist_km), 1)
 
-        fare_krw, fare_breakdown = calculate_subway_fare(total_dist_km)
+        fare_krw, fare_breakdown = calculate_subway_fare(
+            total_dist_km, inner_dist_km, outer_dist_km
+        )
 
         # 호선별 구간(segments) 분할 및 환승 도보·대기 세그먼트 삽입
         line_segments: List[Dict[str, Any]] = []
@@ -891,7 +1097,10 @@ class MultimodalRoutingEngine:
         dist_km = round(max(0.8, dist_km), 1)
         stops_cnt = max(1, len(steps) - 1)
 
-        spec = LINE_OPERATING_SPECS.get(line_name, DEFAULT_LINE_SPEC)
+        base_line = normalize_base_line_name(line_name)
+        spec = LINE_OPERATING_SPECS.get(
+            line_name, LINE_OPERATING_SPECS.get(base_line, DEFAULT_LINE_SPEC)
+        )
         run_speed_kmh = float(spec["run_speed_kmh"])
         dwell_min = float(spec["dwell_min"])
 
@@ -899,7 +1108,7 @@ class MultimodalRoutingEngine:
         is_express = False
         skipped_count = 0
         time_saved = 0
-        express_spec = EXPRESS_SPECS.get(line_name)
+        express_spec = EXPRESS_SPECS.get(line_name) or EXPRESS_SPECS.get(base_line)
         if express_spec and len(steps) >= 3:
             express_stations = set(express_spec["stations"])
             from_clean = steps[0]["name"].replace("역", "").strip()
@@ -922,7 +1131,7 @@ class MultimodalRoutingEngine:
         mins = max(2, int(round(raw_mins)))
 
         h_min, h_max, avg_wait, period_lbl = get_line_headway(line_name, hour)
-        color = LINE_COLORS.get(line_name, "#38BDF8")
+        color = LINE_COLORS.get(line_name, LINE_COLORS.get(base_line, "#38BDF8"))
 
         label = f"🚇 {line_name}(급행)" if is_express else f"🚇 {line_name}"
         if is_express and express_spec:

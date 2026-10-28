@@ -134,36 +134,69 @@ export default function MultimodalRoutePanel({
     let cancelled = false
     const timer = setTimeout(async () => {
       setLoading(true)
+      const cleanDistrict = district.split(' ')[0] || '강남구'
+      const requestPayload = {
+        from_station: cleanFrom,
+        to_station: cleanTo,
+        district: cleanDistrict,
+        hour: selectedHour,
+        weather: {
+          temp,
+          rain,
+          humidity,
+          wind,
+        },
+      }
+      console.log(
+        `%c[LangGraph × FactChat] 🚀 멀티모달 경로 탐색 시작: ${cleanFrom} ➔ ${cleanTo} (${selectedHour}:00, ${temp}°C, 강수 ${rain}mm)`,
+        'color: #38BDF8; font-weight: bold;',
+        requestPayload
+      )
       try {
-        const cleanDistrict = district.split(' ')[0] || '강남구'
         const res = await fetch(`${apiBaseUrl}/api/v1/routes/multimodal-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from_station: cleanFrom,
-            to_station: cleanTo,
-            district: cleanDistrict,
-            hour: selectedHour,
-            weather: {
-              temp,
-              rain,
-              humidity,
-              wind,
-            },
-          }),
+          body: JSON.stringify(requestPayload),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const json: MultimodalSearchResponse = await res.json()
         if (!cancelled && json.status === 'success') {
           setData(json)
           setSelectedIdx(0)
+          console.groupCollapsed(
+            `%c[LangGraph × FactChat] 🧠 멀티모달 경로 탐색 완료: ${cleanFrom} ➔ ${cleanTo} (${json.latency_ms}ms · ${json.weather_gate})`,
+            'color: #34D399; font-weight: bold;'
+          )
+          console.log('🌦️ 기상 게이트 판정:', json.weather_gate, json.weather_context)
+          console.log('📊 32차원 ONNX 혼잡도:', json.ai_congestion)
+          console.log('🤖 FactChat LLM 브리핑:', json.ai_briefing)
+          if (json.langgraph_trace) {
+            console.log('🔗 LangGraph 5단계 노드 트레이스:')
+            console.table(json.langgraph_trace)
+          }
+          if (json.routes) {
+            console.log('🗺️ 멀티모달 추천 경로 후보 3종:')
+            console.table(
+              json.routes.map(r => ({
+                순위: r.badge,
+                경로명: r.title,
+                소요시간_분: r.total_minutes,
+                요금_원: r.total_fare_krw,
+                거리_km: r.total_distance_km,
+                환승횟수: r.transfer_count,
+                혼잡도: `${r.crowd_percent}% (${r.crowd_label})`,
+                구간요약: r.segments.map(s => `${s.from_name}➔${s.to_name}`).join(' | '),
+              }))
+            )
+          }
+          console.groupEnd()
         }
       } catch (err) {
         console.warn('[MultimodalEngine] 경로 탐색 조회 폴백:', err)
       } finally {
         if (!cancelled) setLoading(false)
       }
-    }, 180)
+    }, 220)
 
     return () => {
       cancelled = true
@@ -238,6 +271,66 @@ export default function MultimodalRoutePanel({
 
   return (
     <div style={{ marginBottom: 22 }}>
+      {/* ── 0. 경로 탐색 로딩 배너 (탐색 진행 중일 때 눈에 띄게 표시) ── */}
+      {loading && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(168, 85, 247, 0.16))',
+            border: '1px solid rgba(56, 189, 248, 0.5)',
+            borderRadius: 18,
+            padding: '14px 18px',
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            boxShadow: '0 8px 24px rgba(56, 189, 248, 0.18)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                border: '3px solid rgba(56, 189, 248, 0.25)',
+                borderTopColor: '#38BDF8',
+                animation: 'mmSpin 0.8s linear infinite',
+                flexShrink: 0,
+              }}
+            />
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: '#F0F6FF', marginBottom: 2 }}>
+                ⏳ 경로 탐색 로딩 중... ({cleanFrom} ➔ {cleanTo})
+              </div>
+              <div style={{ fontSize: 11, color: '#BAE6FD' }}>
+                LangGraph 에이전트가 기상 게이트 판정 · 지하철/버스/따릉이 복합 탐색 · FactChat AI 브리핑을 생성하고 있습니다.
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: 'rgba(56, 189, 248, 0.2)',
+              color: '#38BDF8',
+              fontFamily: 'JetBrains Mono',
+            }}
+          >
+            SEARCHING...
+          </span>
+          <style>{`
+            @keyframes mmSpin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* ── 1. LangGraph × FactChat LLM 브리핑 헤더 카드 ── */}
       <div
         style={{

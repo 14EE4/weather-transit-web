@@ -572,13 +572,17 @@ export default function AppM() {
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState(0)
 
   // 경로 검색 실행 함수 (출발역-도착역 최단 경로 계산 및 실시간 열차 도착 정보 연동)
-  const handleSearchRoute = async (from = departure, to = destination) => {
+  const handleSearchRoute = async (from = departure, to = destination, navigateToMap = false) => {
     if (!from.trim() || !to.trim()) {
       alert('출발역과 도착역을 입력해주세요.')
       return
     }
+    setShowDepartureList(false)
+    setShowDestinationList(false)
     const route = findSubwayRoute(from, to)
     if (route) {
+      setDeparture(route.from)
+      setDestination(route.to)
       const cleanFrom = from.replace(/역$/, '')
       try {
         const res = await fetch(`${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanFrom)}`)
@@ -602,9 +606,11 @@ export default function AppM() {
       }
 
       setActiveRoute(route)
-      setPage('map')
-      if (mapTransport === 'bus' || mapTransport === 'bike') {
-        setMapTransport('all')
+      if (navigateToMap) {
+        setPage('map')
+        if (mapTransport === 'bus' || mapTransport === 'bike') {
+          setMapTransport('all')
+        }
       }
 
       if (route.transferTrains) {
@@ -2162,7 +2168,7 @@ export default function AppM() {
                   boxShadow: '0 8px 32px rgba(56,189,248,0.3)',
                 }}
               >
-                🔍  최소 환승 경로 검색 및 지도 보기
+                🔍  최적 경로 검색
               </button>
 
               {/* 자주 찾는 경로 */}

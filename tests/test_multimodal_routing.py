@@ -78,6 +78,31 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         self.assertEqual(g_data["weather_gate"], "RAIN_SAFE_ONLY")
         self.assertFalse(g_data["weather_context"]["bike_enabled"])
 
+    def test_no_origin_backtracking_in_first_mile(self):
+        """서울역 등 환승 거점에서 출발 시 따릉이 First-Mile 이후 지하철이 다시 출발역(서울역)으로 되돌아오는 제자리걸음이 없어야 함"""
+        for dest in ["강남역", "홍대입구역", "여의도역", "구로역"]:
+            res = multimodal_routing_engine.run_multimodal_search(
+                from_query="서울역",
+                to_query=dest,
+                district="용산구",
+                hour=9,
+                weather_context={"temp": 18.0, "rain": 0.0, "humidity": 50.0, "wind": 1.5},
+            )
+            for route in res["routes"]:
+                if "bike" in route["modes_used"] and "subway" in route["modes_used"]:
+                    subway_segs = [s for s in route["segments"] if s["mode"] == "subway"]
+                    for seg in subway_segs:
+                        self.assertNotEqual(
+                            seg["to_name"],
+                            "서울역",
+                            f"Backtracking to 서울역 detected in {route['title']} -> {seg}",
+                        )
+                        self.assertNotEqual(
+                            seg["from_name"],
+                            "서울역",
+                            f"Circular return to 서울역 detected in {route['title']} -> {seg}",
+                        )
+
 
 if __name__ == "__main__":
     unittest.main()

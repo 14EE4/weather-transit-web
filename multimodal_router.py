@@ -725,29 +725,55 @@ class MultimodalRoutingEngine:
         origin_bikes = self.find_nearby_bike_stations(o_lat, o_lng, live_bike_list, limit=2)
         dest_bikes = self.find_nearby_bike_stations(d_lat, d_lng, live_bike_list, limit=2)
 
-        # First-Mile 최적 환승역 탐색: 출발지에서 반경 0.7~2.3km 내 지하철역 중 도착지까지 환승이 줄거나 시간이 단축되는 역 탐색
+        # First-Mile 최적 환승역 탐색:
+        # 1) 역방향 우회(제자리걸음) 원천 차단: 후보 역에서 출발하는 지하철 경로(cand_route["path"])에
+        #    원래 출발역(origin["name"])이 포함되어 있으면 즉시 배제 (예: 서울역 ➔ 회현역 따릉이 ➔ 회현역에서 다시 서울역 경유 방지)
+        # 2) 전진 방향 검증: 후보 역에서 도착지까지의 직선거리가 출발지~도착지 직선거리보다 가까워야 함
+        # 3) 실질적 이득 검증: 기존 지하철 경로 대비 경유 역 수(stationCount) 또는 환승 횟수(transferCount)가 줄어들어야 함
+        origin_to_dest_km = haversine_km(o_lat, o_lng, d_lat, d_lng)
         nearby_origins = self.find_nearby_subway_stations(
-            o_lat, o_lng, radius_km=2.3, exclude_name=origin["name"]
+            o_lat, o_lng, radius_km=2.6, exclude_name=origin["name"]
         )
         best_first_mile = None
+        best_score = 1e9
         base_transfers = sub_min_tr["transferCount"] if sub_min_tr else 99
         base_minutes = sub_min_tr["estimatedMinutes"] if sub_min_tr else 999
+        base_stations = sub_min_tr["stationCount"] if sub_min_tr else 999
 
-        for cand_st in nearby_origins[:8]:
+        for cand_st in nearby_origins[:15]:
             if cand_st["name"] == dest["name"]:
                 continue
+            cand_lng, cand_lat = cand_st["coords"]
+            cand_to_dest_km = haversine_km(cand_lat, cand_lng, d_lat, d_lng)
+            # 목적지 방향 전진 여부 검증 (반대 방향 역 배제)
+            if cand_to_dest_km >= origin_to_dest_km - 0.15:
+                continue
+
             cand_route = self.search_subway_route(cand_st["name"], dest["name"], mode="min_transfer")
             if not cand_route:
                 continue
+
+            # [핵심] 후보 역 이후 지하철 경로에 원래 출발역이 다시 포함되면 역방향 제자리걸음이므로 즉시 배제
+            cand_path_names = {p["name"] for p in (cand_route.get("path") or [])}
+            if origin["name"] in cand_path_names:
+                continue
+
+            # 지하철 경유 역 수가 원래보다 줄어들지 않으면 배제
+            if cand_route["stationCount"] >= base_stations:
+                continue
+
             bike_dist_km = max(0.6, round(cand_st["distance_km"] * 1.22, 1))
             bike_minutes = max(4, round(bike_dist_km / 0.25))  # 평균 시속 15km (분당 250m)
             total_cand_min = bike_minutes + cand_route["estimatedMinutes"]
-            # 환승 횟수가 감소하거나 소요 시간이 비슷/단축되는 경우 채택
+
+            # 평가 점수: 환승 감소 가중치 + 총 소요시간 + 남은 지하철 역 수
+            score = (cand_route["transferCount"] * 12.0) + total_cand_min + (cand_route["stationCount"] * 0.5)
             if (
-                cand_route["transferCount"] < base_transfers
-                or total_cand_min <= base_minutes + 3
-                or best_first_mile is None
+                cand_route["transferCount"] <= base_transfers
+                and total_cand_min <= base_minutes + 5
+                and score < best_score
             ):
+                best_score = score
                 best_first_mile = {
                     "target_station": cand_st,
                     "bike_distance_km": bike_dist_km,
@@ -755,8 +781,34 @@ class MultimodalRoutingEngine:
                     "subway_route": cand_route,
                     "total_minutes": total_cand_min,
                 }
-                if cand_route["transferCount"] < base_transfers:
-                    break
+
+        # 반경 탐색에서 조건을 만족하는 역이 없다면, 원래 지하철 경로(sub_min_tr["path"]) 상의
+        # 전방 1~3번째 역 중 거리 0.4~2.8km 이내 역으로 선행 진입하는 First-Mile 경로 구성 (역방향 발생 원천 차단)
+        if best_first_mile is None and sub_min_tr:
+            base_path = sub_min_tr.get("path") or []
+            for step_st in base_path[1:4]:
+                if step_st["name"] == dest["name"]:
+                    continue
+                s_lng, s_lat = step_st["coords"]
+                d_km = round(haversine_km(o_lat, o_lng, s_lat, s_lng), 2)
+                if 0.4 <= d_km <= 2.8:
+                    cand_route = self.search_subway_route(step_st["name"], dest["name"], mode="min_transfer")
+                    if cand_route and origin["name"] not in {p["name"] for p in (cand_route.get("path") or [])}:
+                        bike_dist_km = max(0.6, round(d_km * 1.22, 1))
+                        bike_minutes = max(4, round(bike_dist_km / 0.25))
+                        best_first_mile = {
+                            "target_station": {
+                                "name": step_st["name"],
+                                "coords": step_st["coords"],
+                                "lines": step_st.get("lines", []),
+                                "distance_km": d_km,
+                            },
+                            "bike_distance_km": bike_dist_km,
+                            "bike_minutes": bike_minutes,
+                            "subway_route": cand_route,
+                            "total_minutes": bike_minutes + cand_route["estimatedMinutes"],
+                        }
+                        break
 
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         trace.append(
@@ -1110,7 +1162,11 @@ class MultimodalRoutingEngine:
             bus_mins = max(6, round((bus_dist_km / 0.32) * rain_delay_factor))
 
             sub_after_hub = self.search_subway_route(hub_name, dest["name"], mode="min_transfer")
-            if sub_after_hub and hub_name != dest["name"]:
+            if (
+                sub_after_hub
+                and hub_name != dest["name"]
+                and origin["name"] not in {p["name"] for p in (sub_after_hub.get("path") or [])}
+            ):
                 hybrid_segments = [
                     {
                         "mode": "walk",

@@ -2623,7 +2623,7 @@ export default function App() {
                   )}
 
                   {/* 실시간 열차 탑승 안내 박스 (몇 분 후 탑승) */}
-                  <div style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid var(--color-border)' }}>
+                  <div style={{ background: 'var(--color-card)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid var(--color-border)' }}>
                     <div style={{ fontSize: 10, color: 'var(--color-primary)', fontFamily: 'JetBrains Mono', fontWeight: 800, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span>⏱️</span>
                       <span>실시간 열차 도착 정보 (몇 분 후 탑승)</span>

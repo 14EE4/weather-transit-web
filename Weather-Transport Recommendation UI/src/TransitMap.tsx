@@ -935,7 +935,7 @@ popupContent.append(title, number)
           18, 10
         ],
         'circle-color': '#34D399',
-        'circle-stroke-color': '#FFFFFF',
+        'circle-stroke-color': 'var(--color-surface)',
         'circle-stroke-width': 2,
         'circle-opacity': 0.95
       }
@@ -1351,7 +1351,7 @@ popupContent.append(title, number)
       const markerElement = document.createElement('div')
       Object.assign(markerElement.style, {
         background: 'var(--color-surface)', border: `2px solid ${color}`, borderRadius: '12px',
-        padding: '5px 8px', color: '#FFFFFF', display: 'flex', alignItems: 'center',
+        padding: '5px 8px', color: 'var(--app-text)', display: 'flex', alignItems: 'center',
         gap: '5px', fontSize: '12px', fontWeight: '800', cursor: 'pointer',
         whiteSpace: 'nowrap', boxShadow: `0 2px 15px ${color}99`
       })
@@ -1438,17 +1438,17 @@ popupContent.append(title, number)
             border: 2px solid ${color};
             border-radius: 9999px;
             padding: 3px 8px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 14px var(--app-shadow);
             display: flex;
             align-items: center;
             gap: 4px;
             transition: transform 0.15s ease, box-shadow 0.15s ease;
           ">
             <span style="font-size: 13px;">${typeIcon}</span>
-            <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; white-space: nowrap;">${stop.name}</span>
+            <span style="font-size: 11px; font-weight: 700; color: var(--app-text); white-space: nowrap;">${stop.name}</span>
             <span class="marker-crowd-badge" style="
               background: ${color};
-              color: #FFFFFF;
+              color: var(--app-text);
               font-size: 9px;
               font-weight: 800;
               padding: 1px 5px;
@@ -1476,8 +1476,8 @@ popupContent.append(title, number)
             height: 10px;
             border-radius: 50%;
             background: ${color};
-            border: 2px solid #FFFFFF;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 0 10px ${color}bb;
+            border: 2px solid var(--color-surface);
+            box-shadow: 0 2px 8px var(--app-shadow), 0 0 10px ${color}bb;
             transition: transform 0.18s ease, box-shadow 0.18s ease;
           "></div>
         </div>
@@ -1492,7 +1492,7 @@ popupContent.append(title, number)
         if (dotView && dotView.style.display !== 'none') {
           if (dotCircle) {
             dotCircle.style.transform = 'scale(1.6)'
-            dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px rgba(0,0,0,0.8)`
+            dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px var(--app-shadow)`
           }
           el.style.zIndex = '5000'
         } else if (pill) {
@@ -1505,11 +1505,11 @@ popupContent.append(title, number)
       el.addEventListener('mouseleave', () => {
         if (dotCircle) {
           dotCircle.style.transform = 'scale(1)'
-          dotCircle.style.boxShadow = `0 2px 8px rgba(0,0,0,0.7), 0 0 10px ${color}bb`
+          dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${color}bb`
         }
         if (pill) {
           pill.style.transform = 'scale(1) translateY(0)'
-          pill.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)'
+          pill.style.boxShadow = '0 4px 14px var(--app-shadow)'
         }
         el.style.zIndex = '1'
       })
@@ -2132,13 +2132,13 @@ popupContent.append(title, number)
     startEl.innerHTML = `
       <div style="
         background: #10B981;
-        color: #FFFFFF;
+        color: var(--app-text);
         font-weight: 800;
         font-size: 11px;
         padding: 5px 12px;
         border-radius: 9999px;
         box-shadow: 0 4px 18px rgba(16,185,129,0.65);
-        border: 2px solid #FFFFFF;
+        border: 2px solid var(--color-surface);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -2204,13 +2204,13 @@ popupContent.append(title, number)
         trEl.innerHTML = `
           <div style="
             background: #D97706;
-            color: #FFFFFF;
+            color: var(--app-text);
             font-weight: 800;
             font-size: 11px;
             padding: 5px 12px;
             border-radius: 9999px;
             box-shadow: 0 4px 18px rgba(217,119,6,0.65);
-            border: 2px solid #FFFFFF;
+            border: 2px solid var(--color-surface);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -2277,7 +2277,7 @@ popupContent.append(title, number)
         padding: 4px 10px;
         border-radius: 9999px;
         box-shadow: 0 4px 18px rgba(244,63,94,0.6);
-        border: 2px solid #FFFFFF;
+        border: 2px solid var(--color-surface);
         display: flex;
         align-items: center;
         gap: 5px;
@@ -2681,7 +2681,7 @@ popupContent.append(title, number)
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid #FFFFFF', boxShadow: '0 0 6px #38BDF8' }} />
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid var(--color-surface)', boxShadow: '0 0 6px #38BDF8' }} />
             <span style={{ fontSize: 10, color: 'var(--app-text)' }}>밀집 구간 정류소 (점 마커)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>

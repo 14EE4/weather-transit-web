@@ -1187,7 +1187,7 @@ export default function AppM() {
               </div>
             </div>
 
-            
+
           </div>
 
 
@@ -1214,6 +1214,32 @@ export default function AppM() {
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? '화이트 모드로 변경' : '다크 모드로 변경'}
+            title={theme === 'dark' ? '화이트 모드로 변경' : '다크 모드로 변경'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-card)',
+              color: 'var(--app-text)',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            {theme === 'dark' ? '☀️ 화이트' : '🌙 다크'}
+          </button>
+
 
           {/* Live indicator & Console trigger button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
@@ -1569,7 +1595,7 @@ export default function AppM() {
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       padding: '2px 8px', borderRadius: 9999,
-                      background: hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.12)' : 'var(--app-text)',
+                      background: hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.12)' : 'var(--app-subtle)',
                       border: `1px solid ${hourlyLiveStatus === 'live' ? 'rgba(16,185,129,0.3)' : 'solid var(--color-border)'}`
                     }}>
                       <span style={{
@@ -3016,30 +3042,65 @@ export default function AppM() {
           }
 
           /* 상단 메뉴: 로고 위, 메뉴 아래. API 콘솔/LIVE 숨김 */
-          nav > div {
+          nav {
+            fposition: relative !important;
+            top: auto !important;
             height: auto !important;
-            min-height: 60px;
-            padding: 10px 12px !important;
-            gap: 10px !important;
+            min-height: 0 !important;
+            z-index: 1000;
+          }
+          nav > div {
+            box-sizing: border-box;
+            width: 100%;
+            height: auto !important;
+            min-height: 0 !important;
             flex-wrap: wrap !important;
             align-items: center !important;
+            gap: 10px !important;
+            padding: 12px !important;
           }
+          /* 메뉴 탭 */
           nav > div > div:nth-child(2) {
             order: 2;
             flex: 1 1 100% !important;
             width: 100%;
-            gap: 4px !important;
+            min-width: 0;
+            min-height: 56px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: stretch !important;
             overflow-x: auto;
+            overflow-y: hidden;
           }
           nav > div > div:nth-child(2) button {
-            flex: 1 1 0;
+            flex: 1 0 auto;
+            min-height: 48px;
+            padding: 10px 8px !important;
             justify-content: center;
-            padding: 9px 6px !important;
             white-space: nowrap;
             font-size: 12px !important;
+            line-height: 1.4;
           }
+          /* 화이트/다크 모드 버튼 */
+          nav > div > button {
+            flex-shrink: 0;
+            padding: 6px 9px !important;
+            font-size: 11px !important;
+          }
+          /* API 콘솔 및 LIVE 영역 */
           nav > div > div:nth-child(3) {
-            display: none !important;
+            display: flex !important;
+            order: 3;
+            flex: 1 1 100%;
+            justify-content: space-between;
+            gap: 6px !important;
+          }
+          nav > div > div:nth-child(3) button {
+            padding: 6px 8px !important;
+            font-size: 10px !important;
+          }
+          nav > div > div:nth-child(3) span {
+            font-size: 10px !important;
           }
 
           /* 모든 페이지의 큰 여백을 모바일 크기로 조정 */

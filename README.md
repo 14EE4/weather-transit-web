@@ -90,6 +90,7 @@
 | **AI 모델** | 🧩 **AI 모델 사양서 (규격본)** | 32차원 입력 특성 스키마, Optuna 최적 파라미터, 조기종료 및 성능 지표 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
 | **AI 모델** | 📈 **ONNX 모델 성능 비교 보고서** | 25차원 vs 32차원 벤치마크, 지표 분석 및 11월 클린 테스트셋 가이드 | [`MODEL_PERFORMANCE_REPORT.md`](docs/MODEL_PERFORMANCE_REPORT.md) |
 | **AI 모델** | 🧠 **AI 추론 모델 구축 가이드 (원문)** | AI 추론 엔진 원천 사양서 및 데이터 전처리·학습·ONNX 변환 개발 가이드 | [`AI_INFERENCE_MODEL_SPEC.md`](docs/AI_INFERENCE_MODEL_SPEC.md) |
+| **에이전트** | 🤖 **ONNX 모델 × LangGraph 연동 명세서** | ONNX 실시간 혼잡도 추론 결과의 LangGraph 5단계 노드 및 다목적 효용 연동 규격 | [`ONNX_LANGGRAPH_INTEGRATION.md`](docs/ONNX_LANGGRAPH_INTEGRATION.md) |
 | **백엔드** | 🚀 **백엔드 추론 서버 구축 가이드** | FastAPI 인메모리 ONNX 런타임 서빙, 시계열 캐싱 및 REST API 규격 | [`BACKEND_INFERENCE_SERVER.md`](docs/BACKEND_INFERENCE_SERVER.md) |
 | **테스트** | 🧪 **공공 API 및 추론 연동 테스트 가이드** | 외부 공공 API 및 AI 추론 통합 테스트 스위트 실행 방법 및 트러블슈팅 | [`API_TEST_GUIDE.md`](docs/API_TEST_GUIDE.md) |
 | **데이터** | 📦 **데이터 전처리 인수 검수 보고서** | 2025 서울시 20.9만 건 교통·기상 데이터 무결성 검수 및 결측치 현황 | [`DATA_PREPROCESSING_HANDOFF.md`](docs/DATA_PREPROCESSING_HANDOFF.md) |
@@ -136,7 +137,7 @@ flowchart TD
     subgraph S4 ["4. 서빙 엔진 (Serving & Inference)"]
         ONNX["ONNX Runtime 경량 엔진 (models/*.onnx)"]
         ES --> ONNX
-        API["FastAPI 백엔드 엔진 (main.py)<br>- 인메모리 ONNX 추론 (지연시간 1~3ms)<br>- timeseries_cache 시계열 캐싱<br>- MCDA 최적 교통수단 추천 (기상 57% + 정시성 29% + 혼잡도 14%)"]
+        API["FastAPI 백엔드 엔진 (main.py)<br>- 인메모리 ONNX 추론 (지연시간 1~3ms)<br>- timeseries_cache 시계열 캐싱<br>- MCDA 최적 교통수단 추천 (기상 57% + 정시성 29% + 혼잡도 14%)<br>- kma_forecast 24시간 단기예보 격자 연동"]
         ONNX --> API
     end
 
@@ -149,13 +150,32 @@ flowchart TD
         EXT1 & EXT2 & EXT3 & EXT4 --> API
     end
 
-    %% 6. Presentation
-    subgraph S6 ["6. 대화형 웹 프론트엔드 (Presentation)"]
+    %% 6. LangGraph & FactChat Multimodal Orchestration
+    subgraph S6 ["6. LangGraph × FactChat 멀티모달 오케스트레이션 (multimodal_router.py)"]
+        N1["1. parse_context_node<br>(출발/도착 좌표, 단기예보, 32D ONNX 혼잡도)"]
+        GATE{"2. weather_gate_router<br>(강수>0mm or 강풍 or 혹한)"}
+        TOOL_CLEAR["3A. clear_multimodal_tools_node<br>(지하철 + 버스 + 따릉이 First/Last-Mile)"]
+        TOOL_RAIN["3B. rain_safe_tools_node<br>(따릉이 차단, 지하철 최소환승 + 실내 버스)"]
+        FUSION["4. candidate_fusion_node<br>(다목적 효용 랭킹, 19개 노선 물리속도·배차)"]
+        BRIEF["5. factchat_llm_briefing_node<br>(FactChat/BAZE Gateway gpt-6-luna 브리핑)"]
+
+        API --> N1
+        N1 --> GATE
+        GATE -- "맑음 (CLEAR)" --> TOOL_CLEAR
+        GATE -- "악천후 (RAIN/WIND/COLD)" --> TOOL_RAIN
+        TOOL_CLEAR & TOOL_RAIN --> FUSION
+        FUSION --> BRIEF
+    end
+
+    %% 7. Presentation Layer
+    subgraph S7 ["7. 대화형 웹 프론트엔드 (Presentation Layer)"]
         UI1["실시간 AI 추천 카드 및 시간대별 예보 슬라이더 (App.tsx)"]
         UI2["인터랙티브 대중교통 지도 (TransitMap.tsx - MapLibre GL)"]
-        UI3["실시간 기상 및 AI 추천 브리핑 (단기예보 + 추천 이유)"]
+        UI3["멀티모달 경로 패널 & 5단계 트레이스 (MultimodalRoutePanel.tsx)"]
         UI4["B2B 모빌리티 재배치 관제 대시보드 (EnterpriseView.tsx)"]
-        API --> UI1 & UI2 & UI3 & UI4
+        API --> UI1 & UI2 & UI4
+        BRIEF --> UI3
+        FUSION -. "GeoJSON 세그먼트 컬러 폴리라인" .-> UI2
     end
 ```
 
@@ -194,9 +214,16 @@ KMA_APIHUB_KEY=your_kma_apihub_key_here
 
 # 서울 열린데이터광장 (https://data.seoul.go.kr - 지하철 실시간 도착 정보)
 SEOUL_SUBWAY_API_KEY=your_seoul_subway_key_here
+SEOUL_DATA_API_KEY=your_seoul_subway_key_here
 
-# 공공데이터포털 (https://www.data.go.kr - 서울특별시 버스도착정보조회)
+# 공공데이터포털 (https://www.data.go.kr - 서울특별시 버스도착정보조회 5종)
 DATA_GO_KR_API_KEY=your_data_go_kr_key_here
+
+# FactChat / BAZE API Gateway (https://docs.factchat.kr - 멀티모달 경로 탐색 외부 LLM)
+# - OpenAI 호환 ChatCompletions 인터페이스
+FACTCHAT_BASE_URL=https://api.baze.co/v1/gateway
+FACTCHAT_API_KEY=your_factchat_api_key_here
+FACTCHAT_MODEL_NAME=gpt-6-luna
 
 # 백엔드 서버 URL (프론트엔드 연동 시)
 VITE_API_BASE_URL=http://localhost:8000
@@ -367,8 +394,18 @@ git push origin <작업-브랜치명>
 
 
 4. **따릉이 실시간 대여정보 (`SEOUL_DATA_API_KEY`, 선택: `SEOUL_BIKE_API_KEY`)**
-- [서울 열린데이터광장](https://data.seoul.go.kr/)의 `서울특별시 공공자전거 실시간 대여정보(bikeList)` 사용 (기존 `SEOUL_DATA_API_KEY` 일반 인증키로 동작)
-- 전용 키를 쓰려면 `.env`에 `SEOUL_BIKE_API_KEY`를 지정 (미설정 시 `SEOUL_DATA_API_KEY` 재사용)
+   - [서울 열린데이터광장](https://data.seoul.go.kr/)의 `서울특별시 공공자전거 실시간 대여정보(bikeList)` 사용 (기존 `SEOUL_DATA_API_KEY` 일반 인증키로 동작)
+   - 전용 키를 쓰려면 `.env`에 `SEOUL_BIKE_API_KEY`를 지정 (미설정 시 `SEOUL_DATA_API_KEY` 재사용)
+
+5. **FactChat / BAZE API Gateway (`FACTCHAT_API_KEY`, `FACTCHAT_BASE_URL`)**
+   - [FactChat 공식 문서](https://docs.factchat.kr) 또는 [BAZE Gateway](https://api.baze.co)에서 API 키 발급
+   - LangGraph 5단계 멀티모달 경로 탐색 엔진의 최적 수단 추천 사유, 날씨 조언 및 환승 팁을 자연어 브리핑(`gpt-6-luna`)으로 생성하는 데 활용됩니다.
+   - **OpenAI 호환 인터페이스**: `ChatCompletions` 표준 규격을 따르며, 엔드포인트 URL은 기본값인 `https://api.baze.co/v1/gateway`로 설정됩니다.
+   - **[Graceful Fallback 내장]**:
+     - API 키가 미설정되어 있거나 외부 게이트웨이 지연/장애 발생 시, 서비스가 중단되지 않고 **로컬 규칙 기반 XAI 브리핑 엔진**으로 100% 자동 폴백되어 정상 동작합니다.
+
+---
+
 ## 📁 디렉토리 구조
 
 ```text

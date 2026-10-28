@@ -8,6 +8,31 @@
 
 ## [2026-10-28]
 
+### 🏛️ 시스템 아키텍처 다이어그램 및 명세서에 LangGraph 및 FactChat LLM 파이프라인 반영 (이슈 #31)
+- **배경**:
+  - 이슈 #18을 통해 구축된 LangGraph 5단계 멀티모달 라우팅 엔진 및 FactChat LLM 브리핑 파이프라인을 `README.md` 및 `docs/SYSTEM_ARCHITECTURE.md` 다이어그램과 명세서에 전면 반영하여 시스템 설계 문서의 정합성 확보.
+- **주요 조치**:
+  1. **`README.md` 전체 시스템 아키텍처 플로우차트 갱신**:
+     - `S4 서빙 엔진`과 `S7 프론트엔드` 사이에 **`S6 LangGraph × FactChat 멀티모달 오케스트레이션 (multimodal_router.py)`** 파이프라인(5단계 노드, 기상 게이트 조건부 분기, 다목적 효용 랭킹)을 명시적으로 추가.
+  2. **`docs/SYSTEM_ARCHITECTURE.md` 전면 최신화**:
+     - **C4 컨텍스트 다이어그램 (§2)**: `LangGraph Multimodal Agent` 및 외부 `FactChat / BAZE Gateway (gpt-6-luna)` 연동 관계 추가.
+     - **엔드투엔드 파이프라인 플로우차트 (§2.1)**: 5단계 StateGraph 노드(`parse_context`, `weather_gate_router`, `clear/rain_safe_tools`, `candidate_fusion`, `factchat_llm_briefing`) 흐름 반영.
+     - **전체 계층형 아키텍처 (§3)**: 기존 5-Tier에서 `Agent & Multimodal Orchestration Layer`가 포함된 **6-Tier 계층형 아키텍처**로 개편.
+     - **주요 컴포넌트 상세 설계 (§4)**: `4.5 LangGraph 멀티모달 오케스트레이션 엔진 및 FactChat LLM 브리핑` 상세 절 신설.
+     - **데이터 흐름 및 시퀀스 다이어그램 (§5)**: `5.4 LangGraph 멀티모달 복합 경로 탐색 및 FactChat AI 브리핑 흐름` 시퀀스 다이어그램 추가.
+     - **라우팅 에셋 명세 (§9)**: `multimodal_router.py`, `models/transit_network.json`, `MultimodalRoutePanel.tsx` 명세 체계화.
+  3. **`docs/ONNX_LANGGRAPH_INTEGRATION.md` 기술 명세서 신설**:
+     - 32차원 ONNX 3개 모델(지하철, 버스, 따릉이)의 실시간 추론 결과가 LangGraph 5단계 노드와 다목적 효용 함수(Multi-Objective Utility Score), 출퇴근 피크 분산 보너스(+14.0점), FactChat LLM 프롬프트 팩트 주입에 연동되는 전 과정과 수식·실전 시나리오를 심층 기술.
+  4. **`README.md` 환경 변수 설정 및 API 활용 신청 안내에 LLM 게이트웨이 추가**:
+     - `.env` 템플릿에 `FACTCHAT_BASE_URL`, `FACTCHAT_API_KEY`, `FACTCHAT_MODEL_NAME` 변수 수록
+     - `FactChat / BAZE API Gateway` 발급처, OpenAI 호환 규격 및 키 미설정 시 자동 XAI 폴백 동작 원리 명시
+- **산출물**:
+  - `docs/ONNX_LANGGRAPH_INTEGRATION.md` (신규)
+  - `README.md`
+  - `docs/SYSTEM_ARCHITECTURE.md`
+  - `docs/BACKEND_INFERENCE_SERVER.md`
+  - `docs/CHANGELOG.md`
+
 ### 🧠 LangGraph 및 FactChat LLM 기반 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 엔진 구축 및 정밀 교정 (이슈 #18)
 - **배경**:
   - 기존 단일 지하철 역-역 탐색을 넘어, 기상 실황/단기예보와 32차원 ONNX 수단별 혼잡도 및 실시간 따릉이 잔여 대수를 종합해 **도보 + 따릉이(First/Last-Mile) + 버스 + 지하철** 복합 경로를 오케스트레이션하는 지능형 라우팅 엔진 구축.

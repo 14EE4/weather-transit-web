@@ -43,21 +43,23 @@
 
 ```mermaid
 flowchart TD
-    User["👤 대중교통 이용 시민 (End-User)"]
+    User["👤 대중교통 이용 시민 (B2C User)"]
+    Admin["🏢 모빌리티 운영사 / 지자체 (B2B Admin)"]
     
     subgraph WeatherTransitSystem ["🌤️ Weather & Transit Web Platform"]
-        Frontend["Web Frontend<br>(React 18 + MapLibre GL)"]
-        Backend["AI Inference Backend<br>(FastAPI + ONNX Runtime)"]
+        Frontend["Web Frontend<br>(React 18 + MapLibre GL + EnterpriseView)"]
+        Backend["AI Inference Backend<br>(FastAPI + ONNX + kma_forecast)"]
     end
     
     subgraph ExternalServices ["🌐 외부 공공 데이터 플랫폼"]
-        KMA["기상청 API허브<br>(초단기실황 getUltraSrtNcst)"]
-        SeoulAPI["서울 열린데이터광장<br>(지하철 도착정보 realtimeStationArrival)"]
-        DataGoKr["공공데이터포털<br>(서울 버스 도착정보 getArrInfoByRouteAll)"]
+        KMA["기상청 API허브<br>(초단기실황 & 단기예보 nph-dfs_shrt_grd)"]
+        SeoulAPI["서울 열린데이터광장<br>(지하철 실시간 & 따릉이 bikeList)"]
+        DataGoKr["공공데이터포털<br>(서울 버스 도착정보 5종)"]
     end
     
-    User -->|"브라우저 상호작용<br>대시보드 / 경로 검색 / 지도"| Frontend
-    Frontend -->|"REST API (JSON)<br>수요 예측 및 실시간 분석 요청"| Backend
+    User -->|"브라우저 상호작용<br>날씨 현황 / 경로 추천 / 지도"| Frontend
+    Admin -->|"B2B 모빌리티 재배치 관제<br>수급 불균형 분석 / CSV 다운로드"| Frontend
+    Frontend -->|"REST API (JSON)<br>수요 예측, B2B 재배치 및 예보 요청"| Backend
     Frontend -->|"실시간 도착 및 날씨 실황 조회"| ExternalServices
     Backend -->|"2025 빅데이터 기반<br>인메모리 AI 모델 추론"| Backend
 ```

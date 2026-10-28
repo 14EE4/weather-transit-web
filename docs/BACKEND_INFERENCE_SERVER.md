@@ -236,7 +236,71 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 }
 ```
 
-### 3) 헬스체크 API
+### 3) 기상청 단기예보 24시간 시간대별 기상 조회 API
+- **엔드포인트**: `GET /api/v1/weather/forecast/hourly?district=강남구`
+- **목적**: 기상청 API허브 단기예보 격자자료(`nph-dfs_shrt_grd`)를 호출하여 해당 자치구의 24시간(00시~23시) 매시간별 기온, 강수량, 하늘상태, 강수형태, 아이콘을 인메모리 캐시(<1ms)로 제공.
+- **Response Body**:
+```json
+{
+  "district": "강남구",
+  "nx": 61,
+  "ny": 126,
+  "tmfc": "2026102811",
+  "source": "KMA_APIHUB_VILAGE_FCST",
+  "cached_at": "2026-10-28T13:40:05",
+  "hours": [
+    {
+      "hour": 14,
+      "hour_str": "14시",
+      "date_str": "20261028",
+      "temp": 13.0,
+      "rain": 0.0,
+      "sky": 1,
+      "pty": 0,
+      "pty_desc": "맑음",
+      "weather_icon": "☀️",
+      "source": "KMA_APIHUB_VILAGE_FCST"
+    }
+  ]
+}
+```
+
+### 4) B2B 기업·운영사용 모빌리티 재배치(Fleet Rebalancing) 분석 API
+- **엔드포인트**: `POST /api/v1/b2b/fleet-rebalance`
+- **목적**: 기상 변화 및 시간대별 25개 자치구 32차원 ONNX 일괄 추론 기반 따릉이(PM) 잉여/부족 수량 및 버스 배차 증차 산출.
+- **Request Body**:
+```json
+{
+  "hour": 14,
+  "rain_mm": 0.0,
+  "temp": 13.0,
+  "use_live_weather": true
+}
+```
+- **Response Body**:
+```json
+{
+  "status": "success",
+  "latency_ms": 9.1,
+  "weather_condition": {
+    "rain_mm": 0.0,
+    "temp": 13.0,
+    "hour": 14,
+    "is_raining": false
+  },
+  "total_bike_surplus_qty": 0,
+  "total_bike_deficit_qty": 2453,
+  "total_bus_extra_trips": 0,
+  "top_recall_districts": [],
+  "top_deploy_districts": [
+    { "district": "송파구", "qty": 412, "delta_pct": 28.5, "urgency": "MEDIUM" },
+    { "district": "강남구", "qty": 380, "delta_pct": 25.1, "urgency": "MEDIUM" }
+  ],
+  "district_rebalance_list": [ ... ]
+}
+```
+
+### 5) 헬스체크 API
 - **엔드포인트**: `GET /health`
 - **Response Body**:
 ```json

@@ -20,6 +20,11 @@ import onnxruntime as ort
 import httpx
 
 from timeseries_cache import timeseries_cache
+from kma_forecast import (
+    kma_forecast_manager,
+    District24hForecast,
+    HourlyForecastItem as KMAHourlyForecastItem,
+)
 from feature_schema import (
     FeatureSchemaError,
     legacy_25d_indices,
@@ -1279,9 +1284,20 @@ async def predict_recommendation(req: PredictionRequest):
 
     t_start = time.perf_counter()
 
-    # 기상 입력 검증 및 디폴트 보정
-    weather = req.weather or WeatherInput()
     norm_district = normalize_district_name(req.district)
+    # 기상 입력 검증 및 디폴트 보정: 기상 정보가 생략된 경우 해당 시간대(req.hour)의 기상청 단기예보 자동 반영
+    weather = req.weather
+    if weather is None:
+        try:
+            h_fcst = await kma_forecast_manager.get_hour_weather(norm_district, req.hour, auth_key=KMA_AUTH_KEY)
+            weather = WeatherInput(
+                temp=h_fcst.temp,
+                rain=h_fcst.rain,
+                humidity=75.0 if h_fcst.rain > 0 else 50.0,
+                wind=2.0
+            )
+        except Exception:
+            weather = WeatherInput()
 
     # 1. 32차원 피처 벡터 조립
     features_32 = build_feature_vector(norm_district, req.hour, weather)
@@ -1550,10 +1566,10 @@ async def calculate_fleet_rebalancing(req: B2BFleetRebalanceRequest):
     temp = req.temp
     if req.use_live_weather:
         try:
-            live = fetch_kma_current_weather(60, 127) # 서울 중심 기준
-            if live and live.get("status") == "success":
-                rain = float(live.get("precipitation_mm", rain))
-                temp = float(live.get("temperature", temp))
+            fcst_item = await kma_forecast_manager.get_hour_weather("강남구", req.hour, auth_key=KMA_AUTH_KEY)
+            if fcst_item:
+                rain = float(fcst_item.rain)
+                temp = float(fcst_item.temp)
         except Exception as e:
             logger.warning(f"B2B 실시간 기상 조회 폴백 적용: {e}")
 
@@ -1818,7 +1834,15 @@ async def get_hourly_transit_forecast(
     base_temp = temp if temp is not None else 19.4
     base_rain = max(0.0, rain if rain is not None else 0.0)
 
-    cache_key = (norm_d, round(base_rain, 1), round(base_temp, 1), cur_hour)
+    # 사용자가 명시적으로 temp/rain을 오버라이드하지 않은 경우, 기상청 단기예보 24시간 실시간 데이터 조회
+    kma_fcst_data = None
+    if rain is None and temp is None:
+        try:
+            kma_fcst_data = await kma_forecast_manager.get_district_forecast(norm_d, auth_key=KMA_AUTH_KEY)
+        except Exception as e:
+            logger.warning(f"단기예보 시계열 조회 폴백: {e}")
+
+    cache_key = (norm_d, round(base_rain, 1), round(base_temp, 1), cur_hour, kma_fcst_data is not None)
     now_ts = time.time()
     if cache_key in HOURLY_FORECAST_CACHE:
         cached_time, cached_resp = HOURLY_FORECAST_CACHE[cache_key]
@@ -1827,15 +1851,22 @@ async def get_hourly_transit_forecast(
 
     items = []
     for h in range(24):
-        # 1. 일교차 및 시간대별 기상 추정 곡선 (최저 05시, 최고 14시)
-        temp_h = round(base_temp + 3.2 * math.sin((h - 8) * math.pi / 12), 1)
-        rain_h = base_rain
-        if base_rain > 0.0:
-            rain_factor = 1.0 + 0.3 * math.sin((h - 6) * math.pi / 6)
-            rain_h = round(max(0.0, base_rain * rain_factor), 1)
-        
-        humid_h = min(95.0, max(40.0, 65.0 - (temp_h - base_temp) * 2.0 + (15.0 if rain_h > 0 else 0.0)))
-        wind_h = round(max(0.5, 2.0 + 0.8 * math.cos((h - 14) * math.pi / 12)), 1)
+        if kma_fcst_data and h < len(kma_fcst_data.hours):
+            h_fcst = kma_fcst_data.hours[h]
+            temp_h = h_fcst.temp
+            rain_h = h_fcst.rain
+            humid_h = 75.0 if rain_h > 0 else 50.0
+            wind_h = 2.0
+        else:
+            # 1. 일교차 및 시간대별 기상 추정 곡선 (최저 05시, 최고 14시)
+            temp_h = round(base_temp + 3.2 * math.sin((h - 8) * math.pi / 12), 1)
+            rain_h = base_rain
+            if base_rain > 0.0:
+                rain_factor = 1.0 + 0.3 * math.sin((h - 6) * math.pi / 6)
+                rain_h = round(max(0.0, base_rain * rain_factor), 1)
+            
+            humid_h = min(95.0, max(40.0, 65.0 - (temp_h - base_temp) * 2.0 + (15.0 if rain_h > 0 else 0.0)))
+            wind_h = round(max(0.5, 2.0 + 0.8 * math.cos((h - 14) * math.pi / 12)), 1)
 
         w_in = WeatherInput(temp=temp_h, rain=rain_h, humidity=round(humid_h, 1), wind=wind_h)
         f_vec = build_feature_vector(norm_d, h, w_in)
@@ -2118,6 +2149,15 @@ async def get_current_weather(
         wind=fallback_data["wind"]
     )
     return RealtimeWeatherResponse(**fallback_data)
+
+
+@app.get("/api/v1/weather/forecast/hourly", response_model=District24hForecast, tags=["Live Public APIs"])
+async def get_hourly_weather_forecast(district: str = "강남구"):
+    """
+    기상청 단기예보(nph-dfs_shrt_grd) 연동 24시간 시간대별 기상(기온, 강수량, 하늘상태, 아이콘) 조회 API
+    - 한반도 149x253 격자 기반 서울 25개 자치구 초저지연(<1ms) 인메모리 캐시 제공
+    """
+    return await kma_forecast_manager.get_district_forecast(district, auth_key=KMA_AUTH_KEY)
 
 
 @app.get("/api/v1/transit/subway/arrival", response_model=SubwayArrivalResponse, tags=["Live Public APIs"])

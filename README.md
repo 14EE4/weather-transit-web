@@ -442,6 +442,7 @@ weather-transit-web/
 ├── data/                               # 📊 정류장 및 교통 마스터 데이터
 │   └── subway_stations.json            # 수도권 전체 지하철역 마스터 데이터셋
 ├── docs/                               # 📖 시스템 아키텍처 및 요구사항 명세서
+│   ├── PROJECT_PROGRESS_REPORT.md      # 📊 프로젝트 분야별 진행상황 및 정형 테스트(QA/UAT) 종합 보고서
 │   ├── CHANGELOG.md                    # 통합 변경 이력
 │   ├── TODO.md                         # 📋 향후 개발 백로그 및 고도화 과제
 │   ├── TODO_MOCK_AND_UNVERIFIED_DATA.md # 🔍 하드코딩·목업·미검증 데이터 전수 조사 및 수정 방안

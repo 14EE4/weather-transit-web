@@ -533,6 +533,8 @@ export default function AppM() {
 
   // ── 기상청 실시간 실황 데이터 연동 상태 (100% 진본 실시간) ──
   const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null)
+  const nowHour = new Date().getHours()
+  const [selectedHour, setSelectedHour] = useState<number>(nowHour)
   const [isConsoleLogging, setIsConsoleLogging] = useState(false)
 
   // ── AI 추론 백엔드 서버 연동 상태 ──
@@ -853,12 +855,20 @@ export default function AppM() {
   }, [selectedStop])
 
   const isLive = liveWeather !== null
+  const isCurrentHour = selectedHour === nowHour
+  const selectedHourItem = hourlyForecast.find(d => d.hour_num === selectedHour) || null
   const activeTemp = liveWeather ? liveWeather.temp : 14.0
   const activeRain = liveWeather ? liveWeather.rain : 0.0
   const activeHumidity = liveWeather ? liveWeather.humidity : 60.0
   const activeWind = liveWeather ? liveWeather.wind : 2.0
-  const isRaining = activeRain > 0 || (isLive && liveWeather.pty !== '0' && liveWeather.pty !== '')
+
+  const displayTemp = (!isCurrentHour && selectedHourItem) ? selectedHourItem.temp : activeTemp
+  const displayRain = (!isCurrentHour && selectedHourItem) ? selectedHourItem.rain : activeRain
+  const displayHumidity = (!isCurrentHour && selectedHourItem) ? selectedHourItem.humidity : activeHumidity
+  const displayWind = (!isCurrentHour && selectedHourItem) ? selectedHourItem.wind : activeWind
+  const isRaining = displayRain > 0 || (isCurrentHour && isLive && liveWeather.pty !== '0' && liveWeather.pty !== '')
   const activePtyDesc = isLive ? liveWeather.pty_desc : (activeRain > 0 ? `비 · ${activeRain}mm/h` : '맑음')
+  const displayPtyDesc = !isCurrentHour ? (displayRain > 0 ? `비 · ${displayRain}mm/h` : '맑음') : activePtyDesc
 
   // ── 브라우저 개발자 콘솔(F12)에 실시간 공공 API 데이터 일괄 출력 (사용자 요청 시 온디맨드 On-Demand 호출) ──
   const triggerApiConsoleLog = async () => {
@@ -1052,28 +1062,27 @@ export default function AppM() {
 
   const lastAIFetchKeyRef = useRef<string>('')
 
-  // 자치구 또는 실시간 기상 데이터 변경 시 AI 추론 자동 실행 (100% 실시간 시간대 반영)
+  // 자치구, 선택된 시간대 또는 실시간 기상 데이터 변경 시 AI 추론 자동 실행 (기상청 단기예보 동적 연동)
   useEffect(() => {
-    if (!liveWeather) return // 기상청 실시간 데이터가 로드된 후 실제 기상 관측치로 1회만 AI 추론 실행
+    if (!liveWeather) return
 
-    const hourNum = new Date().getHours()
     const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
-    const fetchKey = `${districtName}_${liveWeather.temp}_${liveWeather.rain}_${liveWeather.pty}_${hourNum}`
+    const fetchKey = `${districtName}_${displayTemp}_${displayRain}_${selectedHour}`
 
     if (lastAIFetchKeyRef.current !== fetchKey) {
       lastAIFetchKeyRef.current = fetchKey
-      fetchAIPrediction(districtName, hourNum, {
-        temp: activeTemp,
-        rain: activeRain,
-        humidity: activeHumidity,
-        wind: activeWind,
-        hour: `${hourNum}시`
+      fetchAIPrediction(districtName, selectedHour, {
+        temp: displayTemp,
+        rain: displayRain,
+        humidity: displayHumidity,
+        wind: displayWind,
+        hour: `${selectedHour}시`
       })
     }
 
-    fetchDistrictCongestion(activeRain, activeTemp, hourNum)
+    fetchDistrictCongestion(displayRain, displayTemp, selectedHour)
     fetchHourlyForecast(districtName, activeRain, activeTemp)
-  }, [selectedDistrict, liveWeather, activeRain, activeTemp])
+  }, [selectedDistrict, liveWeather, displayRain, displayTemp, selectedHour, displayHumidity, displayWind])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", color: '#F0F6FF' }}>
@@ -1187,6 +1196,96 @@ export default function AppM() {
             </div>
           </div>
 
+          {/* ── 시간대별 기상 예보 & AI 교통 분석 컨트롤 슬라이더 ── */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(22,32,64,0.95) 0%, rgba(13,27,58,0.95) 100%)',
+              border: '1px solid rgba(56,189,248,0.3)',
+              borderRadius: 20,
+              padding: '16px 20px',
+              marginBottom: 20,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>⏱️</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>
+                    시간대별 날씨 및 AI 분석
+                    <span style={{
+                      fontSize: 10, padding: '2px 6px', borderRadius: 6,
+                      background: isCurrentHour ? 'rgba(16,185,129,0.2)' : 'rgba(56,189,248,0.2)',
+                      color: isCurrentHour ? '#34D399' : '#38BDF8',
+                      fontFamily: 'JetBrains Mono', fontWeight: 700,
+                      border: isCurrentHour ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(56,189,248,0.4)',
+                    }}>
+                      {isCurrentHour ? '🟢 현재 실시간' : `🌦️ ${selectedHour}시 예보`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {!isCurrentHour && (
+                  <button
+                    onClick={() => setSelectedHour(nowHour)}
+                    style={{
+                      padding: '4px 10px', borderRadius: 8,
+                      background: 'rgba(56,189,248,0.15)', border: '1px solid #38BDF8',
+                      color: '#38BDF8', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                      fontFamily: 'JetBrains Mono'
+                    }}
+                  >
+                    🔄 현재시각 복귀
+                  </button>
+                )}
+                <div style={{
+                  background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)',
+                  padding: '3px 10px', borderRadius: 8, color: '#38BDF8',
+                  fontSize: 15, fontWeight: 800, fontFamily: 'JetBrains Mono'
+                }}>
+                  {selectedHour}:00
+                </div>
+              </div>
+            </div>
+
+            {/* 슬라이더 인풋 */}
+            <input
+              type="range"
+              min={0}
+              max={23}
+              value={selectedHour}
+              onChange={(e) => setSelectedHour(parseInt(e.target.value, 10))}
+              style={{ width: '100%', accentColor: '#38BDF8', cursor: 'pointer', height: 6 }}
+            />
+
+            {/* 주요 시간대 눈금 레이블 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginTop: 5 }}>
+              {[
+                { h: 0, label: '00시' },
+                { h: 8, label: '08시' },
+                { h: 12, label: '12시' },
+                { h: 14, label: '14시' },
+                { h: 18, label: '18시' },
+                { h: 21, label: '21시' },
+                { h: 23, label: '23시' },
+              ].map(t => (
+                <span
+                  key={t.h}
+                  onClick={() => setSelectedHour(t.h)}
+                  style={{
+                    cursor: 'pointer',
+                    color: selectedHour === t.h ? '#38BDF8' : 'rgba(255,255,255,0.45)',
+                    fontWeight: selectedHour === t.h ? 700 : 400
+                  }}
+                >
+                  {t.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
           {/* 기상청 실시간 관측 현황 바 (가상 시뮬레이션 완전 배제, 100% 실시간 공공 데이터) */}
           <div
             style={{
@@ -1227,15 +1326,15 @@ export default function AppM() {
                   <span style={{ fontSize: 16 }}>🌡️</span>
                   <div>
                     <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>기온</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{activeTemp}°C</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{displayTemp}°C</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: activeRain > 0 ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.04)', padding: '6px 14px', borderRadius: 12, border: activeRain > 0 ? '1px solid rgba(56,189,248,0.4)' : '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: displayRain > 0 ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.04)', padding: '6px 14px', borderRadius: 12, border: displayRain > 0 ? '1px solid rgba(56,189,248,0.4)' : '1px solid rgba(255,255,255,0.06)' }}>
                   <span style={{ fontSize: 16 }}>{isRaining ? '🌧️' : '☀️'}</span>
                   <div>
-                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>강수량 ({activePtyDesc})</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: activeRain > 0 ? '#38BDF8' : '#34D399', fontFamily: 'JetBrains Mono' }}>{activeRain} mm/h</div>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>강수량 ({displayPtyDesc})</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: displayRain > 0 ? '#38BDF8' : '#34D399', fontFamily: 'JetBrains Mono' }}>{displayRain} mm/h</div>
                   </div>
                 </div>
 
@@ -1243,7 +1342,7 @@ export default function AppM() {
                   <span style={{ fontSize: 16 }}>💧</span>
                   <div>
                     <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>습도</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{activeHumidity}%</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{displayHumidity}%</div>
                   </div>
                 </div>
 
@@ -1251,7 +1350,7 @@ export default function AppM() {
                   <span style={{ fontSize: 16 }}>💨</span>
                   <div>
                     <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>풍속</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{activeWind} m/s</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>{displayWind} m/s</div>
                   </div>
                 </div>
 
@@ -1260,7 +1359,7 @@ export default function AppM() {
                   background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
                   fontSize: 11, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 600
                 }}>
-                  현재 {new Date().getHours()}시 기준 실시간
+                  {isCurrentHour ? `현재 ${nowHour}시 기준 실시간` : `${selectedHour}시 기상청 단기예보`}
                 </div>
               </div>
             </div>
@@ -1275,27 +1374,27 @@ export default function AppM() {
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
                   날씨 데이터 · {DISTRICTS[selectedDistrict]}
                 </div>
-                <span style={{ fontSize: 9, color: '#34D399', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
-                  🟢 기상청 실시간 실황 {liveWeather ? `(${liveWeather.base_time.slice(0, 2)}:00)` : ''}
+                <span style={{ fontSize: 9, color: isCurrentHour ? '#34D399' : '#38BDF8', background: isCurrentHour ? 'rgba(16,185,129,0.15)' : 'rgba(56,189,248,0.15)', border: isCurrentHour ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(56,189,248,0.4)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
+                  {isCurrentHour ? `🟢 기상청 실시간 실황 ${liveWeather ? `(${liveWeather.base_time.slice(0, 2)}:00)` : ''}` : `🌦️ 기상청 단기예보 (${selectedHour}:00 예보)`}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
                 <span style={{ fontSize: 52 }}>{isRaining ? '🌧' : '☀️'}</span>
                 <div>
                   <div style={{ fontSize: 52, fontWeight: 800, color: '#F0F6FF', lineHeight: 1, letterSpacing: '-2px', fontFamily: 'JetBrains Mono' }}>
-                    {activeTemp}°
+                    {displayTemp}°
                   </div>
                   <div style={{ fontSize: 13, color: isRaining ? '#38BDF8' : '#FB923C', fontWeight: 600 }}>
-                    {isRaining ? `비 · ${activeRain}mm/h` : activePtyDesc}
+                    {isRaining ? `비 · ${displayRain}mm/h` : displayPtyDesc}
                   </div>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {[
-                  { label: '습도', value: `${activeHumidity}%`, icon: '💧' },
-                  { label: '풍속', value: `${activeWind}m/s`, icon: '💨' },
-                  { label: '강수량', value: `${activeRain}mm`, icon: '🌧' },
-                  { label: '체감온도', value: `${Math.round(activeTemp - 2)}°C`, icon: '🌡' },
+                  { label: '습도', value: `${displayHumidity}%`, icon: '💧' },
+                  { label: '풍속', value: `${displayWind}m/s`, icon: '💨' },
+                  { label: '강수량', value: `${displayRain}mm`, icon: '🌧' },
+                  { label: '체감온도', value: `${Math.round(displayTemp - 2)}°C`, icon: '🌡' },
                 ].map(item => (
                   <div key={item.label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: '10px 12px' }}>
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'JetBrains Mono', marginBottom: 2 }}>
@@ -1317,7 +1416,7 @@ export default function AppM() {
             <div style={{ background: '#162040', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
-                  교통 수요 예측 현황 · 실시간 ({new Date().getHours()}시)
+                  교통 수요 예측 현황 · {isCurrentHour ? `실시간 (${nowHour}시)` : `${selectedHour}시 예보`}
                 </div>
                 <span style={{ fontSize: 9, color: '#38BDF8', background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)', padding: '2px 7px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
                   ⚡ AI 모델 실시간 연동

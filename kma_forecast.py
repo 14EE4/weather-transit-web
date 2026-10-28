@@ -373,3 +373,4 @@ class KMAForecastManager:
 
 # 싱글톤 인스턴스
 kma_forecast_manager = KMAForecastManager()
+

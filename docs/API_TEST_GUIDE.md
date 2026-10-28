@@ -80,7 +80,25 @@ python tests/test_inference.py
 
 ---
 
-## 3. 공공 API 장애 및 오류 해결 가이드 (Troubleshooting)
+## 3. 기상청 단기예보 24시간 시계열 연동 테스트 (	ests/test_kma_forecast.py)
+
+기상청 API허브 단기예보 격자자료(
+ph-dfs_shrt_grd) 및 24시간 시간대별 동적 기상(기온·강수량·하늘상태) 추론 연동을 검증합니다.
+
+### 실행 방법
+`ash
+# 가상환경 활성화 후 실행
+python -m unittest tests/test_kma_forecast.py
+`
+
+### 주요 검증 항목
+1. **24시간 예보 엔드포인트 (GET /api/v1/weather/forecast/hourly)**: 00시~23시 매시간별 기온, 강수량, 하늘상태, 아이콘 정합성
+2. **시계열 추론 엔진 연동 (GET /api/v1/transit/hourly-forecast)**: 14시(낮 최고)와 21시(야간) 실제 예보 기온 차이에 따른 대중교통 수요 변동성 검증
+3. **B2B 재배치 엔진 연동 (POST /api/v1/b2b/fleet-rebalance)**: 시간 슬라이더 이동 시 실제 기상청 예보 날씨가 동적으로 주입되는지 검증
+
+---
+
+## 4. 공공 API 장애 및 오류 해결 가이드 (Troubleshooting)
 
 | 증상 | 원인 | 조치 방안 |
 | :--- | :--- | :--- |

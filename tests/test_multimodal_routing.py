@@ -12,7 +12,7 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         cls.client = TestClient(main.app)
 
     def test_clear_weather_enables_bike_first_mile(self):
-        """맑은 날(rain=0.0) 호출 시 Weather Gate가 CLEAR_MULTIMODAL로 분기하고 따릉이 복합 경로를 1순위로 생성해야 함"""
+        """맑은 날(rain=0.0) 호출 시 Weather Gate가 CLEAR_MULTIMODAL로 분기하고 따릉이 복합 후보 생성 및 합리적 효용 정렬을 수행해야 함"""
         res = multimodal_routing_engine.run_multimodal_search(
             from_query="강남역",
             to_query="서울역",
@@ -26,8 +26,30 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         self.assertGreaterEqual(len(res["routes"]), 3)
         top_route = res["routes"][0]
         self.assertTrue(top_route["is_ai_recommended"])
-        self.assertIn("bike", top_route["modes_used"])
+        self.assertTrue(any("bike" in r["modes_used"] for r in res["routes"]))
         self.assertEqual(len(res["langgraph_trace"]), 4)
+
+        # 서울역 -> 홍대입구역처럼 공항철도 무환승 직통(7분, 1,550원)이 따릉이 복합(19분, 2,550원)보다 압도적으로 유리한 경우 직통 지하철이 1순위로 선정되어야 함
+        seoul_hongdae = multimodal_routing_engine.run_multimodal_search(
+            from_query="서울역",
+            to_query="홍대입구역",
+            district="용산구",
+            hour=15,
+            weather_context={"temp": 5.7, "rain": 0.0, "humidity": 40.0, "wind": 2.0},
+        )
+        self.assertEqual(seoul_hongdae["routes"][0]["id"], "route-subway-optimal")
+        self.assertTrue(seoul_hongdae["routes"][0]["is_ai_recommended"])
+
+        # 단거리(강남역 -> 역삼역) 맑은 날에는 따릉이 논스톱 에코 라이딩이 1순위로 선정되어야 함
+        short_trip = multimodal_routing_engine.run_multimodal_search(
+            from_query="강남역",
+            to_query="역삼역",
+            district="강남구",
+            hour=14,
+            weather_context={"temp": 18.5, "rain": 0.0, "humidity": 50.0, "wind": 2.0},
+        )
+        self.assertEqual(short_trip["routes"][0]["id"], "route-ai-bike-direct")
+        self.assertTrue(short_trip["routes"][0]["is_ai_recommended"])
 
     def test_rainy_weather_blocks_bike_via_weather_gate(self):
         """우천 시(rain=10.5mm) Weather Gate가 RAIN_SAFE_ONLY로 분기하여 따릉이(PM) 후보를 자동 배제해야 함"""

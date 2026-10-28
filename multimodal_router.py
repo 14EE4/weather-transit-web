@@ -1260,6 +1260,69 @@ class MultimodalRoutingEngine:
                 )
             )
 
+        # ── 5) 다목적 효용 함수(Multi-Objective Utility Score) 기반 합리적 순위 정렬 ──
+        # 소요시간(Time), 환승횟수(Transfer), 요금(Fare), 혼잡도(Congestion), 기상적합도(Weather)를 종합 평가하여
+        # 무환승 직통 지하철이 훨씬 빠르고 저렴한 경우(예: 서울역➔홍대입구역 공항철도 7분 vs 따릉이 복합 19분)
+        # 직통 지하철을 합리적으로 AI 1순위로 선정하고, 따릉이 First-Mile이 시간/환승/혼잡도 측면에서 경쟁력이 있을 때 1순위로 선정합니다.
+        if routes:
+            min_minutes = min(r["total_minutes"] for r in routes)
+            min_fare = min(r["total_fare_krw"] for r in routes)
+            base_sub_transfers = int(base_sub["transferCount"]) if base_sub else 0
+
+            for r in routes:
+                time_diff = max(0, r["total_minutes"] - min_minutes)
+                fare_diff = max(0, r["total_fare_krw"] - min_fare)
+                transfers = int(r["transfer_count"])
+                crowd = int(r["crowd_percent"])
+                has_bike = "bike" in r.get("modes_used", [])
+                is_pure_subway = r.get("modes_used") == ["walk", "subway"]
+
+                utility = 100.0
+                utility -= time_diff * 1.85           # 최단 경로 대비 추가 소요시간 1분당 -1.85점
+                utility -= transfers * 6.0            # 환승 1회당 -6.0점
+                utility -= (fare_diff / 500.0) * 2.5  # 추가 요금 500원당 -2.5점
+                utility -= crowd * 0.22               # 혼잡도 페널티
+
+                if bike_enabled and has_bike:
+                    if r["id"] == "route-ai-bike-direct":
+                        utility += 12.0
+                    elif transfers <= base_sub_transfers or time_diff <= 4 or sub_crowd >= 68:
+                        utility += 14.0
+                    else:
+                        utility += 3.0
+
+                if not bike_enabled and is_pure_subway:
+                    utility += 12.0
+
+                r["comfort_score"] = max(55, min(99, int(round(utility))))
+                r["_utility_score"] = round(utility, 2)
+
+            routes.sort(key=lambda x: x["_utility_score"], reverse=True)
+
+            for idx, r in enumerate(routes):
+                if idx == 0:
+                    r["is_ai_recommended"] = True
+                    if "bike" in r.get("modes_used", []):
+                        r["badge"] = "AI 1순위 · 멀티모달 최적"
+                        r["badge_color"] = "#10B981"
+                    elif rain > 0:
+                        r["badge"] = "AI 1순위 · 우천 정시성 최고"
+                        r["badge_color"] = "#38BDF8"
+                    else:
+                        r["badge"] = "AI 1순위 · 최단·무환승 최적"
+                        r["badge_color"] = "#38BDF8"
+                else:
+                    r["is_ai_recommended"] = False
+                    if "bike" in r.get("modes_used", []):
+                        r["badge"] = "맑은날 에코 · First-Mile 대안"
+                        r["badge_color"] = "#10B981"
+                    elif "bus" in r.get("modes_used", []):
+                        r["badge"] = "환승통로 단축 · 혼잡 분산"
+                        r["badge_color"] = "#FB923C"
+                    else:
+                        r["badge"] = "정시성 우수 · 철도 중심"
+                        r["badge_color"] = "#38BDF8"
+
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         trace.append(
             {
@@ -1267,7 +1330,12 @@ class MultimodalRoutingEngine:
                 "node": "candidate_fusion_node",
                 "status": "completed",
                 "decision": f"GENERATED_{len(routes)}_ROUTES",
-                "detail": f"멀티모달 후보 {len(routes)}개 생성 완료 (1순위: {routes[0]['title'] if routes else 'N/A'})",
+                "detail": (
+                    f"멀티모달 후보 {len(routes)}개 효용 평가 완료 "
+                    f"(1순위: {routes[0]['title']} [{routes[0]['total_minutes']}분/{routes[0]['total_fare_krw']:,}원/점수 {routes[0].get('comfort_score')}점])"
+                    if routes
+                    else "후보 없음"
+                ),
                 "latency_ms": elapsed_ms,
             }
         )
@@ -1435,13 +1503,17 @@ class MultimodalRoutingEngine:
 
         if briefing is None and has_real_key and routes:
             try:
+                cand_lines = "\n".join(
+                    f"- {idx+1}순위 [{r.get('badge')}]: {r.get('title')} (소요 {r.get('total_minutes')}분, 요금 {r.get('total_fare_krw'):,}원, 환승 {r.get('transfer_count')}회, 혼잡도 {r.get('crowd_percent')}%, 종합점수 {r.get('comfort_score')}점)"
+                    for idx, r in enumerate(routes[:3])
+                )
                 prompt_text = (
                     f"출발지: {origin['name']}, 도착지: {dest['name']}\n"
                     f"기상상태: 기온 {w_ctx.get('temp')}°C, 강수량 {w_ctx.get('rain')}mm/h, 풍속 {w_ctx.get('wind')}m/s, "
                     f"따릉이 허용여부={w_ctx.get('bike_enabled')}\n"
                     f"ONNX 혼잡도 예측: 지하철 {ai_cong.get('subway_crowd')}%, 버스 {ai_cong.get('bus_crowd')}%, 따릉이 {ai_cong.get('bike_crowd')}%\n"
-                    f"1순위 추천 경로: {top_route.get('title')} (소요 {top_route.get('total_minutes')}분, 요금 {top_route.get('total_fare_krw')}원)\n"
-                    "위 데이터를 바탕으로 승객에게 왜 1순위 멀티모달 경로가 최적인지 2~3문장으로 간결하고 친절하게 한국어로 브리핑해주세요."
+                    f"후보 경로 비교:\n{cand_lines}\n"
+                    "위 후보들의 소요시간·환승횟수·요금·혼잡도·날씨를 비교하여 왜 1순위 경로가 가장 합리적인 선택인지(대안 경로 대비 장점 포함) 2~3문장으로 간결하고 친절하게 한국어로 브리핑해주세요."
                 )
                 endpoint = (
                     f"{base_url}/chat/completions"

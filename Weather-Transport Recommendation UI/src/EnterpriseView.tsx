@@ -164,7 +164,7 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
             기업용 교통수단 수요 예측 및 재배치 관제
           </h1>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: '6px 0 0', lineHeight: 1.5 }}>
-            팀 <strong style={{ color: '#38BDF8' }}>선견지명</strong>의 32차원 AI 모델을 기반으로 기상 변화에 따른 모빌리티 잉여/부족을 선제 진단하고 최적 재배치 수량을 산출합니다.
+            32차원 AI 모델을 기반으로 기상 변화에 따른 모빌리티 잉여/부족을 선제 진단하고 최적 재배치 수량을 산출합니다.
           </p>
         </div>
 
@@ -558,3 +558,4 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
 };
 
 export default EnterpriseView;
+

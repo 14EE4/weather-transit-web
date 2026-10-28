@@ -3169,7 +3169,7 @@ async def _execute_multimodal_search(
         except Exception as exc:
             logger.warning(f"멀티모달 ONNX 추론 폴백: {exc}")
 
-    # 3. 인메모리 캐시된 실시간 따릉이 스냅샷 및 실시간 지하철 도착 정보 연동
+    # 3. 인메모리 캐시된 실시간 따릉이 스냅샷 및 실시간 지하철·버스 도착 정보 연동
     live_bikes = _bike_snapshot_cache[1] if _bike_snapshot_cache else (_bike_snapshot_last_good or [])
     live_subway_arrs: list[dict] = []
     if SEOUL_SUBWAY_KEY:
@@ -3183,6 +3183,26 @@ async def _execute_multimodal_search(
         except Exception as exc:
             logger.debug('멀티모달 실시간 지하철 도착 연동 스킵: %s', exc)
 
+    live_bus_arrs: list[dict] = []
+    if DATA_GO_KR_BUS_KEY:
+        try:
+            origin_st = multimodal_routing_engine.resolve_station(from_station)
+            c = origin_st.get("coords", [126.9780, 37.5665]) if origin_st else [126.9780, 37.5665]
+            nearby_buses = multimodal_routing_engine.find_nearby_bus_stops(
+                c[1], c[0], limit=2, station_name=from_station
+            )
+            if nearby_buses:
+                st_id = nearby_buses[0].get("stId")
+                if st_id:
+                    bus_resp = await get_bus_arrival(stId=str(st_id))
+                    if bus_resp and bus_resp.arrivals:
+                        live_bus_arrs = [
+                            a.model_dump() if hasattr(a, 'model_dump') else (a.dict() if hasattr(a, 'dict') else dict(a))
+                            for a in bus_resp.arrivals
+                        ]
+        except Exception as exc:
+            logger.debug('멀티모달 실시간 버스 도착 연동 스킵: %s', exc)
+
     # 4. LangGraph StateGraph 파이프라인 실행
     result = multimodal_routing_engine.run_multimodal_search(
         from_query=from_station,
@@ -3193,6 +3213,7 @@ async def _execute_multimodal_search(
         ai_congestion=ai_cong,
         live_bike_snapshot=live_bikes,
         live_subway_arrivals=live_subway_arrs,
+        live_bus_arrivals=live_bus_arrs,
     )
     result["district"] = norm_d
     result["hour"] = target_hour

@@ -160,6 +160,43 @@ LINE_OPERATING_SPECS: Dict[str, Dict[str, Any]] = {
     "GTX-A": {"run_speed_kmh": 95.0, "dwell_min": 0.60, "peak": (8, 12), "normal": (12, 16), "night": (15, 20)},
 }
 
+# ── 주요 수도권 급행열차 운행 스펙 (정차역 통과 스킵 및 고속 주행) ──
+EXPRESS_SPECS: Dict[str, Dict[str, Any]] = {
+    "9호선": {
+        "name": "9호선 급행",
+        "stations": [
+            "김포공항", "마곡나루", "가양", "염창", "당산", "여의도",
+            "노량진", "동작", "고속터미널", "신논현", "선정릉", "봉은사",
+            "종합운동장", "석촌", "올림픽공원", "중앙보훈병원",
+        ],
+        "run_speed_kmh": 58.0,
+        "dwell_min": 0.40,
+        "time_saving_per_skip": 1.15,
+    },
+    "1호선": {
+        "name": "1호선 경인/경부급행",
+        "stations": [
+            "청량리", "서울역", "용산", "노량진", "대방", "신길", "영등포", "신도림", "구로",
+            "가산디지털단지", "개봉", "역곡", "부천", "송내", "부평", "동암", "주안", "제물포", "동인천",
+            "안양", "금정", "수원", "평택", "천안",
+        ],
+        "run_speed_kmh": 60.0,
+        "dwell_min": 0.42,
+        "time_saving_per_skip": 1.10,
+    },
+    "수인분당선": {
+        "name": "수인분당선 급행",
+        "stations": [
+            "왕십리", "서울숲", "압구정로데오", "강남구청", "선정릉", "선릉", "한티", "도곡",
+            "수서", "복정", "모란", "야탑", "서현", "수내", "정자", "미금", "오리", "죽전",
+            "기흥", "망포", "수원시청", "수원", "고색",
+        ],
+        "run_speed_kmh": 55.0,
+        "dwell_min": 0.42,
+        "time_saving_per_skip": 1.05,
+    },
+}
+
 
 def get_line_headway(line_name: str, hour: int = 14) -> Tuple[int, int, int, str]:
     """호선 및 시간대(0~23시)에 따른 (최소배차, 최대배차, 평균대기시간_분, 시간대라벨) 반환"""
@@ -230,6 +267,7 @@ class MultimodalRouteState(TypedDict, total=False):
     bus_candidates: Dict[str, Any]
     bike_candidates: Dict[str, Any]
     live_subway_arrivals: List[Dict[str, Any]]
+    live_bus_arrivals: List[Dict[str, Any]]
     routes: List[Dict[str, Any]]
     ai_briefing: Dict[str, Any]
     langgraph_trace: List[Dict[str, Any]]
@@ -248,12 +286,14 @@ class MultimodalRoutingEngine:
         self.subway_graph: Dict[str, List[str]] = {}
         self.bus_stops: List[Dict[str, Any]] = []
         self.bike_stations: List[Dict[str, Any]] = []
+        self.station_transfer_times: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
         self._llm_cache: Dict[Tuple[str, str, float, float, str], Tuple[float, Dict[str, Any]]] = {}
 
         self._load_network()
         self.graph_app = self._build_langgraph()
 
     def _load_network(self) -> None:
+        base_dir = Path(__file__).resolve().parent
         if self.network_path.exists():
             try:
                 data = json.loads(self.network_path.read_text(encoding="utf-8"))
@@ -265,7 +305,6 @@ class MultimodalRoutingEngine:
                 logger.warning("Failed to load transit_network.json: %s", exc)
 
         # Fallback: data/subway_stations_with_coords.json & data/subway_graph.json
-        base_dir = Path(__file__).resolve().parent
         if not self.subway_stations:
             st_file = base_dir / "data" / "subway_stations_with_coords.json"
             if st_file.exists():
@@ -282,13 +321,54 @@ class MultimodalRoutingEngine:
                 clean = name[:-1] if name.endswith("역") else name
                 self.station_by_name.setdefault(clean, st)
 
+        # ── 서울교통공사 주요 환승역 실측 도보시간 및 환승거리 테이블 적재 ──
+        tr_file = base_dir / "models" / "station_transfer_times.json"
+        if tr_file.exists():
+            try:
+                tr_data = json.loads(tr_file.read_text(encoding="utf-8"))
+                for tr in tr_data.get("transfers", []):
+                    st = tr.get("station", "").replace("역", "").strip()
+                    l_a = tr.get("line_a", "").strip()
+                    l_b = tr.get("line_b", "").strip()
+                    info = {
+                        "distance_m": int(tr.get("distance_m", 130)),
+                        "walk_minutes": float(tr.get("walk_minutes", 2.0)),
+                        "transfer_type": tr.get("transfer_type", "일반 환승통로"),
+                    }
+                    self.station_transfer_times[(st, l_a, l_b)] = info
+                    self.station_transfer_times[(st, l_b, l_a)] = info
+                    self.station_transfer_times[(f"{st}역", l_a, l_b)] = info
+                    self.station_transfer_times[(f"{st}역", l_b, l_a)] = info
+            except Exception as exc:
+                logger.warning("Failed to load station_transfer_times.json: %s", exc)
+
         logger.info(
-            "MultimodalRoutingEngine loaded: %d subway stations, %d bus stops, %d bike stations (LangGraph=%s)",
+            "MultimodalRoutingEngine loaded: %d subway stations, %d bus stops, %d bike stations, %d verified transfer pairs (LangGraph=%s)",
             len(self.subway_stations),
             len(self.bus_stops),
             len(self.bike_stations),
+            len(self.station_transfer_times) // 2,
             LANGGRAPH_AVAILABLE,
         )
+
+    def get_station_transfer_info(
+        self, station: str, line_a: str, line_b: str
+    ) -> Dict[str, Any]:
+        """환승역별 실측 도보시간(분) 및 환승거리(m) 조회 (서울교통공사 마스터 데이터 연동)"""
+        st_clean = (station or "").replace("역", "").strip()
+        key = (st_clean, line_a, line_b)
+        if key in self.station_transfer_times:
+            return self.station_transfer_times[key]
+        key_rev = (st_clean, line_b, line_a)
+        if key_rev in self.station_transfer_times:
+            return self.station_transfer_times[key_rev]
+
+        # 기본 디폴트 환승값: 도보 2.0분, 거리 130m
+        return {
+            "distance_m": 130,
+            "walk_minutes": 2.0,
+            "transfer_type": "일반 환승통로",
+        }
 
     # ─────────────────────────────────────────────────────────────
     # 역/정류장 해석 및 지하철/버스/따릉이 개별 탐색 유틸리티
@@ -575,10 +655,12 @@ class MultimodalRoutingEngine:
                         next_transfers = transfers + 1
                         next_stops = stops + 1
                         line_pen = (0.08 * next_stops) if nl in low_freq_lines else 0.0
+                        tr_info = self.get_station_transfer_info(curr, curr_line or "", nl or "")
+                        tr_walk = float(tr_info.get("walk_minutes", 2.0))
                         next_cost = (
                             next_transfers * 10000 + next_stops + line_pen
                             if mode == "min_transfer"
-                            else next_stops * 2.0 + next_transfers * 4.5 + line_pen
+                            else next_stops * 2.0 + next_transfers * 2.0 + tr_walk + line_pen
                         )
                         n_key = (nbr, nl or "")
                         if best_cost.get(n_key, 1e18) > next_cost:
@@ -664,24 +746,32 @@ class MultimodalRoutingEngine:
             if curr_line != prev_line:
                 sub_slice = path_steps[seg_start_idx:i]
                 line_segments.append(self._build_subway_segment(sub_slice, prev_line, hour=hour))
-                # 환승역 실내 환승통로 도보(2분) + 환승 노선 평균 대기시간 세그먼트 추가
+                # 환승역 실측 환승통로 도보 + 환승 노선 평균 대기시간 세그먼트 추가
                 tr_st = path_steps[i - 1]
+                tr_info = self.get_station_transfer_info(tr_st["name"], prev_line, curr_line)
+                walk_m = float(tr_info.get("walk_minutes", 2.0))
+                dist_m = int(tr_info.get("distance_m", 130))
+                tr_type = str(tr_info.get("transfer_type", "환승통로"))
                 th_min, th_max, avg_wait, period_lbl = get_line_headway(curr_line, hour)
                 wait_m = min(6, max(2, avg_wait))
-                tr_total_min = 2 + wait_m
+                tr_total_min = max(2, int(round(walk_m)) + wait_m)
+                dist_km = round(dist_m / 1000.0, 2)
                 line_segments.append(
                     {
                         "mode": "walk",
                         "label": f"🚶 {tr_st['name']} 환승 이동·대기",
                         "from_name": f"{prev_line} 하차",
                         "to_name": f"{curr_line} 승차",
-                        "detail": f"{tr_st['name']} 환승통로 도보 2분 + {curr_line} 열차 대기 약 {wait_m}분 ({period_lbl} 배차 {th_min}~{th_max}분)",
+                        "detail": f"{tr_st['name']} {tr_type} 도보 {walk_m:.1f}분 ({dist_m}m) + {curr_line} 열차 대기 약 {wait_m}분 ({period_lbl} 배차 {th_min}~{th_max}분)",
                         "minutes": tr_total_min,
-                        "distance_km": 0.15,
+                        "distance_km": dist_km,
+                        "walk_minutes": walk_m,
+                        "transfer_distance_m": dist_m,
+                        "transfer_type": tr_type,
                         "fare_krw": 0,
                         "color": "#F59E0B",
                         "coords": [tr_st["coords"], tr_st["coords"]],
-                        "live_badge": f"{curr_line} 배차 {th_min}~{th_max}분",
+                        "live_badge": f"{curr_line} 배차 {th_min}~{th_max}분 (실측 환승 {walk_m:.1f}분)",
                     }
                 )
                 seg_start_idx = i - 1
@@ -791,26 +881,67 @@ class MultimodalRoutingEngine:
         spec = LINE_OPERATING_SPECS.get(line_name, DEFAULT_LINE_SPEC)
         run_speed_kmh = float(spec["run_speed_kmh"])
         dwell_min = float(spec["dwell_min"])
+
+        # ── 급행열차(Express) 스펙 매칭 및 정차역 스킵 모델링 ──
+        is_express = False
+        skipped_count = 0
+        time_saved = 0
+        express_spec = EXPRESS_SPECS.get(line_name)
+        if express_spec and len(steps) >= 3:
+            express_stations = set(express_spec["stations"])
+            from_clean = steps[0]["name"].replace("역", "").strip()
+            to_clean = steps[-1]["name"].replace("역", "").strip()
+            # 양 끝 정류장이 모두 급행 정차역인지 확인
+            if from_clean in express_stations and to_clean in express_stations:
+                # 중간 경유역 중 급행 미정차(통과) 정거장 수 카운트
+                intermediate_stops = [s["name"].replace("역", "").strip() for s in steps[1:-1]]
+                skipped_stops = [s for s in intermediate_stops if s not in express_stations]
+                if len(skipped_stops) >= 2:
+                    is_express = True
+                    skipped_count = len(skipped_stops)
+                    time_saved = max(1, int(round(skipped_count * float(express_spec.get("time_saving_per_skip", 1.15)))))
+                    run_speed_kmh = float(express_spec.get("run_speed_kmh", run_speed_kmh))
+                    dwell_min = float(express_spec.get("dwell_min", dwell_min))
+                    stops_cnt = max(1, (len(steps) - 1) - skipped_count)
+
         # 물리 주행 공식: (구간 실연장거리 / 노선 순수 주행속도) * 60 + (정차역 수 * 역당 정차·가감속 시간)
         raw_mins = (dist_km / run_speed_kmh) * 60.0 + (stops_cnt * dwell_min)
         mins = max(2, int(round(raw_mins)))
 
         h_min, h_max, avg_wait, period_lbl = get_line_headway(line_name, hour)
         color = LINE_COLORS.get(line_name, "#38BDF8")
+
+        label = f"🚇 {line_name}(급행)" if is_express else f"🚇 {line_name}"
+        if is_express and express_spec:
+            detail = (
+                f"{steps[0]['name']} ➔ {steps[-1]['name']} "
+                f"({express_spec['name']} · {stops_cnt}개 역 정차 / 일반 {skipped_count}개 역 무정차 통과 · "
+                f"{time_saved}분 단축 · {dist_km}km)"
+            )
+            live_badge = (
+                f"⚡ {express_spec['name']} 운행 (일반 대비 {time_saved}분 단축 · 배차 {h_min}~{h_max}분)"
+            )
+        else:
+            detail = f"{steps[0]['name']} ➔ {steps[-1]['name']} ({stops_cnt}개 역 이동 · {dist_km}km)"
+            live_badge = f"{line_name} {period_lbl} 배차 {h_min}~{h_max}분 (대기 약 {avg_wait}분)"
+
         return {
             "mode": "subway",
-            "label": f"🚇 {line_name}",
+            "label": label,
             "line_name": line_name,
             "from_name": steps[0]["name"],
             "to_name": steps[-1]["name"],
-            "detail": f"{steps[0]['name']} ➔ {steps[-1]['name']} ({stops_cnt}개 역 이동 · {dist_km}km)",
+            "detail": detail,
             "minutes": mins,
             "distance_km": dist_km,
             "fare_krw": 0,
             "color": color,
             "stops_count": stops_cnt,
             "coords": coords,
-            "live_badge": f"{line_name} {period_lbl} 배차 {h_min}~{h_max}분 (대기 약 {avg_wait}분)",
+            "live_badge": live_badge,
+            "is_express": is_express,
+            "skipped_stops": skipped_count,
+            "time_saved_minutes": time_saved,
         }
 
     # ─────────────────────────────────────────────────────────────
@@ -1364,6 +1495,27 @@ class MultimodalRoutingEngine:
                 else "평시 배차 6~10분 · 약 4분 후 도착"
             )
 
+            # 실시간 버스 도착 정보 연동 (TOPIS / DATA.GO.KR)
+            live_buses = state.get("live_bus_arrivals") or []
+            matched_bus = None
+            if live_buses:
+                clean_raw = bus_line_raw.replace("번", "").strip()
+                for b_arr in live_buses:
+                    r_nm = str(b_arr.get("route_name", "")).strip()
+                    if clean_raw and (clean_raw in r_nm or r_nm in clean_raw):
+                        matched_bus = b_arr
+                        break
+                if not matched_bus:
+                    matched_bus = live_buses[0]
+
+            if matched_bus:
+                bus_line_name = str(matched_bus.get("route_name") or bus_line_name)
+                m1 = str(matched_bus.get("arrival_msg1", "")).strip()
+                m2 = str(matched_bus.get("arrival_msg2", "")).strip()
+                bus_badge = f"🟢 실시간: {m1}" if m1 else "🟢 실시간 도착 정보 연동"
+                if m2 and m2 not in ("도착정보없음", "출발대기", ""):
+                    bus_badge += f" (다음: {m2})"
+
             # 지하철 경로의 중간 환승역(또는 3번째 역)까지 버스로 이동 후 지하철 환승 시나리오 구성
             path_list = base_sub.get("path") or []
             mid_idx = min(max(1, len(path_list) // 3), max(1, len(path_list) - 2))
@@ -1863,6 +2015,7 @@ class MultimodalRoutingEngine:
         ai_congestion: Optional[Dict[str, Any]] = None,
         live_bike_snapshot: Optional[List[Dict[str, Any]]] = None,
         live_subway_arrivals: Optional[List[Dict[str, Any]]] = None,
+        live_bus_arrivals: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         t_start = time.perf_counter()
         initial_state: MultimodalRouteState = {
@@ -1874,6 +2027,7 @@ class MultimodalRoutingEngine:
             "ai_congestion": ai_congestion or {},
             "bike_candidates": {"live_snapshot": live_bike_snapshot or []},
             "live_subway_arrivals": live_subway_arrivals or [],
+            "live_bus_arrivals": live_bus_arrivals or [],
             "langgraph_trace": [],
         }
 

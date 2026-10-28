@@ -187,6 +187,74 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         for r in seoul_hongdae["routes"]:
             self.assertEqual(r["total_minutes"], sum(int(s["minutes"]) for s in r["segments"]))
 
+    def test_station_verified_transfer_times(self):
+        """서울교통공사 마스터 데이터 연동 주요 환승역 실측 도보시간 및 환승 세그먼트 정밀 계산 검증 (Issue #27)"""
+        # 1) 개별 환승역 조회 확인
+        seoul_info = multimodal_routing_engine.get_station_transfer_info("서울역", "1호선", "공항철도")
+        self.assertEqual(seoul_info["walk_minutes"], 5.5)
+        self.assertEqual(seoul_info["distance_m"], 350)
+
+        nowon_info = multimodal_routing_engine.get_station_transfer_info("노원역", "4호선", "7호선")
+        self.assertEqual(nowon_info["walk_minutes"], 6.2)
+        self.assertEqual(nowon_info["distance_m"], 312)
+
+        geumjeong_info = multimodal_routing_engine.get_station_transfer_info("금정역", "1호선", "4호선")
+        self.assertEqual(geumjeong_info["walk_minutes"], 0.5)
+        self.assertEqual(geumjeong_info["distance_m"], 30)
+
+        # 2) 환승 경로 생성 시 실측 도보시간이 세그먼트에 반영되는지 검증 (상계역 -> 마들역: 노원역 4호선 ➔ 7호선 환승)
+        res = multimodal_routing_engine.search_subway_route("상계역", "마들역", mode="min_transfer", hour=14)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["transferCount"], 1)
+        self.assertIn("노원역", res["transferStations"])
+        walk_segs = [s for s in res["lineSegments"] if s["mode"] == "walk"]
+        self.assertTrue(len(walk_segs) > 0)
+        tr_walk_seg = walk_segs[0]
+        self.assertEqual(tr_walk_seg["walk_minutes"], 6.2)
+        self.assertEqual(tr_walk_seg["transfer_distance_m"], 312)
+        self.assertIn("6.2분", tr_walk_seg["detail"])
+
+    def test_subway_express_train_detection(self):
+        """9호선 급행 등 수도권 급행열차 정차역 스킵 및 소요시간 단축 모델링 검증 (Issue #27)"""
+        # 김포공항역 -> 신논현역 (9호선 급행 주요 구간: 다수의 일반역 통과)
+        res = multimodal_routing_engine.search_subway_route("김포공항역", "신논현역", mode="min_transfer", hour=14)
+        self.assertIsNotNone(res)
+        sub_segs = [s for s in res["lineSegments"] if s["mode"] == "subway"]
+        self.assertTrue(len(sub_segs) > 0)
+        express_seg = sub_segs[0]
+        self.assertTrue(express_seg.get("is_express"))
+        self.assertIn("(급행)", express_seg["label"])
+        self.assertGreaterEqual(express_seg["skipped_stops"], 5)
+        self.assertGreater(express_seg["time_saved_minutes"], 5)
+        self.assertIn("단축", express_seg["detail"])
+
+    def test_live_bus_arrivals_injection_in_multimodal(self):
+        """실시간 버스 도착 API 데이터 주입 시 버스-지하철 하이브리드 경로에 실시간 뱃지 연동 검증 (Issue #27)"""
+        live_buses = [
+            {
+                "route_name": "143",
+                "station_name": "강남역환승정류소",
+                "arrival_msg1": "3분후[1번째 전]",
+                "arrival_msg2": "8분후[4번째 전]",
+                "bus_route_id": "100100022",
+            }
+        ]
+        res = multimodal_routing_engine.run_multimodal_search(
+            from_query="강남역",
+            to_query="시청역",
+            district="강남구",
+            hour=14,
+            weather_context={"temp": 18.0, "rain": 0.0, "humidity": 50.0, "wind": 2.0},
+            live_bus_arrivals=live_buses,
+        )
+        hybrid_route = next((r for r in res["routes"] if r["id"] == "route-bus-subway-hybrid"), None)
+        self.assertIsNotNone(hybrid_route)
+        bus_segs = [s for s in hybrid_route["segments"] if s["mode"] == "bus"]
+        self.assertTrue(len(bus_segs) > 0)
+        bus_seg = bus_segs[0]
+        self.assertIn("실시간", bus_seg["live_badge"])
+        self.assertIn("3분후", bus_seg["live_badge"])
+
 
 if __name__ == "__main__":
     unittest.main()

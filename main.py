@@ -708,6 +708,51 @@ class SimulationResponse(BaseModel):
     modal_shift_summary: ModalShiftSummary
     district_congestion: list[DistrictCongestionItem]
 
+# ==============================================================================
+# B2B 기업용 모빌리티 재배치(Fleet Rebalancing) 모델 규격
+# ==============================================================================
+class B2BFleetRebalanceRequest(BaseModel):
+    hour: int = Field(default=9, ge=0, le=23, description="대상 시간대 (0~23시)")
+    rain_mm: float = Field(default=0.0, ge=0.0, le=100.0, description="강수량 (mm/h) - 0이면 맑은 날")
+    temp: float = Field(default=18.0, description="기온 (°C)")
+    use_live_weather: bool = Field(default=False, description="실제 기상청 실황 기상 데이터 자동 적용 여부")
+
+class B2BDistrictRebalanceItem(BaseModel):
+    district: str
+    district_code: int
+    # 따릉이 (PM)
+    bike_demand: float
+    bike_baseline: float
+    bike_delta_pct: float
+    bike_status: str              # "SURPLUS" | "DEFICIT" | "STABLE"
+    bike_action: str              # "RECALL" | "DEPLOY" | "MAINTAIN"
+    bike_rebalance_qty: int       # 권장 조정 수량 (대수)
+    # 버스
+    bus_demand: float
+    bus_baseline: float
+    bus_delta_pct: float
+    bus_status: str               # "CROWDED" | "NORMAL" | "LIGHT"
+    bus_recommended_trips: int    # 배차 조정 권고 (회)
+    # 지하철
+    subway_demand: float
+    subway_baseline: float
+    subway_delta_pct: float
+    # 인프라 & 가이드
+    infra: dict
+    urgency: str                  # "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"
+    actionable_guidance: str
+
+class B2BFleetRebalanceResponse(BaseModel):
+    status: str = "success"
+    latency_ms: float
+    weather_condition: dict
+    total_bike_surplus_qty: int
+    total_bike_deficit_qty: int
+    total_bus_extra_trips: int
+    top_recall_districts: list[dict]
+    top_deploy_districts: list[dict]
+    district_rebalance_list: list[B2BDistrictRebalanceItem]
+
 # ── 실시간 공공 API 응답 스키마 ──
 class RealtimeWeatherResponse(BaseModel):
     status: str = "success"
@@ -1483,6 +1528,158 @@ async def simulate_weather_impact(req: SimulationRequest):
             commentary=commentary,
         ),
         district_congestion=district_congestions,
+    )
+
+@app.post("/api/v1/b2b/fleet-rebalance", response_model=B2BFleetRebalanceResponse, tags=["B2B Fleet Management"])
+async def calculate_fleet_rebalancing(req: B2BFleetRebalanceRequest):
+    """
+    B2B 기업 및 지자체 운영사용 모빌리티 재배치(Fleet Rebalancing) 분석 API
+    - 기상 변화 및 시간대별 25개 자치구 AI 추론 기반 수급 불균형(Surplus/Deficit) 분석
+    - 따릉이(PM) 회수/배치 추천 대수 및 버스 배차 증감 가이드 산출
+    """
+    if not registry.is_loaded:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 추론 세션이 준비되지 않았습니다."
+        )
+
+    t_start = time.perf_counter()
+
+    # 기상 조건 설정 (실시간 또는 사용자 요청)
+    rain = req.rain_mm
+    temp = req.temp
+    if req.use_live_weather:
+        try:
+            live = fetch_kma_current_weather(60, 127) # 서울 중심 기준
+            if live and live.get("status") == "success":
+                rain = float(live.get("precipitation_mm", rain))
+                temp = float(live.get("temperature", temp))
+        except Exception as e:
+            logger.warning(f"B2B 실시간 기상 조회 폴백 적용: {e}")
+
+    w_curr = WeatherInput(temp=temp, rain=rain, humidity=85.0 if rain > 0 else 55.0, wind=3.0 if rain > 0 else 1.8)
+    w_base = WeatherInput(temp=20.0, rain=0.0, humidity=50.0, wind=1.8) # 쾌적한 맑은 날 기준
+
+    district_items = []
+    total_bike_surplus = 0
+    total_bike_deficit = 0
+    total_bus_extra = 0
+
+    for d_name, d_code in DISTRICT_CODE_MAP.items():
+        infra = DISTRICT_INFRA.get(d_name, DISTRICT_INFRA["강남구"])
+        bike_racks = float(infra.get("bike_racks", 150.0))
+        bus_stops = float(infra.get("bus_stops", 450.0))
+        subway_stations = float(infra.get("subway_stations", 20.0))
+
+        # 1. 특성 벡터 생성
+        f_curr = build_feature_vector(d_name, req.hour, w_curr)
+        f_base = build_feature_vector(d_name, req.hour, w_base)
+
+        # 2. AI 모델 추론
+        t_bk_c = prepare_session_input(f_curr, registry.bike_session)
+        t_bk_b = prepare_session_input(f_base, registry.bike_session)
+        t_bu_c = prepare_session_input(f_curr, registry.bus_session)
+        t_bu_b = prepare_session_input(f_base, registry.bus_session)
+        t_sb_c = prepare_session_input(f_curr, registry.subway_session)
+        t_sb_b = prepare_session_input(f_base, registry.subway_session)
+
+        bk_c = max(0.0, float(registry.bike_session.run(None, {"float_input": t_bk_c})[0].flatten()[0]))
+        bk_b = max(1.0, float(registry.bike_session.run(None, {"float_input": t_bk_b})[0].flatten()[0]))
+        bu_c = max(0.0, float(registry.bus_session.run(None, {"float_input": t_bu_c})[0].flatten()[0]))
+        bu_b = max(1.0, float(registry.bus_session.run(None, {"float_input": t_bu_b})[0].flatten()[0]))
+        sb_c = max(0.0, float(registry.subway_session.run(None, {"float_input": t_sb_c})[0].flatten()[0]))
+        sb_b = max(1.0, float(registry.subway_session.run(None, {"float_input": t_sb_b})[0].flatten()[0]))
+
+        bk_delta_pct = round(((bk_c - bk_b) / bk_b) * 100, 1)
+        bu_delta_pct = round(((bu_c - bu_b) / bu_b) * 100, 1)
+        sb_delta_pct = round(((sb_c - sb_b) / sb_b) * 100, 1)
+
+        # 3. 따릉이(PM) 재배치 수량 산출
+        # 거치대 1개소당 평균 약 10~15대 자전거 배치 용량 가정 (scale: racks * 12)
+        fleet_capacity = bike_racks * 12.0
+        
+        if rain >= 1.0: # 우천 시: 이용 급감 -> 잉여 기기 회수 권고
+            bike_status = "SURPLUS"
+            bike_action = "RECALL"
+            rebalance_qty = int(fleet_capacity * min(0.65, abs(bk_delta_pct) / 100.0 * 0.7))
+            total_bike_surplus += rebalance_qty
+            urgency = "CRITICAL" if rain >= 4.0 else "HIGH"
+            guidance = f"우천({rain:.1f}mm)으로 따릉이 수요 {abs(bk_delta_pct)}% 급감. 유휴 기기 약 {rebalance_qty}대 침수 취약지/저류지 선제 회수 권장."
+        elif bk_delta_pct >= 15.0: # 맑고 피크시간대: 수요 급증 -> 추가 배치 권고
+            bike_status = "DEFICIT"
+            bike_action = "DEPLOY"
+            rebalance_qty = int(fleet_capacity * min(0.4, (bk_delta_pct / 100.0) * 0.5))
+            total_bike_deficit += rebalance_qty
+            urgency = "HIGH" if bk_delta_pct >= 30.0 else "MEDIUM"
+            guidance = f"쾌적 기상 및 수요 {bk_delta_pct}% 급증. 주요 역세권 거점 거치대에 {rebalance_qty}대 추가 공급 권장."
+        else:
+            bike_status = "STABLE"
+            bike_action = "MAINTAIN"
+            rebalance_qty = 0
+            urgency = "LOW"
+            guidance = "수급 균형 안정. 현행 거치대 유지 관리 모드."
+
+        # 4. 버스 배차 증차 권고
+        if bu_delta_pct >= 10.0 and (rain > 0 or req.hour in [8, 9, 18, 19]):
+            bus_status = "CROWDED"
+            extra_trips = max(1, int(bu_delta_pct / 10.0))
+            total_bus_extra += extra_trips
+        elif bu_delta_pct <= -15.0:
+            bus_status = "LIGHT"
+            extra_trips = 0
+        else:
+            bus_status = "NORMAL"
+            extra_trips = 0
+
+        district_items.append(B2BDistrictRebalanceItem(
+            district=d_name,
+            district_code=d_code,
+            bike_demand=round(bk_c, 1),
+            bike_baseline=round(bk_b, 1),
+            bike_delta_pct=bk_delta_pct,
+            bike_status=bike_status,
+            bike_action=bike_action,
+            bike_rebalance_qty=rebalance_qty,
+            bus_demand=round(bu_c, 1),
+            bus_baseline=round(bu_b, 1),
+            bus_delta_pct=bu_delta_pct,
+            bus_status=bus_status,
+            bus_recommended_trips=extra_trips,
+            subway_demand=round(sb_c, 1),
+            subway_baseline=round(sb_b, 1),
+            subway_delta_pct=sb_delta_pct,
+            infra={
+                "bike_racks": int(bike_racks),
+                "bus_stops": int(bus_stops),
+                "subway_stations": int(subway_stations),
+            },
+            urgency=urgency,
+            actionable_guidance=guidance,
+        ))
+
+    # 상위 5개 회수/배치 구역 추출
+    surplus_list = sorted([d for d in district_items if d.bike_action == "RECALL"], key=lambda x: x.bike_rebalance_qty, reverse=True)
+    deploy_list = sorted([d for d in district_items if d.bike_action == "DEPLOY"], key=lambda x: x.bike_rebalance_qty, reverse=True)
+
+    top_recall = [{"district": d.district, "qty": d.bike_rebalance_qty, "delta_pct": d.bike_delta_pct, "urgency": d.urgency} for d in surplus_list[:5]]
+    top_deploy = [{"district": d.district, "qty": d.bike_rebalance_qty, "delta_pct": d.bike_delta_pct, "urgency": d.urgency} for d in deploy_list[:5]]
+
+    latency = round((time.perf_counter() - t_start) * 1000, 2)
+
+    return B2BFleetRebalanceResponse(
+        latency_ms=latency,
+        weather_condition={
+            "rain_mm": rain,
+            "temp": temp,
+            "hour": req.hour,
+            "is_raining": rain > 0,
+        },
+        total_bike_surplus_qty=total_bike_surplus,
+        total_bike_deficit_qty=total_bike_deficit,
+        total_bus_extra_trips=total_bus_extra,
+        top_recall_districts=top_recall,
+        top_deploy_districts=top_deploy,
+        district_rebalance_list=district_items,
     )
 
 HOTSPOT_DEFINITIONS = [

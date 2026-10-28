@@ -5,8 +5,9 @@ import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
 import BusStationSearch, { type BusStationResult } from './BusStationSearch'
+import EnterpriseView from './EnterpriseView'
 
-type Page = 'main' | 'route' | 'map'
+type Page = 'main' | 'route' | 'map' | 'enterprise'
 
 // ── 서울 25개 자치구 및 수도권 주요 거점 권역별 데이터 ──
 export const DISTRICT_GROUPS = [
@@ -470,10 +471,10 @@ interface LiveWeatherData {
 const getInitialPage = (): Page => {
   if (typeof window !== 'undefined') {
     const hash = window.location.hash.replace(/^#/, '') as Page
-    if (hash === 'main' || hash === 'route' || hash === 'map') return hash
+    if (hash === 'main' || hash === 'route' || hash === 'map' || hash === 'enterprise') return hash
     try {
       const saved = localStorage.getItem('weather_transit_page') as Page
-      if (saved === 'main' || saved === 'route' || saved === 'map') return saved
+      if (saved === 'main' || saved === 'route' || saved === 'map' || saved === 'enterprise') return saved
     } catch {}
   }
   return 'main'
@@ -1101,6 +1102,7 @@ export default function App() {
               { id: 'main', label: '날씨 · 현황', icon: '🏠' },
               { id: 'route', label: '경로 추천', icon: '🔍' },
               { id: 'map', label: '지도 보기', icon: '🗺' },
+              { id: 'enterprise', label: '기업용 분석', icon: '🏢' },
             ] as { id: Page; label: string; icon: string }[]).map(nav => (
               <button
                 key={nav.id}
@@ -2246,6 +2248,13 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          PAGE: 기업용 모빌리티 재배치 분석 (B2B)
+      ══════════════════════════════════════ */}
+      {page === 'enterprise' && (
+        <EnterpriseView apiBaseUrl={API_BASE_URL} />
       )}
 
       {/* ══════════════════════════════════════

@@ -125,6 +125,25 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
                             f"Circular return to 서울역 detected in {route['title']} -> {seg}",
                         )
 
+    def test_non_seoul_origin_excludes_bike_and_no_distant_jump(self):
+        """서울 외 지역(예: 송내역, 부평역, 수원역) 출발 시 따릉이(서울시 전용)가 자동 배제되고 원거리 점프 직선이 없어야 함"""
+        for origin_q, dest_q in [("송내역", "중동역"), ("부평역", "홍대입구역"), ("수원역", "강남역")]:
+            res = multimodal_routing_engine.run_multimodal_search(
+                from_query=origin_q,
+                to_query=dest_q,
+                district="구로구",
+                hour=15,
+                weather_context={"temp": 18.0, "rain": 0.0, "humidity": 45.0, "wind": 1.8},
+            )
+            self.assertEqual(res["status"], "success")
+            self.assertFalse(res["weather_context"]["origin_in_seoul"])
+            self.assertFalse(res["weather_context"]["bike_enabled"])
+            for r in res["routes"]:
+                self.assertNotIn("bike", r["modes_used"])
+                for seg in r["segments"]:
+                    self.assertNotIn("서울식물원", seg.get("to_name", ""))
+                    self.assertNotIn("서울식물원", seg.get("from_name", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

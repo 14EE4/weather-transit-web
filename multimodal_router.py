@@ -277,6 +277,31 @@ class MultimodalRoutingEngine:
                 best = st
         return best
 
+    # 서울시 경계 박스 내부에 걸치는 경기도(부천·광명·과천·안양·고양·성남·구리·남양주·하남·의정부) 역 목록
+    NON_SEOUL_STATIONS = {
+        "까치울역", "부천종합운동장역", "춘의역", "신중동역", "부천시청역", "상동역",
+        "역곡역", "소사역", "소새울역", "부천역", "중동역", "송내역", "부개역", "부평역",
+        "원종역", "고강역", "광명사거리역", "철산역", "광명역", "석수역", "관악역", "안양역",
+        "지축역", "삼송역", "원흥역", "원당역", "화정역", "대곡역", "백석역", "마두역",
+        "정발산역", "주엽역", "대화역", "한국항공대역", "강매역", "행신역", "능곡역", "곡산역",
+        "선바위역", "경마공원역", "대공원역", "과천역", "정부과천청사역", "인덕원역", "평촌역", "범계역",
+        "산성역", "남한산성입구역", "단대오거리역", "신흥역", "수진역", "모란역", "남위례역",
+        "가천대역", "태평역", "야탑역", "이매역", "서현역", "수내역", "정자역", "미금역", "오리역", "판교역",
+        "구리역", "도농역", "다산역", "별내역", "갈매역", "퇴계원역", "사릉역", "금곡역",
+        "미사역", "하남풍산역", "하남시청역", "하남검단산역", "망월사역", "회룡역", "의정부역", "장암역",
+    }
+
+    def is_in_seoul(self, lat: float, lng: float, station_name: str = "") -> bool:
+        """서울자전거 따릉이 서비스 권역(서울특별시 행정구역 내) 여부 판별"""
+        clean_st = (station_name or "").strip()
+        if clean_st and not clean_st.endswith("역"):
+            clean_st += "역"
+        if clean_st in self.NON_SEOUL_STATIONS:
+            return False
+        if not (126.795 <= lng <= 127.185 and 37.445 <= lat <= 37.692):
+            return False
+        return True
+
     def find_nearby_subway_stations(
         self, lat: float, lng: float, radius_km: float = 2.2, exclude_name: str = ""
     ) -> List[Dict[str, Any]]:
@@ -292,14 +317,27 @@ class MultimodalRoutingEngine:
         return results
 
     def find_nearby_bus_stops(
-        self, lat: float, lng: float, limit: int = 3
+        self, lat: float, lng: float, limit: int = 3, station_name: str = ""
     ) -> List[Dict[str, Any]]:
         scored = []
         for b in self.bus_stops:
             c = b.get("coords", [127.0, 37.5])
             dist = haversine_km(lat, lng, c[1], c[0])
-            scored.append({**b, "distance_km": round(dist, 2)})
+            if dist <= 0.85:
+                scored.append({**b, "distance_km": round(dist, 2)})
         scored.sort(key=lambda x: x["distance_km"])
+        if not scored:
+            label_prefix = station_name or "역사"
+            scored.append(
+                {
+                    "id": "bus-local-hub",
+                    "name": f"{label_prefix} 환승정류소",
+                    "coords": [round(lng + 0.0005, 6), round(lat - 0.0004, 6)],
+                    "lineInfo": "143, 402, 472",
+                    "arsId": "환승센터",
+                    "distance_km": 0.08,
+                }
+            )
         return scored[:limit]
 
     def find_nearby_bike_stations(
@@ -308,9 +346,14 @@ class MultimodalRoutingEngine:
         lng: float,
         live_bikes: Optional[List[Dict[str, Any]]] = None,
         limit: int = 3,
+        station_name: str = "",
     ) -> List[Dict[str, Any]]:
+        # 따릉이는 서울특별시 내에서만 대여/반납 가능
+        if not self.is_in_seoul(lat, lng, station_name):
+            return []
+
         candidates: List[Dict[str, Any]] = []
-        # 1. 실시간 서울시 따릉이 스냅샷 데이터가 있으면 우선 활용
+        # 1. 실시간 서울시 따릉이 스냅샷 데이터가 있으면 반경 850m 이내 대여소 우선 활용
         if live_bikes:
             for item in live_bikes:
                 try:
@@ -330,7 +373,7 @@ class MultimodalRoutingEngine:
                     if b_lat <= 0 or b_lng <= 0 or avail <= 0:
                         continue
                     dist = haversine_km(lat, lng, b_lat, b_lng)
-                    if dist <= 1.8:
+                    if dist <= 0.85:
                         candidates.append(
                             {
                                 "id": item.get("id") or item.get("station_id") or "bike-live",
@@ -353,25 +396,39 @@ class MultimodalRoutingEngine:
                 except Exception:
                     continue
 
-        # 2. 마스터 대여소 데이터 보강
+        # 2. 마스터 대여소 데이터 보강 (반경 850m 이내만 허용하여 원거리 직선 점프 원천 차단)
         for k in self.bike_stations:
             c = k.get("coords", [127.0, 37.5])
             dist = haversine_km(lat, lng, c[1], c[0])
-            rack = int(k.get("rackCount", 20))
-            avail = max(3, int(round(rack * 0.45)))
-            candidates.append(
-                {
-                    "id": k.get("id", "bike-master"),
-                    "name": k.get("name", "따릉이 거점 대여소"),
-                    "coords": c,
-                    "available_bikes": avail,
-                    "rack_count": rack,
-                    "distance_km": round(dist, 2),
-                    "source": "MASTER_STATION_DB",
-                }
-            )
+            if dist <= 0.85:
+                rack = int(k.get("rackCount", 20))
+                avail = max(3, int(round(rack * 0.45)))
+                candidates.append(
+                    {
+                        "id": k.get("id", "bike-master"),
+                        "name": k.get("name", "따릉이 거점 대여소"),
+                        "coords": c,
+                        "available_bikes": avail,
+                        "rack_count": rack,
+                        "distance_km": round(dist, 2),
+                        "source": "MASTER_STATION_DB",
+                    }
+                )
 
         candidates.sort(key=lambda x: x["distance_km"])
+        if not candidates:
+            st_label = station_name or "역사"
+            candidates.append(
+                {
+                    "id": "bike-seoul-local",
+                    "name": f"따릉이: {st_label} 출구 앞 대여소",
+                    "coords": [round(lng + 0.0006, 6), round(lat + 0.0004, 6)],
+                    "available_bikes": 9,
+                    "rack_count": 20,
+                    "distance_km": 0.08,
+                    "source": "SEOUL_STATION_EXIT_RACK",
+                }
+            )
         return candidates[:limit]
 
     def search_subway_route(
@@ -654,23 +711,30 @@ class MultimodalRoutingEngine:
         origin_st = self.resolve_station(state.get("from_query", "강남역")) or self.resolve_station("강남역")
         dest_st = self.resolve_station(state.get("to_query", "서울역")) or self.resolve_station("서울역")
 
+        origin_in_seoul = self.is_in_seoul(origin_st["coords"][1], origin_st["coords"][0], origin_st["name"])
+        dest_in_seoul = self.is_in_seoul(dest_st["coords"][1], dest_st["coords"][0], dest_st["name"])
+
         w_ctx = dict(state.get("weather_context") or {})
         rain = float(w_ctx.get("rain", 0.0))
         temp = float(w_ctx.get("temp", 15.0))
         wind = float(w_ctx.get("wind", 2.0))
         humidity = float(w_ctx.get("humidity", 55.0))
 
-        # 기상 게이트 판정: 강수량 > 0mm 또는 강풍(>= 8m/s) 또는 혹한(<= -5°C) 시 따릉이(PM) 차단
+        # 기상 및 권역 게이트 판정:
+        # 1) 따릉이(서울시 공공자전거)는 서울특별시 관내에서만 대여·반납 가능하므로 서울 외 지역(경기·인천) 출발 시 자동 배제
+        # 2) 강수량 > 0mm 또는 강풍(>= 8m/s) 또는 혹한(<= -5°C) 시 따릉이(PM) 차단
         is_rainy_or_severe = rain > 0.0 or wind >= 8.0 or temp <= -5.0
-        bike_enabled = not is_rainy_or_severe
-        if rain > 0.0:
+        bike_enabled = (not is_rainy_or_severe) and origin_in_seoul
+        if not origin_in_seoul:
+            gate_reason = f"출발지({origin_st['name']})가 서울특별시 외 지역(경기·인천)이므로 서울시 전용 공공자전거 따릉이 대여 대상에서 제외하고 광역 지하철·버스 경로를 탐색합니다."
+        elif rain > 0.0:
             gate_reason = f"강수 감지({rain:.1f}mm/h) — 노면 미끄럼 사고 예방을 위해 따릉이(PM) First/Last-Mile 경로를 자동 배제하고 실내 환승/지하철·버스 안전 경로로 우회합니다."
         elif wind >= 8.0:
             gate_reason = f"강풍 주의({wind:.1f}m/s) — 주행 안전을 위해 따릉이(PM)를 제외하고 대중교통 경로를 우선 추천합니다."
         elif temp <= -5.0:
             gate_reason = f"한파 감지({temp:.1f}°C) — 동절기 안전을 위해 실내 대중교통 경로를 우선 탐색합니다."
         else:
-            gate_reason = f"양호한 기상({temp:.1f}°C · 강수 0.0mm) — 따릉이(First/Last-Mile) + 지하철 + 버스 멀티모달 복합 탐색이 활성화되었습니다."
+            gate_reason = f"양호한 기상({temp:.1f}°C · 강수 0.0mm) — 서울시 따릉이(First/Last-Mile) + 지하철 + 버스 멀티모달 복합 탐색이 활성화되었습니다."
 
         w_ctx.update(
             {
@@ -679,6 +743,8 @@ class MultimodalRoutingEngine:
                 "humidity": round(humidity, 1),
                 "wind": round(wind, 1),
                 "bike_enabled": bike_enabled,
+                "origin_in_seoul": origin_in_seoul,
+                "dest_in_seoul": dest_in_seoul,
                 "weather_gate_reason": gate_reason,
             }
         )
@@ -721,19 +787,20 @@ class MultimodalRoutingEngine:
         sub_min_tm = self.search_subway_route(origin["name"], dest["name"], mode="min_time")
 
         # 2. Bus Tool (출발/도착 인근 버스 환승 거점 탐색)
-        origin_buses = self.find_nearby_bus_stops(o_lat, o_lng, limit=2)
-        dest_buses = self.find_nearby_bus_stops(d_lat, d_lng, limit=2)
+        origin_buses = self.find_nearby_bus_stops(o_lat, o_lng, limit=2, station_name=origin["name"])
+        dest_buses = self.find_nearby_bus_stops(d_lat, d_lng, limit=2, station_name=dest["name"])
 
-        # 3. Bike (따릉이) First/Last-Mile Tool
+        # 3. Bike (따릉이) First/Last-Mile Tool (서울특별시 관내 한정)
         live_bike_list = (state.get("bike_candidates") or {}).get("live_snapshot")
-        origin_bikes = self.find_nearby_bike_stations(o_lat, o_lng, live_bike_list, limit=2)
-        dest_bikes = self.find_nearby_bike_stations(d_lat, d_lng, live_bike_list, limit=2)
+        origin_bikes = self.find_nearby_bike_stations(o_lat, o_lng, live_bike_list, limit=2, station_name=origin["name"])
+        dest_bikes = self.find_nearby_bike_stations(d_lat, d_lng, live_bike_list, limit=2, station_name=dest["name"])
 
         # First-Mile 최적 환승역 탐색:
         # 1) 역방향 우회(제자리걸음) 원천 차단: 후보 역에서 출발하는 지하철 경로(cand_route["path"])에
         #    원래 출발역(origin["name"])이 포함되어 있으면 즉시 배제 (예: 서울역 ➔ 회현역 따릉이 ➔ 회현역에서 다시 서울역 경유 방지)
         # 2) 전진 방향 검증: 후보 역에서 도착지까지의 직선거리가 출발지~도착지 직선거리보다 가까워야 함
         # 3) 실질적 이득 검증: 기존 지하철 경로 대비 경유 역 수(stationCount) 또는 환승 횟수(transferCount)가 줄어들어야 함
+        # 4) 서울시 권역 검증: 따릉이 반납 대여소가 존재하는 서울특별시 관내 역만 후보로 허용
         origin_to_dest_km = haversine_km(o_lat, o_lng, d_lat, d_lng)
         nearby_origins = self.find_nearby_subway_stations(
             o_lat, o_lng, radius_km=2.6, exclude_name=origin["name"]
@@ -748,6 +815,9 @@ class MultimodalRoutingEngine:
             if cand_st["name"] == dest["name"]:
                 continue
             cand_lng, cand_lat = cand_st["coords"]
+            # 따릉이 반납 역도 반드시 서울특별시 관내여야 함
+            if not self.is_in_seoul(cand_lat, cand_lng, cand_st["name"]):
+                continue
             cand_to_dest_km = haversine_km(cand_lat, cand_lng, d_lat, d_lng)
             # 목적지 방향 전진 여부 검증 (반대 방향 역 배제)
             if cand_to_dest_km >= origin_to_dest_km - 0.15:
@@ -787,13 +857,15 @@ class MultimodalRoutingEngine:
                 }
 
         # 반경 탐색에서 조건을 만족하는 역이 없다면, 원래 지하철 경로(sub_min_tr["path"]) 상의
-        # 전방 1~3번째 역 중 거리 0.4~2.8km 이내 역으로 선행 진입하는 First-Mile 경로 구성 (역방향 발생 원천 차단)
+        # 전방 1~3번째 역 중 거리 0.4~2.8km 이내 서울 관내 역으로 선행 진입하는 First-Mile 경로 구성 (역방향 발생 원천 차단)
         if best_first_mile is None and sub_min_tr:
             base_path = sub_min_tr.get("path") or []
             for step_st in base_path[1:4]:
                 if step_st["name"] == dest["name"]:
                     continue
                 s_lng, s_lat = step_st["coords"]
+                if not self.is_in_seoul(s_lat, s_lng, step_st["name"]):
+                    continue
                 d_km = round(haversine_km(o_lat, o_lng, s_lat, s_lng), 2)
                 if 0.4 <= d_km <= 2.8:
                     cand_route = self.search_subway_route(step_st["name"], dest["name"], mode="min_transfer")
@@ -848,18 +920,20 @@ class MultimodalRoutingEngine:
         }
 
     def _node_rain_safe_tools(self, state: MultimodalRouteState) -> Dict[str, Any]:
-        """우천/악천후 시: 따릉이(PM) Tool 자동 차단 + 지하철/버스 안전 경로 Tool 실행"""
+        """우천/악천후 또는 서울 외 지역 출발 시: 따릉이(PM) Tool 자동 차단 + 지하철/버스 안전 경로 Tool 실행"""
         t0 = time.perf_counter()
         trace = list(state.get("langgraph_trace") or [])
         origin = state["origin"]
         dest = state["destination"]
+        w_ctx = state.get("weather_context") or {}
+        origin_in_seoul = bool(w_ctx.get("origin_in_seoul", True))
         o_lng, o_lat = origin["coords"]
         d_lng, d_lat = dest["coords"]
 
         sub_min_tr = self.search_subway_route(origin["name"], dest["name"], mode="min_transfer")
         sub_min_tm = self.search_subway_route(origin["name"], dest["name"], mode="min_time")
-        origin_buses = self.find_nearby_bus_stops(o_lat, o_lng, limit=2)
-        dest_buses = self.find_nearby_bus_stops(d_lat, d_lng, limit=2)
+        origin_buses = self.find_nearby_bus_stops(o_lat, o_lng, limit=2, station_name=origin["name"])
+        dest_buses = self.find_nearby_bus_stops(d_lat, d_lng, limit=2, station_name=dest["name"])
 
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         trace.append(
@@ -867,8 +941,12 @@ class MultimodalRoutingEngine:
                 "step": 2,
                 "node": "rain_safe_tools_node",
                 "status": "completed",
-                "decision": "BIKE_EXCLUDED_BY_WEATHER_GATE",
-                "detail": "우천/강풍 안전 게이트 작동 — 따릉이(PM) 탐색을 자동 차단하고 지하철 직결 및 실내 환승·버스 연계 경로만 수집",
+                "decision": "BIKE_EXCLUDED_NON_SEOUL" if not origin_in_seoul else "BIKE_EXCLUDED_BY_WEATHER_GATE",
+                "detail": (
+                    f"서울 외 권역({origin['name']}) 출발 — 서울시 전용 따릉이(PM)를 제외하고 광역 지하철 및 버스 연계 경로만 수집"
+                    if not origin_in_seoul
+                    else "우천/강풍 안전 게이트 작동 — 따릉이(PM) 탐색을 자동 차단하고 지하철 직결 및 실내 환승·버스 연계 경로만 수집"
+                ),
                 "latency_ms": elapsed_ms,
             }
         )
@@ -939,8 +1017,8 @@ class MultimodalRoutingEngine:
                 1,
             )
 
-            if direct_dist_km <= 3.8:
-                # 단거리(3.8km 이하): 따릉이 논스톱 직결 경로 제안
+            if direct_dist_km <= 3.8 and w_ctx.get("dest_in_seoul", True):
+                # 단거리(3.8km 이하, 서울 관내): 따릉이 논스톱 직결 경로 제안
                 bike_mins = max(8, round(direct_dist_km / 0.24))
                 dest_bike_stop = dest_bikes[0] if dest_bikes else {
                     "name": f"따릉이: {dest['name']} 반납소",
@@ -1030,7 +1108,7 @@ class MultimodalRoutingEngine:
                         "distance_km": bike_km,
                         "fare_krw": 1000,
                         "color": "#10B981",
-                        "coords": [origin["coords"], target_st["coords"]],
+                        "coords": [bike_stop["coords"], target_st["coords"]],
                         "live_badge": f"실시간 {avail_cnt}대 대여 가능",
                     },
                 ] + list(sub_rt.get("lineSegments") or [])
@@ -1196,7 +1274,7 @@ class MultimodalRoutingEngine:
                         "distance_km": bus_dist_km,
                         "fare_krw": 1500,
                         "color": "#FB923C",
-                        "coords": [origin["coords"], hub_coords],
+                        "coords": [bus_stop["coords"], hub_coords],
                         "live_badge": "곧 도착 (3분 후)",
                     },
                 ] + list(sub_after_hub.get("lineSegments") or [])

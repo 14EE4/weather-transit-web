@@ -3,8 +3,48 @@ import { SUBWAY_STATIONS } from './subwayData'
 import { MultimodalSegment, TransitRouteResult } from './subwayGraph'
 
 const VALID_STATION_NAMES = new Set(
-  SUBWAY_STATIONS.flatMap(st => [st.name, st.name.replace(/역$/, '')])
+  SUBWAY_STATIONS.map(st => st.name)
 )
+
+const MULTIMODAL_MEMORY_CACHE = new Map<string, MultimodalSearchResponse>()
+const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v2'
+
+function getCachedMultimodalResult(key: string): MultimodalSearchResponse | null {
+  if (!key) return null
+  const mem = MULTIMODAL_MEMORY_CACHE.get(key)
+  if (mem) return mem
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_CACHE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, MultimodalSearchResponse>
+        if (parsed && parsed[key]) {
+          MULTIMODAL_MEMORY_CACHE.set(key, parsed[key])
+          return parsed[key]
+        }
+      }
+    } catch {}
+  }
+  return null
+}
+
+function setCachedMultimodalResult(key: string, value: MultimodalSearchResponse): void {
+  if (!key) return
+  MULTIMODAL_MEMORY_CACHE.set(key, value)
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_CACHE_KEY)
+      const parsed: Record<string, MultimodalSearchResponse> = raw ? JSON.parse(raw) : {}
+      parsed[key] = value
+      // 최근 12개 검색 기록까지만 유지 (용량 관리)
+      const keys = Object.keys(parsed)
+      if (keys.length > 12) {
+        delete parsed[keys[0]]
+      }
+      localStorage.setItem(LOCAL_STORAGE_CACHE_KEY, JSON.stringify(parsed))
+    } catch {}
+  }
+}
 
 export interface MultimodalBriefing {
   headline: string
@@ -120,13 +160,9 @@ export default function MultimodalRoutePanel({
   onSelectRouteForMap,
   compact = false,
 }: MultimodalRoutePanelProps) {
-  const [data, setData] = useState<MultimodalSearchResponse | null>(null)
-  const [loading, setLoading] = useState<boolean>(false)
-  const [selectedIdx, setSelectedIdx] = useState<number>(0)
-  const [showTrace, setShowTrace] = useState<boolean>(false)
-
   const cleanFrom = (fromStation || '').trim()
   const cleanTo = (toStation || '').trim()
+  const cleanDistrict = (district || '').split(' ')[0] || '강남구'
   const hasValidRouteInput = Boolean(
     cleanFrom &&
       cleanTo &&
@@ -134,6 +170,16 @@ export default function MultimodalRoutePanel({
       VALID_STATION_NAMES.has(cleanFrom) &&
       VALID_STATION_NAMES.has(cleanTo)
   )
+  const cacheKey = hasValidRouteInput
+    ? `${cleanFrom}|${cleanTo}|${cleanDistrict}|${selectedHour}|${Math.round(temp)}|${Math.round(rain * 10) / 10}`
+    : ''
+
+  const [data, setData] = useState<MultimodalSearchResponse | null>(() =>
+    cacheKey ? getCachedMultimodalResult(cacheKey) : null
+  )
+  const [loading, setLoading] = useState<boolean>(false)
+  const [selectedIdx, setSelectedIdx] = useState<number>(0)
+  const [showTrace, setShowTrace] = useState<boolean>(false)
 
   useEffect(() => {
     if (!hasValidRouteInput) {
@@ -142,10 +188,16 @@ export default function MultimodalRoutePanel({
       return
     }
 
+    const cached = getCachedMultimodalResult(cacheKey)
+    if (cached) {
+      setData(cached)
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
     const timer = setTimeout(async () => {
       setLoading(true)
-      const cleanDistrict = district.split(' ')[0] || '강남구'
       const requestPayload = {
         from_station: cleanFrom,
         to_station: cleanTo,
@@ -172,6 +224,7 @@ export default function MultimodalRoutePanel({
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const json: MultimodalSearchResponse = await res.json()
         if (!cancelled && json.status === 'success') {
+          setCachedMultimodalResult(cacheKey, json)
           setData(json)
           setSelectedIdx(0)
           console.groupCollapsed(
@@ -213,7 +266,7 @@ export default function MultimodalRoutePanel({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [apiBaseUrl, cleanFrom, cleanTo, hasValidRouteInput, district, selectedHour, temp, rain, humidity, wind])
+  }, [apiBaseUrl, cacheKey, cleanFrom, cleanTo, cleanDistrict, hasValidRouteInput, selectedHour, temp, rain, humidity, wind])
 
   if (!hasValidRouteInput) {
     return (

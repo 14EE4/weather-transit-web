@@ -501,8 +501,22 @@ const getInitialDistrict = (): number => {
 export default function AppM() {
   const [page, setPage] = useState<Page>(getInitialPage)
   const [selectedDistrict, setSelectedDistrict] = useState<number>(getInitialDistrict)
-  const [departure, setDeparture] = useState('')
-  const [destination, setDestination] = useState('')
+  const [departure, setDeparture] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('weather_transit_route_departure') || ''
+      } catch {}
+    }
+    return ''
+  })
+  const [destination, setDestination] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('weather_transit_route_destination') || ''
+      } catch {}
+    }
+    return ''
+  })
   const [mapTransport, setMapTransport] = useState<'all' | 'subway' | 'bus' | 'bike'>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -652,6 +666,14 @@ export default function AppM() {
       localStorage.setItem('weather_transit_map_transport', mapTransport)
     } catch {}
   }, [mapTransport])
+
+  // 이전 경로 검색 기록(출발지/도착지) 로컬 스토리지 동기화 (탭 전환 및 재방문 시 유지)
+  useEffect(() => {
+    try {
+      localStorage.setItem('weather_transit_route_departure', departure)
+      localStorage.setItem('weather_transit_route_destination', destination)
+    } catch {}
+  }, [departure, destination])
 
   useEffect(() => {
     const handleHash = () => {

@@ -46,20 +46,20 @@ flowchart TD
     User["👤 대중교통 이용 시민 (End-User)"]
     
     subgraph WeatherTransitSystem ["🌤️ Weather & Transit Web Platform"]
-        Frontend["Web Frontend\n(React 18 + MapLibre GL)"]
-        Backend["AI Inference Backend\n(FastAPI + ONNX Runtime)"]
+        Frontend["Web Frontend<br>(React 18 + MapLibre GL)"]
+        Backend["AI Inference Backend<br>(FastAPI + ONNX Runtime)"]
     end
     
     subgraph ExternalServices ["🌐 외부 공공 데이터 플랫폼"]
-        KMA["기상청 API허브\n(초단기실황 getUltraSrtNcst)"]
-        SeoulAPI["서울 열린데이터광장\n(지하철 도착정보 realtimeStationArrival)"]
-        DataGoKr["공공데이터포털\n(서울 버스 도착정보 getArrInfoByRouteAll)"]
+        KMA["기상청 API허브<br>(초단기실황 getUltraSrtNcst)"]
+        SeoulAPI["서울 열린데이터광장<br>(지하철 도착정보 realtimeStationArrival)"]
+        DataGoKr["공공데이터포털<br>(서울 버스 도착정보 getArrInfoByRouteAll)"]
     end
     
-    User -->|브라우저 상호작용\n대시보드 / 경로 검색 / 지도| Frontend
-    Frontend -->|REST API (JSON)\n수요 예측 & 시뮬레이션 요청| Backend
-    Frontend -->|실시간 도착 및 날씨 실황 조회| ExternalServices
-    Backend -->|2025 빅데이터 기반\n인메모리 AI 모델 추론| Backend
+    User -->|"브라우저 상호작용<br>대시보드 / 경로 검색 / 지도"| Frontend
+    Frontend -->|"REST API (JSON)<br>수요 예측 및 시뮬레이션 요청"| Backend
+    Frontend -->|"실시간 도착 및 날씨 실황 조회"| ExternalServices
+    Backend -->|"2025 빅데이터 기반<br>인메모리 AI 모델 추론"| Backend
 ```
 
 ---
@@ -139,16 +139,16 @@ flowchart TD
 ```mermaid
 flowchart TB
     subgraph PresentationLayer ["1. Presentation Layer (Client)"]
-        UI_Dash["대시보드 뷰 (App.tsx)\n- 날씨 현황 카드\n- 시간대별 수요 차트\n- 실시간 AI 추천 카드"]
-        UI_Route["경로 추천 뷰\n- 출발/도착역 자동완성\n- 최소 환승 최적 경로\n- 실시간 열차 도착 정보"]
-        UI_Map["인터랙티브 지도 (TransitMap.tsx)\n- MapLibre GL JS + OSM\n- 561개 역 충돌방지 마커\n- 가상 강수량 시뮬레이터"]
+        UI_Dash["대시보드 뷰 (App.tsx)<br>- 날씨 현황 카드<br>- 시간대별 수요 차트<br>- 실시간 AI 추천 카드"]
+        UI_Route["경로 추천 뷰<br>- 출발/도착역 자동완성<br>- 최소 환승 최적 경로<br>- 실시간 열차 도착 정보"]
+        UI_Map["인터랙티브 지도 (TransitMap.tsx)<br>- MapLibre GL JS + OSM<br>- 561개 역 충돌방지 마커<br>- 가상 강수량 시뮬레이터"]
         Logger["API 모니터링 로거 (apiLogger.ts)"]
     end
 
     subgraph APILayer ["2. API & Serving Layer (FastAPI)"]
         Router["FastAPI Application (main.py)"]
         CORS["CORS Middleware (allow_origins='*')"]
-        Schema["Pydantic Schemas (v2)\n(PredictionRequest, SimulationRequest 등)"]
+        Schema["Pydantic Schemas (v2)<br>(PredictionRequest, SimulationRequest 등)"]
         Lifespan["Lifecycle Manager (Cold-Start 방지 Warmup)"]
     end
 
@@ -180,7 +180,7 @@ flowchart TB
     ONNX_Engine --> LGB_Bike & LGB_Bus & LGB_Sub
     LGB_Bike & LGB_Bus & LGB_Sub -->|수요 예측량| Congestion
     Congestion --> MCDA --> XAI & ModalShift
-    XAI & ModalShift -->|응답 JSON (latency_ms 포함)| Router
+    XAI & ModalShift -->|"응답 JSON (latency_ms 포함)"| Router
     Router --> Logger
 ```
 

@@ -90,6 +90,7 @@
 | **AI 모델** | 🧩 **AI 모델 사양서 (규격본)** | 32차원 입력 특성 스키마, Optuna 최적 파라미터, 조기종료 및 성능 지표 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
 | **AI 모델** | 📈 **ONNX 모델 성능 비교 보고서** | 25차원 vs 32차원 벤치마크, 지표 분석 및 11월 클린 테스트셋 가이드 | [`MODEL_PERFORMANCE_REPORT.md`](docs/MODEL_PERFORMANCE_REPORT.md) |
 | **AI 모델** | 🧠 **AI 추론 모델 구축 가이드 (원문)** | AI 추론 엔진 원천 사양서 및 데이터 전처리·학습·ONNX 변환 개발 가이드 | [`AI_INFERENCE_MODEL_SPEC.md`](docs/AI_INFERENCE_MODEL_SPEC.md) |
+| **에이전트** | 🤖 **ONNX 모델 × LangGraph 연동 명세서** | ONNX 실시간 혼잡도 추론 결과의 LangGraph 5단계 노드 및 다목적 효용 연동 규격 | [`ONNX_LANGGRAPH_INTEGRATION.md`](docs/ONNX_LANGGRAPH_INTEGRATION.md) |
 | **백엔드** | 🚀 **백엔드 추론 서버 구축 가이드** | FastAPI 인메모리 ONNX 런타임 서빙, 시계열 캐싱 및 REST API 규격 | [`BACKEND_INFERENCE_SERVER.md`](docs/BACKEND_INFERENCE_SERVER.md) |
 | **테스트** | 🧪 **공공 API 및 추론 연동 테스트 가이드** | 외부 공공 API 및 AI 추론 통합 테스트 스위트 실행 방법 및 트러블슈팅 | [`API_TEST_GUIDE.md`](docs/API_TEST_GUIDE.md) |
 | **데이터** | 📦 **데이터 전처리 인수 검수 보고서** | 2025 서울시 20.9만 건 교통·기상 데이터 무결성 검수 및 결측치 현황 | [`DATA_PREPROCESSING_HANDOFF.md`](docs/DATA_PREPROCESSING_HANDOFF.md) |

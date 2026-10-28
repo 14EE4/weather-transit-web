@@ -300,7 +300,52 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 }
 ```
 
-### 5) 헬스체크 API
+### 5) LangGraph × FactChat LLM 멀티모달 통합 경로 탐색 API
+- **엔드포인트**: `POST /api/v1/routes/multimodal-search` (또는 `GET`)
+- **목적**: 기상청 단기예보, 32차원 ONNX 수단별 혼잡도 및 실시간 따릉이/지하철 도착 정보를 결합하여 도보·따릉이·버스·지하철 최적 복합 경로 3종과 FactChat LLM 자연어 브리핑 반환.
+- **Request Body**:
+```json
+{
+  "from_station": "서울역",
+  "to_station": "홍대입구역",
+  "district": "중구",
+  "hour": 14,
+  "weather_override": null
+}
+```
+- **Response Body**:
+```json
+{
+  "success": true,
+  "query": { "from": "서울역", "to": "홍대입구역", "district": "중구", "hour": 14 },
+  "weather_gate": "CLEAR_MULTIMODAL",
+  "ai_briefing": {
+    "headline": "🤖 FactChat LLM (gpt-6-luna) 멀티모달 경로 브리핑",
+    "summary": "따릉이 혼잡도 예측이 22%로 지하철(52%)보다 낮고 현재 비가 없어 쾌적한 이동이 가능합니다.",
+    "model": "gpt-6-luna"
+  },
+  "routes": [
+    {
+      "id": "route-pure-subway",
+      "badge": "AI 1순위 · 최단·무환승 최적",
+      "title": "공항철도 직통 최단시간",
+      "total_minutes": 7,
+      "total_fare_krw": 1550,
+      "crowd_percent": 52,
+      "comfort_score": 96
+    }
+  ],
+  "langgraph_trace": [
+    { "step": 1, "node": "parse_context_node", "status": "completed" },
+    { "step": 2, "node": "clear_multimodal_tools_node", "status": "completed" },
+    { "step": 3, "node": "candidate_fusion_node", "status": "completed" },
+    { "step": 4, "node": "factchat_llm_briefing_node", "status": "completed" }
+  ]
+}
+```
+> 📖 **ONNX 모델 상세 연동 규격**: ONNX 모델의 3개 수단 혼잡도 결과가 LangGraph의 다목적 효용 함수와 지옥철 회피 보너스(+14.0점), FactChat LLM 프롬프트에 활용되는 전 과정은 [**`docs/ONNX_LANGGRAPH_INTEGRATION.md`**](ONNX_LANGGRAPH_INTEGRATION.md)를 참조하십시오.
+
+### 6) 헬스체크 API
 - **엔드포인트**: `GET /health`
 - **Response Body**:
 ```json

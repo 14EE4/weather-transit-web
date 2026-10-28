@@ -298,6 +298,8 @@ flowchart TB
   5. `factchat_llm_briefing_node`:
      - OpenAI 호환 Gateway(`FACTCHAT_API_BASE_URL`, `gpt-6-luna`)를 호출하여 기상 게이트 판정 사유, 시간 절약 효과, 환승 팁을 자연어 브리핑으로 생성 (5분 TTL 인메모리 캐시 적용 및 API 장애 시 규칙 기반 XAI 브리핑으로 Graceful Fallback).
 
+> 📖 **상세 연동 명세**: ONNX 모델의 수단별 혼잡도 및 수요 예측치가 LangGraph 5단계 노드와 다목적 효용 함수, 피크 분산 보너스(+14.0점)에 연동되는 구체적 알고리즘과 수식은 [**`docs/ONNX_LANGGRAPH_INTEGRATION.md`**](ONNX_LANGGRAPH_INTEGRATION.md)를 참조하십시오.
+
 ---
 
 ## 5. 데이터 흐름 및 시퀀스 다이어그램 (Data Flow & Sequence)

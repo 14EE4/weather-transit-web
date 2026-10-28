@@ -206,8 +206,9 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 }
 ```
 
-### 2) 가상 기상 시뮬레이터 (What-If Simulator)
+### 2) 가상 기상 조건 배치 시뮬레이션 API (What-If Batch Simulator)
 - **엔드포인트**: `POST /api/v1/simulate/weather-impact`
+- **목적**: 25개 자치구 일괄 가상 기상(강수량/기온/시간대) 조건에서의 모달 시프트 및 수요 변동 배치 연산 (B2B 모빌리티 재배치 분석 및 시뮬레이션용).
 - **Request Body**:
 ```json
 {

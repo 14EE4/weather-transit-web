@@ -58,12 +58,25 @@
      - 축소 시 역 마커들이 겹치는 시각적 혼잡을 방지하기 위해 겹치는 구역에서는 핵심 거점 역 1개만 우선 노출
      - 지도를 확대(Zoom-in)하면 인접한 세부 역 및 정류소가 부드럽게 순차적으로 모두 나타남
      - 사용자가 검색하거나 선택한 역은 항상 최우선으로 화면에 100% 표시됨
-   - 가상 강수량(0~10mm/h) 조절에 따른 실시간 대중교통 수요 전이 시뮬레이터 제공
-   - 📖 **프론트엔드 상세 가이드**: [프론트엔드 README](Weather-Transport%20Recommendation%20UI/README.md)
-   - 🧠 **백엔드 AI 추론 모델 사양서**: [AI 추론 모델 개발 가이드](docs/AI_INFERENCE_MODEL_SPEC.md)
-   - 📈 **모델 성능 비교 분석 보고서**: [ONNX 모델 성능 비교 분석 보고서 (v2: 실피처 32차원 vs 25차원 배포본)](docs/MODEL_PERFORMANCE_REPORT.md)
-   - 🧩 **AI 모델 사양서 (모델 규격 분리본)**: [AI 모델 사양서](docs/AI_MODEL_SPEC.md)
-   - 📦 **데이터 전처리 산출물 인수 검수·요청서**: [데이터 전처리 전달 사항](docs/DATA_PREPROCESSING_HANDOFF.md)
+   - 기상청 초단기실황 날씨와 연계된 32차원 AI 기반 실시간 대중교통 혼잡도 예측 및 맞춤 추천 제공
+---
+
+## 📚 핵심 기술 문서 색인 (Documentation Index)
+
+본 프로젝트의 시스템 아키텍처, 32차원 AI 모델 규격, 벤치마크 보고서, API 테스트 및 배포 가이드는 `docs/` 디렉토리에 모듈화되어 관리됩니다.
+
+| 분류 | 문서명 | 핵심 내용 | 바로가기 |
+| :---: | :--- | :--- | :---: |
+| **아키텍처** | 🏛️ **시스템 아키텍처 명세서** | 5-Tier 계층형 구조, C4 컨텍스트, 엔드투엔드 파이프라인 플로우차트 | [`SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md) |
+| **AI 모델** | 🧩 **AI 모델 사양서 (규격본)** | 32차원 입력 특성 스키마, Optuna 최적 파라미터, 조기종료 및 성능 지표 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
+| **AI 모델** | 📈 **ONNX 모델 성능 비교 보고서** | 25차원 vs 32차원 벤치마크, 지표 분석 및 11월 클린 테스트셋 가이드 | [`MODEL_PERFORMANCE_REPORT.md`](docs/MODEL_PERFORMANCE_REPORT.md) |
+| **AI 모델** | 🧠 **AI 추론 모델 구축 가이드 (원문)** | AI 추론 엔진 원천 사양서 및 데이터 전처리·학습·ONNX 변환 개발 가이드 | [`AI_INFERENCE_MODEL_SPEC.md`](docs/AI_INFERENCE_MODEL_SPEC.md) |
+| **백엔드** | 🚀 **백엔드 추론 서버 구축 가이드** | FastAPI 인메모리 ONNX 런타임 서빙, 시계열 캐싱 및 REST API 규격 | [`BACKEND_INFERENCE_SERVER.md`](docs/BACKEND_INFERENCE_SERVER.md) |
+| **테스트** | 🧪 **공공 API 및 추론 연동 테스트 가이드** | 외부 공공 API 및 AI 추론 통합 테스트 스위트 실행 방법 및 트러블슈팅 | [`API_TEST_GUIDE.md`](docs/API_TEST_GUIDE.md) |
+| **데이터** | 📦 **데이터 전처리 인수 검수 보고서** | 2025 서울시 20.9만 건 교통·기상 데이터 무결성 검수 및 결측치 현황 | [`DATA_PREPROCESSING_HANDOFF.md`](docs/DATA_PREPROCESSING_HANDOFF.md) |
+| **인프라** | 🐳 **Docker 컨테이너화 운영 가이드** | 백엔드-프론트엔드 멀티 컨테이너 패키징 및 운영 환경 구성안 | [`DOCKER_CONTAINERIZATION_PLAN.md`](docs/DOCKER_CONTAINERIZATION_PLAN.md) |
+| **이력** | 📋 **프로젝트 변경 이력 (CHANGELOG)** | 버전별·날짜별 주요 신규 기능 구현, 버그 수정 및 인프라 개선 기록 | [`CHANGELOG.md`](docs/CHANGELOG.md) |
+| **프론트** | 🖥️ **프론트엔드 대시보드 가이드** | React 18, MapLibre GL JS 인터랙티브 지도 컴포넌트 구조 및 개발 가이드 | [Frontend README](Weather-Transport%20Recommendation%20UI/README.md) |
 
 ---
 
@@ -119,21 +132,25 @@ flowchart TD
     subgraph S6 ["6. 대화형 웹 프론트엔드 (Presentation)"]
         UI1["실시간 AI 추천 카드 및 시간대별 수요 차트"]
         UI2["인터랙티브 대중교통 지도 (TransitMap.tsx - MapLibre GL)"]
-        UI3["What-If 가상 날씨 시뮬레이터 (슬라이더 조작 시 20ms 즉각 반응)"]
+        UI3["실시간 기상 및 AI 추천 브리핑 (초단기실황 + 추천 이유)"]
         API --> UI1 & UI2 & UI3
     end
 ```
 
 ---
 
-## 🛠️ 기술 스택 및 환경
+## 🛠️ 기술 스택 (Tech Stack)
 
-- **언어**: Python 3.10+
-- **주요 라이브러리**: `requests`, `python-dotenv`
-- **외부 API**:
-  - [기상청 API허브](https://apihub.kma.go.kr/) - 단기예보조회서비스 (초단기실황조회 `getUltraSrtNcst`)
-  - [서울 열린데이터광장](https://data.seoul.go.kr/) - 서울시 지하철 실시간 도착 정보 (`realtimeStationArrival`)
-  - [공공데이터포털](https://www.data.go.kr/) - 서울특별시 버스도착정보조회 서비스 (`ws.bus.go.kr/api/rest/arrive`)
+본 프로젝트는 AI 머신러닝, 지리정보 시각화(GIS), 비동기 백엔드, 멀티 컨테이너 인프라가 유기적으로 결합된 풀스택 모빌리티 플랫폼입니다.
+
+| 영역 (Domain) | 핵심 기술 및 프레임워크 | 역할 및 활용 상세 |
+| :--- | :--- | :--- |
+| **AI & Machine Learning** | `LightGBM`, `Optuna`, `ONNX Runtime`, `AHP-MCDA` | • 32차원 입력 피처 기반 3개 수단(따릉이/버스/지하철) 다중 회귀 수요 예측<br>• Optuna 베이지안 최적화 기반 자동 하이퍼파라미터 튜닝<br>• C++ 기반 인메모리 **1~3ms 초저지연(Latency SLA 달성) ONNX 추론**<br>• 계층화 분석법(AHP: 기상 57% + 정시성 29% + 혼잡도 14%) 기반 맞춤 추천 스코어링 |
+| **Agent & LLM** | `LangGraph`, `FactChat (BAZE Gateway)` | • 상태 기반 멀티모달(지하철+버스+따릉이) 에이전트 경로 오케스트레이션<br>• OpenAI 호환 Gateway를 통한 외부 LLM 실시간 환승 판단 및 자연어 안내 브리핑 |
+| **Backend & Data** | `FastAPI`, `Uvicorn`, `Pydantic v2`, `SQLite (WAL)`, `Pandas`, `NumPy` | • 비동기(Async) 고성능 Python RESTful API 서빙<br>• 32차원 데이터 계약(Data Contract) 및 피처 순서 3중 무결성 검증<br>• 시계열 래그(1h Lag, 3h Rolling) 인메모리/디스크 하이브리드 캐싱 (`timeseries_cache`)<br>• 2025 서울시 20.9만 건 완전 그리드 데이터 전처리 및 특성 공학 |
+| **Frontend & GIS** | `React 18`, `TypeScript`, `MapLibre GL JS`, `Vite`, `Tailwind CSS` | • 수도권 561개 역사 정밀 GPS 매핑 및 실시간 노선도 시각화<br>• 줌 레벨에 따른 마커 겹침 방지 **화면 충돌 감지(Collision Detection)** 알고리즘 탑재<br>• 모던 다크 테마 기반 반응형 대시보드 및 API 모니터링 콘솔 로거 (`apiLogger.ts`) |
+| **DevOps & Infra** | `Docker`, `Docker Compose`, `Nginx` | • 백엔드(FastAPI) + 프론트엔드(Nginx 리버스 프록시) 멀티 컨테이너 원클릭 배포<br>• SPA 정적 에셋 고속 서빙, API 라우팅 및 CORS 게이트웨이 제어 |
+| **Data Ingestion** | 기상청 API허브, 서울 열린데이터광장, 공공데이터포털 | • [기상청 API허브](https://apihub.kma.go.kr/): 초단기실황 날씨 실시간 연동 (`getUltraSrtNcst`)<br>• [서울 열린데이터광장](https://data.seoul.go.kr/): 지하철 실시간 도착 (`realtimeStationArrival`), 따릉이 대여소 실시간 현황 (`bikeList`)<br>• [공공데이터포털](https://www.data.go.kr/): 서울시 버스 실시간 도착정보 5종 (`getArrInfoByRouteAll` 등) |
 
 ---
 
@@ -231,48 +248,11 @@ pip install -r requirements.txt
 ```
 
 ### 2. API 연결 테스트 실행
-  ```bash
+기상청, 서울 버스, 서울 지하철 실시간 OpenAPI 연동 상태를 터미널에서 즉시 검증합니다:
+```bash
 python tests/test_api.py
 ```
-
-정상 연동 시 터미널에서 다음과 같은 테스트 결과를 확인할 수 있습니다:
-```text
-==================================================
-[1] 기상청 실시간 날씨 API 테스트 (초단기실황)
-==================================================
-[성공] 기준 시각: 20260926 1800 (격자: nx=61, ny=125)
-- 기온(T1H): 24.3 ℃
-- 1시간 강수량(RN1): 0 mm
-- 강수 형태(PTY): 없음(맑음/흐림) (0)
-- 습도(REH): 59 %
-- 풍속(WSD): 0.8 m/s
-
-==================================================
-[2] 서울 버스 도착 정보 API 테스트
-==================================================
-
-[기능 1] get_arrival_by_route_all(busRouteId='100100118') 테스트:
->> 전체 104개 정류소 중 상위 3개 정류소 도착 현황:
-- [1] 구산동사거리(111000299): 1번째=출발대기 | 2번째=출발대기
-- [2] 한솔아파트입구.선정중학교후문(111000181): 1번째=출발대기 | 2번째=출발대기
-- [3] 갈현동미미아파트(111000182): 1번째=출발대기 | 2번째=출발대기
-
-[기능 2] get_low_bus_arrival_by_stid(stId='111000299') 테스트:
->> 저상버스 도착 정보 3건:
-- [753번] @ 구산동사거리: 출발대기 | 출발대기
-- [7613번] @ 구산동사거리: [차고지출발]  | 출발대기
-- [8774번] @ 구산동사거리: 8분11초후[5번째 전] | 52분54초후[34번째 전]
-
-==================================================
-[3] 서울 지하철 도착 정보 API 테스트 (역명: 강남)
-==================================================
-[성공] '강남'역 실시간 도착 정보 (5건):
-- [성수행 - 역삼방면] (일반) 현황: 전역 도착 (예정: 90초)
-- [신사행 - 신논현방면] (일반) 현황: 전역 진입 (예정: 0초)
-- [성수행 - 역삼방면] (일반) 현황: 7분 후 (예정: 420초)
-- [신사행 - 신논현방면] (일반) 현황: [4]번째 전역 (판교) (예정: 0초)
-- [광교행 - 양재방면] (일반) 현황: 전역 도착 (예정: 0초)
-```
+> 📖 **실측 터미널 출력 결과 및 트러블슈팅 가이드**: 상세 출력 예시와 공공 API 장애 해결 가이드는 [공공 API 및 백엔드 추론 연동 테스트 가이드](docs/API_TEST_GUIDE.md)를 참조하십시오.
 
 ### 3. 백엔드 AI 추론 서버 실행 및 검증 (FastAPI & ONNX)
 - **통합 검증 테스트 스위트 실행**:

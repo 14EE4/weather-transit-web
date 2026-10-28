@@ -19,7 +19,7 @@
    - [4.4 사후 처리 및 MCDA 의사결정 엔진](#44-사후-처리-및-mcda-의사결정-엔진)
 5. [데이터 흐름 및 시퀀스 다이어그램 (Data Flow & Sequence)](#5-데이터-흐름-및-시퀀스-다이어그램-data-flow--sequence)
    - [5.1 실시간 AI 최적 교통수단 추천 흐름](#51-실시간-ai-최적-교통수단-추천-흐름)
-   - [5.2 What-If 가상 기상 시뮬레이션 흐름](#52-what-if-가상-기상-시뮬레이션-흐름)
+   - [5.2 백엔드 가상 기상 시뮬레이션 흐름 (What-If Batch API)](#52-백엔드-가상-기상-시뮬레이션-흐름-what-if-batch-api)
    - [5.3 최소 환승 지하철 경로 검색 및 실시간 도착 흐름](#53-최소-환승-지하철-경로-검색-및-실시간-도착-흐름)
 6. [데이터 아키텍처 및 모델 규격](#6-데이터-아키텍처-및-모델-규격)
 7. [인프라, 런타임 및 배포 환경](#7-인프라-런타임-및-배포-환경)
@@ -57,7 +57,7 @@ flowchart TD
     end
     
     User -->|"브라우저 상호작용<br>대시보드 / 경로 검색 / 지도"| Frontend
-    Frontend -->|"REST API (JSON)<br>수요 예측 및 시뮬레이션 요청"| Backend
+    Frontend -->|"REST API (JSON)<br>수요 예측 및 실시간 분석 요청"| Backend
     Frontend -->|"실시간 도착 및 날씨 실황 조회"| ExternalServices
     Backend -->|"2025 빅데이터 기반<br>인메모리 AI 모델 추론"| Backend
 ```
@@ -123,7 +123,7 @@ flowchart TD
     subgraph S6 ["6. 프론트엔드 대시보드 시각화 (Presentation Layer)"]
         UI1["실시간 AI 추천 카드 및 시간대별 수요 차트"]
         UI2["인터랙티브 대중교통 지도 (TransitMap.tsx)<br>- MapLibre GL JS + OSM<br>- 561개 역/정류소/대여소 공간 렌더링"]
-        UI3["What-If 가상 날씨 시뮬레이터<br>(강수량 슬라이더 조작 시 20ms 즉각 반응)"]
+        UI3["실시간 기상 및 AI 추천 브리핑<br>(초단기실황 + 맞춤 추천 이유)"]
         MCDA --> UI1
         MCDA --> UI2
         MCDA --> UI3
@@ -141,7 +141,7 @@ flowchart TB
     subgraph PresentationLayer ["1. Presentation Layer (Client)"]
         UI_Dash["대시보드 뷰 (App.tsx)<br>- 날씨 현황 카드<br>- 시간대별 수요 차트<br>- 실시간 AI 추천 카드"]
         UI_Route["경로 추천 뷰<br>- 출발/도착역 자동완성<br>- 최소 환승 최적 경로<br>- 실시간 열차 도착 정보"]
-        UI_Map["인터랙티브 지도 (TransitMap.tsx)<br>- MapLibre GL JS + OSM<br>- 561개 역 충돌방지 마커<br>- 가상 강수량 시뮬레이터"]
+        UI_Map["인터랙티브 지도 (TransitMap.tsx)<br>- MapLibre GL JS + OSM<br>- 561개 역 충돌방지 마커<br>- 실시간 대중교통 현황 표출"]
         Logger["API 모니터링 로거 (apiLogger.ts)"]
     end
 
@@ -266,13 +266,15 @@ sequenceDiagram
 
 ---
 
-### 5.2 What-If 가상 기상 시뮬레이션 흐름
+### 5.2 백엔드 가상 기상 시뮬레이션 흐름 (What-If Batch API)
+
+> **안내**: 프론트엔드 일반 뷰는 기상청 실시간 API로 직결 구동되며, 본 흐름은 백엔드가 제공하는 25개 구 일괄 가상 기상 배치 시뮬레이션 엔드포인트(`POST /api/v1/simulate/weather-impact`)의 내부 동작 시퀀스입니다.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as 사용자
-    participant MapUI as 지도 탭 (TransitMap.tsx)
+    actor User as 클라이언트 / 관리자
+    participant MapUI as 클라이언트 앱
     participant API as FastAPI Server (main.py)
     participant ONNX as ONNX Runtime Engine
 

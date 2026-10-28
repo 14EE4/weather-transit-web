@@ -40,7 +40,7 @@ flowchart LR
         MemSessions --> SubONNX["지하철 수요 예측\n(lgb_subway_demand.onnx)"]
         BikeONNX & BusONNX & SubONNX --> MCDA["혼잡도 정규화 & MCDA 추천 스코어링\n(우천 시 모달 시프트 반영)"]
     end
-    MCDA -->|추천 랭킹, 혼잡도, latency_ms| Client
+    MCDA -->|"추천 랭킹, 혼잡도, latency_ms"| Client
 ```
 
 - **Cold Start 방지**: 서버 기동 시(`lifespan` 컨텍스트 매니저) 3개 ONNX 모델 세션을 인메모리에 사전 로드하고 더미 웜업(Warmup) 추론을 완료합니다.

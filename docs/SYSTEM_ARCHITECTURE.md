@@ -10,6 +10,7 @@
 ## 📌 목차
 1. [시스템 개요 및 목표](#1-시스템-개요-및-목표)
 2. [C4 컨텍스트 다이어그램 (System Context)](#2-c4-컨텍스트-다이어그램-system-context)
+   - [2.1 전체 프로젝트 엔드투엔드 파이프라인 플로우차트](#21-전체-프로젝트-엔드투엔드-파이프라인-플로우차트-end-to-end-pipeline)
 3. [전체 계층형 아키텍처 (Layered Architecture)](#3-전체-계층형-아키텍처-layered-architecture)
 4. [주요 컴포넌트 상세 설계](#4-주요-컴포넌트-상세-설계)
    - [4.1 프론트엔드 계층 (React Web App)](#41-프론트엔드-계층-react-web-app)
@@ -45,20 +46,88 @@ flowchart TD
     User["👤 대중교통 이용 시민 (End-User)"]
     
     subgraph WeatherTransitSystem ["🌤️ Weather & Transit Web Platform"]
-        Frontend["Web Frontend\n(React 18 + MapLibre GL)"]
-        Backend["AI Inference Backend\n(FastAPI + ONNX Runtime)"]
+        Frontend["Web Frontend<br>(React 18 + MapLibre GL)"]
+        Backend["AI Inference Backend<br>(FastAPI + ONNX Runtime)"]
     end
     
     subgraph ExternalServices ["🌐 외부 공공 데이터 플랫폼"]
-        KMA["기상청 API허브\n(초단기실황 getUltraSrtNcst)"]
-        SeoulAPI["서울 열린데이터광장\n(지하철 도착정보 realtimeStationArrival)"]
-        DataGoKr["공공데이터포털\n(서울 버스 도착정보 getArrInfoByRouteAll)"]
+        KMA["기상청 API허브<br>(초단기실황 getUltraSrtNcst)"]
+        SeoulAPI["서울 열린데이터광장<br>(지하철 도착정보 realtimeStationArrival)"]
+        DataGoKr["공공데이터포털<br>(서울 버스 도착정보 getArrInfoByRouteAll)"]
     end
     
-    User -->|브라우저 상호작용\n대시보드 / 경로 검색 / 지도| Frontend
-    Frontend -->|REST API (JSON)\n수요 예측 & 시뮬레이션 요청| Backend
-    Frontend -->|실시간 도착 및 날씨 실황 조회| ExternalServices
-    Backend -->|2025 빅데이터 기반\n인메모리 AI 모델 추론| Backend
+    User -->|"브라우저 상호작용<br>대시보드 / 경로 검색 / 지도"| Frontend
+    Frontend -->|"REST API (JSON)<br>수요 예측 및 시뮬레이션 요청"| Backend
+    Frontend -->|"실시간 도착 및 날씨 실황 조회"| ExternalServices
+    Backend -->|"2025 빅데이터 기반<br>인메모리 AI 모델 추론"| Backend
+```
+
+---
+
+## 2.1 전체 프로젝트 엔드투엔드 파이프라인 플로우차트 (End-to-End Pipeline)
+
+데이터 수집 및 전처리부터 AI 모델링(LightGBM + Optuna), ONNX 경량화 서빙, 백엔드 의사결정(MCDA), 프론트엔드 시각화까지의 전체 데이터 및 서비스 흐름입니다.
+
+```mermaid
+flowchart TD
+    %% 1. Raw Data & Collection
+    subgraph S1 ["1. 데이터 수집 및 원천 통합 (Data Engineering)"]
+        D1["서울시 25개 구 시간대별 교통량<br>(따릉이 대여 / 버스 승차 / 지하철 승하차)"]
+        D2["기상청 AWS 관측 데이터<br>(기온 / 강수량 / 풍속 / 습도)"]
+        D3["서울시 인프라 및 2025 공휴일<br>(지하철역 수 / 정류소 수 / 따릉이 거치대 / 19일 공휴일)"]
+        D1 --> DP["데이터 정제 및 전처리 (전처리_2.csv)<br>- 완전 그리드(209,875행) 정합<br>- 심야 운휴 0 대체 / 시계열 결측 보간"]
+        D2 --> DP
+        D3 --> DP
+    end
+
+    %% 2. Feature Engineering & Dataset Split
+    subgraph S2 ["2. 특성 공학 및 검증 분할 (Feature & Split)"]
+        FE["32차원 입력 피처 파이프라인 (SSoT)<br>• 캘린더 (8D): sin/cos 인코딩, 요일, 주말, 공휴일, 출퇴근<br>• 기상 (8D): 기온, 풍속, 습도, 강수량, 체감온도, 불쾌지수 등<br>• 공간/인프라 (5D): 구 코드, 역/정류소/거치대 수, 상업밀도<br>• 시계열/추세 (11D): 1h lag, 3h rolling, 전주 동요일, 증감률"]
+        DP --> FE
+        FE --> SP["시계열 순차 분할 (Temporal Split)<br>• Train: 01-01 ~ 09-30 (15.7만 행)<br>• Valid: 10-01 ~ 11-15 (2.6만 행)<br>• Test: 11-16 ~ 12-31 (2.6만 행)<br>※ 클린 테스트 셋: 11-01 ~ 11-27 (버스 결측 배제)"]
+    end
+
+    %% 3. Modeling & Optimization
+    subgraph S3 ["3. AI 모델 학습 및 하이퍼파라미터 최적화 (Modeling & Optuna)"]
+        M1["LightGBM Multi-Regressor<br>(GBDT 회귀)"]
+        OPT["Optuna 베이지안 하이퍼파라미터 튜닝<br>(learning_rate, num_leaves, max_depth,<br>subsample, colsample, reg_alpha/lambda)"]
+        ES["조기 종료 적용 (Early Stopping 50)<br>• BIKE: 834 트리 (R²=0.9873)<br>• BUS: 1390 트리 (R²=0.9901)<br>• SUBWAY: 865 트리 (R²=0.9951)"]
+        SP --> M1
+        M1 <--> OPT
+        OPT --> ES
+    end
+
+    %% 4. ONNX Compilation & Serving
+    subgraph S4 ["4. 모델 경량화 및 추론 서빙 (Serving & Backend)"]
+        ONNX["ONNX 경량화 변환<br>(float_input [None, 32], opset 14)<br>models/*.onnx (CPU 최적화)"]
+        ES --> ONNX
+        API["FastAPI 백엔드 엔진 (main.py)<br>- ONNX Runtime 인메모리 세션 (추론 1~3ms)<br>- timeseries_cache 시계열 캐싱<br>- 3중 피처 스키마 검증 (feature_schema.py)"]
+        ONNX --> API
+        MCDA["MCDA & AHP 최적 수단 추천 엔진<br>- 기상 쾌적성(57.1%) + 정시성(28.6%) + 혼잡도(14.3%)<br>- 모달 시프트 반영 (우천 시 따릉이 감점)"]
+        API --> MCDA
+    end
+
+    %% 5. Real-Time External Integration
+    subgraph S5 ["5. 실시간 외부 API 연동 (External Ingestion)"]
+        EXT1["기상청 API허브<br>(초단기 실황 날씨)"]
+        EXT2["서울 열린데이터광장<br>(지하철 실시간 도착)"]
+        EXT3["공공데이터포털<br>(서울시 버스 도착)"]
+        EXT4["서울 열린데이터광장<br>(따릉이 실시간 대여소 잔여)"]
+        EXT1 --> API
+        EXT2 --> API
+        EXT3 --> API
+        EXT4 --> API
+    end
+
+    %% 6. Presentation Layer
+    subgraph S6 ["6. 프론트엔드 대시보드 시각화 (Presentation Layer)"]
+        UI1["실시간 AI 추천 카드 및 시간대별 수요 차트"]
+        UI2["인터랙티브 대중교통 지도 (TransitMap.tsx)<br>- MapLibre GL JS + OSM<br>- 561개 역/정류소/대여소 공간 렌더링"]
+        UI3["What-If 가상 날씨 시뮬레이터<br>(강수량 슬라이더 조작 시 20ms 즉각 반응)"]
+        MCDA --> UI1
+        MCDA --> UI2
+        MCDA --> UI3
+    end
 ```
 
 ---
@@ -70,16 +139,16 @@ flowchart TD
 ```mermaid
 flowchart TB
     subgraph PresentationLayer ["1. Presentation Layer (Client)"]
-        UI_Dash["대시보드 뷰 (App.tsx)\n- 날씨 현황 카드\n- 시간대별 수요 차트\n- 실시간 AI 추천 카드"]
-        UI_Route["경로 추천 뷰\n- 출발/도착역 자동완성\n- 최소 환승 최적 경로\n- 실시간 열차 도착 정보"]
-        UI_Map["인터랙티브 지도 (TransitMap.tsx)\n- MapLibre GL JS + OSM\n- 561개 역 충돌방지 마커\n- 가상 강수량 시뮬레이터"]
+        UI_Dash["대시보드 뷰 (App.tsx)<br>- 날씨 현황 카드<br>- 시간대별 수요 차트<br>- 실시간 AI 추천 카드"]
+        UI_Route["경로 추천 뷰<br>- 출발/도착역 자동완성<br>- 최소 환승 최적 경로<br>- 실시간 열차 도착 정보"]
+        UI_Map["인터랙티브 지도 (TransitMap.tsx)<br>- MapLibre GL JS + OSM<br>- 561개 역 충돌방지 마커<br>- 가상 강수량 시뮬레이터"]
         Logger["API 모니터링 로거 (apiLogger.ts)"]
     end
 
     subgraph APILayer ["2. API & Serving Layer (FastAPI)"]
         Router["FastAPI Application (main.py)"]
         CORS["CORS Middleware (allow_origins='*')"]
-        Schema["Pydantic Schemas (v2)\n(PredictionRequest, SimulationRequest 등)"]
+        Schema["Pydantic Schemas (v2)<br>(PredictionRequest, SimulationRequest 등)"]
         Lifespan["Lifecycle Manager (Cold-Start 방지 Warmup)"]
     end
 
@@ -111,7 +180,7 @@ flowchart TB
     ONNX_Engine --> LGB_Bike & LGB_Bus & LGB_Sub
     LGB_Bike & LGB_Bus & LGB_Sub -->|수요 예측량| Congestion
     Congestion --> MCDA --> XAI & ModalShift
-    XAI & ModalShift -->|응답 JSON (latency_ms 포함)| Router
+    XAI & ModalShift -->|"응답 JSON (latency_ms 포함)"| Router
     Router --> Logger
 ```
 

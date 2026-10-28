@@ -51,10 +51,10 @@ flowchart TD
         DataVol[("./data ➔ SQLite DB & 캐시 영속화")]
     end
 
-    User -->|정적 자산 요청 (HTML/CSS/JS)| Nginx
+    User -->|"정적 자산 요청 (HTML/CSS/JS)"| Nginx
     Nginx -->|정적 파일 서빙| SPA
-    User -->|API 요청 (/api/*, /health)| Nginx
-    Nginx -->|리버스 프록시 (내부망 http://backend:8000)| FastAPI
+    User -->|"API 요청 (/api/*, /health)"| Nginx
+    Nginx -->|"리버스 프록시 (내부망 http://backend:8000)"| FastAPI
 
     FastAPI --> ONNX
     FastAPI --> DB

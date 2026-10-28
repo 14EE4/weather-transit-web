@@ -252,6 +252,18 @@ def calculate_subway_fare(distance_km: float) -> Tuple[int, str]:
         )
 
 
+def format_duration_kr(mins: int) -> str:
+    """소요시간(분) 포맷팅: 60분 미만은 'X분', 60분 이상은 'X시간 Y분' (0분 제외) 표기"""
+    m = max(0, int(round(mins)))
+    if m < 60:
+        return f"{m}분"
+    hours = m // 60
+    rem = m % 60
+    if rem == 0:
+        return f"{hours}시간"
+    return f"{hours}시간 {rem}분"
+
+
 class MultimodalRouteState(TypedDict, total=False):
     from_query: str
     to_query: str
@@ -843,10 +855,11 @@ class MultimodalRoutingEngine:
                 )
 
         actual_stops = max(1, len(path_steps) - 1)
+        dur_str = format_duration_kr(est_minutes)
         summary = (
-            f"{s_name} ➔ {e_name} (환승 없음 [직통], {actual_stops}개 역 이동, 약 {est_minutes}분, {total_dist_km}km / {fare_krw:,}원)"
+            f"{s_name} ➔ {e_name} (환승 없음 [직통], {actual_stops}개 역 이동, 약 {dur_str}, {total_dist_km}km / {fare_krw:,}원)"
             if len(transfer_stations) == 0
-            else f"{s_name} ➔ {e_name} (환승 {len(transfer_stations)}회 [{', '.join(transfer_stations)}], {actual_stops}개 역 이동, 약 {est_minutes}분, {total_dist_km}km / {fare_krw:,}원)"
+            else f"{s_name} ➔ {e_name} (환승 {len(transfer_stations)}회 [{', '.join(transfer_stations)}], {actual_stops}개 역 이동, 약 {dur_str}, {total_dist_km}km / {fare_krw:,}원)"
         )
 
         return {
@@ -1818,6 +1831,7 @@ class MultimodalRoutingEngine:
             "badge_color": badge_color,
             "is_ai_recommended": is_ai_recommended,
             "total_minutes": total_minutes,
+            "formatted_duration": format_duration_kr(total_minutes),
             "total_fare_krw": total_fare_krw,
             "total_distance_km": total_distance_km,
             "transfer_count": transfer_count,
@@ -1842,7 +1856,7 @@ class MultimodalRoutingEngine:
             "departureTrain": departure_train,
             "transferTrains": transfer_trains,
             "fareBreakdown": base_subway_route.get("fareBreakdown", ""),
-            "summary": f"{title} · 약 {total_minutes}분 ({total_distance_km}km / {total_fare_krw:,}원)",
+            "summary": f"{title} · 약 {format_duration_kr(total_minutes)} ({total_distance_km}km / {total_fare_krw:,}원)",
             "path": compat_path,
         }
 

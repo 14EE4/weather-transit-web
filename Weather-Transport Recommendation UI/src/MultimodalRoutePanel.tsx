@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { SUBWAY_STATIONS } from './subwayData'
-import { MultimodalSegment, TransitRouteResult } from './subwayGraph'
+import { MultimodalSegment, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 
 const VALID_STATION_NAMES = new Set(
   SUBWAY_STATIONS.map(st => st.name)
@@ -622,10 +622,18 @@ export default function MultimodalRoutePanel({
 
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                     <div>
-                      <span style={{ fontSize: 20, fontWeight: 900, color: rt.badge_color || '#38BDF8', fontFamily: 'JetBrains Mono' }}>
-                        {rt.total_minutes}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginLeft: 2 }}>분</span>
+                      {rt.total_minutes < 60 ? (
+                        <>
+                          <span style={{ fontSize: 20, fontWeight: 900, color: rt.badge_color || '#38BDF8', fontFamily: 'JetBrains Mono' }}>
+                            {rt.total_minutes}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginLeft: 2 }}>분</span>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 16.5, fontWeight: 900, color: rt.badge_color || '#38BDF8', fontFamily: 'JetBrains Mono' }}>
+                          {formatDurationMinutes(rt.total_minutes)}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'JetBrains Mono' }}>
                       {rt.total_fare_krw.toLocaleString()}원 · {rt.total_distance_km}km
@@ -677,7 +685,7 @@ export default function MultimodalRoutePanel({
                     )}
                   </div>
                   <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)' }}>
-                    총 {selectedRoute.total_minutes}분 소요 · {selectedRoute.total_distance_km}km · 요금{' '}
+                    총 {formatDurationMinutes(selectedRoute.total_minutes)} 소요 · {selectedRoute.total_distance_km}km · 요금{' '}
                     {selectedRoute.total_fare_krw.toLocaleString()}원 · 환승 {selectedRoute.transfer_count}회 · 혼잡도{' '}
                     <span style={{ color: selectedRoute.crowd_color, fontWeight: 700 }}>
                       {selectedRoute.crowd_label}({selectedRoute.crowd_percent}%)
@@ -720,7 +728,7 @@ export default function MultimodalRoutePanel({
                   return (
                     <div
                       key={i}
-                      title={`${seg.label}: ${seg.minutes}분`}
+                      title={`${seg.label}: ${formatDurationMinutes(seg.minutes)}`}
                       style={{
                         flex: weight,
                         background: seg.color || '#38BDF8',
@@ -794,7 +802,7 @@ export default function MultimodalRoutePanel({
 
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>
-                        {seg.minutes}분
+                        {formatDurationMinutes(seg.minutes)}
                       </div>
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>
                         {seg.distance_km}km

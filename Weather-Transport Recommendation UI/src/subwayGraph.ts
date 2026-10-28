@@ -3093,6 +3093,19 @@ const VERIFIED_TRANSFER_HUB_TIMES: VerifiedStationTransfer[] = [
   { station: '왕십리역', lineA: '2호선', lineB: '5호선', walkMinutes: 3.5, distanceM: 220, transferType: '지하 환승통로' },
 ]
 
+export function formatDurationMinutes(mins: number): string {
+  const m = Math.max(0, Math.round(mins))
+  if (m < 60) {
+    return `${m}분`
+  }
+  const hours = Math.floor(m / 60)
+  const remainingMins = m % 60
+  if (remainingMins === 0) {
+    return `${hours}시간`
+  }
+  return `${hours}시간 ${remainingMins}분`
+}
+
 export function getStationTransferTime(station: string, lineA?: string | null, lineB?: string | null): { walkMinutes: number; distanceM: number; transferType: string } {
   const cleanSt = station.endsWith('역') ? station : `${station}역`
   for (const item of VERIFIED_TRANSFER_HUB_TIMES) {
@@ -3340,9 +3353,10 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
   }
   const estimatedMinutes = Math.max(2, Math.round((distanceKm / runSpeedKmh) * 60 + stationCount * dwellMin + totalTransferWalkWaitMin))
 
+  const timeDisplay = formatDurationMinutes(estimatedMinutes)
   const summary = transferCount === 0
-    ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
-    : `${startSt.name} ➔ ${endSt.name} (최소 환승: ${transferCount}회 [${transferStations.join(', ')}], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
+    ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${timeDisplay}, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
+    : `${startSt.name} ➔ ${endSt.name} (최소 환승: ${transferCount}회 [${transferStations.join(', ')}], ${stationCount}개 역 경유, 약 ${timeDisplay}, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
 
   return {
     from: startSt.name,

@@ -2,7 +2,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 import main
-from multimodal_router import multimodal_routing_engine
+from multimodal_router import format_duration_kr, multimodal_routing_engine
 
 
 class TestMultimodalRoutingEngine(unittest.TestCase):
@@ -254,6 +254,31 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         bus_seg = bus_segs[0]
         self.assertIn("실시간", bus_seg["live_badge"])
         self.assertIn("3분후", bus_seg["live_badge"])
+
+    def test_duration_formatting_and_candidate_payload(self):
+        """소요시간 포맷팅(60분 미만 -> X분, 60분 이상 -> X시간 Y분) 및 경로 후보 formatted_duration 필드 검증 (Issue #27)"""
+        # 단위 포맷팅 함수 검증
+        self.assertEqual(format_duration_kr(0), "0분")
+        self.assertEqual(format_duration_kr(45), "45분")
+        self.assertEqual(format_duration_kr(59), "59분")
+        self.assertEqual(format_duration_kr(60), "1시간")
+        self.assertEqual(format_duration_kr(75), "1시간 15분")
+        self.assertEqual(format_duration_kr(120), "2시간")
+        self.assertEqual(format_duration_kr(135), "2시간 15분")
+
+        # 멀티모달 검색 시 각 후보 경로의 summary 및 formatted_duration 필드 검증
+        res = multimodal_routing_engine.run_multimodal_search(
+            from_query="강남역",
+            to_query="서울역",
+            district="강남구",
+            hour=14,
+            weather_context={"temp": 18.0, "rain": 0.0, "humidity": 50.0, "wind": 2.0},
+        )
+        self.assertGreaterEqual(len(res["routes"]), 1)
+        for r in res["routes"]:
+            self.assertIn("formatted_duration", r)
+            self.assertIn("분", r["formatted_duration"])
+            self.assertIn(r["formatted_duration"], r["summary"])
 
 
 if __name__ == "__main__":

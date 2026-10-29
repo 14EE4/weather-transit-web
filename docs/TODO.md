@@ -86,6 +86,10 @@
   - 재검증 절차: `docker compose up -d --build` → `docker compose ps`(`backend` = `healthy`) → `GET /health`(스키마·차원 확인) → `docker compose logs backend`(`[schema]` 라인) → `python tests/test_feature_schema.py` · `python tests/test_inference.py` · `python tests/test_api.py`
   - 실패 시 확인 지점: `main.py` import 목록 ↔ `Dockerfile.backend` COPY 목록 · 스키마 탐색 경로(`--schema`/`FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`)
   - 참고: `docs/DOCKER_CONTAINERIZATION_PLAN.md` §5 Phase 4-5·4-6 · `docs/CHANGELOG.md` [2026-10-14] §3
+- [x] **백엔드 독립형 실시간 로그 확인 및 헬스체크 모니터링 대시보드 (`/health/dashboard`) 구축 (완료 · 2026-10-29 · 이슈 #53)**:
+  - 일반 사용자 화면과 완전 격리된 단독 웹 대시보드(`http://localhost:3100/health/dashboard`) 제공.
+  - 외부 공공 API 4종(기상청, 버스, 지하철, 따릉이) 헬스 및 서킷 브레이커 실시간 관제.
+  - 최근 `2,000건`의 실시간 서버 로그를 비차단 스레드 안전(`RLock`) 순환 버퍼에 캡처하여 1.5초 주기 실시간 터미널 스트리밍, 다차원 필터링 및 원클릭 캐시 비우기 지원.
 - [ ] 공공 API 서버 장애 시 자동 Fallback 서킷 브레이커 고도화
 - [ ] Redis 기반 분산 캐시 레이어 도입 (대규모 트래픽 대비)
 

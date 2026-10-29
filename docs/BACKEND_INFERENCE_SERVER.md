@@ -373,6 +373,75 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 
 ---
 
+### 7) 백엔드 독립형 실시간 모니터링 & 로그 대시보드 API
+
+일반 사용자 화면과 완전히 격리된 개발자/운영자 전용 엔드포인트 세트입니다:
+
+#### 7-1. 관리자 실시간 대시보드 웹페이지
+- **엔드포인트**: `GET /health/dashboard`
+- **반환 형식**: `text/html` (단일 경량 반응형 HTML)
+- **기능**: 공공 API 4종 상태 카드, 서킷 브레이커 실시간 관제, AI ONNX 엔진 상태, 시계열 캐시 통계 및 실시간 로그 스트리밍 콘솔 (1.5초 주기 자동 갱신, 로그 레벨/도메인 필터링, 키워드 검색, 원클릭 캐시 비우기)
+
+#### 7-2. 인메모리 순환 버퍼 로그 조회 API
+- **엔드포인트**: `GET /api/v1/admin/logs?since_id=100&level=INFO&domain=기상청&query=강남구&limit=200`
+- **목적**: 메모리 링 버퍼(`collections.deque(maxlen=2000)`)에 캡처된 최신 서버 로그 목록 필터링 조회.
+- **Query Parameters**:
+  - `since_id` (선택): 특정 시퀀스 번호 이후에 발생한 새 로그만 증분 조회 (스트리밍 최적화)
+  - `level` (선택): `ALL`, `INFO`, `WARN`, `ERROR`
+  - `domain` (선택): `기상청`, `지하철`, `버스`, `따릉이`, `LangGraph`, `AI추론`, `서킷브레이커`, `HTTP`, `시스템`
+  - `query` (선택): 메시지/로거 텍스트 검색어
+  - `limit` (기본 200, 최대 1000): 반환 건수
+- **Response Body**:
+```json
+[
+  {
+    "id": 105,
+    "timestamp": "2026-10-29 19:39:59",
+    "time": "19:39:59",
+    "level": "INFO",
+    "logger": "weather_transit_api",
+    "message": "[AI 머신러닝 엔진] 기상 및 시간대별 대중교통 이용 수요 추론 완료",
+    "domain": "AI추론"
+  }
+]
+```
+
+#### 7-3. 시스템 상태 및 서킷 브레이커 종합 조회 API
+- **엔드포인트**: `GET /api/v1/admin/status`
+- **Response Body**:
+```json
+{
+  "status": "ok",
+  "uptime": "1시간 24분 10초",
+  "models_loaded": true,
+  "feature_schema": { "status": "verified", "expected_dims": 32 },
+  "circuit_breakers": {
+    "kma_weather": { "name": "KMA_WEATHER", "state": "CLOSED", "failure_count": 0, "total_success": 42, "total_fallback": 0 },
+    "seoul_subway": { "name": "SEOUL_SUBWAY", "state": "CLOSED", "failure_count": 0, "total_success": 38, "total_fallback": 0 },
+    "seoul_bus": { "name": "SEOUL_BUS", "state": "CLOSED", "failure_count": 0, "total_success": 30, "total_fallback": 0 },
+    "seoul_bike": { "name": "SEOUL_BIKE", "state": "CLOSED", "failure_count": 0, "total_success": 25, "total_fallback": 0 }
+  },
+  "cache_stats": { "exists": true, "count": 184, "size_kb": 128.0, "path": "/app/data/timeseries_cache.db" },
+  "log_stats": { "total_logs": 250, "counts": { "INFO": 240, "WARNING": 10, "ERROR": 0 } },
+  "timestamp": "2026-10-29T19:40:00+09:00"
+}
+```
+
+#### 7-4. 시계열 및 인메모리 캐시 즉시 비우기 API
+- **엔드포인트**: `POST /api/v1/admin/cache/clear`
+- **목적**: SQLite 시계열 캐시(`timeseries_cache.db`) 및 백엔드 단기 인메모리 스냅샷을 즉시 삭제하여 외부 원천 API 강제 재호출 테스트 지원.
+- **Response Body**:
+```json
+{
+  "status": "ok",
+  "message": "시계열 캐시 및 인메모리 스냅샷이 성공적으로 초기화되었습니다.",
+  "cleared_sqlite": true,
+  "timestamp": "2026-10-29T19:40:05+09:00"
+}
+```
+
+---
+
 ## 7. 구동 환경 설정 및 서버 실행 방법
 
 ### 1) 의존성 설치

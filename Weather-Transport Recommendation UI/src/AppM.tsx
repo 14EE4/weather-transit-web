@@ -13,8 +13,9 @@ import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
 import MultimodalRoutePanel from './MultimodalRoutePanel'
+import EnterpriseView from './EnterpriseView'
 
-type Page = 'main' | 'route' | 'map'
+type Page = 'main' | 'route' | 'map' | 'enterprise'
 
 type Theme = 'dark' | 'light'
 
@@ -1195,11 +1196,12 @@ export default function AppM() {
 
 
           {/* Nav tabs */}
-          <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+          <div style={{ display: 'flex', gap: 4, flex: 1, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
             {([
               { id: 'main', label: '날씨 현황', icon: '🏠' },
               { id: 'route', label: '경로 추천', icon: '🔍' },
               { id: 'map', label: '지도 보기', icon: '🗺' },
+              { id: 'enterprise', label: '기업용 관제', icon: '🏢' },
             ] as { id: Page; label: string; icon: string }[]).map(nav => (
               <button
                 key={nav.id}
@@ -2576,6 +2578,13 @@ export default function AppM() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          PAGE: 기업용 모빌리티 재배치 분석 (B2B)
+      ══════════════════════════════════════ */}
+      {page === 'enterprise' && (
+        <EnterpriseView apiBaseUrl={API_BASE_URL} />
       )}
 
       {/* ══════════════════════════════════════

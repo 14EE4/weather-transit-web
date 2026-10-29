@@ -22,9 +22,12 @@
 - [x] **[UI-04] 경로 추천 시간대 슬라이더 현재 시각 복귀 버튼 신설 (완료 · 2026-10-29 · 이슈 #59)**:
   - 경로 추천 탭(`activeTab === 'route'`)의 출발 시각 조절 슬라이더에 현재 시각이 아닐 때(`!isCurrentHour`) `🔄 현재 시각` 버튼 표출.
   - 클릭 시 `setSelectedHour(nowHour)`를 실행하여 실시간 현재 시각으로 즉시 재설정 가능하도록 편의성 강화.
-- [x] **[UI-05] 모바일 환경(`AppM.tsx`) 경로 추천 화면 렌더링 크래시 긴급 핫픽스 (완료 · 2026-10-29 · 이슈 #62)**:
+- [x] **[UI-05] 모바일 환경 경로 추천 크래시 핫픽스, 지도 가림 최적화 및 기업용 관제 탭 복구 (완료 · 2026-10-29 · 이슈 #62)**:
   - `AppM.tsx` 내 `MultimodalRoutePanel` 누락 import 추가로 런타임 `ReferenceError` 및 백지 현상 원천 해결.
   - 모바일 세로 1열 반응형 레이아웃(`maxWidth: 640px`, `padding: 16px 16px 80px`, `display: flex`, `flexDirection: column`)으로 전면 재구성.
+  - MapLibre GL JS `circle-stroke-color` WebGL paint CSS 변수(`var(--color-surface)`) 에러를 테마 감지 실측 색상으로 치환.
+  - 모바일 지도 뷰포트 오버레이 슬림화 (상단 날씨 1줄 알약화, 하단 긴 배지 숨김, 우측 하단 범례 `ℹ️` 토글화로 지도 가림 90% 이상 제거).
+  - 모바일 뷰에 `🏢 기업용 관제`(`enterprise`) 탭 및 `EnterpriseView` 연결 복구.
 ---
 
 ### 🛡️ 0-0. 운영 안정성 및 관제 신뢰도 고도화 (완료 · 2026-10-29 · 이슈 #57)

@@ -8,17 +8,25 @@
 
 ## [2026-10-29]
 
-### 📱 모바일 환경 경로 추천 화면 렌더링 크래시 핫픽스 (이슈 #62)
+### 📱 모바일 환경 경로 추천 크래시 핫픽스, 지도 가림 최적화 및 기업용 관제 탭 복구 (이슈 #62)
 - **배경**:
-  - 모바일 환경(화면 폭 768px 이하, `AppM.tsx` 실행)에서 '경로 추천' 탭(`page === 'route'`) 선택 시 화면 전체가 백지(Blank Page)로 멈추는 P0 Blocker 버그 발생.
-- **원인 분석**:
-  1. `Weather-Transport Recommendation UI/src/AppM.tsx` 상단에 `<MultimodalRoutePanel />` 컴포넌트의 `import` 구문이 누락되어, 경로 추천 탭 진입 시 `ReferenceError: MultimodalRoutePanel is not defined`가 발생하면서 React 컴포넌트 트리가 전체 언마운트됨.
-  2. 모바일 컴포넌트임에도 PC 전용 그리드 레이아웃(`gridTemplateColumns: '400px 1fr'`) 및 과도한 패딩(`32px 32px 64px`)이 적용되어 모바일 뷰포트 레이아웃 붕괴 유발.
+  - 모바일 환경(화면 폭 768px 이하, `AppM.tsx` 실행)에서 '경로 추천' 탭 진입 시 화면이 백지(Blank Page)로 멈추는 P0 Blocker 버그 발생.
+  - 브라우저 콘솔에서 `layers.live-bus-stations-circle.paint.circle-stroke-color: color expected, "var(--color-surface)" found` MapLibre WebGL 셰이더 에러 발생.
+  - 모바일 환경에서 'B2B 기업용 관제' 탭이 메뉴에서 누락되어 접근 불가.
+  - 모바일 '지도 보기' 탭에서 상단 날씨 박스, 하단 긴 안내 배지, 우측 하단 대형 범례 박스가 화면의 60% 이상을 가려 지도를 보기 어려운 UX 결함 발생.
 - **주요 조치**:
-  1. `AppM.tsx` 상단에 `import MultimodalRoutePanel from './MultimodalRoutePanel'` 명시 추가.
-  2. 모바일 환경에 최적화된 세로 1열 반응형 구조(`display: 'flex'`, `flexDirection: 'column'`, `gap: 16px`, `maxWidth: 640px`, `padding: '16px 16px 80px'`)로 레이아웃 재구성.
-  3. `npm run build` 검증 및 `docker compose build frontend; docker compose up -d frontend` 컨테이너 재빌드 완료.
-
+  1. **경로 추천 화면 런타임 크래시 해결 (`AppM.tsx`)**:
+     - 상단에 누락된 `import MultimodalRoutePanel from './MultimodalRoutePanel'`를 추가하여 `ReferenceError` 원천 제거.
+     - PC용 400px 고정 2열 그리드(`gridTemplateColumns: '400px 1fr'`)를 모바일 전용 1열 세로 반응형 구조(`flexDirection: 'column'`, `padding: 16px 16px 80px'`)로 전면 개편.
+  2. **MapLibre WebGL 스타일 파서 CSS 변수 검증 에러 해결 (`TransitMap.tsx`)**:
+     - `live-bus-stations-circle` 및 버스 노선 레이어의 `circle-stroke-color`에 전달되던 `var(--color-surface)` 문자열을 테마 감지 실측 색상(`isDark ? '#111D35' : '#FFFFFF'`)으로 치환하여 셰이더 검증 통과.
+  3. **모바일 지도 뷰포트 오버레이 슬림화 (지도 가림 90% 이상 제거)**:
+     - **상단 실시간 날씨**: 2줄 상세 카드에서 `🌧️ 14°C · 강수 0mm` 형태의 초소형 컴팩트 알약(Pill) 배지로 압축.
+     - **하단 긴 설명 배지**: 모바일 화면에서는 지도를 가리지 않도록 자동 숨김 처리.
+     - **우측 하단 혼잡도 범례**: 화면을 차지하던 대형 박스 대신 우측 하단 플로팅 `ℹ️ 범례` 버튼으로 개편하고, 클릭 시에만 팝오버로 확인할 수 있도록 토글화.
+  4. **모바일 B2B 기업용 관제 탭 복구 (`AppM.tsx`)**:
+     - `EnterpriseView` 컴포넌트 import 및 `Page` 타입에 `enterprise` 추가.
+     - 상단 네비게이션에 `🏢 기업용 관제` 탭 신설 및 터치 친화적 가로 스크롤(`overflowX: 'auto'`) 지원.
 
 ### 🕒 경로 추천 시간대 슬라이더 현재 시각 복귀 버튼 신설 (이슈 #59)
 - **배경**:

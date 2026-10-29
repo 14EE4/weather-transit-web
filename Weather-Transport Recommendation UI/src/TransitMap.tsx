@@ -304,6 +304,22 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const prevActiveRouteRef = useRef<any>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
+  const [showLegend, setShowLegend] = useState(false)
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const getMapThemeSurface = () => {
+    if (typeof document === 'undefined') return '#111D35'
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+    return isLight ? '#FFFFFF' : '#111D35'
+  }
   // 실시간 API로 불러온 거점 외 따릉이 대여소 (기존 마커 파이프라인에 합쳐 표시)
   const [liveBikeStops, setLiveBikeStops] = useState<TransitStop[]>([])
   const [zoomLevel, setZoomLevel] = useState<number>(13)
@@ -1028,7 +1044,7 @@ popupContent.append(title, number)
           18, 10
         ],
         'circle-color': '#34D399',
-        'circle-stroke-color': 'var(--color-surface)',
+        'circle-stroke-color': getMapThemeSurface(),
         'circle-stroke-width': 2,
         'circle-opacity': 0.95
       }
@@ -1397,7 +1413,7 @@ popupContent.append(title, number)
       paint: {
         'circle-radius': 5,
         'circle-color': '#FBBF24',
-        'circle-stroke-color': 'var(--color-surface)',
+        'circle-stroke-color': getMapThemeSurface(),
         'circle-stroke-width': 1.5
       }
     })
@@ -3091,107 +3107,178 @@ popupContent.append(title, number)
         </div>
       )}
 
-      {/* 실시간 기상청 실황 관측치 오버레이 */}
+      {/* 실시간 기상청 실황 관측치 오버레이 (모바일에서는 컴팩트 알약 배지화) */}
       <div style={{
         position: 'absolute',
-        top: 16,
-        right: 56, // 지도 컨트롤러 피해서 배치
+        top: isMobile ? 12 : 16,
+        right: isMobile ? 54 : 56, // 지도 컨트롤러 피해서 배치
         zIndex: 10,
         background: 'var(--app-glass)',
         backdropFilter: 'blur(12px)',
         border: '1px solid rgba(56, 189, 248, 0.35)',
-        borderRadius: 14,
-        padding: '10px 14px',
+        borderRadius: isMobile ? 20 : 14,
+        padding: isMobile ? '4px 10px' : '10px 14px',
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
+        gap: isMobile ? 6 : 12,
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
       }}>
-        <span style={{ fontSize: 24 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
+        <span style={{ fontSize: isMobile ? 14 : 24 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--app-text)' }}>
-            🟢 기상청 실시간 관측 실황 | {liveWeather ? `${liveWeather.temp}°C · ` : ''}{rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}
+          <div style={{ fontSize: isMobile ? 11 : 12, fontWeight: 700, color: 'var(--app-text)', whiteSpace: 'nowrap' }}>
+            {isMobile
+              ? `${liveWeather ? `${liveWeather.temp}°C · ` : ''}${rainMm > 0 ? `${rainMm.toFixed(1)}mm/h` : '맑음'}`
+              : `🟢 기상청 실시간 관측 실황 | ${liveWeather ? `${liveWeather.temp}°C · ` : ''}${rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}`}
           </div>
-          <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>{liveWeather ? `${liveWeather.district || '관측소'} (${liveWeather.base_time ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : selectedTime})` : '100% 공공데이터 실측 실황'}</span>
-            <span style={{ color: 'var(--app-text)' }}>·</span>
-            <span>OpenStreetMap + MapLibre GL</span>
-          </div>
+          {!isMobile && (
+            <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{liveWeather ? `${liveWeather.district || '관측소'} (${liveWeather.base_time ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : selectedTime})` : '100% 공공데이터 실측 실황'}</span>
+              <span style={{ color: 'var(--app-text)' }}>·</span>
+              <span>OpenStreetMap + MapLibre GL</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 줌 확대 안내 배지 / 경로 집중 모드 배지 */}
-      <div style={{
-        position: 'absolute',
-        bottom: 24,
-        left: 120,
-        zIndex: 10,
-        background: 'var(--app-glass)',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(56, 189, 248, 0.25)',
-        borderRadius: 10,
-        padding: '6px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        boxShadow: '0 4px 16px var(--color-card2)',
-        pointerEvents: 'none',
-      }}>
-        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.5 ? '🗺️' : '🔍')}</span>
-        <span style={{ fontSize: 11, color: 'var(--app-text)', fontWeight: 600 }}>
-          {activeRoute
-            ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
-            : (zoomLevel < 10.5
-                ? '광역 지도 (마커 숨김): 지도를 확대하면 주요 거점이 표시됩니다'
-                : (zoomLevel < 11.5
-                    ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
-                    : (zoomLevel < 13.5
-                        ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
-                        : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')))}
-        </span>
-      </div>
+      {/* 줌 확대 안내 배지 / 경로 집중 모드 배지 (모바일에서는 지도를 가리지 않도록 숨김) */}
+      {!isMobile && (
+        <div style={{
+          position: 'absolute',
+          bottom: 24,
+          left: 120,
+          zIndex: 10,
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: 10,
+          padding: '6px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          boxShadow: '0 4px 16px var(--color-card2)',
+          pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.5 ? '🗺️' : '🔍')}</span>
+          <span style={{ fontSize: 11, color: 'var(--app-text)', fontWeight: 600 }}>
+            {activeRoute
+              ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
+              : (zoomLevel < 10.5
+                  ? '광역 지도 (마커 숨김): 지도를 확대하면 주요 거점이 표시됩니다'
+                  : (zoomLevel < 11.5
+                      ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
+                      : (zoomLevel < 13.5
+                          ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
+                          : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')))}
+          </span>
+        </div>
+      )}
 
-      {/* 범례 */}
-      <div style={{
-        position: 'absolute',
-        bottom: 24,
-        right: 16,
-        zIndex: 10,
-        background: 'var(--app-glass)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 14,
-        padding: '10px 14px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-      }}>
-        <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
-          대중교통 인프라 & 혼잡도
+      {/* 범례 (모바일에서는 플로팅 토글 ℹ️ 버튼으로 전환하여 지도를 가리지 않음) */}
+      {isMobile ? (
+        <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 11 }}>
+          {showLegend && (
+            <div style={{
+              position: 'absolute',
+              bottom: 40,
+              right: 0,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              padding: '10px 14px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              minWidth: 170,
+              whiteSpace: 'nowrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', fontWeight: 700 }}>대중교통 인프라 & 혼잡도</span>
+                <button
+                  type="button"
+                  onClick={() => setShowLegend(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-muted)', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981' }} />
+                  <span style={{ fontSize: 10, color: 'var(--app-text)' }}>여유 (&lt; 45%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8' }} />
+                  <span style={{ fontSize: 10, color: 'var(--app-text)' }}>보통 (45% ~ 75%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F43F5E' }} />
+                  <span style={{ fontSize: 10, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowLegend(!showLegend)}
+            title="지도 혼잡도 범례 보기"
+            style={{
+              padding: '6px 10px',
+              borderRadius: 20,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--app-text)',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            }}
+          >
+            <span>ℹ️</span> 범례
+          </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
-            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>여유 (&lt; 45%)</span>
+      ) : (
+        <div style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 16,
+          zIndex: 10,
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 14,
+          padding: '10px 14px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
+            대중교통 인프라 & 혼잡도
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#38BDF8' }} />
-            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>보통 (45% ~ 75%)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F43F5E' }} />
-            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
-          </div>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid var(--color-surface)', boxShadow: '0 0 6px #38BDF8' }} />
-            <span style={{ fontSize: 10, color: 'var(--app-text)' }}>밀집 구간 정류소 (점 마커)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-            <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
-              🚇 561역 · 🚌 55개소 · 🚲 52개소
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
+              <span style={{ fontSize: 11, color: 'var(--app-text)' }}>여유 (&lt; 45%)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#38BDF8' }} />
+              <span style={{ fontSize: 11, color: 'var(--app-text)' }}>보통 (45% ~ 75%)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F43F5E' }} />
+              <span style={{ fontSize: 11, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
+            </div>
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid var(--color-surface)', boxShadow: '0 0 6px #38BDF8' }} />
+              <span style={{ fontSize: 10, color: 'var(--app-text)' }}>밀집 구간 정류소 (점 마커)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
+                🚇 561역 · 🚌 55개소 · 🚲 52개소
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

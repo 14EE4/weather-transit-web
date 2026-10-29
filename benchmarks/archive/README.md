@@ -20,3 +20,4 @@
 - **데이터셋**: 2023~2025 3개년 28열 통합 정제 데이터 (총 62.9만 행)
 - **차원 규격**: 32차원 고정 (`feature_schema.json` v2.1-multiyear-32d)
 - **평가 스크립트**: [`benchmarks/evaluate_models.py`](../evaluate_models.py)
+

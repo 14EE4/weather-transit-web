@@ -1435,62 +1435,30 @@ export default function AppM() {
             </div>
           </div>
 
-          {/* 기상청 실시간 관측 현황 바 (가상 시뮬레이션 완전 배제, 100% 실시간 공공 데이터) */}
-          <div
-            style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 20,
-              padding: '16px 24px',
-              marginBottom: 24,
-              boxShadow: '0 8px 32px var(--app-shadow)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-              {/* 실시간 관측 상태 및 지역 정보 (중복 수치 제거 및 심플화) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '5px 10px', borderRadius: 10,
-                  background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)'
-                }}>
-                  <span style={{ fontSize: 11 }}>🟢</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#34D399', fontFamily: 'JetBrains Mono' }}>
-                    기상청 실시간 연동
-                  </span>
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>
-                    {DISTRICTS[selectedDistrict] || '강남구 역삼동'} 실시간 관측
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginTop: 1 }}>
-                    {liveWeather ? `발표: ${liveWeather.base_date.slice(4, 6)}/${liveWeather.base_date.slice(6, 8)} ${liveWeather.base_time.slice(0, 2)}:00 | 격자 (${liveWeather.nx}, ${liveWeather.ny})` : '기상청 관측망 수신 대기 중...'}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{
-                padding: '4px 10px', borderRadius: 8,
-                background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
-                fontSize: 11, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 600,
-                whiteSpace: 'nowrap'
-              }}>
-                {isCurrentHour ? `현재 ${nowHour}시 실시간` : `${selectedHour}시 단기예보`}
-              </div>
-            </div>
-          </div>
-
-          {/* 모바일 세로 1열 카드 적층 */}
+          {/* 모바일 세로 1열 카드 적층 (날씨 통합 패널 + AI 교통수요 + 상관관계) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
 
-            {/* 날씨 카드 */}
+            {/* 날씨 통합 패널 (기상청 실시간 관측 + 핵심 기상 4종 + 관측망 통합) */}
             <div style={{ background: 'linear-gradient(135deg, var(--color-card) 0%, var(--weather-gradient-end) 100%)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
-                  날씨 데이터 · {DISTRICTS[selectedDistrict]}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '3px 8px', borderRadius: 8,
+                    background: isCurrentHour ? 'rgba(16,185,129,0.15)' : 'rgba(56,189,248,0.15)',
+                    border: isCurrentHour ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(56,189,248,0.4)',
+                  }}>
+                    <span style={{ fontSize: 10 }}>{isCurrentHour ? '🟢' : '🌦️'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: isCurrentHour ? '#34D399' : '#38BDF8', fontFamily: 'JetBrains Mono' }}>
+                      {isCurrentHour ? '기상청 실시간 관측' : `${selectedHour}시 단기예보`}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--app-text)' }}>
+                    {DISTRICTS[selectedDistrict] || '강남구 역삼동'}
+                  </span>
                 </div>
-                <span style={{ fontSize: 9, color: isCurrentHour ? '#34D399' : '#38BDF8', background: isCurrentHour ? 'rgba(16,185,129,0.15)' : 'rgba(56,189,248,0.15)', border: isCurrentHour ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(56,189,248,0.4)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
-                  {isCurrentHour ? `🟢 기상청 실시간 실황 ${liveWeather ? `(${liveWeather.base_time.slice(0, 2)}:00)` : ''}` : `🌦️ 기상청 단기예보 (${selectedHour}:00 예보)`}
+                <span style={{ fontSize: 9, color: isCurrentHour ? '#34D399' : '#38BDF8', background: isCurrentHour ? 'rgba(16,185,129,0.1)' : 'rgba(56,189,248,0.1)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
+                  {isCurrentHour ? `실황 ${liveWeather ? `${liveWeather.base_time.slice(0, 2)}:00` : ''}` : `${selectedHour}:00 예보`}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
@@ -1520,9 +1488,9 @@ export default function AppM() {
                 ))}
               </div>
               {liveWeather && (
-                <div style={{ marginTop: 14, fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--color-border)', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>KMA 격자 ({liveWeather.nx}, {liveWeather.ny})</span>
-                  <span>{liveWeather.base_date.slice(4, 6)}/{liveWeather.base_date.slice(6, 8)} {liveWeather.base_time.slice(0, 2)}:00 발표</span>
+                  <span>발표: {liveWeather.base_date.slice(4, 6)}/{liveWeather.base_date.slice(6, 8)} {liveWeather.base_time.slice(0, 2)}:00</span>
                 </div>
               )}
             </div>

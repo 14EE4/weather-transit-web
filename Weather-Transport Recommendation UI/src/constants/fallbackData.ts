@@ -148,3 +148,4 @@ export const FALLBACK_DISTRICT_DATA: DistrictCongestionItem[] = [
   { name: '잠실 롯데월드', bus: 55, subway: 94, bike: 31, weather: '☀️', temp: 18 },
   { name: '판교 테크노밸리', bus: 74, subway: 86, bike: 42, weather: '☀️', temp: 18 },
 ]
+

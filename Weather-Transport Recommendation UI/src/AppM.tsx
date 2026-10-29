@@ -1,4 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  DEFAULT_24H_DATA,
+  FALLBACK_TRANSPORT_SCORES as TRANSPORT_SCORES,
+  CORRELATION_DATA,
+  FALLBACK_DISTRICT_DATA as DISTRICT_DATA,
+  type HourlyTransitData
+} from './constants/fallbackData'
+import { TransportScoreSkeleton, DistrictCongestionSkeleton } from './components/SkeletonLoader'
 import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'

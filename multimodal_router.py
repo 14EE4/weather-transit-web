@@ -547,9 +547,11 @@ class MultimodalRoutingEngine:
             if str(header.get("headerCd", "")) != "0":
                 return []
 
-            items = data.get("msgBody", {}).get("itemList", [])
+            items = (data.get("msgBody") or {}).get("itemList") or []
             if isinstance(items, dict):
                 items = [items]
+            elif not isinstance(items, list):
+                items = []
 
             parsed_routes = []
             for it in items:

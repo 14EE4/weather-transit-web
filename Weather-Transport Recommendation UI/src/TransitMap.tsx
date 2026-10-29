@@ -212,7 +212,7 @@ async function loadBusArrivals(
   onSelectRoute?: (routeId: string, routeName: string, stationId: string) => void
 ) {
   container.textContent = '버스 도착정보 불러오는 중...'
-  container.style.color = '#94A3B8'
+  container.style.color = 'var(--color-muted)'
   container.style.fontSize = '12px'
 
   try {
@@ -270,13 +270,13 @@ async function loadBusArrivals(
       const firstArrival = document.createElement('div')
       firstArrival.textContent =
         `첫 번째: ${arrival.arrival_msg1 || '정보 없음'}`
-      firstArrival.style.color = '#F0F6FF'
+      firstArrival.style.color = 'var(--app-text)'
       firstArrival.style.marginTop = '6px'
 
       const secondArrival = document.createElement('div')
       secondArrival.textContent =
         `두 번째: ${arrival.arrival_msg2 || '정보 없음'}`
-      secondArrival.style.color = '#94A3B8'
+      secondArrival.style.color = 'var(--color-muted)'
       secondArrival.style.marginTop = '4px'
 
       row.append(route, firstArrival, secondArrival)
@@ -604,7 +604,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     Object.assign(el.style, {
       fontSize: '24px',
       cursor: 'pointer',
-      background: '#111D35',
+      background: 'var(--color-surface)',
       border: '2px solid #34D399',
       borderRadius: '50%',
       width: '42px',
@@ -618,7 +618,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
 
     Object.assign(popupContent.style, {
       padding: '10px 14px',
-      background: '#111D35',
+      background: 'var(--color-surface)',
       borderRadius: '10px',
       fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
       minWidth: '180px'
@@ -628,7 +628,7 @@ const title = document.createElement('strong')
 title.textContent = `🚌 ${selectedBusStation.name}`
 
 Object.assign(title.style, {
-  color: '#F0F6FF',
+  color: 'var(--app-text)',
   fontSize: '14px',
   fontWeight: '800'
 })
@@ -638,7 +638,7 @@ number.textContent = `정류장 번호: ${selectedBusStation.arsId}`
 
 Object.assign(number.style, {
   marginTop: '8px',
-  color: '#94A3B8',
+  color: 'var(--color-muted)',
   fontSize: '11px'
 })
 
@@ -1028,7 +1028,7 @@ popupContent.append(title, number)
           18, 10
         ],
         'circle-color': '#34D399',
-        'circle-stroke-color': '#FFFFFF',
+        'circle-stroke-color': 'var(--color-surface)',
         'circle-stroke-width': 2,
         'circle-opacity': 0.95
       }
@@ -1129,16 +1129,16 @@ popupContent.append(title, number)
 
       const content = document.createElement('div')
       content.style.padding = '10px'
-      content.style.background = '#111D35'
+      content.style.background = 'var(--color-surface)'
       content.style.borderRadius = '8px'
 
       const title = document.createElement('strong')
       title.textContent = `🚌 ${properties.name || '버스정류장'}`
-      title.style.color = '#F0F6FF'
+      title.style.color = 'var(--app-text)'
 
       const number = document.createElement('div')
       number.textContent = `정류장 번호: ${properties.arsId || '-'}`
-      number.style.color = '#94A3B8'
+      number.style.color = 'var(--color-muted)'
       number.style.marginTop = '7px'
 
       content.append(title, number)
@@ -1397,7 +1397,7 @@ popupContent.append(title, number)
       paint: {
         'circle-radius': 5,
         'circle-color': '#FBBF24',
-        'circle-stroke-color': '#111D35',
+        'circle-stroke-color': 'var(--color-surface)',
         'circle-stroke-width': 1.5
       }
     })
@@ -1409,16 +1409,16 @@ popupContent.append(title, number)
       const content = document.createElement('div')
       Object.assign(content.style, {
         padding: '10px 12px',
-        background: '#111D35',
+        background: 'var(--color-surface)',
         borderRadius: '8px',
-        color: '#F0F6FF',
+        color: 'var(--app-text)',
         fontSize: '12px'
       })
       const heading = document.createElement('strong')
       heading.textContent = `${props.sequence}번째 · ${props.name || '경유 정류장'}`
       const number = document.createElement('div')
       number.textContent = `정류장 번호: ${props.arsId || '-'}`
-      Object.assign(number.style, { marginTop: '6px', color: '#94A3B8' })
+      Object.assign(number.style, { marginTop: '6px', color: 'var(--color-muted)' })
       content.append(heading, number)
       new maplibregl.Popup({ offset: 10 })
         .setLngLat(feature.geometry.coordinates)
@@ -1539,8 +1539,8 @@ popupContent.append(title, number)
 
       const markerElement = document.createElement('div')
       Object.assign(markerElement.style, {
-        background: '#111D35', border: `2px solid ${color}`, borderRadius: '12px',
-        padding: '5px 8px', color: '#FFFFFF', display: 'flex', alignItems: 'center',
+        background: 'var(--color-surface)', border: `2px solid ${color}`, borderRadius: '12px',
+        padding: '5px 8px', color: 'var(--app-text)', display: 'flex', alignItems: 'center',
         gap: '5px', fontSize: '12px', fontWeight: '800', cursor: 'pointer',
         whiteSpace: 'nowrap', boxShadow: `0 2px 15px ${color}99`
       })
@@ -1554,7 +1554,7 @@ popupContent.append(title, number)
       markerElement.append(arrow, label)
 
       const popupContent = document.createElement('div')
-      popupContent.style.cssText = 'padding:10px;background:#111D35;color:#F0F6FF;border-radius:8px;font-size:12px;'
+      popupContent.style.cssText = 'padding:10px;background:var(--color-surface);color:var(--app-text);border-radius:8px;font-size:12px;'
       const heading = document.createElement('strong')
       heading.textContent = `${selectedBusRoute.name}번 · ${first ? '첫 번째' : '두 번째'} 도착 차량`
       const details = document.createElement('div')
@@ -1624,21 +1624,21 @@ popupContent.append(title, number)
         <!-- 1. 알약 마커 뷰 (이름 + 아이콘 + 혼잡도% 표시) -->
         <div class="marker-pill-view" style="display: flex; flex-direction: column; align-items: center;">
           <div class="marker-pill" style="
-            background: #111D35;
+            background: var(--color-surface);
             border: 2px solid ${color};
             border-radius: 9999px;
             padding: 3px 8px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 14px var(--app-shadow);
             display: flex;
             align-items: center;
             gap: 4px;
             transition: transform 0.15s ease, box-shadow 0.15s ease;
           ">
             <span style="font-size: 13px;">${typeIcon}</span>
-            <span style="font-size: 11px; font-weight: 700; color: #FFFFFF; white-space: nowrap;">${stop.name}</span>
+            <span style="font-size: 11px; font-weight: 700; color: var(--app-text); white-space: nowrap;">${stop.name}</span>
             <span class="marker-crowd-badge" style="
               background: ${color};
-              color: #FFFFFF;
+              color: var(--app-text);
               font-size: 9px;
               font-weight: 800;
               padding: 1px 5px;
@@ -1666,8 +1666,8 @@ popupContent.append(title, number)
             height: 10px;
             border-radius: 50%;
             background: ${color};
-            border: 2px solid #FFFFFF;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 0 10px ${color}bb;
+            border: 2px solid var(--color-surface);
+            box-shadow: 0 2px 8px var(--app-shadow), 0 0 10px ${color}bb;
             transition: transform 0.18s ease, box-shadow 0.18s ease;
           "></div>
         </div>
@@ -1682,7 +1682,7 @@ popupContent.append(title, number)
         if (dotView && dotView.style.display !== 'none') {
           if (dotCircle) {
             dotCircle.style.transform = 'scale(1.6)'
-            dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px rgba(0,0,0,0.8)`
+            dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px var(--app-shadow)`
           }
           el.style.zIndex = '5000'
         } else if (pill) {
@@ -1695,11 +1695,11 @@ popupContent.append(title, number)
       el.addEventListener('mouseleave', () => {
         if (dotCircle) {
           dotCircle.style.transform = 'scale(1)'
-          dotCircle.style.boxShadow = `0 2px 8px rgba(0,0,0,0.7), 0 0 10px ${color}bb`
+          dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${color}bb`
         }
         if (pill) {
           pill.style.transform = 'scale(1) translateY(0)'
-          pill.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)'
+          pill.style.boxShadow = '0 4px 14px var(--app-shadow)'
         }
         el.style.zIndex = '1'
       })
@@ -1748,7 +1748,7 @@ popupContent.append(title, number)
               <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
                 ⏳ 기상청 실시간 관측 및 AI 모델 추론 중...
               </div>
-              <div style="font-size: 9px; color: #94A3B8;">격자 매핑 및 32차원 ONNX 텐서 연산 진행</div>
+              <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 32차원 ONNX 텐서 연산 진행</div>
             </div>
           `
         } else if (weatherData) {
@@ -1766,26 +1766,26 @@ popupContent.append(title, number)
                 <span style="font-size: 10px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
                   <span>🌦️</span> ${wDistrict} 국지 기상 실황
                 </span>
-                <span style="font-size: 9px; color: #94A3B8; font-family: monospace;">
+                <span style="font-size: 9px; color: var(--color-muted); font-family: monospace;">
                   격자 (${wNx}, ${wNy})
                 </span>
               </div>
-              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; background: rgba(0,0,0,0.35); border-radius: 6px; padding: 4px 2px; margin-bottom: 5px;">
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; background: var(--color-card2); border-radius: 6px; padding: 4px 2px; margin-bottom: 5px;">
                 <div>
-                  <div style="font-size: 8px; color: #94A3B8;">기온</div>
-                  <div style="font-size: 11px; font-weight: 800; color: #F8FAFC; font-family: monospace;">${wTemp}°C</div>
+                  <div style="font-size: 8px; color: var(--color-muted);">기온</div>
+                  <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wTemp}°C</div>
                 </div>
                 <div>
-                  <div style="font-size: 8px; color: #94A3B8;">강수</div>
+                  <div style="font-size: 8px; color: var(--color-muted);">강수</div>
                   <div style="font-size: 11px; font-weight: 800; color: ${wRain > 0 ? '#60A5FA' : '#34D399'}; font-family: monospace;">${wRain}mm</div>
                 </div>
                 <div>
-                  <div style="font-size: 8px; color: #94A3B8;">습도</div>
-                  <div style="font-size: 11px; font-weight: 800; color: #F8FAFC; font-family: monospace;">${wHum}%</div>
+                  <div style="font-size: 8px; color: var(--color-muted);">습도</div>
+                  <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wHum}%</div>
                 </div>
                 <div>
-                  <div style="font-size: 8px; color: #94A3B8;">풍속</div>
-                  <div style="font-size: 11px; font-weight: 800; color: #F8FAFC; font-family: monospace;">${wWind}m/s</div>
+                  <div style="font-size: 8px; color: var(--color-muted);">풍속</div>
+                  <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wWind}m/s</div>
                 </div>
               </div>
               <div style="font-size: 9px; color: #BAE6FD; display: flex; align-items: center; justify-content: space-between;">
@@ -1796,7 +1796,7 @@ popupContent.append(title, number)
           `
         } else {
           weatherSection = `
-            <div style="font-size: 11px; color: #E2E8F0; background: rgba(255, 255, 255, 0.07); padding: 7px 9px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.45; margin-bottom: 7px;">
+            <div style="font-size: 11px; color: var(--app-text); background: rgba(255, 255, 255, 0.07); padding: 7px 9px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.45; margin-bottom: 7px;">
               ${rainMm > 0 
                 ? `🌧 강수(${rainMm.toFixed(1)}mm) 영향으로 ${stop.type === 'bike' ? '따릉이 이용 위험 및 급감' : '지하철·버스 환승 승객 증가'}` 
                 : '☀️ 맑은 날씨로 평시 이동 패턴 유지'}
@@ -1817,13 +1817,13 @@ popupContent.append(title, number)
                 </span>
               </div>
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">
-                <span style="color: #E2E8F0;">예측 혼잡도: <strong style="color: ${displayColor};">${displayCrowd}%</strong> (${displayLabel})</span>
-                <span style="color: #94A3B8; font-family: monospace;">시간당 ${rec.predicted_volume ? rec.predicted_volume.toLocaleString() : '1,200'}명</span>
+                <span style="color: var(--app-text);">예측 혼잡도: <strong style="color: ${displayColor};">${displayCrowd}%</strong> (${displayLabel})</span>
+                <span style="color: var(--color-muted); font-family: monospace;">시간당 ${rec.predicted_volume ? rec.predicted_volume.toLocaleString() : '1,200'}명</span>
               </div>
               <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 5px;">
                 <div style="width: ${displayCrowd}%; height: 100%; background: ${displayColor}; border-radius: 2px;"></div>
               </div>
-              <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: rgba(0,0,0,0.25); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
+              <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: var(--color-card2); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
                 ${rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석'}
               </div>
             </div>
@@ -1835,21 +1835,21 @@ popupContent.append(title, number)
         if (stop.type === 'subway') {
           if (isLoadingArrivals) {
             arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
                   <span style="font-size: 11px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
                     <span>🚇</span> 실시간 열차 도착
                   </span>
-                  <span style="font-size: 9px; color: #94A3B8;">수신 중...</span>
+                  <span style="font-size: 9px; color: var(--color-muted);">수신 중...</span>
                 </div>
-                <div style="font-size: 10px; color: #94A3B8; background: rgba(0,0,0,0.3); padding: 7px 9px; border-radius: 6px; text-align: center;">
+                <div style="font-size: 10px; color: var(--color-muted); background: var(--color-card2); padding: 7px 9px; border-radius: 6px; text-align: center;">
                   ⏳ 실시간 열차 운행 정보 조회 중...
                 </div>
               </div>
             `
           } else if (arrivalsList && arrivalsList.length > 0) {
             arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
                   <span style="font-size: 11px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
                     <span>🚇</span> 실시간 열차 도착
@@ -1860,23 +1860,23 @@ popupContent.append(title, number)
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
                   ${arrivalsList.slice(0, 8).map((arr: any) => `
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.35); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #38BDF8;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #38BDF8;">
                       <div style="min-width: 0; flex: 1; margin-right: 6px;">
                         <div style="display: flex; align-items: center; gap: 4px;">
                           <span style="background: rgba(56,189,248,0.22); color: #38BDF8; font-weight: 800; font-size: 9px; padding: 1px 4px; border-radius: 3px; white-space: nowrap;">
                             ${arr.line || '전철'}
                           </span>
-                          <span style="color: #F8FAFC; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                          <span style="color: var(--app-text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                             ${arr.destination ? arr.destination.split(' - ')[0] : '열차'}
                           </span>
                         </div>
-                        ${arr.updn_line ? `<div style="font-size: 9px; color: #94A3B8; margin-top: 1px;">${arr.updn_line} ${arr.destination && arr.destination.includes(' - ') ? `(${arr.destination.split(' - ')[1]})` : ''}</div>` : ''}
+                        ${arr.updn_line ? `<div style="font-size: 9px; color: var(--color-muted); margin-top: 1px;">${arr.updn_line} ${arr.destination && arr.destination.includes(' - ') ? `(${arr.destination.split(' - ')[1]})` : ''}</div>` : ''}
                       </div>
                       <div style="text-align: right; flex-shrink: 0;">
                         <div style="color: #FCD34D; font-weight: 800; font-family: monospace; font-size: 10px;">
                           ${arr.message}
                         </div>
-                        ${arr.remaining_minutes > 0 ? `<div style="font-size: 9px; color: rgba(255,255,255,0.4); margin-top: 1px;">약 ${arr.remaining_minutes}분 후</div>` : ''}
+                        ${arr.remaining_minutes > 0 ? `<div style="font-size: 9px; color: var(--app-text); margin-top: 1px;">약 ${arr.remaining_minutes}분 후</div>` : ''}
                       </div>
                     </div>
                   `).join('')}
@@ -1885,23 +1885,23 @@ popupContent.append(title, number)
             `
           } else {
             arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 10px; color: #94A3B8; text-align: center; padding: 4px 0;">배차 간격 2~5분 정상 운행중</div>
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+                <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">배차 간격 2~5분 정상 운행중</div>
               </div>
             `
           }
         } else if (stop.type === 'bus') {
           if (isLoadingArrivals) {
             arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-                <div style="font-size: 10px; color: #94A3B8; background: rgba(0,0,0,0.3); padding: 7px 9px; border-radius: 6px; text-align: center;">
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+                <div style="font-size: 10px; color: var(--color-muted); background: var(--color-card2); padding: 7px 9px; border-radius: 6px; text-align: center;">
                   ⏳ 실시간 버스 도착 정보 수신 중...
                 </div>
               </div>
             `
           } else if (arrivalsList && arrivalsList.length > 0) {
             arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
                   <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
                     <span>🚌</span> 실시간 버스 도착
@@ -1916,7 +1916,7 @@ popupContent.append(title, number)
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                   ${arrivalsList.slice(0, 3).map((b: any) => `
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.35); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #34D399;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #34D399;">
                       <span style="color: #34D399; font-weight: 800;">${b.route_name || b.rtNm || '간선'}</span>
                       <span style="color: #FCD34D; font-weight: 700; font-family: monospace;">${b.arrival_msg1 || b.arrmsg1 || '운행중'}</span>
                     </div>
@@ -1934,7 +1934,7 @@ popupContent.append(title, number)
             ? liveBike.availableBikes
             : (rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65))))
           arrivalSection = `
-            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
                 <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
                   <span>🚲</span> 따릉이 실시간 거치 현황
@@ -1943,8 +1943,8 @@ popupContent.append(title, number)
                   ${liveBike ? '실시간 API' : (stop.stationNo ? `대여소 #${stop.stationNo} · 추정` : '거점 대여소 · 추정')}
                 </span>
               </div>
-              <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.35); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
-                <span style="color: #E2E8F0;">대여 가능 자전거</span>
+              <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
+                <span style="color: var(--app-text);">대여 가능 자전거</span>
                 <span style="color: #34D399; font-weight: 800; font-family: monospace;">${liveBike ? '' : '약 '}${availableBikes}대 / 총 ${rackTotal}대</span>
               </div>
               ${rainMm > 0 ? `
@@ -1962,14 +1962,14 @@ popupContent.append(title, number)
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
               <div style="display: flex; align-items: center; gap: 5px;">
                 <span style="font-size: 15px;">${typeIcon}</span>
-                <strong style="font-size: 14px; color: #F0F6FF; font-weight: 800;">${stop.name}</strong>
-                <span style="font-size: 9px; color: #94A3B8; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;">${resolvedDistrict}</span>
+                <strong style="font-size: 14px; color: var(--app-text); font-weight: 800;">${stop.name}</strong>
+                <span style="font-size: 9px; color: var(--color-muted); background: var(--color-card); padding: 1px 5px; border-radius: 4px;">${resolvedDistrict}</span>
               </div>
-              <span style="font-size: 10px; font-weight: 800; color: #FFFFFF; background: ${displayColor}; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">
+              <span style="font-size: 10px; font-weight: 800; color: var(--app-text); background: ${displayColor}; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">
                 ${displayLabel} (${displayCrowd}%)
               </span>
             </div>
-            <div style="font-size: 11px; color: #94A3B8; margin-bottom: 6px; font-family: monospace;">${stop.lineInfo}</div>
+            <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 6px; font-family: monospace;">${stop.lineInfo}</div>
             ${weatherSection}
             ${aiSection}
             ${arrivalSection}
@@ -2467,13 +2467,13 @@ popupContent.append(title, number)
     startEl.innerHTML = `
       <div style="
         background: #10B981;
-        color: #FFFFFF;
+        color: var(--app-text);
         font-weight: 800;
         font-size: 11px;
         padding: 5px 12px;
         border-radius: 9999px;
         box-shadow: 0 4px 18px rgba(16,185,129,0.65);
-        border: 2px solid #FFFFFF;
+        border: 2px solid var(--color-surface);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -2483,7 +2483,7 @@ popupContent.append(title, number)
         <div style="display: flex; align-items: center; gap: 5px;">
           <span>🟢 출발</span>
           <span>${activeRoute.from}</span>
-          ${depTrain ? `<span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${depTrain.line}</span>` : ''}
+          ${depTrain ? `<span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${depTrain.line}</span>` : ''}
           <span style="background: rgba(0,0,0,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${startCrowd}%</span>
         </div>
         ${depTrain ? `
@@ -2666,13 +2666,13 @@ popupContent.append(title, number)
         trEl.innerHTML = `
           <div style="
             background: #D97706;
-            color: #FFFFFF;
+            color: var(--app-text);
             font-weight: 800;
             font-size: 11px;
             padding: 5px 12px;
             border-radius: 9999px;
             box-shadow: 0 4px 18px rgba(217,119,6,0.65);
-            border: 2px solid #FFFFFF;
+            border: 2px solid var(--color-surface);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -2682,7 +2682,7 @@ popupContent.append(title, number)
             <div style="display: flex; align-items: center; gap: 5px;">
               <span>🔄 환승</span>
               <span>${tr.station}</span>
-              <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${tr.line}</span>
+              <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${tr.line}</span>
               <span style="background: rgba(0,0,0,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${trCrowd}%</span>
             </div>
             <div style="font-size: 10px; color: #FEF3C7; font-weight: 700; display: flex; align-items: center; gap: 4px;">
@@ -2735,7 +2735,6 @@ popupContent.append(title, number)
     endEl.style.flexDirection = 'column'
     endEl.style.alignItems = 'center'
     endEl.style.cursor = 'pointer'
-
     if (mergedBikeDrop) {
       // 도착지와 따릉이 반납소가 겹칠 경우: 유려한 그라디언트 일체형 캡슐 알약으로 통합!
       endEl.innerHTML = `
@@ -2747,7 +2746,7 @@ popupContent.append(title, number)
           padding: 5px 12px;
           border-radius: 9999px;
           box-shadow: 0 4px 18px rgba(225,29,72,0.65);
-          border: 2px solid #FFFFFF;
+          border: 2px solid var(--color-surface);
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -2757,7 +2756,7 @@ popupContent.append(title, number)
           <div style="display: flex; align-items: center; gap: 5px;">
             <span>🏁 도착</span>
             <span>${activeRoute.to}</span>
-            <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+            <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
           </div>
           <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
             <span>🚲 따릉이 반납:</span>
@@ -2770,13 +2769,13 @@ popupContent.append(title, number)
       endEl.innerHTML = `
         <div style="
           background: #F43F5E;
-          color: #FFFFFF;
+          color: var(--app-text);
           font-weight: 800;
           font-size: 11px;
           padding: 4px 10px;
           border-radius: 9999px;
           box-shadow: 0 4px 18px rgba(244,63,94,0.6);
-          border: 2px solid #FFFFFF;
+          border: 2px solid var(--color-surface);
           display: flex;
           align-items: center;
           gap: 5px;
@@ -2784,7 +2783,7 @@ popupContent.append(title, number)
         ">
           <span>🔴 도착</span>
           <span>${activeRoute.to}</span>
-          <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+          <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
         </div>
         <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
       `
@@ -2878,7 +2877,7 @@ popupContent.append(title, number)
         zIndex: 10,
         display: 'flex',
         gap: 6,
-        background: 'rgba(17, 29, 53, 0.88)',
+        background: 'var(--app-glass)',
         backdropFilter: 'blur(10px)',
         padding: '6px 8px',
         borderRadius: 12,
@@ -2886,25 +2885,25 @@ popupContent.append(title, number)
       }}>
         <button
           onClick={() => flyToArea([127.0276, 37.4979], 14)}
-          style={{ background: 'rgba(56,189,248,0.15)', border: 'none', color: '#F0F6FF', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          style={{ background: 'rgba(56,189,248,0.15)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
         >
           📍 강남·역삼
         </button>
         <button
           onClick={() => flyToArea([127.0950, 37.5120], 14)}
-          style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#F0F6FF', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
         >
           📍 잠실·송파
         </button>
         <button
           onClick={() => flyToArea([126.9242, 37.5219], 14)}
-          style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#F0F6FF', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
         >
           📍 여의도
         </button>
         <button
           onClick={() => flyToArea([126.9750, 37.5580], 14)}
-          style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#F0F6FF', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
         >
           📍 서울역·도심
         </button>
@@ -2924,31 +2923,31 @@ popupContent.append(title, number)
             <button
               type="button"
               onClick={() => setSelectedBusRoute(null)}
-              style={{ background: 'rgba(255,255,255,0.1)', color: '#F0F6FF', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
+              style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--app-text)', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
             >닫기 ✕</button>
           </div>
-          <div style={{ color: '#94A3B8', fontSize: 11, marginTop: 6, marginBottom: 8 }}>
+          <div style={{ color: 'var(--color-muted)', fontSize: 11, marginTop: 6, marginBottom: 8 }}>
             {busRouteLoading ? '경유 정류장 불러오는 중...' :
               busRouteError || `${busRouteStations.length}개 경유 정류장 · 점과 선은 정류장 좌표 기반`}
           </div>
-          <div style={{ fontSize: 11, color: '#E2E8F0', marginBottom: 8, padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--app-text)', marginBottom: 8, padding: '8px', background: 'var(--app-text)', borderRadius: 8 }}>
             <div style={{ fontWeight: 700, color: '#34D399' }}>📍 선택 정류장 접근 차량 (최대 2대)</div>
-            {approachingBusLoading && <div style={{ marginTop: 5, color: '#94A3B8' }}>실시간 위치 갱신 중...</div>}
+            {approachingBusLoading && <div style={{ marginTop: 5, color: 'var(--color-muted)' }}>실시간 위치 갱신 중...</div>}
             {approachingBusError && <div style={{ marginTop: 5, color: '#FCA5A5' }}>{approachingBusError}</div>}
             {!approachingBusLoading && !approachingBusError && approachingBusVehicles.length === 0 && (
-              <div style={{ marginTop: 5, color: '#94A3B8' }}>{approachingBusMessage || '현재 접근 차량 위치가 없습니다.'}</div>
+              <div style={{ marginTop: 5, color: 'var(--color-muted)' }}>{approachingBusMessage || '현재 접근 차량 위치가 없습니다.'}</div>
             )}
             {approachingBusVehicles.map(vehicle => (
               <button
                 key={vehicle.vehicle_id}
                 type="button"
                 onClick={() => mapInstanceRef.current?.flyTo({ center: vehicle.coords, zoom: 15, pitch: DEFAULT_MAP_PITCH, duration: 700, essential: true })}
-                style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
+                style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--app-text)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
               >
                 {vehicle.arrival_order === 1 ? '🟢 첫차' : '🔵 다음 차'} · {vehicle.arrival_message || '도착정보 없음'}
               </button>
             ))}
-            <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 6 }}>30초마다 갱신 · ▲ 노선 진행 방향</div>
+            <div style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 6 }}>30초마다 갱신 · ▲ 노선 진행 방향</div>
           </div>
           {!busRouteLoading && busRouteStations.length > 0 && (
             <div style={{ overflowY: 'auto', minHeight: 0 }}>
@@ -2961,8 +2960,8 @@ popupContent.append(title, number)
                   })}
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
-                    background: 'transparent', color: '#E2E8F0', border: 0,
-                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    background: 'transparent', color: 'var(--app-text)', border: 0,
+                    borderBottom: '1px solid var(--color-border)',
                     padding: '7px 3px', fontSize: 11, cursor: 'pointer'
                   }}
                 >
@@ -2982,7 +2981,7 @@ popupContent.append(title, number)
           top: 68,
           left: 16,
           zIndex: 10,
-          background: 'rgba(17, 29, 53, 0.95)',
+          background: 'var(--app-glass)',
           backdropFilter: 'blur(14px)',
           border: '1px solid rgba(56, 189, 248, 0.45)',
           borderRadius: 14,
@@ -2997,12 +2996,12 @@ popupContent.append(title, number)
               <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
                 출발
               </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.from}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.from}</span>
               <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
               <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
                 도착
               </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#F0F6FF' }}>{activeRoute.to}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.to}</span>
             </div>
 
             <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
@@ -3023,7 +3022,7 @@ popupContent.append(title, number)
               <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
                 약 {activeRoute.estimatedMinutes}분
               </span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
                 ({activeRoute.stationCount}개 역)
               </span>
             </div>
@@ -3045,7 +3044,7 @@ popupContent.append(title, number)
                 style={{
                   background: 'rgba(255,255,255,0.08)',
                   border: 'none',
-                  color: 'rgba(255,255,255,0.7)',
+                  color: 'var(--app-text)',
                   borderRadius: 8,
                   padding: '4px 8px',
                   fontSize: 11,
@@ -3070,22 +3069,22 @@ popupContent.append(title, number)
             {activeRoute.departureTrain && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ color: '#34D399', fontWeight: 700 }}>🟢 {activeRoute.from}</span>
-                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>[{activeRoute.departureTrain.line}]</span>
+                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{activeRoute.departureTrain.line}]</span>
                 <span style={{ color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
                   {activeRoute.departureTrain.remainingMinutes}분 후 탑승
                 </span>
-                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
+                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
               </div>
             )}
             {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
               <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
+                <span style={{ color: 'var(--color-muted)' }}>•</span>
                 <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>
-                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>[{tr.line}]</span>
+                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{tr.line}]</span>
                 <span style={{ color: '#FBBF24', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
                   {tr.remainingMinutes}분 후 탑승
                 </span>
-                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>({tr.destinationOrNext} 방면)</span>
+                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({tr.destinationOrNext} 방면)</span>
               </div>
             ))}
           </div>
@@ -3098,7 +3097,7 @@ popupContent.append(title, number)
         top: 16,
         right: 56, // 지도 컨트롤러 피해서 배치
         zIndex: 10,
-        background: 'rgba(17, 29, 53, 0.94)',
+        background: 'var(--app-glass)',
         backdropFilter: 'blur(12px)',
         border: '1px solid rgba(56, 189, 248, 0.35)',
         borderRadius: 14,
@@ -3110,12 +3109,12 @@ popupContent.append(title, number)
       }}>
         <span style={{ fontSize: 24 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F6FF' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--app-text)' }}>
             🟢 기상청 실시간 관측 실황 | {liveWeather ? `${liveWeather.temp}°C · ` : ''}{rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}
           </div>
           <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>{liveWeather ? `${liveWeather.district || '관측소'} (${liveWeather.base_time ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : selectedTime})` : '100% 공공데이터 실측 실황'}</span>
-            <span style={{ color: 'rgba(255,255,255,0.3)' }}>·</span>
+            <span style={{ color: 'var(--app-text)' }}>·</span>
             <span>OpenStreetMap + MapLibre GL</span>
           </div>
         </div>
@@ -3127,7 +3126,7 @@ popupContent.append(title, number)
         bottom: 24,
         left: 120,
         zIndex: 10,
-        background: 'rgba(17, 29, 53, 0.88)',
+        background: 'var(--app-glass)',
         backdropFilter: 'blur(10px)',
         border: '1px solid rgba(56, 189, 248, 0.25)',
         borderRadius: 10,
@@ -3135,11 +3134,11 @@ popupContent.append(title, number)
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        boxShadow: '0 4px 16px var(--color-card2)',
         pointerEvents: 'none',
       }}>
         <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.5 ? '🗺️' : '🔍')}</span>
-        <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
+        <span style={{ fontSize: 11, color: 'var(--app-text)', fontWeight: 600 }}>
           {activeRoute
             ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
             : (zoomLevel < 10.5
@@ -3158,36 +3157,36 @@ popupContent.append(title, number)
         bottom: 24,
         right: 16,
         zIndex: 10,
-        background: 'rgba(17, 29, 53, 0.92)',
+        background: 'var(--app-glass)',
         backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        border: '1px solid var(--color-border)',
         borderRadius: 14,
         padding: '10px 14px',
         boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
       }}>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
+        <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
           대중교통 인프라 & 혼잡도
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
-            <span style={{ fontSize: 11, color: '#F0F6FF' }}>여유 (&lt; 45%)</span>
+            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>여유 (&lt; 45%)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#38BDF8' }} />
-            <span style={{ fontSize: 11, color: '#F0F6FF' }}>보통 (45% ~ 75%)</span>
+            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>보통 (45% ~ 75%)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F43F5E' }} />
-            <span style={{ fontSize: 11, color: '#F0F6FF' }}>혼잡 (&gt; 75%)</span>
+            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid #FFFFFF', boxShadow: '0 0 6px #38BDF8' }} />
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>밀집 구간 정류소 (점 마커)</span>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid var(--color-surface)', boxShadow: '0 0 6px #38BDF8' }} />
+            <span style={{ fontSize: 10, color: 'var(--app-text)' }}>밀집 구간 정류소 (점 마커)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono' }}>
+            <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
               🚇 561역 · 🚌 55개소 · 🚲 52개소
             </span>
           </div>

@@ -272,7 +272,7 @@ export default function MultimodalRoutePanel({
     return (
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(22, 32, 64, 0.92))',
+          background: 'linear-gradient(135deg, var(--color-card) 0%, var(--color-card2) 100%)',
           border: '1px dashed rgba(56, 189, 248, 0.3)',
           borderRadius: 20,
           padding: compact ? 16 : 20,
@@ -302,10 +302,10 @@ export default function MultimodalRoutePanel({
             🧠
           </div>
           <div>
-            <div style={{ fontSize: 13.5, fontWeight: 800, color: '#F0F6FF', marginBottom: 3 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--app-text)', marginBottom: 3 }}>
               LangGraph × FactChat LLM 멀티모달 통합 경로 탐색 대기 중
             </div>
-            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)' }}>
+            <div style={{ fontSize: 11.5, color: 'var(--color-muted)' }}>
               좌측에서 <b>출발지</b>와 <b>도착지</b>를 입력하면 현재 날씨({temp}°C · 강수 {rain}mm)에 맞춘{' '}
               <b>지하철 + 버스 + 따릉이(First-Mile)</b> 복합 경로와 AI 브리핑이 표시됩니다.
             </div>
@@ -365,10 +365,10 @@ export default function MultimodalRoutePanel({
               }}
             />
             <div>
-              <div style={{ fontSize: 13.5, fontWeight: 800, color: '#F0F6FF', marginBottom: 2 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--app-text)', marginBottom: 2 }}>
                 ⏳ 경로 탐색 로딩 중... ({cleanFrom} ➔ {cleanTo})
               </div>
-              <div style={{ fontSize: 11, color: '#BAE6FD' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-primary)' }}>
                 LangGraph 에이전트가 기상 게이트 판정 · 지하철/버스/따릉이 복합 탐색 · FactChat AI 브리핑을 생성하고 있습니다.
               </div>
             </div>
@@ -398,12 +398,12 @@ export default function MultimodalRoutePanel({
       {/* ── 1. LangGraph × FactChat LLM 브리핑 헤더 카드 ── */}
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(22, 32, 64, 0.96))',
+          background: 'linear-gradient(135deg, var(--color-card) 0%, var(--color-card2) 100%)',
           border: `1px solid ${bikeEnabled ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.38)'}`,
           borderRadius: 20,
           padding: compact ? 16 : 20,
           marginBottom: 16,
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
+          boxShadow: '0 10px 30px var(--app-shadow)',
         }}
       >
         {/* 상단 상태 배지 바 */}
@@ -471,9 +471,9 @@ export default function MultimodalRoutePanel({
                 fontSize: 10,
                 padding: '2px 8px',
                 borderRadius: 6,
-                background: 'rgba(255,255,255,0.06)',
+                background: 'var(--color-card2)',
                 border: '1px solid rgba(255,255,255,0.12)',
-                color: 'rgba(255,255,255,0.65)',
+                color: 'var(--color-muted)',
                 cursor: 'pointer',
                 fontFamily: 'JetBrains Mono',
               }}
@@ -484,15 +484,15 @@ export default function MultimodalRoutePanel({
         </div>
 
         {/* 브리핑 본문 */}
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#F0F6FF', marginBottom: 6 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--app-text)', marginBottom: 6 }}>
           {briefing?.headline || '🤖 FactChat LLM × LangGraph 멀티모달 경로 브리핑'}
         </div>
         <div
           style={{
             fontSize: 12.5,
             lineHeight: 1.6,
-            color: '#E2E8F0',
-            background: 'rgba(0, 0, 0, 0.28)',
+            color: 'var(--app-text)',
+            background: 'var(--color-card2)',
             borderRadius: 12,
             padding: '10px 14px',
             borderLeft: `3px solid ${bikeEnabled ? '#10B981' : '#38BDF8'}`,
@@ -519,7 +519,7 @@ export default function MultimodalRoutePanel({
             style={{
               marginTop: 12,
               paddingTop: 12,
-              borderTop: '1px solid rgba(255,255,255,0.08)',
+              borderTop: '1px solid var(--color-border)',
               display: 'grid',
               gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)',
               gap: 8,
@@ -529,8 +529,8 @@ export default function MultimodalRoutePanel({
               <div
                 key={t.step}
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--color-card2)',
+                  border: '1px solid var(--color-border)',
                   borderRadius: 10,
                   padding: '8px 10px',
                 }}
@@ -543,7 +543,7 @@ export default function MultimodalRoutePanel({
                     {t.latency_ms}ms
                   </span>
                 </div>
-                <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>
+                <div style={{ fontSize: 10.5, color: 'var(--color-muted)', lineHeight: 1.4 }}>
                   {t.detail}
                 </div>
               </div>
@@ -563,7 +563,7 @@ export default function MultimodalRoutePanel({
               marginBottom: 10,
             }}
           >
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.05em' }}>
               MULTIMODAL ROUTE CANDIDATES ({cleanFrom} ➔ {cleanTo})
             </div>
             <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>
@@ -590,10 +590,10 @@ export default function MultimodalRoutePanel({
                     cursor: 'pointer',
                     borderRadius: 16,
                     padding: '12px 14px',
-                    background: isSelected ? 'rgba(56, 189, 248, 0.13)' : '#162040',
+                    background: isSelected ? 'var(--color-primary-dim)' : 'var(--color-card)',
                     border: isSelected
                       ? `1.5px solid ${rt.badge_color || '#38BDF8'}`
-                      : '1px solid rgba(255,255,255,0.08)',
+                      : '1px solid var(--color-border)',
                     transition: 'all 0.15s ease',
                   }}
                 >
@@ -616,7 +616,7 @@ export default function MultimodalRoutePanel({
                     </span>
                   </div>
 
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#F0F6FF', marginBottom: 6, lineHeight: 1.3 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--app-text)', marginBottom: 6, lineHeight: 1.3 }}>
                     {rt.title}
                   </div>
 
@@ -627,7 +627,7 @@ export default function MultimodalRoutePanel({
                           <span style={{ fontSize: 20, fontWeight: 900, color: rt.badge_color || '#38BDF8', fontFamily: 'JetBrains Mono' }}>
                             {rt.total_minutes}
                           </span>
-                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginLeft: 2 }}>분</span>
+                          <span style={{ fontSize: 11, color: 'var(--color-muted)', marginLeft: 2 }}>분</span>
                         </>
                       ) : (
                         <span style={{ fontSize: 16.5, fontWeight: 900, color: rt.badge_color || '#38BDF8', fontFamily: 'JetBrains Mono' }}>
@@ -635,7 +635,7 @@ export default function MultimodalRoutePanel({
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'JetBrains Mono' }}>
+                    <div style={{ fontSize: 10.5, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
                       {rt.total_fare_krw.toLocaleString()}원 · {rt.total_distance_km}km
                     </div>
                   </div>
@@ -648,7 +648,7 @@ export default function MultimodalRoutePanel({
           {selectedRoute && (
             <div
               style={{
-                background: '#162040',
+                background: 'var(--color-card)',
                 border: `1px solid ${selectedRoute.badge_color || '#38BDF8'}44`,
                 borderRadius: 20,
                 padding: compact ? 16 : 20,
@@ -666,7 +666,7 @@ export default function MultimodalRoutePanel({
               >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: '#F0F6FF' }}>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--app-text)' }}>
                       {selectedRoute.title}
                     </span>
                     {selectedRoute.is_ai_recommended && (
@@ -684,7 +684,7 @@ export default function MultimodalRoutePanel({
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)' }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--color-muted)' }}>
                     총 {formatDurationMinutes(selectedRoute.total_minutes)} 소요 · {selectedRoute.total_distance_km}km · 요금{' '}
                     {selectedRoute.total_fare_krw.toLocaleString()}원 · 환승 {selectedRoute.transfer_count}회 · 혼잡도{' '}
                     <span style={{ color: selectedRoute.crowd_color, fontWeight: 700 }}>
@@ -718,7 +718,7 @@ export default function MultimodalRoutePanel({
                   height: 10,
                   borderRadius: 999,
                   overflow: 'hidden',
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'var(--color-card2)',
                   marginBottom: 16,
                   gap: 2,
                 }}
@@ -751,7 +751,7 @@ export default function MultimodalRoutePanel({
                       gap: 12,
                       padding: '10px 14px',
                       borderRadius: 12,
-                      background: 'rgba(0, 0, 0, 0.25)',
+                      background: 'var(--color-card2)',
                       borderLeft: `4px solid ${seg.color || '#38BDF8'}`,
                     }}
                   >
@@ -788,7 +788,7 @@ export default function MultimodalRoutePanel({
                         <div
                           style={{
                             fontSize: 12,
-                            color: '#E2E8F0',
+                            color: 'var(--app-text)',
                             marginTop: 2,
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -801,10 +801,10 @@ export default function MultimodalRoutePanel({
                     </div>
 
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#F0F6FF', fontFamily: 'JetBrains Mono' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
                         {formatDurationMinutes(seg.minutes)}
                       </div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono' }}>
+                      <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
                         {seg.distance_km}km
                       </div>
                     </div>
@@ -823,7 +823,7 @@ export default function MultimodalRoutePanel({
                       borderRadius: 999,
                       background: 'rgba(56, 189, 248, 0.09)',
                       border: '1px solid rgba(56, 189, 248, 0.22)',
-                      color: '#BAE6FD',
+                      color: 'var(--color-primary)',
                     }}
                   >
                     {hl}

@@ -15,6 +15,23 @@
   - 지도 축소 시 버스/따릉이는 숨겨지나 지하철 주요 허브역(priority >= 250)은 점 마커로 남아있어, 광역 뷰(서울 전역 또는 수도권 원경)에서 점들끼리 서로 뭉쳐서 겹치는 현상 해결.
   - 초광역 뷰(`currentZoom < 10.5`)에서 메이저 역 점 마커도 완전히 숨김(`display: none`) 처리하여 축소 시 깨끗한 베이스 맵 제공.
   - 중간 광역 뷰(`10.5 <= currentZoom < 11.5`)에서 메이저 점 마커 간 충돌 박스(`dotBox` 12px) 검사를 적용하여 겹침 원천 제거 완료.
+- [x] **[UI-03] 다크 모드 및 화이트(라이트) 모드 테마 전환 및 전역 영속화 (완료 · 2026-10-29 · 이슈 #12)**:
+  - 다크/화이트 모드 원클릭 토글 버튼 탑재 (`Weather-Transport Recommendation UI/src/App.tsx`, `AppM.tsx`).
+  - 전역 CSS 변수 시스템(`src/index.css`) 구축 및 지도 팝업, 멀티모달 패널, 기업용 관제 뷰 전수 CSS 변수 정합화.
+  - `localStorage` 기반 테마 영속화로 새로고침 및 탭 전환 시에도 사용자 테마 100% 보존.
+- [x] **[UI-04] 경로 추천 시간대 슬라이더 현재 시각 복귀 버튼 신설 (완료 · 2026-10-29 · 이슈 #59)**:
+  - 경로 추천 탭(`activeTab === 'route'`)의 출발 시각 조절 슬라이더에 현재 시각이 아닐 때(`!isCurrentHour`) `🔄 현재 시각` 버튼 표출.
+  - 클릭 시 `setSelectedHour(nowHour)`를 실행하여 실시간 현재 시각으로 즉시 재설정 가능하도록 편의성 강화.
+---
+
+### 🛡️ 0-0. 운영 안정성 및 관제 신뢰도 고도화 (완료 · 2026-10-29 · 이슈 #57)
+- [x] **[STAB-01] 서울시 버스 API NoneType 응답 방어 및 서킷 브레이커 안정화 (완료 · 2026-10-29 · 이슈 #57)**:
+  - 서울시 저상버스 도착 API(`getLowArrInfoByStId`) 응답에서 `msgBody` 또는 `itemList`가 `null`일 때 `TypeError: 'NoneType' object is not subscriptable` 에러 발생 및 서킷 차단 버그 수정.
+  - `items = msg_body.get("itemList") or []` 및 타입 검증 보강, 운행 대기/0건 수신 시 서킷 정상(`record_success()`) 유지 처리 완료.
+- [x] **[STAB-02] 인메모리 로그 핸들러(`InMemoryLogHandler`) 중복 기록 원천 해소 (완료 · 2026-10-29 · 이슈 #57)**:
+  - 루트 로거와 자식 로거 동시 등록으로 인한 `propagate=True` 중복 호출을 루트 단일 등록 구조로 개편.
+  - 직전 시그니처(`timestamp, logger, message`) 기반 중복 필터링 안전장치 탑재로 `/health/dashboard` 관제 로그 스트리밍 무결성 확보.
+
 ---
 
 ### 📊 0-1. 데이터 엔지니어링 및 품질/신뢰도 고도화 5대 과제 (Backlog)

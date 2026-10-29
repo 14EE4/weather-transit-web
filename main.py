@@ -1183,7 +1183,7 @@ def get_score_meta(mode_id: str, score: int) -> tuple[str, str]:
             return "쾌적", "#10B981"
         elif score >= 35:
             return "주의", "#FB923C"
-        return "비추천", "#94A3B8"
+        return "비추천", "var(--color-muted)"
 
 def calculate_station_crowd(base: int, hour: int, rain: float, stop_type: str, station_name: str) -> int:
     """특정 지하철역/정류소의 시간대 첨두곡선, 기상 강수 민감도 및 고유 분산 반영 혼잡도 계산 (지도 마커와 100% 동기화)"""
@@ -2434,10 +2434,14 @@ async def get_bus_arrival(stId: str = "111000299", busRouteId: Optional[str] = N
                 if res.status_code == 200:
                     data = res.json()
                     msg_body = data.get("msgBody") or {}
-                    items = msg_body.get("itemList", [])
+                    items = msg_body.get("itemList") or []
                     if isinstance(items, dict):
                         items = [items]
+                    elif not isinstance(items, list):
+                        items = []
                     for item in items[:10]:
+                        if not isinstance(item, dict):
+                            continue
                         arrivals.append(
                             BusArrivalItem(
                                 route_name=item.get("rtNm", "간선/지선"),
@@ -2448,11 +2452,8 @@ async def get_bus_arrival(stId: str = "111000299", busRouteId: Optional[str] = N
                                 bus_route_id=item.get("busRouteId")
                             )
                         )
-                    if arrivals:
-                        call_success = True
-                        bus_circuit_breaker.record_success()
-                    else:
-                        bus_circuit_breaker.record_success()
+                    call_success = True
+                    bus_circuit_breaker.record_success()
                 else:
                     bus_circuit_breaker.record_failure(f"HTTP {res.status_code}")
         except Exception as e:

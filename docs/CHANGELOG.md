@@ -8,6 +8,55 @@
 
 ## [2026-10-29]
 
+### 🕒 경로 추천 시간대 슬라이더 현재 시각 복귀 버튼 신설 (이슈 #59)
+- **배경**:
+  - 경로 추천 탭(`activeTab === 'route'`)에서 출발 시각 및 날씨/혼잡도를 조절하는 시간대 슬라이더를 조작한 후, 실시간 현재 시각으로 빠르게 복귀할 수 있는 버튼이 없어 수동으로 슬라이더를 드래그해야 하는 UX 불편 개선 필요.
+- **주요 조치**:
+  1. **현재 시각 원클릭 복귀 버튼 추가 (`App.tsx`, `AppM.tsx`)**:
+     - 경로 추천 상단 날씨 배지 및 시간대 슬라이더(`🕒 출발 시각 HH:00`) 우측에 `!isCurrentHour` 조건부 `🔄 현재 시각` 버튼 신설.
+     - 클릭 시 `setSelectedHour(nowHour)`를 호출하여 원클릭으로 현재 시각으로 즉시 재설정.
+     - 다크/화이트 모드 테마 변수(`var(--color-primary)`, `color-mix(...)`)를 온전히 적용하여 시각적 가독성 및 UI 일관성 보장.
+  2. **프로덕션 빌드 및 Docker 컨테이너 패키징 검증**:
+     - `npm run build` 검증 완료 및 `docker compose build frontend; docker compose up -d frontend` 적용.
+
+
+
+### 🐛 서울시 버스 API NoneType 응답 방어 및 인메모리 로그 중복 출력 개선 (이슈 #57)
+- **배경**:
+  - 실시간 운영 환경 및 `/health/dashboard` 관제 로그 스트리밍에서 다음 2가지 결함이 발견됨:
+    1. 서울시 저상버스 도착 API(`getLowArrInfoByStId`) 호출 시, 운행 대기나 저상버스 미운행 정류소에 대해 공공데이터포털이 `{"msgBody": {"itemList": null}}`을 응답할 때 dict 슬라이싱(`items[:10]`)에서 `TypeError: 'NoneType' object is not subscriptable`이 발생하여 서킷 브레이커(`bus_circuit_breaker`)가 연속 실패 5회로 서킷을 OPEN 차단하는 결함.
+    2. 인메모리 로그 핸들러(`InMemoryLogHandler`)가 루트 로거와 자식 로거(`uvicorn`, `weather_transit_api`, `multimodal_router` 등)에 중복 등록되어 `propagate=True` 전파로 인해 모든 로그 라인이 2회씩 연속 중복 수집/출력되는 결함.
+- **주요 조치**:
+  1. **서울시 버스 도착 API `NoneType` 방어 처리 (`main.py`, `multimodal_router.py`)**:
+     - `items = msg_body.get("itemList") or []` 형태로 정규화하여 `itemList`가 `None`이어도 안전하게 빈 리스트(`[]`)로 치환.
+     - `isinstance(items, dict)` 및 `isinstance(items, list)` 검사를 추가하고, 리스트 내 개별 `item` 역시 딕셔너리 검사(`if not isinstance(item, dict): continue`)를 보강.
+     - 저상버스 운행 편수가 0건인 정상 응답(빈 리스트)에 대해 서킷 브레이커가 실패 카운트를 올리지 않고 정상(`record_success()`)으로 처리하여 서킷이 항상 `CLOSED` 상태를 유지하도록 개선.
+  2. **인메모리 로그 핸들러 중복 수집 원천 차단 (`in_memory_log_handler.py`)**:
+     - `attach_in_memory_log_handler()`에서 루트 로거(`logging.getLogger()`)에만 핸들러를 등록하고, 자식 로거(`uvicorn`, `uvicorn.access`, `uvicorn.error`, `weather_transit_api` 등)에는 중복 핸들러를 붙이지 않고 상위 전파(`propagate = True`)만 보장하도록 구조 개선.
+     - `InMemoryLogHandler.emit()` 메서드에 직전 시그니처(`timestamp_str, logger_name, message`) 기반 중복 필터링(Deduplication) 안전장치를 이중 구축.
+  3. **검증 및 Docker 반영**:
+     - `docker compose build backend; docker compose up -d backend` 컨테이너 재빌드.
+     - `/health` 서킷 브레이커 상태 확인(`seoul_bus: CLOSED`), 문제 정류소(`stId=123000600`) 실시간 호출 성공(HTTP 200, 정상 메시지 응답), `/api/v1/admin/logs`에서 로그 라인이 1건씩 중복 없이 정상 기록됨을 확인.
+
+
+### 🌓 다크 모드 및 화이트(라이트) 모드 테마 지원 & 전역 CSS 변수 정합화 (이슈 #12)
+- **배경**:
+  - 사용자 환경(주간 야외, 야간 실내 등) 및 시각적 편의성에 따라 화면 테마를 자유롭게 선택할 수 있도록 다크 모드와 화이트(라이트) 모드 전환 기능 지원 필요.
+  - 기존 다크 테마 기반 하드코딩된 UI 요소들(대시보드 카드, 시간대 슬라이더, 지도 팝업, LangGraph 멀티모달 패널, B2B 기업용 관제 뷰)을 반응형 CSS 변수로 정합화.
+- **주요 조치**:
+  1. **전역 디자인 토큰 및 CSS 테마 시스템 구축 (`src/index.css`)**:
+     - `html[data-theme="dark"]`: 심야/저조도 최적화 딥 네이비 배경(`--color-bg: #0A1628`), 서피스(`--color-surface: #111D35`), 카드(`--color-card: #162040`), 텍스트(`--app-text: #F0F6FF`).
+     - `html[data-theme="light"]`: 주간/가독성 최적화 클린 화이트/소프트 그레이 배경(`--color-bg: #F4F7FB`), 서피스/카드(`--color-surface: #FFFFFF`), 연한 보더(`--color-border: #D9E2EF`), 딥 네이비 텍스트(`--app-text: #172033`).
+     - MapLibre GL 팝업(`maplibregl-popup-content`), 입력창(`input`, `select`, `textarea`), 날씨 그라디언트 카드(`weather-gradient-*`)의 테마별 스타일 오버라이드.
+  2. **원클릭 테마 토글 버튼 탑재 및 상태 영속화 (`src/App.tsx`, `src/AppM.tsx`)**:
+     - 헤더 상단에 `☀️ 화이트 모드` / `🌙 다크 모드` 원클릭 토글 버튼 제공.
+     - **OS/기기 시스템 테마(`prefers-color-scheme`) 기본값 자동 감지**: 저장된 테마가 없는 첫 방문 시 사용자의 기기(OS/브라우저) 다크/라이트 설정에 맞춰 자동으로 기본 테마 결정 및 OS 테마 변경 실시간 동기화 리스너 탑재.
+     - `localStorage.getItem('weather-transit-theme')`를 통한 사용자 수동 선택 영속화 및 `index.html` 프리로더 스크립트로 첫 진입 시 흰 화면 깜빡임(FOUC) 원천 차단.
+  3. **신규 컴포넌트 CSS 변수 전수 정합화 (`src/MultimodalRoutePanel.tsx`, `src/EnterpriseView.tsx`)**:
+     - 메인 시간대별 기상 예보 & AI 교통 분석 슬라이더 카드(App.tsx, AppM.tsx), LangGraph 대기/브리핑 헤더 카드(MultimodalRoutePanel.tsx), 지도 내 LangGraph 구간 안내 박스 및 B2B 관제 테이블 내 하드코딩 색상(`#F0F6FF`, `#162040`, `rgba(255,255,255,...)` 등)을 `var(--app-text)`, `var(--color-card)`, `var(--color-card2)`, `var(--color-border)`, `var(--color-muted)`로 전면 치환하여 라이트 모드에서의 선명한 가독성 확보.
+  4. **프로덕션 빌드 및 Docker 컨테이너 패키징 검증**:
+     - `npm run build` 성공 검증 및 `docker compose build frontend` 컨테이너 재빌드 완료.
+
 ### 🚌 버스+지하철 복합 환승 경로 서울시 실시간 대중교통환승 API 연동 (이슈 #50 · ROUTING-02)
 - **배경**:
   - 기존 멀티모달 경로 탐색 엔진(`multimodal_router.py`)에서 버스+지하철 복합 환승 경로를 생성할 때, 출발지 인근 정류소에서 직선거리 기반의 가상 버스 노선(임의 번호 `143, 402`)과 임의의 평균 시속으로 소요시간을 추정하여 추천하던 한계를 개선.

@@ -940,9 +940,9 @@ class MultimodalRoutingEngine:
                         tr_info = self.get_station_transfer_info(curr, curr_line or "", nl or "")
                         tr_walk = float(tr_info.get("walk_minutes", 2.0))
                         next_cost = (
-                            next_transfers * 10000 + next_stops + line_pen
+                            next_transfers * 10000 + next_stops + (tr_walk * 1.5) + line_pen
                             if mode == "min_transfer"
-                            else next_stops * 2.0 + next_transfers * 2.0 + tr_walk + line_pen
+                            else next_stops * 2.0 + next_transfers * 2.0 + (tr_walk * 1.5) + line_pen
                         )
                         n_key = (nbr, nl or "")
                         if best_cost.get(n_key, 1e18) > next_cost:

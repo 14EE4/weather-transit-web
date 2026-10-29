@@ -12,7 +12,7 @@ from typing import Optional, Any
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from in_memory_log_handler import in_memory_log_handler, attach_in_memory_log_handler
@@ -3019,6 +3019,38 @@ async def get_approaching_bus_positions(bus_route_id: str, stId: str):
             if saved_at < expiry:
                 _bus_approaching_cache.pop(key, None)
     return payload
+
+# ─────────────────────────────────────────────
+# 서울시 대중교통(버스+지하철) 환승경로 실시간 조회 API (Issue #50)
+# ─────────────────────────────────────────────
+
+@app.get("/api/v1/transit/bus/transfer-path", tags=["Live Public APIs"])
+async def get_transit_transfer_path(
+    startX: float = Query(..., description="출발지 WGS84 경도 (126.0~128.0)"),
+    startY: float = Query(..., description="출발지 WGS84 위도 (37.0~38.0)"),
+    endX: float = Query(..., description="도착지 WGS84 경도 (126.0~128.0)"),
+    endY: float = Query(..., description="도착지 WGS84 위도 (37.0~38.0)"),
+):
+    """
+    공공데이터포털 서울시 대중교통환승경로 조회 서비스 (getPathInfoByBusNSub).
+    출발지 좌표와 도착지 좌표 간 실제 환승 가능한 버스-지하철 복합 경로 후보 목록 반환.
+    """
+    if not (126.0 <= startX <= 128.0 and 37.0 <= startY <= 38.0):
+        raise HTTPException(status_code=400, detail="유효한 출발지 좌표 범위(서울·수도권)를 입력해 주세요.")
+    if not (126.0 <= endX <= 128.0 and 37.0 <= endY <= 38.0):
+        raise HTTPException(status_code=400, detail="유효한 도착지 좌표 범위(서울·수도권)를 입력해 주세요.")
+
+    routes = multimodal_routing_engine.fetch_public_transit_transfer_routes(startX, startY, endX, endY)
+    return {
+        "status": "success",
+        "count": len(routes),
+        "startX": startX,
+        "startY": startY,
+        "endX": endX,
+        "endY": endY,
+        "routes": routes,
+        "source": "SEOUL_BUS_SUBWAY_TRANSFER_LIVE" if routes else "EMPTY_OR_UNAVAILABLE"
+    }
 
 # ─────────────────────────────────────────────
 # 서울시 따릉이(공공자전거) 실시간 대여소 API

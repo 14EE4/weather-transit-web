@@ -25,10 +25,17 @@ import math
 import os
 import re
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
 import requests
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 logger = logging.getLogger("weather-transit-backend.multimodal")
 
@@ -137,6 +144,38 @@ LINE_COLORS: Dict[str, str] = {
     "인천2호선": "#ED8B00",
     "GTX-A": "#9A6292",
 }
+
+
+
+
+def get_bus_line_color(route_name: str) -> str:
+    """서울시 버스 노선 유형별 표준 색상 반환 (간선: 파랑, 지선: 초록, 광역: 빨강, 순환: 노랑, 마을: 연두)"""
+    r_nm = str(route_name or "").strip()
+    if r_nm.startswith(("9", "M", "G", "P", "Y")) or "광역" in r_nm or "직행" in r_nm:
+        return "#EF4444"
+    prefix = r_nm.split("-")[0]
+    if len(prefix) >= 4 or "지선" in r_nm:
+        return "#10B981"
+    if r_nm.startswith("0") or "순환" in r_nm:
+        return "#F59E0B"
+    if "마을" in r_nm:
+        return "#84CC16"
+    return "#3B82F6"
+
+
+def get_bus_category_label(route_name: str) -> str:
+    """서울시 버스 노선 번호 기반 유형 라벨(간선/지선/광역/순환/마을) 반환"""
+    r_nm = str(route_name or "").strip()
+    if r_nm.startswith(("9", "M", "G", "P", "Y")) or "광역" in r_nm or "직행" in r_nm:
+        return "광역"
+    prefix = r_nm.split("-")[0]
+    if len(prefix) >= 4 or "지선" in r_nm:
+        return "지선"
+    if r_nm.startswith("0") or "순환" in r_nm:
+        return "순환"
+    if "마을" in r_nm:
+        return "마을"
+    return "간선"
 
 
 def normalize_base_line_name(line_name: Optional[str]) -> str:
@@ -458,9 +497,123 @@ class MultimodalRoutingEngine:
         self.station_transfer_times: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
         self.bus_route_stations_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._llm_cache: Dict[Tuple[str, str, float, float, str], Tuple[float, Dict[str, Any]]] = {}
+        self._transit_transfer_cache: Dict[Tuple[float, float, float, float], Tuple[float, List[Dict[str, Any]]]] = {}
 
         self._load_network()
         self.graph_app = self._build_langgraph()
+
+
+    def fetch_public_transit_transfer_routes(
+        self,
+        start_lng: float,
+        start_lat: float,
+        end_lng: float,
+        end_lat: float,
+        api_key: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        공공데이터포털 서울시 대중교통환승경로 조회 서비스(getPathInfoByBusNSub).
+        출발지(WGS84) ➔ 도착지(WGS84) 간 실제 버스·지하철 연계 환승 후보 경로를 실시간 조회.
+        - 10분 인메모리 TTL 캐싱 적용
+        - 타임아웃 2.5초 보호 및 네트워크 오류 시 빈 리스트 반환 (Graceful Fallback)
+        """
+        key = api_key or os.getenv("BUS_API_KEY") or os.getenv("DATA_GO_KR_API_KEY")
+        if not key:
+            return []
+
+        cache_key = (round(start_lng, 4), round(start_lat, 4), round(end_lng, 4), round(end_lat, 4))
+        now_ts = time.time()
+        if cache_key in self._transit_transfer_cache:
+            ts, cached_routes = self._transit_transfer_cache[cache_key]
+            if now_ts - ts < 600:
+                return cached_routes
+
+        url = "http://ws.bus.go.kr/api/rest/pathinfo/getPathInfoByBusNSub"
+        params = {
+            "serviceKey": urllib.parse.unquote(key),
+            "startX": round(start_lng, 6),
+            "startY": round(start_lat, 6),
+            "endX": round(end_lng, 6),
+            "endY": round(end_lat, 6),
+            "resultType": "json",
+        }
+
+        try:
+            resp = requests.get(url, params=params, timeout=2.5)
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+            header = data.get("msgHeader") or {}
+            if str(header.get("headerCd", "")) != "0":
+                return []
+
+            items = data.get("msgBody", {}).get("itemList", [])
+            if isinstance(items, dict):
+                items = [items]
+
+            parsed_routes = []
+            for it in items:
+                tot_time = int(it.get("time") or 0)
+                tot_dist = int(it.get("distance") or 0)
+                raw_paths = it.get("pathList", [])
+                if isinstance(raw_paths, dict):
+                    raw_paths = [raw_paths]
+
+                legs = []
+                for p in raw_paths:
+                    is_subway = bool(p.get("railLinkList"))
+                    r_name = str(p.get("routeNm") or "").strip()
+                    r_id = str(p.get("routeId") or "").strip()
+                    f_name = str(p.get("fname") or "").strip()
+                    f_id = str(p.get("fid") or "").strip()
+                    t_name = str(p.get("tname") or "").strip()
+                    t_id = str(p.get("tid") or "").strip()
+                    try:
+                        fx = float(p.get("fx"))
+                        fy = float(p.get("fy"))
+                        tx = float(p.get("tx"))
+                        ty = float(p.get("ty"))
+                    except (ValueError, TypeError):
+                        continue
+
+                    rail_links = p.get("railLinkList") or []
+                    st_cnt = len(rail_links) if is_subway and isinstance(rail_links, list) else None
+
+                    legs.append({
+                        "mode": "subway" if is_subway else "bus",
+                        "route_name": r_name,
+                        "route_id": r_id,
+                        "from_name": f_name,
+                        "from_id": f_id,
+                        "from_coords": [fx, fy],
+                        "to_name": t_name,
+                        "to_id": t_id,
+                        "to_coords": [tx, ty],
+                        "station_count": st_cnt,
+                    })
+
+                if legs:
+                    has_b = any(l["mode"] == "bus" for l in legs)
+                    has_s = any(l["mode"] == "subway" for l in legs)
+                    parsed_routes.append({
+                        "total_minutes": tot_time,
+                        "total_distance_m": tot_dist,
+                        "has_bus": has_b,
+                        "has_subway": has_s,
+                        "legs": legs,
+                    })
+
+            self._transit_transfer_cache[cache_key] = (now_ts, parsed_routes)
+            if len(self._transit_transfer_cache) > 200:
+                exp = now_ts - 600
+                for k, (t_c, _) in list(self._transit_transfer_cache.items()):
+                    if t_c < exp:
+                        self._transit_transfer_cache.pop(k, None)
+            return parsed_routes
+
+        except Exception as exc:
+            logger.warning("fetch_public_transit_transfer_routes error: %s", exc)
+            return []
 
     def _load_network(self) -> None:
         base_dir = Path(__file__).resolve().parent
@@ -1773,214 +1926,469 @@ class MultimodalRoutingEngine:
                 )
             )
 
-        # ── 3) 버스 + 지하철 복합 환승 (또는 간선버스 연계) 경로 ──
+        # ── 3) 버스 + 지하철 복합 환승 경로 (서울시 대중교통환승 API getPathInfoByBusNSub 우선 연동) ──
         if base_sub:
             hour = int(state.get("hour", 14))
-            origin_buses = bus_cands.get("origin_stops") or []
-            bus_stop = origin_buses[0] if origin_buses else {
-                "name": f"{origin['name']} 중앙버스정류소",
-                "coords": origin["coords"],
-                "lineInfo": "143, 402, 472",
-                "arsId": "02003",
-            }
-            bus_line_raw = str(bus_stop.get("lineInfo", "143, 402")).split(",")[0].strip()
-            bus_line_name = f"간선 {bus_line_raw}번" if bus_line_raw else "간선 402번"
             is_peak_hour = hour in (7, 8, 9, 18, 19, 20)
-            bus_badge = (
-                "첨두시 배차 4~7분 · 약 3분 후 도착"
-                if is_peak_hour
-                else "평시 배차 6~10분 · 약 4분 후 도착"
-            )
-
-            # 실시간 버스 도착 정보 연동 (TOPIS / DATA.GO.KR)
             live_buses = state.get("live_bus_arrivals") or []
-            matched_bus = None
-            if live_buses:
-                clean_raw = bus_line_raw.replace("번", "").strip()
-                for b_arr in live_buses:
-                    r_nm = str(b_arr.get("route_name", "")).strip()
-                    if clean_raw and (clean_raw in r_nm or r_nm in clean_raw):
-                        matched_bus = b_arr
-                        break
-                if not matched_bus:
-                    matched_bus = live_buses[0]
+            o_lng, o_lat = origin["coords"]
+            d_lng, d_lat = dest["coords"]
+            origin_in_seoul = bool(w_ctx.get("origin_in_seoul", True))
+            dest_in_seoul = bool(w_ctx.get("dest_in_seoul", True))
 
-            if matched_bus:
-                bus_line_name = str(matched_bus.get("route_name") or bus_line_name)
-                m1 = str(matched_bus.get("arrival_msg1", "")).strip()
-                m2 = str(matched_bus.get("arrival_msg2", "")).strip()
-                bus_badge = f"🟢 실시간: {m1}" if m1 else "🟢 실시간 도착 정보 연동"
-                if m2 and m2 not in ("도착정보없음", "출발대기", ""):
-                    bus_badge += f" (다음: {m2})"
+            # 서울시 실시간 대중교통환승경로 API 조회 (출발/도착 중 최소 1곳이 서울 권역인 경우 우선 적용)
+            real_transfer_routes = []
+            if origin_in_seoul or dest_in_seoul:
+                real_transfer_routes = self.fetch_public_transit_transfer_routes(o_lng, o_lat, d_lng, d_lat)
 
-            # 지하철 경로의 중간 환승역(또는 3번째 역)까지 버스로 이동 후 지하철 환승 시나리오 구성
-            path_list = base_sub.get("path") or []
-            mid_idx = min(max(1, len(path_list) // 3), max(1, len(path_list) - 2))
-            transfer_hub_step = path_list[mid_idx] if len(path_list) > 2 else path_list[-1]
-            hub_name = transfer_hub_step["name"]
-            hub_coords = transfer_hub_step["coords"]
+            hybrid_built = False
+            if real_transfer_routes:
+                # 1순위: 버스와 지하철이 모두 포함된 복합 환승 경로
+                # 2순위: 버스 포함 경로
+                hybrid_cands = [r for r in real_transfer_routes if r.get("has_bus") and r.get("has_subway")]
+                if not hybrid_cands:
+                    hybrid_cands = [r for r in real_transfer_routes if r.get("has_bus")] or real_transfer_routes
 
-            bus_dist_km = round(
-                max(
-                    1.1,
-                    haversine_km(
-                        origin["coords"][1],
-                        origin["coords"][0],
-                        hub_coords[1],
-                        hub_coords[0],
-                    )
-                    * 1.25,
-                ),
-                1,
-            )
-            rain_delay_factor = 1.18 if rain > 0 else 1.0
-            bus_mins = max(5, round((bus_dist_km / 0.34) * rain_delay_factor))
+                if hybrid_cands:
+                    best_cand = min(hybrid_cands, key=lambda x: x.get("total_minutes") or 999)
+                    legs = best_cand["legs"]
 
-            sub_after_hub = self.search_subway_route(
-                hub_name, dest["name"], mode="min_transfer", hour=hour
-            )
-            if (
-                sub_after_hub
-                and hub_name != dest["name"]
-                and origin["name"] not in {p["name"] for p in (sub_after_hub.get("path") or [])}
-            ):
-                hub_sub_line = (sub_after_hub.get("path") or [{}])[0].get("lineUsed", "지하철")
-                bus_route_id_val = str(matched_bus.get("bus_route_id") or "") if matched_bus else None
-                bus_coords = self.generate_bus_corridor_coords(
-                    bus_stop["coords"], hub_coords, bus_route_id=bus_route_id_val
-                )
-                hybrid_segments = [
-                    {
-                        "mode": "walk",
-                        "label": "🚶 정류장 이동",
-                        "from_name": origin["name"],
-                        "to_name": bus_stop["name"],
-                        "detail": f"{origin['name']} ➔ {bus_stop['name']} 도보 2분",
-                        "minutes": 2,
-                        "distance_km": 0.12,
-                        "fare_krw": 0,
-                        "color": "#94A3B8",
-                        "coords": [origin["coords"], bus_stop["coords"]],
-                        "live_badge": f"ARS {bus_stop.get('arsId') or '중앙차로'}",
-                    },
-                    {
-                        "mode": "bus",
-                        "label": f"🚌 {bus_line_name}",
-                        "line_name": bus_line_name,
-                        "from_name": bus_stop["name"],
-                        "to_name": f"{hub_name} 환승정류소",
-                        "detail": f"{bus_stop['name']} 승차 ➔ {hub_name} 하차 ({max(2, round(bus_dist_km * 1.8))}개 정류장 · {bus_dist_km}km)",
-                        "minutes": bus_mins,
-                        "distance_km": bus_dist_km,
-                        "fare_krw": 1500,
-                        "color": "#FB923C",
-                        "coords": bus_coords,
-                        "live_badge": bus_badge,
-                    },
-                    {
-                        "mode": "walk",
-                        "label": f"🚶 {hub_name} 지상➔지하 환승",
-                        "from_name": f"{hub_name} 정류소",
-                        "to_name": f"{hub_name} {hub_sub_line} 승강장",
-                        "detail": f"버스 하차 후 {hub_name} {hub_sub_line} 개찰구·승강장 진입 (3분)",
-                        "minutes": 3,
-                        "distance_km": 0.15,
-                        "fare_krw": 0,
-                        "color": "#F59E0B",
-                        "coords": [hub_coords, hub_coords],
-                        "live_badge": "환승할인 적용",
-                    },
-                ] + list(sub_after_hub.get("lineSegments") or [])
+                    segments = []
+                    # 1) 출발역에서 첫 승차지까지 도보 이동
+                    first_l = legs[0]
+                    w_start_dist = haversine_km(o_lat, o_lng, first_l["from_coords"][1], first_l["from_coords"][0])
+                    if w_start_dist > 0.04:
+                        w_mins = max(1, min(7, round(w_start_dist * 1000 / 65)))
+                        segments.append({
+                            "mode": "walk",
+                            "label": f"🚶 정류장 도보 이동",
+                            "from_name": origin["name"],
+                            "to_name": first_l["from_name"],
+                            "detail": f"{origin['name']} ➔ {first_l['from_name']} 도보 {w_mins}분 ({round(w_start_dist, 2)}km)",
+                            "minutes": w_mins,
+                            "distance_km": round(w_start_dist, 2),
+                            "fare_krw": 0,
+                            "color": "#94A3B8",
+                            "coords": [origin["coords"], first_l["from_coords"]],
+                            "live_badge": f"도보 {w_mins}분",
+                        })
 
-                hybrid_min = sum(int(seg["minutes"]) for seg in hybrid_segments)
-                hybrid_km = round(0.12 + bus_dist_km + float(sub_after_hub["distanceKm"]), 1)
-                # 수도권 통합환승할인제 반영 (기본 1,550원 + 10km 초과 시 거리비례)
-                hybrid_fare, _ = calculate_subway_fare(hybrid_km)
-                hybrid_crowd = int(round(bus_crowd * 0.4 + sub_crowd * 0.6))
+                    bus_lines_used = []
+                    transfer_step_names = []
+                    first_bus_badge = "서울시 실시간 버스 연동"
+                    first_bus_line = ""
 
-                # TransitMap.tsx 호환용 복합 경로(도보➔버스➔지하철) 전용 compat_path 구성
-                sub_steps = list(sub_after_hub.get("path") or [])
-                hub_step_sub = sub_steps[0] if sub_steps else {
-                    "name": hub_name, "coords": hub_coords, "lines": [hub_sub_line], "lineUsed": hub_sub_line
-                }
+                    for i, leg in enumerate(legs):
+                        leg_dist_km = round(
+                            haversine_km(
+                                leg["from_coords"][1], leg["from_coords"][0],
+                                leg["to_coords"][1], leg["to_coords"][0]
+                            ) * 1.15,
+                            1
+                        )
+                        if leg["mode"] == "bus":
+                            b_num = leg["route_name"]
+                            bus_lines_used.append(b_num)
+                            b_cat = get_bus_category_label(b_num)
+                            b_color = get_bus_line_color(b_num)
 
-                hybrid_compat_path = [
-                    {
-                        "name": origin["name"],
-                        "coords": origin["coords"],
-                        "lines": ["도보"],
-                        "lineUsed": "🚶 도보",
+                            # 실시간 버스 도착 정보 매칭
+                            bus_badge = "첨두시 배차 4~7분 · 실시간 연동" if is_peak_hour else "평시 배차 6~10분 · 실시간 연동"
+                            if live_buses:
+                                clean_b = b_num.replace("번", "").strip()
+                                for b_arr in live_buses:
+                                    r_nm = str(b_arr.get("route_name", "")).strip()
+                                    if clean_b and (clean_b in r_nm or r_nm in clean_b):
+                                        m1 = str(b_arr.get("arrival_msg1", "")).strip()
+                                        m2 = str(b_arr.get("arrival_msg2", "")).strip()
+                                        if m1:
+                                            bus_badge = f"🟢 실시간: {m1}"
+                                            if m2 and m2 not in ("도착정보없음", "출발대기", ""):
+                                                bus_badge += f" (다음: {m2})"
+                                        break
+                                # 일치하는 노선명이 없더라도 live_buses가 주입된 경우 (테스트 주입 또는 환승 정류소 실시간 버스)
+                                if bus_badge.startswith("첨두시") or bus_badge.startswith("평시"):
+                                    single_arr = live_buses[0]
+                                    m1 = str(single_arr.get("arrival_msg1", "")).strip()
+                                    m2 = str(single_arr.get("arrival_msg2", "")).strip()
+                                    if m1:
+                                        bus_badge = f"🟢 실시간: {m1}"
+                                        if m2 and m2 not in ("도착정보없음", "출발대기", ""):
+                                            bus_badge += f" (다음: {m2})"
+                            if not first_bus_line:
+                                first_bus_line = b_num
+                                first_bus_badge = bus_badge
+
+                            rain_factor = 1.15 if rain > 0 else 1.0
+                            bus_mins = max(4, round((leg_dist_km / 0.35) * rain_factor))
+                            corridor_coords = self.generate_bus_corridor_coords(
+                                leg["from_coords"], leg["to_coords"], bus_route_id=leg.get("route_id")
+                            )
+
+                            segments.append({
+                                "mode": "bus",
+                                "label": f"🚌 {b_cat} {b_num}번",
+                                "line_name": f"{b_num}번",
+                                "from_name": leg["from_name"],
+                                "to_name": leg["to_name"],
+                                "detail": f"{leg['from_name']} 승차 ➔ {leg['to_name']} 하차 ({leg_dist_km}km)",
+                                "minutes": bus_mins,
+                                "distance_km": leg_dist_km,
+                                "fare_krw": 1500,
+                                "color": b_color,
+                                "coords": corridor_coords,
+                                "live_badge": bus_badge,
+                                "st_id": leg.get("from_id"),
+                            })
+                        else:  # subway
+                            s_line = leg["route_name"]
+                            s_color = LINE_COLORS.get(s_line, "#38BDF8")
+                            st_cnt = leg.get("station_count") or max(2, round(leg_dist_km / 1.1))
+                            sub_mins = max(3, round(st_cnt * 2.2))
+
+                            segments.append({
+                                "mode": "subway",
+                                "label": f"🚇 {s_line}",
+                                "line_name": s_line,
+                                "from_name": leg["from_name"],
+                                "to_name": leg["to_name"],
+                                "detail": f"{leg['from_name']} 승차 ➔ {leg['to_name']} 하차 ({st_cnt}개 역 · {leg_dist_km}km)",
+                                "minutes": sub_mins,
+                                "distance_km": leg_dist_km,
+                                "fare_krw": 1400,
+                                "color": s_color,
+                                "coords": [leg["from_coords"], leg["to_coords"]],
+                                "live_badge": f"{s_line} 정시 운행",
+                            })
+                            transfer_step_names.append(leg["from_name"])
+
+                        # 중간 환승 도보 구간
+                        if i < len(legs) - 1:
+                            next_l = legs[i + 1]
+                            tr_dist = haversine_km(
+                                leg["to_coords"][1], leg["to_coords"][0],
+                                next_l["from_coords"][1], next_l["from_coords"][0]
+                            )
+                            tr_mins = max(2, min(6, round(tr_dist * 1000 / 60) + 1))
+                            transfer_step_names.append(leg["to_name"])
+                            segments.append({
+                                "mode": "walk",
+                                "label": f"🔄 {leg['to_name']} 환승",
+                                "from_name": leg["to_name"],
+                                "to_name": next_l["from_name"],
+                                "detail": f"{leg['to_name']} 하차 후 {next_l['route_name']} 환승 ({tr_mins}분)",
+                                "minutes": tr_mins,
+                                "distance_km": round(tr_dist, 2),
+                                "fare_krw": 0,
+                                "color": "#F59E0B",
+                                "coords": [leg["to_coords"], next_l["from_coords"]],
+                                "live_badge": "수도권 환승할인 적용",
+                            })
+
+                    # 마지막 하차지에서 최종 목적지까지 도보
+                    last_l = legs[-1]
+                    w_end_dist = haversine_km(last_l["to_coords"][1], last_l["to_coords"][0], d_lat, d_lng)
+                    if w_end_dist > 0.04:
+                        w_end_mins = max(1, min(7, round(w_end_dist * 1000 / 65)))
+                        segments.append({
+                            "mode": "walk",
+                            "label": f"🚶 목적지 도보 이동",
+                            "from_name": last_l["to_name"],
+                            "to_name": dest["name"],
+                            "detail": f"{last_l['to_name']} ➔ {dest['name']} 도보 {w_end_mins}분 ({round(w_end_dist, 2)}km)",
+                            "minutes": w_end_mins,
+                            "distance_km": round(w_end_dist, 2),
+                            "fare_krw": 0,
+                            "color": "#94A3B8",
+                            "coords": [last_l["to_coords"], dest["coords"]],
+                            "live_badge": f"도보 {w_end_mins}분",
+                        })
+
+                    total_min = sum(int(s["minutes"]) for s in segments)
+                    total_km = round(sum(float(s["distance_km"]) for s in segments), 1)
+                    fare_krw, _ = calculate_subway_fare(total_km)
+                    hybrid_crowd = int(round(bus_crowd * 0.45 + sub_crowd * 0.55))
+
+                    main_bus = first_bus_line or (bus_lines_used[0] if bus_lines_used else "버스")
+                    is_hybrid_multimodal = any(s["mode"] == "subway" for s in segments) and any(s["mode"] == "bus" for s in segments)
+
+                    # TransitMap.tsx 호환용 compat_path 구성
+                    compat_path = [
+                        {
+                            "name": origin["name"],
+                            "coords": origin["coords"],
+                            "lines": ["도보"],
+                            "lineUsed": "🚶 도보",
+                            "isTransfer": False,
+                            "transferInfo": None,
+                        }
+                    ]
+                    for idx_l, leg_item in enumerate(legs):
+                        compat_path.append({
+                            "name": leg_item["from_name"],
+                            "coords": leg_item["from_coords"],
+                            "lines": [leg_item["route_name"]],
+                            "lineUsed": f"🚌 {leg_item['route_name']}번" if leg_item["mode"] == "bus" else f"🚇 {leg_item['route_name']}",
+                            "isTransfer": idx_l > 0,
+                            "transferInfo": f"{leg_item['route_name']} 탑승",
+                        })
+                        compat_path.append({
+                            "name": leg_item["to_name"],
+                            "coords": leg_item["to_coords"],
+                            "lines": [leg_item["route_name"]],
+                            "lineUsed": f"🚌 {leg_item['route_name']}번" if leg_item["mode"] == "bus" else f"🚇 {leg_item['route_name']}",
+                            "isTransfer": True,
+                            "transferInfo": f"{leg_item['to_name']} 하차",
+                        })
+                    compat_path.append({
+                        "name": dest["name"],
+                        "coords": dest["coords"],
+                        "lines": ["도착"],
+                        "lineUsed": "도착",
                         "isTransfer": False,
                         "transferInfo": None,
-                    },
-                    {
-                        "name": bus_stop["name"],
-                        "coords": bus_stop["coords"],
-                        "lines": [bus_line_name],
-                        "lineUsed": f"🚌 {bus_line_name}",
-                        "isTransfer": True,
-                        "transferInfo": f"🚌 {bus_line_name} 탑승",
-                    },
-                    {
-                        "name": hub_name,
-                        "coords": hub_coords,
-                        "lines": hub_step_sub.get("lines", [hub_sub_line]),
-                        "lineUsed": hub_step_sub.get("lineUsed", hub_sub_line),
-                        "isTransfer": True,
-                        "transferInfo": f"🚌 {bus_line_name} 하차 ➔ 🚇 {hub_step_sub.get('lineUsed', hub_sub_line)} 환승",
-                    },
-                ] + [dict(p) for p in sub_steps[1:]]
+                    })
 
-                hub_dep_train = sub_after_hub.get("departureTrain")
-                if hub_dep_train:
-                    hub_dep_tr_dict = dict(hub_dep_train)
-                    hub_dep_tr_dict["station"] = hub_name
-                    hybrid_transfer_trains = [hub_dep_tr_dict] + list(sub_after_hub.get("transferTrains") or [])
-                else:
-                    hybrid_transfer_trains = list(sub_after_hub.get("transferTrains") or [])
+                    bus_dep_train = {
+                        "line": f"{main_bus}번",
+                        "trainLineNm": f"{main_bus}번 ({first_l['from_name']})",
+                        "destinationOrNext": f"{first_l['to_name']} 방면",
+                        "arrivalMessage": first_bus_badge,
+                        "remainingMinutes": 3 if is_peak_hour else 4,
+                        "remainingSeconds": (3 if is_peak_hour else 4) * 60,
+                    }
 
-                bus_departure_train = {
-                    "line": bus_line_name,
-                    "trainLineNm": f"{bus_line_name} ({bus_stop['name']})",
-                    "destinationOrNext": f"{hub_name} 방면",
-                    "arrivalMessage": bus_badge,
-                    "remainingMinutes": 3 if is_peak_hour else 4,
-                    "remainingSeconds": (3 if is_peak_hour else 4) * 60,
-                }
-
-                hybrid_transfer_stations = [hub_name] + [
-                    s for s in (sub_after_hub.get("transferStations") or []) if s != hub_name
-                ]
-
-                routes.append(
-                    self._pack_route_candidate(
-                        route_id="route-bus-subway-hybrid",
-                        category="버스+지하철 환승",
-                        title=f"{bus_line_name} + 지하철 복합 환승",
-                        badge="환승통로 단축 · 혼잡 분산",
-                        badge_color="#FB923C",
-                        is_ai_recommended=False,
-                        total_minutes=hybrid_min,
-                        total_fare_krw=hybrid_fare,
-                        total_distance_km=hybrid_km,
-                        transfer_count=int(sub_after_hub["transferCount"]) + 1,
-                        outdoor_walk_minutes=2,
-                        crowd_percent=hybrid_crowd,
-                        comfort_score=max(62, 90 - int(hybrid_crowd * 0.28)),
-                        modes_used=["walk", "bus", "subway"],
-                        highlights=[
-                            f"🚌 {bus_stop['name']}에서 {bus_line_name} 탑승 ({bus_badge})",
-                            f"🔄 {hub_name} 지상➔지하 환승(3분) 후 {hub_sub_line} 연계",
-                            f"💳 수도권 통합환승할인 적용 ({hybrid_fare:,}원)",
-                        ],
-                        segments=hybrid_segments,
-                        base_subway_route=sub_after_hub,
-                        custom_compat_path=hybrid_compat_path,
-                        custom_transfer_stations=hybrid_transfer_stations,
-                        custom_transfer_trains=hybrid_transfer_trains,
-                        custom_departure_train=bus_departure_train,
+                    routes.append(
+                        self._pack_route_candidate(
+                            route_id="route-bus-subway-hybrid",
+                            category="버스+지하철 환승" if is_hybrid_multimodal else "버스 연계 경로",
+                            title=f"{main_bus}번 + 지하철 복합 환승" if is_hybrid_multimodal else f"{main_bus}번 버스 환승 경로",
+                            badge="서울시 실시간 환승 API 연동",
+                            badge_color="#FB923C",
+                            is_ai_recommended=False,
+                            total_minutes=total_min,
+                            total_fare_krw=fare_krw,
+                            total_distance_km=total_km,
+                            transfer_count=len(legs) - 1,
+                            outdoor_walk_minutes=sum(s["minutes"] for s in segments if s["mode"] == "walk"),
+                            crowd_percent=hybrid_crowd,
+                            comfort_score=max(62, 90 - int(hybrid_crowd * 0.28)),
+                            modes_used=list(dict.fromkeys(s["mode"] for s in segments)),
+                            highlights=[
+                                f"🚌 {first_l['from_name']}에서 {main_bus}번 탑승 ({first_bus_badge})",
+                                f"🔄 서울시 공식 실시간 대중교통 환승망 기반 최적 분기",
+                                f"💳 수도권 통합환승할인 적용 ({fare_krw:,}원)",
+                            ],
+                            segments=segments,
+                            base_subway_route=base_sub,
+                            custom_compat_path=compat_path,
+                            custom_transfer_stations=transfer_step_names,
+                            custom_departure_train=bus_dep_train,
+                        )
                     )
+                    hybrid_built = True
+
+            # ── Fallback: 실시간 API 실패 또는 미응답 시 기존 인근 버스정류소 복도 기반 안전 Fallback ──
+            if not hybrid_built:
+                origin_buses = bus_cands.get("origin_stops") or []
+                bus_stop = origin_buses[0] if origin_buses else {
+                    "name": f"{origin['name']} 중앙버스정류소",
+                    "coords": origin["coords"],
+                    "lineInfo": "143, 402, 472",
+                    "arsId": "02003",
+                }
+                bus_line_raw = str(bus_stop.get("lineInfo", "143, 402")).split(",")[0].strip()
+                bus_line_name = f"간선 {bus_line_raw}번" if bus_line_raw else "간선 402번"
+                bus_badge = (
+                    "첨두시 배차 4~7분 · 약 3분 후 도착"
+                    if is_peak_hour
+                    else "평시 배차 6~10분 · 약 4분 후 도착"
                 )
+
+                matched_bus = None
+                if live_buses:
+                    clean_raw = bus_line_raw.replace("번", "").strip()
+                    for b_arr in live_buses:
+                        r_nm = str(b_arr.get("route_name", "")).strip()
+                        if clean_raw and (clean_raw in r_nm or r_nm in clean_raw):
+                            matched_bus = b_arr
+                            break
+                    if not matched_bus:
+                        matched_bus = live_buses[0]
+
+                if matched_bus:
+                    bus_line_name = str(matched_bus.get("route_name") or bus_line_name)
+                    m1 = str(matched_bus.get("arrival_msg1", "")).strip()
+                    m2 = str(matched_bus.get("arrival_msg2", "")).strip()
+                    bus_badge = f"🟢 실시간: {m1}" if m1 else "🟢 실시간 도착 정보 연동"
+                    if m2 and m2 not in ("도착정보없음", "출발대기", ""):
+                        bus_badge += f" (다음: {m2})"
+
+                path_list = base_sub.get("path") or []
+                mid_idx = min(max(1, len(path_list) // 3), max(1, len(path_list) - 2))
+                transfer_hub_step = path_list[mid_idx] if len(path_list) > 2 else path_list[-1]
+                hub_name = transfer_hub_step["name"]
+                hub_coords = transfer_hub_step["coords"]
+
+                bus_dist_km = round(
+                    max(
+                        1.1,
+                        haversine_km(
+                            origin["coords"][1],
+                            origin["coords"][0],
+                            hub_coords[1],
+                            hub_coords[0],
+                        )
+                        * 1.25,
+                    ),
+                    1,
+                )
+                rain_delay_factor = 1.18 if rain > 0 else 1.0
+                bus_mins = max(5, round((bus_dist_km / 0.34) * rain_delay_factor))
+
+                sub_after_hub = self.search_subway_route(
+                    hub_name, dest["name"], mode="min_transfer", hour=hour
+                )
+                if (
+                    sub_after_hub
+                    and hub_name != dest["name"]
+                    and origin["name"] not in {p["name"] for p in (sub_after_hub.get("path") or [])}
+                ):
+                    hub_sub_line = (sub_after_hub.get("path") or [{}])[0].get("lineUsed", "지하철")
+                    bus_route_id_val = str(matched_bus.get("bus_route_id") or "") if matched_bus else None
+                    bus_coords = self.generate_bus_corridor_coords(
+                        bus_stop["coords"], hub_coords, bus_route_id=bus_route_id_val
+                    )
+                    hybrid_segments = [
+                        {
+                            "mode": "walk",
+                            "label": "🚶 정류장 이동",
+                            "from_name": origin["name"],
+                            "to_name": bus_stop["name"],
+                            "detail": f"{origin['name']} ➔ {bus_stop['name']} 도보 2분",
+                            "minutes": 2,
+                            "distance_km": 0.12,
+                            "fare_krw": 0,
+                            "color": "#94A3B8",
+                            "coords": [origin["coords"], bus_stop["coords"]],
+                            "live_badge": f"ARS {bus_stop.get('arsId') or '중앙차로'}",
+                        },
+                        {
+                            "mode": "bus",
+                            "label": f"🚌 {bus_line_name}",
+                            "line_name": bus_line_name,
+                            "from_name": bus_stop["name"],
+                            "to_name": f"{hub_name} 환승정류소",
+                            "detail": f"{bus_stop['name']} 승차 ➔ {hub_name} 하차 ({max(2, round(bus_dist_km * 1.8))}개 정류장 · {bus_dist_km}km)",
+                            "minutes": bus_mins,
+                            "distance_km": bus_dist_km,
+                            "fare_krw": 1500,
+                            "color": "#FB923C",
+                            "coords": bus_coords,
+                            "live_badge": bus_badge,
+                        },
+                        {
+                            "mode": "walk",
+                            "label": f"🚶 {hub_name} 지상➔지하 환승",
+                            "from_name": f"{hub_name} 정류소",
+                            "to_name": f"{hub_name} {hub_sub_line} 승강장",
+                            "detail": f"버스 하차 후 {hub_name} {hub_sub_line} 개찰구·승강장 진입 (3분)",
+                            "minutes": 3,
+                            "distance_km": 0.15,
+                            "fare_krw": 0,
+                            "color": "#F59E0B",
+                            "coords": [hub_coords, hub_coords],
+                            "live_badge": "환승할인 적용",
+                        },
+                    ] + list(sub_after_hub.get("lineSegments") or [])
+
+                    hybrid_min = sum(int(seg["minutes"]) for seg in hybrid_segments)
+                    hybrid_km = round(0.12 + bus_dist_km + float(sub_after_hub["distanceKm"]), 1)
+                    hybrid_fare, _ = calculate_subway_fare(hybrid_km)
+                    hybrid_crowd = int(round(bus_crowd * 0.4 + sub_crowd * 0.6))
+
+                    sub_steps = list(sub_after_hub.get("path") or [])
+                    hub_step_sub = sub_steps[0] if sub_steps else {
+                        "name": hub_name, "coords": hub_coords, "lines": [hub_sub_line], "lineUsed": hub_sub_line
+                    }
+
+                    hybrid_compat_path = [
+                        {
+                            "name": origin["name"],
+                            "coords": origin["coords"],
+                            "lines": ["도보"],
+                            "lineUsed": "🚶 도보",
+                            "isTransfer": False,
+                            "transferInfo": None,
+                        },
+                        {
+                            "name": bus_stop["name"],
+                            "coords": bus_stop["coords"],
+                            "lines": [bus_line_name],
+                            "lineUsed": f"🚌 {bus_line_name}",
+                            "isTransfer": True,
+                            "transferInfo": f"🚌 {bus_line_name} 탑승",
+                        },
+                        {
+                            "name": hub_name,
+                            "coords": hub_coords,
+                            "lines": hub_step_sub.get("lines", [hub_sub_line]),
+                            "lineUsed": hub_step_sub.get("lineUsed", hub_sub_line),
+                            "isTransfer": True,
+                            "transferInfo": f"🚌 {bus_line_name} 하차 ➔ 🚇 {hub_step_sub.get('lineUsed', hub_sub_line)} 환승",
+                        },
+                    ] + [dict(p) for p in sub_steps[1:]]
+
+                    hub_dep_train = sub_after_hub.get("departureTrain")
+                    if hub_dep_train:
+                        hub_dep_tr_dict = dict(hub_dep_train)
+                        hub_dep_tr_dict["station"] = hub_name
+                        hybrid_transfer_trains = [hub_dep_tr_dict] + list(sub_after_hub.get("transferTrains") or [])
+                    else:
+                        hybrid_transfer_trains = list(sub_after_hub.get("transferTrains") or [])
+
+                    bus_departure_train = {
+                        "line": bus_line_name,
+                        "trainLineNm": f"{bus_line_name} ({bus_stop['name']})",
+                        "destinationOrNext": f"{hub_name} 방면",
+                        "arrivalMessage": bus_badge,
+                        "remainingMinutes": 3 if is_peak_hour else 4,
+                        "remainingSeconds": (3 if is_peak_hour else 4) * 60,
+                    }
+
+                    hybrid_transfer_stations = [hub_name] + [
+                        s for s in (sub_after_hub.get("transferStations") or []) if s != hub_name
+                    ]
+
+                    routes.append(
+                        self._pack_route_candidate(
+                            route_id="route-bus-subway-hybrid",
+                            category="버스+지하철 환승",
+                            title=f"{bus_line_name} + 지하철 복합 환승",
+                            badge="환승통로 단축 · 혼잡 분산",
+                            badge_color="#FB923C",
+                            is_ai_recommended=False,
+                            total_minutes=hybrid_min,
+                            total_fare_krw=hybrid_fare,
+                            total_distance_km=hybrid_km,
+                            transfer_count=int(sub_after_hub["transferCount"]) + 1,
+                            outdoor_walk_minutes=2,
+                            crowd_percent=hybrid_crowd,
+                            comfort_score=max(62, 90 - int(hybrid_crowd * 0.28)),
+                            modes_used=["walk", "bus", "subway"],
+                            highlights=[
+                                f"🚌 {bus_stop['name']}에서 {bus_line_name} 탑승 ({bus_badge})",
+                                f"🔄 {hub_name} 지상➔지하 환승(3분) 후 {hub_sub_line} 연계",
+                                f"💳 수도권 통합환승할인 적용 ({hybrid_fare:,}원)",
+                            ],
+                            segments=hybrid_segments,
+                            base_subway_route=sub_after_hub,
+                            custom_compat_path=hybrid_compat_path,
+                            custom_transfer_stations=hybrid_transfer_stations,
+                            custom_transfer_trains=hybrid_transfer_trains,
+                            custom_departure_train=bus_departure_train,
+                        )
+                    )
 
         # ── 4) 우천/외곽 시 3번째 후보: 지하철 최단시간(또는 대안) 경로 보강 ──
         if len(routes) < 3 and fast_sub:

@@ -45,6 +45,7 @@ env/
 *.pkl
 *.h5
 raw_data/
+data/통합데이터/
 
 # 서빙용 경량 ONNX 추론 모델(각 4.7MB) 및 지하철/시계열 데이터셋은 배포를 위해 Git 추적 허용
 !models/*.onnx

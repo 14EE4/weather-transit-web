@@ -2434,10 +2434,14 @@ async def get_bus_arrival(stId: str = "111000299", busRouteId: Optional[str] = N
                 if res.status_code == 200:
                     data = res.json()
                     msg_body = data.get("msgBody") or {}
-                    items = msg_body.get("itemList", [])
+                    items = msg_body.get("itemList") or []
                     if isinstance(items, dict):
                         items = [items]
+                    elif not isinstance(items, list):
+                        items = []
                     for item in items[:10]:
+                        if not isinstance(item, dict):
+                            continue
                         arrivals.append(
                             BusArrivalItem(
                                 route_name=item.get("rtNm", "간선/지선"),
@@ -2448,11 +2452,8 @@ async def get_bus_arrival(stId: str = "111000299", busRouteId: Optional[str] = N
                                 bus_route_id=item.get("busRouteId")
                             )
                         )
-                    if arrivals:
-                        call_success = True
-                        bus_circuit_breaker.record_success()
-                    else:
-                        bus_circuit_breaker.record_success()
+                    call_success = True
+                    bus_circuit_breaker.record_success()
                 else:
                     bus_circuit_breaker.record_failure(f"HTTP {res.status_code}")
         except Exception as e:

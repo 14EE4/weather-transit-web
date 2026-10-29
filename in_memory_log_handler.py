@@ -20,6 +20,7 @@ class InMemoryLogHandler(logging.Handler):
         self.buffer: deque = deque(maxlen=maxlen)
         self._buf_lock = threading.RLock()
         self._seq = 0
+        self._last_entry_signature: Optional[tuple] = None
 
     def emit(self, record: logging.LogRecord):
         try:
@@ -32,6 +33,12 @@ class InMemoryLogHandler(logging.Handler):
             domain = self._detect_domain(record.name, msg)
 
             with self._buf_lock:
+                # 동일 타임스탬프, 동일 로거, 동일 메시지 중복 emit 방지
+                sig = (timestamp_str, record.name, msg)
+                if self._last_entry_signature == sig:
+                    return
+                self._last_entry_signature = sig
+
                 self._seq += 1
                 entry = {
                     "id": self._seq,
@@ -110,6 +117,7 @@ class InMemoryLogHandler(logging.Handler):
         """버퍼 초기화"""
         with self._buf_lock:
             self.buffer.clear()
+            self._last_entry_signature = None
 
     def get_stats(self) -> Dict[str, Any]:
         """로그 통계 집계"""
@@ -139,12 +147,20 @@ in_memory_log_handler.setLevel(logging.INFO)
 
 
 def attach_in_memory_log_handler():
-    """주요 애플리케이션 로거들에 인메모리 핸들러 연결"""
+    """
+    애플리케이션 로거들에 인메모리 핸들러 연결.
+    루트 로거에만 핸들러를 등록하고 자식 로거는 propagate=True로 전파시켜
+    동일 로그가 중복 수집되는 것을 방지합니다.
+    """
     root_logger = logging.getLogger()
     if in_memory_log_handler not in root_logger.handlers:
         root_logger.addHandler(in_memory_log_handler)
 
+    # uvicorn 로거들은 프레임워크 설정상 propagate가 꺼져있을 수 있으므로
+    # 루트 로거로 로그가 자연스럽게 올라오도록 propagate=True를 보장합니다.
     for name in ["uvicorn", "uvicorn.access", "uvicorn.error", "weather_transit_api", "multimodal_router", "timeseries_cache"]:
         lg = logging.getLogger(name)
-        if in_memory_log_handler not in lg.handlers:
-            lg.addHandler(in_memory_log_handler)
+        lg.propagate = True
+        # 혹시 기존에 개별 로거에 핸들러가 등록되어 있다면 제거하여 중복 차단
+        if in_memory_log_handler in lg.handlers:
+            lg.removeHandler(in_memory_log_handler)

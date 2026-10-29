@@ -1173,7 +1173,10 @@ export default function App() {
             ] as { id: Page; label: string; icon: string }[]).map(nav => (
               <button
                 key={nav.id}
-                onClick={() => setPage(nav.id)}
+                onClick={() => {
+                  setPage(nav.id)
+                  setFocusedCoords(null)
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', borderRadius: 10,
                   background: page === nav.id ? 'rgba(56,189,248,0.15)' : 'transparent',

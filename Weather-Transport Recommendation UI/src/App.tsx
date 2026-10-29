@@ -1142,7 +1142,7 @@ export default function App() {
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '6px 12px', borderRadius: 8,
                 background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
-                color: '#F0F6FF', fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                color: 'var(--app-text)', fontSize: 12, fontWeight: 600, textDecoration: 'none',
                 transition: 'all 0.15s ease'
               }}
               onMouseEnter={e => {
@@ -1277,19 +1277,19 @@ export default function App() {
           {/* ── 시간대별 기상 예보 & AI 교통 분석 컨트롤 슬라이더 ── */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(22,32,64,0.95) 0%, rgba(13,27,58,0.95) 100%)',
+              background: 'linear-gradient(135deg, var(--color-card) 0%, var(--color-card2) 100%)',
               border: '1px solid rgba(56,189,248,0.3)',
               borderRadius: 20,
               padding: '18px 24px',
               marginBottom: 20,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+              boxShadow: '0 8px 32px var(--app-shadow)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 20 }}>⏱️</span>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700, color: '#F0F6FF' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700, color: 'var(--app-text)' }}>
                     시간대별 날씨 예보 및 AI 교통 분석
                     <span style={{
                       fontSize: 11, padding: '2px 8px', borderRadius: 6,
@@ -1301,7 +1301,7 @@ export default function App() {
                       {isCurrentHour ? '🟢 현재 실시간 관측 모드' : `🌦️ ${selectedHour}시 단기예보 탐색 모드`}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
                     슬라이더를 움직여 시간대별 실제 기상청 예보 날씨(기온·강수량)와 AI 모델의 추천·이용객 수 변화를 즉시 확인합니다
                   </div>
                 </div>
@@ -1342,7 +1342,7 @@ export default function App() {
             />
 
             {/* 주요 시간대 눈금 레이블 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginTop: 6 }}>
               {[
                 { h: 0, label: '00시(심야)' },
                 { h: 4, label: '04시' },
@@ -1358,7 +1358,7 @@ export default function App() {
                   onClick={() => setSelectedHour(t.h)}
                   style={{
                     cursor: 'pointer',
-                    color: selectedHour === t.h ? '#38BDF8' : 'rgba(255,255,255,0.45)',
+                    color: selectedHour === t.h ? 'var(--color-primary)' : 'var(--color-muted)',
                     fontWeight: selectedHour === t.h ? 700 : 400,
                     transition: 'color 0.15s ease'
                   }}
@@ -2839,14 +2839,14 @@ export default function App() {
 
                   {/* 멀티모달 구간 타임라인 요약 (LangGraph 경로 선택 시 표시) */}
                   {activeRoute.segments && activeRoute.segments.length > 0 && (
-                    <div style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 10, padding: '8px 10px', marginBottom: 10, border: '1px solid rgba(56,189,248,0.2)' }}>
+                    <div style={{ background: 'var(--color-card2)', borderRadius: 10, padding: '8px 10px', marginBottom: 10, border: '1px solid var(--color-border)' }}>
                       <div style={{ fontSize: 9.5, color: '#C084FC', fontFamily: 'JetBrains Mono', fontWeight: 800, marginBottom: 6 }}>
                         🧠 LangGraph 멀티모달 구간 안내
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                         {activeRoute.segments.map((seg, sIdx) => (
                           <div key={sIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10.5, borderLeft: `3px solid ${seg.color || '#38BDF8'}`, paddingLeft: 7 }}>
-                            <div style={{ color: '#F0F6FF', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 6 }}>
+                            <div style={{ color: 'var(--app-text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 6 }}>
                               <span style={{ color: seg.color || '#38BDF8', fontWeight: 800, marginRight: 4 }}>{seg.label}</span>
                               {seg.from_name} ➔ {seg.to_name}
                             </div>
@@ -3089,7 +3089,7 @@ export default function App() {
                         <div style={{ height: 6, background: 'var(--color-subtle)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
                           <div style={{ width: `${rec.crowd}%`, height: '100%', background: rec.crowdColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
                         </div>
-                        <div style={{ fontSize: 10, color: '#DDD6FE', background: 'var(--color-card2)', padding: '6px 8px', borderRadius: 6, borderLeft: '2px solid #A855F7', lineHeight: 1.4 }}>
+                        <div style={{ fontSize: 10, color: 'var(--app-text)', background: 'var(--color-card2)', padding: '6px 8px', borderRadius: 6, borderLeft: '2px solid #A855F7', lineHeight: 1.4 }}>
                           {rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석 완료'}
                         </div>
                       </div>
@@ -3110,7 +3110,7 @@ export default function App() {
                         )}
                       </div>
                       {stopArrivalData.loading ? (
-                        <div style={{ fontSize: 11, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0', background: 'var(--color-card2)', borderRadius: 8 }}>
                           ⏳ 실시간 열차 운행 정보 수신 중...
                         </div>
                       ) : stopArrivalData.subwayArrivals && stopArrivalData.subwayArrivals.length > 0 ? (
@@ -3176,7 +3176,7 @@ export default function App() {
                         )}
                       </div>
                       {stopArrivalData.loading ? (
-                        <div style={{ fontSize: 11, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: 'var(--color-muted)', textAlign: 'center', padding: '10px 0', background: 'var(--color-card2)', borderRadius: 8 }}>
                           ⏳ 실시간 버스 정보 수신 중...
                         </div>
                       ) : stopArrivalData.busArrivals && stopArrivalData.busArrivals.length > 0 ? (

@@ -272,7 +272,7 @@ export default function MultimodalRoutePanel({
     return (
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(22, 32, 64, 0.92))',
+          background: 'linear-gradient(135deg, var(--color-card) 0%, var(--color-card2) 100%)',
           border: '1px dashed rgba(56, 189, 248, 0.3)',
           borderRadius: 20,
           padding: compact ? 16 : 20,
@@ -368,7 +368,7 @@ export default function MultimodalRoutePanel({
               <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--app-text)', marginBottom: 2 }}>
                 ⏳ 경로 탐색 로딩 중... ({cleanFrom} ➔ {cleanTo})
               </div>
-              <div style={{ fontSize: 11, color: '#BAE6FD' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-primary)' }}>
                 LangGraph 에이전트가 기상 게이트 판정 · 지하철/버스/따릉이 복합 탐색 · FactChat AI 브리핑을 생성하고 있습니다.
               </div>
             </div>
@@ -398,12 +398,12 @@ export default function MultimodalRoutePanel({
       {/* ── 1. LangGraph × FactChat LLM 브리핑 헤더 카드 ── */}
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(22, 32, 64, 0.96))',
+          background: 'linear-gradient(135deg, var(--color-card) 0%, var(--color-card2) 100%)',
           border: `1px solid ${bikeEnabled ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.38)'}`,
           borderRadius: 20,
           padding: compact ? 16 : 20,
           marginBottom: 16,
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
+          boxShadow: '0 10px 30px var(--app-shadow)',
         }}
       >
         {/* 상단 상태 배지 바 */}
@@ -823,7 +823,7 @@ export default function MultimodalRoutePanel({
                       borderRadius: 999,
                       background: 'rgba(56, 189, 248, 0.09)',
                       border: '1px solid rgba(56, 189, 248, 0.22)',
-                      color: '#BAE6FD',
+                      color: 'var(--color-primary)',
                     }}
                   >
                     {hl}

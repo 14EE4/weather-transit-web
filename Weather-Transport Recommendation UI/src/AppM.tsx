@@ -1294,19 +1294,19 @@ export default function AppM() {
           {/* ── 시간대별 기상 예보 & AI 교통 분석 컨트롤 슬라이더 ── */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(22,32,64,0.95) 0%, rgba(13,27,58,0.95) 100%)',
+              background: 'linear-gradient(135deg, var(--color-card) 0%, var(--color-card2) 100%)',
               border: '1px solid rgba(56,189,248,0.3)',
               borderRadius: 20,
               padding: '16px 20px',
               marginBottom: 20,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+              boxShadow: '0 8px 32px var(--app-shadow)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 18 }}>⏱️</span>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: '#F0F6FF' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: 'var(--app-text)' }}>
                     시간대별 날씨 및 AI 분석
                     <span style={{
                       fontSize: 10, padding: '2px 6px', borderRadius: 6,
@@ -1356,7 +1356,7 @@ export default function AppM() {
             />
 
             {/* 주요 시간대 눈금 레이블 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'JetBrains Mono', marginTop: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginTop: 5 }}>
               {[
                 { h: 0, label: '00시' },
                 { h: 8, label: '08시' },
@@ -1371,7 +1371,7 @@ export default function AppM() {
                   onClick={() => setSelectedHour(t.h)}
                   style={{
                     cursor: 'pointer',
-                    color: selectedHour === t.h ? '#38BDF8' : 'rgba(255,255,255,0.45)',
+                    color: selectedHour === t.h ? 'var(--color-primary)' : 'var(--color-muted)',
                     fontWeight: selectedHour === t.h ? 700 : 400
                   }}
                 >
@@ -2755,14 +2755,14 @@ export default function AppM() {
 
                   {/* 멀티모달 구간 타임라인 요약 (LangGraph 경로 선택 시 표시) */}
                   {activeRoute.segments && activeRoute.segments.length > 0 && (
-                    <div style={{ background: 'rgba(0,0,0,0.28)', borderRadius: 10, padding: '8px 10px', marginBottom: 10, border: '1px solid rgba(56,189,248,0.2)' }}>
+                    <div style={{ background: 'var(--color-card2)', borderRadius: 10, padding: '8px 10px', marginBottom: 10, border: '1px solid var(--color-border)' }}>
                       <div style={{ fontSize: 9.5, color: '#C084FC', fontFamily: 'JetBrains Mono', fontWeight: 800, marginBottom: 6 }}>
                         🧠 LangGraph 멀티모달 구간 안내
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                         {activeRoute.segments.map((seg, sIdx) => (
                           <div key={sIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10.5, borderLeft: `3px solid ${seg.color || '#38BDF8'}`, paddingLeft: 7 }}>
-                            <div style={{ color: '#F0F6FF', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 6 }}>
+                            <div style={{ color: 'var(--app-text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 6 }}>
                               <span style={{ color: seg.color || '#38BDF8', fontWeight: 800, marginRight: 4 }}>{seg.label}</span>
                               {seg.from_name} ➔ {seg.to_name}
                             </div>

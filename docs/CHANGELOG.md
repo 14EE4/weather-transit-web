@@ -21,7 +21,7 @@
      - 헤더 상단에 `☀️ 화이트 모드` / `🌙 다크 모드` 원클릭 토글 버튼 제공.
      - `localStorage.getItem('weather-transit-theme')`를 통한 테마 복원 및 `document.documentElement.dataset.theme = theme` 실시간 바인딩. 새로고침(F5) 후에도 기존 테마 유지.
   3. **신규 컴포넌트 CSS 변수 전수 정합화 (`src/MultimodalRoutePanel.tsx`, `src/EnterpriseView.tsx`)**:
-     - LangGraph 멀티모달 경로 패널 및 B2B 관제 테이블 내 하드코딩 색상(`#F0F6FF`, `#162040`, `rgba(255,255,255,...)` 등)을 `var(--app-text)`, `var(--color-card)`, `var(--color-card2)`, `var(--color-border)`, `var(--color-muted)`로 전면 치환하여 라이트 모드에서의 선명한 가독성 확보.
+     - 메인 시간대별 기상 예보 & AI 교통 분석 슬라이더 카드(App.tsx, AppM.tsx), LangGraph 대기/브리핑 헤더 카드(MultimodalRoutePanel.tsx), 지도 내 LangGraph 구간 안내 박스 및 B2B 관제 테이블 내 하드코딩 색상(`#F0F6FF`, `#162040`, `rgba(255,255,255,...)` 등)을 `var(--app-text)`, `var(--color-card)`, `var(--color-card2)`, `var(--color-border)`, `var(--color-muted)`로 전면 치환하여 라이트 모드에서의 선명한 가독성 확보.
   4. **프로덕션 빌드 및 Docker 컨테이너 패키징 검증**:
      - `npm run build` 성공 검증 및 `docker compose build frontend` 컨테이너 재빌드 완료.
 

@@ -138,11 +138,12 @@ FEATURE_COLS_32_V1 = FEATURE_COLS_25 + V1_DUMMY_COLS
 
 # 기본 모델 세트 (라벨 -> 폴더). CLI `--model LABEL=PATH` 로 덮어쓸 수 있다.
 MODEL_SETS: dict[str, Path] = {
-    "production_25d": BENCH_DIR / "original",
-    # 2026-10-14 Colab 학습 산출물(v2 실제 32차원 실피처, feature_schema.json 동봉)
-    "tuned_32d_real": BENCH_DIR / "2026-10-14",
-    # 구 후보(v1): 25차원 + 상수 0 더미 7 — 참고 보관 자산이지만 배치만 맞추면 비교 가능
-    "tuned_32d_v1": BENCH_DIR / "2026-10-12" / "tuned",
+    # 2026-10-29 다년도(2023-2025) 32차원 v2.1 실피처 모델
+    "current_32d": BENCH_DIR / "2026-10-29",
+    # 레거시 아카이브 모델
+    "production_25d": BENCH_DIR / "archive" / "original",
+    "tuned_32d_20261014": BENCH_DIR / "archive" / "2026-10-14",
+    "tuned_32d_v1": BENCH_DIR / "archive" / "2026-10-12" / "tuned",
 }
 
 # 라벨별 피처 배치(32차원 모델에만 적용). 미지정 라벨은 v2(사양서 §3.2 실피처)로 평가한다.

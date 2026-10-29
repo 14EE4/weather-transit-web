@@ -87,16 +87,16 @@
 | 분류 | 문서명 | 핵심 내용 | 바로가기 |
 | :---: | :--- | :--- | :---: |
 | **아키텍처** | 🏛️ **시스템 아키텍처 명세서** | 5-Tier 계층형 구조, C4 컨텍스트, 엔드투엔드 파이프라인 플로우차트 | [`SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md) |
-| **AI 모델** | 🧩 **AI 모델 사양서 (규격본)** | 32차원 입력 특성 스키마, Optuna 최적 파라미터, 조기종료 및 성능 지표 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
-| **AI 모델** | 📈 **ONNX 모델 성능 비교 보고서** | 25차원 vs 32차원 벤치마크, 지표 분석 및 11월 클린 테스트셋 가이드 | [`MODEL_PERFORMANCE_REPORT.md`](docs/MODEL_PERFORMANCE_REPORT.md) |
-| **AI 모델** | 🧠 **AI 추론 모델 구축 가이드 (원문)** | AI 추론 엔진 원천 사양서 및 데이터 전처리·학습·ONNX 변환 개발 가이드 | [`AI_INFERENCE_MODEL_SPEC.md`](docs/AI_INFERENCE_MODEL_SPEC.md) |
+| **현행 데이터** | 📋 **현행 데이터 규격서 (v2.1)** | 2023~2025 3개년 28열 통합 정제 데이터셋 및 32차원 피처 생성 규격 | [`CURRENT_DATA_SPEC.md`](docs/CURRENT_DATA_SPEC.md) |
+| **현행 성능** | 📈 **현행 모델 성능 리포트 (v2.1)** | 2026-10-29 신규 학습 32차원 ONNX 3종 성능($R^2 \ge 0.989$) 및 Optuna 파라미터 | [`CURRENT_MODEL_PERFORMANCE.md`](docs/CURRENT_MODEL_PERFORMANCE.md) |
+| **AI 모델** | 🧩 **AI 모델 사양서 (단일 기준)** | 32차원 입력 특성 스키마, AHP 추천 스코어링 공식 및 서빙 규격 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
 | **에이전트** | 🤖 **ONNX 모델 × LangGraph 연동 명세서** | ONNX 실시간 혼잡도 추론 결과의 LangGraph 5단계 노드 및 다목적 효용 연동 규격 | [`ONNX_LANGGRAPH_INTEGRATION.md`](docs/ONNX_LANGGRAPH_INTEGRATION.md) |
 | **백엔드** | 🚀 **백엔드 추론 서버 구축 가이드** | FastAPI 인메모리 ONNX 런타임 서빙, 시계열 캐싱 및 REST API 규격 | [`BACKEND_INFERENCE_SERVER.md`](docs/BACKEND_INFERENCE_SERVER.md) |
 | **테스트** | 🧪 **공공 API 및 추론 연동 테스트 가이드** | 외부 공공 API 및 AI 추론 통합 테스트 스위트 실행 방법 및 트러블슈팅 | [`API_TEST_GUIDE.md`](docs/API_TEST_GUIDE.md) |
-| **데이터** | 📦 **데이터 전처리 인수 검수 보고서** | 2025 서울시 20.9만 건 교통·기상 데이터 무결성 검수 및 결측치 현황 | [`DATA_PREPROCESSING_HANDOFF.md`](docs/DATA_PREPROCESSING_HANDOFF.md) |
 | **인프라** | 🐳 **Docker 컨테이너화 운영 가이드** | 백엔드-프론트엔드 멀티 컨테이너 패키징 및 운영 환경 구성안 | [`DOCKER_CONTAINERIZATION_PLAN.md`](docs/DOCKER_CONTAINERIZATION_PLAN.md) |
 | **백로그** | 📋 **기술 부채 및 기능 확장 TODO** | 잔여 기술 과제, 실도로망/급행/버스 환승 API 고도화 로드맵 | [`TODO.md`](docs/TODO.md) |
 | **데이터검수** | 🔍 **목업·하드코딩·미검증 데이터 전수 조사** | 정적 상수, 근사 산식, 폴백 데이터 현황 및 실시간 API 전환 방안 | [`TODO_MOCK_AND_UNVERIFIED_DATA.md`](docs/TODO_MOCK_AND_UNVERIFIED_DATA.md) |
+| **아카이브** | 📦 **레거시 문서 보관소** | 구버전(v1/v2 단년도) 전처리 인수인계서 및 모델 성능 리포트 아카이브 | [`docs/archive/`](docs/archive/README.md) |
 | **이력** | 📋 **프로젝트 변경 이력 (CHANGELOG)** | 버전별·날짜별 주요 신규 기능 구현, 버그 수정 및 인프라 개선 기록 | [`CHANGELOG.md`](docs/CHANGELOG.md) |
 | **프론트** | 🖥️ **프론트엔드 대시보드 가이드** | React 18, MapLibre GL JS 인터랙티브 지도 컴포넌트 구조 및 개발 가이드 | [Frontend README](Weather-Transport%20Recommendation%20UI/README.md) |
 

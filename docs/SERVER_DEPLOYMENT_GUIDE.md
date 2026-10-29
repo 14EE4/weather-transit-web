@@ -108,17 +108,24 @@ nano .env   # 또는 vim .env
 ```
 
 ```env
-# 기상청 API허브 초단기실황 API 키
+# 1. 기상청 API허브 초단기실황 API 키
 KMA_APIHUB_KEY=발급받은_키
 
-# 서울 열린데이터광장 지하철 실시간 도착 API 키
+# 2. 서울 열린데이터광장 지하철 실시간 도착 및 따릉이 대여정보
 SEOUL_SUBWAY_API_KEY=발급받은_키
+SEOUL_DATA_API_KEY=발급받은_키
 
-# 공공데이터포털 버스 실시간 도착 API 키 (5종 활용신청)
+# 3. 공공데이터포털 버스 실시간 도착 API 키 (5종 활용신청 일반 인증키)
 BUS_API_KEY=발급받은_키
 DATA_GO_KR_API_KEY=발급받은_키
+
+# 4. FactChat / BAZE API Gateway (LangGraph 멀티모달 경로 탐색 자연어 브리핑 LLM)
+FACTCHAT_BASE_URL=https://api.baze.co/v1/gateway
+FACTCHAT_API_KEY=발급받은_키
+FACTCHAT_MODEL_NAME=gpt-6-luna
+# ※ BAZE_BASE_URL, BAZE_API_KEY 환경변수명도 호환 지원됩니다.
 ```
-> ※ 키가 없거나 미설정 상태여도 백엔드는 내장된 스마트 Mock 데이터로 안전하게 자동 fallback 작동합니다.
+> ※ 외부 API 키가 없거나 미설정 상태여도 백엔드는 내장된 스마트 Mock 데이터 및 규칙 기반 XAI 브리핑 엔진으로 100% 안전하게 자동 fallback 작동합니다.
 
 ### Step 2. 컨테이너 빌드 및 백그라운드 구동
 
@@ -266,7 +273,7 @@ ss -tulpn | grep -E '3100|8100'
    ```bash
    docker compose logs backend --tail=50
    ```
-3. **API 키 점검**: 프로젝트 루트의 `.env` 파일에 공공데이터 키(`KMA_APIHUB_KEY`, `SEOUL_SUBWAY_API_KEY`, `BUS_API_KEY`)가 올바르게 설정되어 있는지 점검합니다.
+3. **API 키 점검**: 프로젝트 루트의 `.env` 파일에 공공데이터 키(`KMA_APIHUB_KEY`, `SEOUL_SUBWAY_API_KEY`, `BUS_API_KEY`) 및 LLM 키(`FACTCHAT_API_KEY`)가 올바르게 설정되어 있는지 점검합니다.
 
 ---
 

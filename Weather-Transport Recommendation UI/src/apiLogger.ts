@@ -4,6 +4,21 @@
  */
 
 // 동일한 이벤트가 1초 내에 중복 호출되는 것을 방지하는 캐시 (디버깅용으로 300ms로 완화)
+export interface StandardLogRecord {
+  timestamp: string
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
+  service: 'KMA' | 'BUS' | 'SUBWAY' | 'BIKE' | 'ONNX' | 'LANGGRAPH' | 'SYSTEM'
+  action: string
+  endpoint?: string
+  params?: Record<string, any>
+  metrics?: Record<string, any>
+  status: 'SUCCESS' | 'FALLBACK' | 'ERROR'
+}
+
+function getLogTimestamp(): string {
+  return new Date().toISOString()
+}
+
 const recentLogs = new Map<string, number>()
 const DEDUPE_WINDOW_MS = 300
 

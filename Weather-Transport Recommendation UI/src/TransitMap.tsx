@@ -299,6 +299,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const isFlyingRef = useRef<boolean>(false)
   const initialRestoreDoneRef = useRef<boolean>(false)
   const isInitialRestoringRef = useRef<boolean>(false)
+  const prevActiveRouteRef = useRef<any>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   // 실시간 API로 불러온 거점 외 따릉이 대여소 (기존 마커 파이프라인에 합쳐 표시)
@@ -411,6 +412,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             type: 'raster',
             tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
             tileSize: 256,
+            maxzoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
           },
         },
@@ -556,11 +558,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     }
 
     map.on('moveend', saveCurrentMapView)
+    map.on('zoomend', saveCurrentMapView)
 
     mapInstanceRef.current = map
 
     return () => {
+      saveCurrentMapView()
       map.off('moveend', saveCurrentMapView)
+      map.off('zoomend', saveCurrentMapView)
       map.remove()
     }
   }, [])
@@ -725,8 +730,11 @@ popupContent.append(title, number)
     const routeStationNames = hasActiveRoute ? new Set(currentRoute.path.map(p => p.name)) : null
 
     // ── 줌 레벨별 단계적 가시성 (Multi-tier Zoom Visibility) 정책 ──
-    // 1. 광역 뷰 (Zoom < 11.5): 버스/따릉이 100% 숨김, 지하철 Tier 1 메이저 허브만 미니 점(Dot) 표출
-    const isWideAreaZoom = currentZoom < 11.5 && !hasActiveRoute
+    // 0. 초광역 뷰 (Zoom < 10.5): 모든 마커 100% 숨김 (수도권/전국 단위 축소 시 점 마커 뭉침 현상 원천 차단)
+    const isUltraWideZoom = currentZoom < 10.5 && !hasActiveRoute
+
+    // 1. 중간 광역 뷰 (10.5 <= Zoom < 11.5): 버스/따릉이 100% 숨김, 지하철 Tier 1 메이저 허브만 미니 점(Dot) 표출 (점끼리 충돌 필터링 적용)
+    const isWideAreaZoom = currentZoom >= 10.5 && currentZoom < 11.5 && !hasActiveRoute
 
     // 2. 중거리 도심 원경 (11.5 <= Zoom < 12.5):
     //    버스는 주요 환승센터(isHub), 따릉이는 주요 인기거점(isPopularSpot)만 '점(Dot)'으로 표출
@@ -835,9 +843,16 @@ popupContent.append(title, number)
 
       // ── [줌 레벨별 단계적 가시성 필터링] ──
 
-      // [규칙 1] 광역 뷰 (Zoom < 11.5):
+      // [규칙 0] 초광역 뷰 (Zoom < 10.5):
+      // - 대축척 광역 뷰에서는 점 마커들이 도심부에 까맣게 뭉치므로 모든 마커 100% 숨김
+      if (isUltraWideZoom) {
+        item.el.style.display = 'none'
+        continue
+      }
+
+      // [규칙 1] 중간 광역 뷰 (10.5 <= Zoom < 11.5):
       // - 버스와 따릉이는 100% 완전히 숨김 (화면 난잡함 방지)
-      // - 지하철도 Tier 1 메이저 허브(priority >= 250)만 점(Dot) 마커로 표출, 일반 역 숨김
+      // - 지하철도 Tier 1 메이저 허브(priority >= 250)만 점(Dot) 마커로 표출하되, 점끼리도 충돌 검사하여 뭉침 방지
       if (isWideAreaZoom) {
         if (item.stop.type === 'bus' || item.stop.type === 'bike') {
           item.el.style.display = 'none'
@@ -847,6 +862,27 @@ popupContent.append(title, number)
           item.el.style.display = 'none'
           continue
         }
+
+        // 점 마커 충돌 박스 (반경 12px)
+        const dotRadius = 12
+        const dotBox = {
+          x1: pt.x - dotRadius,
+          y1: pt.y - dotRadius,
+          x2: pt.x + dotRadius,
+          y2: pt.y + dotRadius,
+        }
+
+        const hasCollision = placedBoxes.some(b =>
+          !(dotBox.x2 < b.x1 || dotBox.x1 > b.x2 || dotBox.y2 < b.y1 || dotBox.y1 > b.y2)
+        )
+
+        if (hasCollision) {
+          item.el.style.display = 'none'
+          continue
+        }
+
+        placedBoxes.push(dotBox)
+
         // 광역 메이저 허브는 점 마커로 표출
         const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
         const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
@@ -2244,6 +2280,9 @@ popupContent.append(title, number)
     const source = map.getSource('active-route')
     const mmSource = map.getSource('multimodal-segments')
 
+    const hadRoute = !!(prevActiveRouteRef.current && prevActiveRouteRef.current.path && prevActiveRouteRef.current.path.length >= 2)
+    prevActiveRouteRef.current = activeRoute
+
     if (!activeRoute || activeRoute.path.length < 2) {
       if (source) {
         source.setData({
@@ -2267,16 +2306,18 @@ popupContent.append(title, number)
       })
       updateCollisions()
 
-      // 경로 핏바운즈로 인해 줌이 너무 축소되어 있다면 (zoom < 12.8) 일반 시야각(13.0)으로 부드럽게 복귀
-      const currentZ = map.getZoom()
-      if (currentZ < 12.8) {
-        map.easeTo({
-          zoom: 13.0,
-          duration: 600,
-        })
-        map.once('idle', () => {
-          updateCollisionsRef.current()
-        })
+      // 이전에 경로가 활성화되어 있다가 닫혔을 때만, 경로 핏바운즈로 인해 줌이 너무 축소되어 있다면 (zoom < 12.8) 일반 시야각(13.0)으로 부드럽게 복귀
+      if (hadRoute) {
+        const currentZ = map.getZoom()
+        if (currentZ < 12.8) {
+          map.easeTo({
+            zoom: 13.0,
+            duration: 600,
+          })
+          map.once('idle', () => {
+            updateCollisionsRef.current()
+          })
+        }
       }
       return
     }
@@ -2847,11 +2888,13 @@ popupContent.append(title, number)
         <span style={{ fontSize: 11, color: '#E2E8F0', fontWeight: 600 }}>
           {activeRoute
             ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
-            : (zoomLevel < 11.5
-                ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
-                : (zoomLevel < 13.5
-                    ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
-                    : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다'))}
+            : (zoomLevel < 10.5
+                ? '광역 지도 (마커 숨김): 지도를 확대하면 주요 거점이 표시됩니다'
+                : (zoomLevel < 11.5
+                    ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
+                    : (zoomLevel < 13.5
+                        ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
+                        : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')))}
         </span>
       </div>
 

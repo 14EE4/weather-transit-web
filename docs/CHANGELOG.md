@@ -8,6 +8,23 @@
 
 ## [2026-10-29]
 
+### 🌓 다크 모드 및 화이트(라이트) 모드 테마 지원 & 전역 CSS 변수 정합화 (이슈 #12)
+- **배경**:
+  - 사용자 환경(주간 야외, 야간 실내 등) 및 시각적 편의성에 따라 화면 테마를 자유롭게 선택할 수 있도록 다크 모드와 화이트(라이트) 모드 전환 기능 지원 필요.
+  - 기존 다크 테마 기반 하드코딩된 UI 요소들(대시보드 카드, 시간대 슬라이더, 지도 팝업, LangGraph 멀티모달 패널, B2B 기업용 관제 뷰)을 반응형 CSS 변수로 정합화.
+- **주요 조치**:
+  1. **전역 디자인 토큰 및 CSS 테마 시스템 구축 (`src/index.css`)**:
+     - `html[data-theme="dark"]`: 심야/저조도 최적화 딥 네이비 배경(`--color-bg: #0A1628`), 서피스(`--color-surface: #111D35`), 카드(`--color-card: #162040`), 텍스트(`--app-text: #F0F6FF`).
+     - `html[data-theme="light"]`: 주간/가독성 최적화 클린 화이트/소프트 그레이 배경(`--color-bg: #F4F7FB`), 서피스/카드(`--color-surface: #FFFFFF`), 연한 보더(`--color-border: #D9E2EF`), 딥 네이비 텍스트(`--app-text: #172033`).
+     - MapLibre GL 팝업(`maplibregl-popup-content`), 입력창(`input`, `select`, `textarea`), 날씨 그라디언트 카드(`weather-gradient-*`)의 테마별 스타일 오버라이드.
+  2. **원클릭 테마 토글 버튼 탑재 및 상태 영속화 (`src/App.tsx`, `src/AppM.tsx`)**:
+     - 헤더 상단에 `☀️ 화이트 모드` / `🌙 다크 모드` 원클릭 토글 버튼 제공.
+     - `localStorage.getItem('weather-transit-theme')`를 통한 테마 복원 및 `document.documentElement.dataset.theme = theme` 실시간 바인딩. 새로고침(F5) 후에도 기존 테마 유지.
+  3. **신규 컴포넌트 CSS 변수 전수 정합화 (`src/MultimodalRoutePanel.tsx`, `src/EnterpriseView.tsx`)**:
+     - LangGraph 멀티모달 경로 패널 및 B2B 관제 테이블 내 하드코딩 색상(`#F0F6FF`, `#162040`, `rgba(255,255,255,...)` 등)을 `var(--app-text)`, `var(--color-card)`, `var(--color-card2)`, `var(--color-border)`, `var(--color-muted)`로 전면 치환하여 라이트 모드에서의 선명한 가독성 확보.
+  4. **프로덕션 빌드 및 Docker 컨테이너 패키징 검증**:
+     - `npm run build` 성공 검증 및 `docker compose build frontend` 컨테이너 재빌드 완료.
+
 ### 🚌 버스+지하철 복합 환승 경로 서울시 실시간 대중교통환승 API 연동 (이슈 #50 · ROUTING-02)
 - **배경**:
   - 기존 멀티모달 경로 탐색 엔진(`multimodal_router.py`)에서 버스+지하철 복합 환승 경로를 생성할 때, 출발지 인근 정류소에서 직선거리 기반의 가상 버스 노선(임의 번호 `143, 402`)과 임의의 평균 시속으로 소요시간을 추정하여 추천하던 한계를 개선.

@@ -2050,6 +2050,31 @@ export default function App() {
                     onChange={e => setSelectedHour(Number(e.target.value))}
                     style={{ flex: 1, accentColor: 'var(--color-primary)', cursor: 'pointer', height: 5 }}
                   />
+                  {!isCurrentHour && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHour(nowHour)}
+                      title={`현재 시각(${nowHour}시)으로 재설정`}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)',
+                        border: '1px solid var(--color-primary)',
+                        color: 'var(--color-primary)',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        fontFamily: 'JetBrains Mono',
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      🔄 현재 시각
+                    </button>
+                  )}
                 </div>
               </div>
 

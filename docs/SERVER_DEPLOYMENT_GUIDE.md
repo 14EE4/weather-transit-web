@@ -252,7 +252,48 @@ sudo ufw status
 
 ## 🔄 7. 코드 업데이트 및 재배포 루틴 (Update Routine)
 
-새로운 기능이 푸시되었을 때 한 번에 반영하는 원클릭 업데이트 명령어입니다.
+새로운 기능이 푸시되었을 때 미니 PC에서 서비스를 중단 없이 최신 상태로 반영하는 원클릭 업데이트 명령어입니다.
+
+### 7.1 Docker Compose 기준 원클릭 업데이트 (기본 권장)
+
+현재 Docker 환경으로 미니 PC를 운영 중인 경우 다음 원클릭 명령어로 최신 코드 반영부터 재빌드, 헬스체크까지 완결합니다.
+
+```bash
+# 최신 코드 수신 및 Docker 이미지 재빌드 & 컨테이너 롤링 교체
+cd ~/workspace/weather-transit-web && \
+git pull origin main && \
+docker compose build && \
+docker compose up -d --remove-orphans && \
+docker compose ps
+```
+
+> 💡 **코드 수정사항이 반영되지 않는 경우 (강제 재빌드)**:
+> Docker 빌드 캐시로 인해 이전 코드가 실행된다고 판단될 경우 캐시를 무시하고 강제 재생성합니다.
+> ```bash
+> docker compose build --no-cache && \
+> docker compose up -d --force-recreate
+> ```
+
+#### 배포 후 즉시 검증
+```bash
+# 1. 백엔드 AI 모델 로딩 및 32차원 스키마 검증
+curl -s http://localhost:8100/health | grep '"models_loaded":true'
+
+# 2. 실시간 컨테이너 로그 스트리밍 확인
+docker compose logs -f --tail=30
+```
+
+#### 디스크 용량 관리 (주기적 실행)
+빌드 과정에서 누적된 이전 버전의 댕글링(Dangling) 이미지를 정리하여 미니 PC의 디스크 용량을 확보합니다.
+```bash
+docker image prune -f
+```
+
+---
+
+### 7.2 PM2 호스트 기준 업데이트 루틴 (대체 옵션)
+
+Node.js / PM2 호스트 환경으로 구동 중인 경우의 업데이트 명령어입니다.
 
 ```bash
 cd ~/workspace/weather-transit-web && \
@@ -268,42 +309,55 @@ pm2 restart weather-backend weather-frontend
 
 ## 🩺 8. 트러블슈팅 및 점검 (FAQ)
 
-### Q1. 백엔드 구동 시 `libgomp.so.1` 누락 에러가 발생합니다.
+### Q1. 도커 컨테이너 상태와 실시간 로그는 어떻게 확인하나요?
+```bash
+# 전체 컨테이너 상태 (Up, healthy 여부) 확인
+docker compose ps
+
+# 백엔드 컨테이너 실시간 로그 확인
+docker compose logs -f backend --tail=50
+
+# 프론트엔드 컨테이너 실시간 로그 확인
+docker compose logs -f frontend --tail=50
+
+# 브라우저 기반 관리자 대시보드
+# http://<미니PC_IP>:3100/health/dashboard 또는 http://<미니PC_IP>:8100/health/dashboard
+```
+
+### Q2. 특정 컨테이너만 개별 제어(재시작/정지)하고 싶습니다.
+```bash
+# 백엔드 컨테이너만 재시작
+docker compose restart backend
+
+# 프론트엔드 컨테이너만 재시작
+docker compose restart frontend
+
+# 전체 컨테이너 정지 및 기동
+docker compose down
+docker compose up -d
+```
+
+### Q3. 백엔드 구동 시 `libgomp.so.1` 누락 에러가 발생합니다.
 ```bash
 ImportError: libgomp.so.1: cannot open shared object file: No such file or directory
 ```
-- **원인**: ONNX Runtime에 필요한 OpenMP C 라이브러리가 리눅스에 미설치됨.
-- **해결**:
+- **도커 환경**: `Dockerfile.backend`에 `apt-get install -y libgomp1`이 기본 포함되어 있으므로 컨테이너를 정상 빌드했다면 발생하지 않습니다.
+- **호스트(PM2) 환경**: 호스트 OS에 `libgomp1`이 필요합니다:
   ```bash
   sudo apt update && sudo apt install -y libgomp1
   pm2 restart weather-backend
   ```
 
-### Q2. 포트가 이미 사용 중인지 어떻게 확인하나요?
+### Q4. 포트가 이미 사용 중인지 어떻게 확인하나요?
 ```bash
 ss -tulpn | grep -E '3100|8100'
 ```
-출력 결과에 다른 프로세스가 나타난다면, `ecosystem.config.cjs`에서 포트를 원하는 번호(예: `3200`, `8200`)로 변경하시면 됩니다.
+출력 결과에 Docker 외의 다른 프로세스가 나타난다면, `docker-compose.yml`의 호스트 바인딩 포트(예: `"3100:80"` ➔ `"3200:80"`, `"8100:8000"` ➔ `"8200:8000"`) 및 NPM 프록시 포트 설정을 변경하시면 됩니다.
 
-### Q3. 브라우저에서 지도는 뜨는데 날씨/도착 정보가 "데이터 없음"으로 나옵니다.
-1. **백엔드 상태 확인**: 브라우저에서 `http://<미니PC_IP>:8100/health` 접속 시 `{"status":"ok", ...}`가 나오는지 확인합니다.
-2. **PM2 백엔드 로그 확인**:
+### Q5. 브라우저에서 지도는 뜨는데 날씨/도착 정보가 "데이터 없음"으로 나옵니다.
+1. **백엔드 헬스체크 확인**: 브라우저에서 `http://<미니PC_IP>:8100/health` 접속 시 `{"status":"ok", ...}` 및 `models_loaded: true`가 나오는지 확인합니다.
+2. **도커 백엔드 로그 확인**:
    ```bash
-   pm2 logs weather-backend --lines 50
+   docker compose logs backend --tail=50
    ```
-3. **API 키 점검**: `.env` 파일에 기상청, 서울 지하철, 버스 API 키가 정상적으로 설정되어 있는지 점검합니다.
-
-### Q4. PM2 프로세스 개별 제어는 어떻게 하나요?
-```bash
-# 백엔드만 재시작
-pm2 restart weather-backend
-
-# 프론트엔드만 재시작
-pm2 restart weather-frontend
-
-# 전체 로그 실시간 보기
-pm2 logs weather-backend weather-frontend
-
-# 프로세스 정지
-pm2 stop weather-backend weather-frontend
-```
+3. **API 키 점검**: 프로젝트 루트의 `.env` 파일에 공공데이터 키(`KMA_APIHUB_KEY`, `SEOUL_SUBWAY_API_KEY`, `BUS_API_KEY`)가 설정되어 있는지 점검합니다.

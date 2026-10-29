@@ -13,7 +13,7 @@
   - 기존 지하철 및 멀티모달 경로 탐색에서 모든 환승역의 환승 도보시간을 일괄 `2.0분`으로 고정함에 따라, `0.5분대` 평면 환승역(김포공항, 금정 등)과 `5.0~8.0분대` 막장 환승역(노원 6.2분, 종로3가 6.5분, 고속터미널 4.5분 등) 간의 극심한 차이가 반영되지 않아 비현실적인 경로가 추천되는 문제 해결.
 - **주요 조치**:
   1. **실측 환승 데이터셋 구축 및 공식 출처 기재 (`models/station_transfer_times.json`, `stationTransferTimes.json`)**:
-     - 서울 열린데이터광장(`OA-13290`: https://data.seoul.go.kr/dataList/OA-13290/S/1/datasetView.do) 및 공공데이터포털(`15076412`: https://www.data.go.kr/data/15076412/fileData.do)의 실측 데이터(기준보행속도 1.2m/s) 기반으로 수도권 주요 환승역 40여 개 역에 대한 93개 호선별 환승 쌍 구축 (`walkMinutes`, `distanceM`, `transferType`).
+     - 서울 열린데이터광장(`OA-13290`: https://data.seoul.go.kr/dataList/OA-13290/S/1/datasetView.do) 및 공공데이터포털(`15044419`: https://www.data.go.kr/data/15044419/fileData.do)의 실측 데이터(기준보행속도 1.2m/s) 기반으로 수도권 주요 환승역 40여 개 역에 대한 93개 호선별 환승 쌍 구축 (`walkMinutes`, `distanceM`, `transferType`).
      - 프론트엔드(`src/data/stationTransferTimes.json`) 및 백엔드(`models/station_transfer_times.json`)에 동일 스키마로 배포 (상세 명세: `docs/CURRENT_DATA_SPEC.md` §7).
   2. **프론트엔드 다익스트라 최적 경로 탐색 및 UI 반영 (`Weather-Transport Recommendation UI/src/subwayGraph.ts`)**:
      - `TRANSFER_TIMES_MAP`을 구축하여 `getStationTransferTime`이 93개 실측 쌍에 대해 실제 도보시간/거리 반환.

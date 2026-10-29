@@ -3354,19 +3354,22 @@ export default function AppM() {
             max-width: 100% !important;
           }
 
-          /* 대시보드의 다열 카드/통계 그리드를 세로 한 열로 */
-          div[style*="grid-template-columns"] {
+          /* 대시보드의 다열 카드/통계 그리드를 세로 한 열로 (날씨 2x2 그리드는 제외) */
+          div[style*="grid-template-columns"]:not(.weather-metrics-grid) {
             grid-template-columns: minmax(0, 1fr) !important;
           }
-          div[style*="display: grid"] {
+          div[style*="display: grid"]:not(.weather-metrics-grid) {
             grid-template-columns: minmax(0, 1fr) !important;
           }
 
-          /* 날씨 패널 2x2 지표 그리드: 모바일에서도 정확히 2개씩 2*2 유지 */
+          /* 날씨 패널 2x2 지표 그리드: 모바일에서도 정확히 2개씩 2*2 유지 (높은 Specificity 적용) */
+          div.weather-metrics-grid,
+          div.weather-metrics-grid[style],
           .weather-metrics-grid {
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 10px !important;
+            width: 100% !important;
           }
 
           /* 경로 추천: 입력 패널 먼저, 추천 결과는 아래로 */

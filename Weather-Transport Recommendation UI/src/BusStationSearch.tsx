@@ -68,7 +68,7 @@ export default function BusStationSearch({ onSelect }: Props) {
   return (
     <div style={{
       padding: '16px 20px',
-      borderBottom: '1px solid rgba(255,255,255,0.08)',
+      borderBottom: '1px solid var(--color-border)',
       position: 'relative'
     }}>
       <div style={{
@@ -102,8 +102,8 @@ export default function BusStationSearch({ onSelect }: Props) {
           padding: '12px',
           borderRadius: 10,
           border: '1px solid rgba(52,211,153,0.4)',
-          background: '#162040',
-          color: '#FFFFFF',
+          background: 'var(--color-card)',
+          color: 'var(--app-text)',
           outline: 'none'
         }}
       />
@@ -114,7 +114,7 @@ export default function BusStationSearch({ onSelect }: Props) {
           left: 20,
           right: 20,
           top: '100%',
-          background: '#111D35',
+          background: 'var(--color-surface)',
           border: '1px solid rgba(52,211,153,0.4)',
           borderRadius: 10,
           maxHeight: 300,
@@ -123,7 +123,7 @@ export default function BusStationSearch({ onSelect }: Props) {
           boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
         }}>
           {loading && (
-            <div style={{ padding: 12, color: '#94A3B8' }}>
+            <div style={{ padding: 12, color: 'var(--color-muted)' }}>
               정류장 검색 중...
             </div>
           )}
@@ -135,7 +135,7 @@ export default function BusStationSearch({ onSelect }: Props) {
           )}
 
           {!loading && !error && results.length === 0 && (
-            <div style={{ padding: 12, color: '#94A3B8' }}>
+            <div style={{ padding: 12, color: 'var(--color-muted)' }}>
               검색 결과가 없습니다.
             </div>
           )}
@@ -158,7 +158,7 @@ export default function BusStationSearch({ onSelect }: Props) {
                 padding: '11px 13px',
                 textAlign: 'left',
                 cursor: 'pointer',
-                color: '#FFFFFF'
+                color: 'var(--app-text)'
               }}
             >
               <div style={{ fontSize: 13, fontWeight: 700 }}>
@@ -166,7 +166,7 @@ export default function BusStationSearch({ onSelect }: Props) {
               </div>
               <div style={{
                 fontSize: 11,
-                color: '#94A3B8',
+                color: 'var(--color-muted)',
                 marginTop: 3
               }}>
                 정류장 번호: {station.arsId}

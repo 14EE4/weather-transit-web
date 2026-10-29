@@ -1688,6 +1688,7 @@ popupContent.append(title, number)
           weather?: any
           aiPrediction?: any
           isLoadingAll?: boolean
+          source?: string
         },
         isLoadingArrivalsArg = false
       ) => {
@@ -1696,6 +1697,7 @@ popupContent.append(title, number)
         let weatherData: any = null
         let aiData: any = null
         let isLoadingAll = false
+        let apiSource: string = ''
 
         if (Array.isArray(arrivalsOrOptions)) {
           arrivalsList = arrivalsOrOptions
@@ -1706,6 +1708,7 @@ popupContent.append(title, number)
           weatherData = arrivalsOrOptions.weather || null
           aiData = arrivalsOrOptions.aiPrediction || null
           isLoadingAll = !!arrivalsOrOptions.isLoadingAll
+          apiSource = String((arrivalsOrOptions as any).source || '')
         }
 
         const resolvedDistrict = resolveDistrict(stop.name, stop.coords)
@@ -1879,7 +1882,13 @@ popupContent.append(title, number)
                   <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
                     <span>🚌</span> 실시간 버스 도착
                   </span>
-                  <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">실시간 API</span>
+                  <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; ${
+                    apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT')
+                      ? 'color: #F59E0B; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);'
+                      : 'color: #34D399; background: rgba(52,211,153,0.15);'
+                  }">
+                    ${apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') ? '⚠️ 시간표 추정' : '실시간 API'}
+                  </span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                   ${arrivalsList.slice(0, 3).map((b: any) => `
@@ -2068,6 +2077,7 @@ popupContent.append(title, number)
 
           // (3) 실시간 대중교통 도착 정보 조회
           let arrivals: any[] = []
+          let apiCallSource = ''
           if (stop.type === 'subway') {
             try {
               const arrivalRes = await fetch(
@@ -2079,34 +2089,58 @@ popupContent.append(title, number)
                 : [
                     { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
                   ]
+              apiCallSource = String(arrivalData.source || '')
               logSubwayApiCall(cleanName, arrivals, arrivalData)
             } catch {
+              apiCallSource = 'CLIENT_FALLBACK'
               arrivals = [
                 { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '정상 운행중', remaining_minutes: 2, updn_line: '상/하행' }
               ]
               logSubwayApiCall(cleanName, arrivals)
             }
           } else if (stop.type === 'bus') {
-            const targetStId = stop.stId || '111000299'
-            const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : ['간선']
-            const r1 = defaultRoutes[0] || '140'
-            const r2 = defaultRoutes[1] || '472'
-            try {
-              const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
-              const busData = await busRes.json()
-              arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
-                ? busData.arrivals
-                : [
-                    { route_name: r1, arrival_msg1: '곧 도착' },
-                    { route_name: r2, arrival_msg1: '3분 후' }
-                  ]
-              logBusApiCall(r1, targetStId, arrivals, busData)
-            } catch {
+            let targetStId = stop.stId
+            // stop.stId가 누락된 경우 좌표 기반 인근 정류소 API로 동적 해석
+            if (!targetStId && stop.coordinates) {
+              try {
+                const nearRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/stations/nearby?lat=${stop.coordinates[1]}&lng=${stop.coordinates[0]}&radius=350`)
+                if (nearRes.ok) {
+                  const nearData = await nearRes.json()
+                  if (nearData.stations && nearData.stations.length > 0) {
+                    targetStId = nearData.stations[0].stId || nearData.stations[0].station_id
+                  }
+                }
+              } catch {
+                // ignore
+              }
+            }
+
+            const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : []
+            const r1 = defaultRoutes[0] || `${stop.name} 경유 노선`
+            
+            if (targetStId) {
+              try {
+                const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
+                const busData = await busRes.json()
+                apiCallSource = String(busData.source || '')
+                arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
+                  ? busData.arrivals
+                  : [
+                      { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
+                    ]
+                logBusApiCall(r1, targetStId, arrivals, busData)
+              } catch {
+                apiCallSource = 'CLIENT_FALLBACK'
+                arrivals = [
+                  { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
+                ]
+                logBusApiCall(r1, targetStId, arrivals)
+              }
+            } else {
+              apiCallSource = 'NO_STID_FALLBACK'
               arrivals = [
-                { route_name: r1, arrival_msg1: '곧 도착' },
-                { route_name: r2, arrival_msg1: '3분 후' }
+                { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
               ]
-              logBusApiCall(r1, targetStId, arrivals)
             }
           } else if (stop.type === 'bike') {
             // 서울시 따릉이 실시간 대여정보(잔여 자전거 수)로 시뮬레이션 값을 대체
@@ -2159,7 +2193,8 @@ popupContent.append(title, number)
               weather: weatherData,
               aiPrediction: aiData,
               arrivalsList: arrivals,
-              isLoadingArrivals: false
+              isLoadingArrivals: false,
+              source: apiCallSource
             }))
           }
 

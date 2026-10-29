@@ -8,6 +8,22 @@
 
 ## [2026-10-29]
 
+### 🎨 프론트엔드 정적 상수 분리, 스켈레톤 UI 전환 및 API 폴백 배지 명시화 (이슈 #29)
+- **배경**:
+  - `App.tsx` 및 `AppM.tsx` 마운트 초기 0.1~0.5초 동안 하드코딩된 숫자 배열(`DEFAULT_24H_DATA`, `TRANSPORT_SCORES`, `DISTRICT_DATA`)이 잠깐 번쩍이며 나타나는 현상 제거.
+  - `TransitMap.tsx`에 남아있던 레거시 버스 하드코딩 정류소 ID(`111000299`) 및 임의 노선(`140`, `472`) 방어코드를 서울시 실시간 마스터 동적 조회로 완전 전환.
+  - 외부 공공 API 장애/지연 시 백엔드가 반환하는 `SIMULATION_FALLBACK` 및 `CIRCUIT_OPEN` 추정치에 대해 사용자가 실시간 여부를 명확히 인지할 수 있도록 UI 배지 연동.
+- **주요 조치**:
+  1. **정적 폴백 상수 분리 모듈화 (`src/constants/fallbackData.ts`)**:
+     - `DEFAULT_24H_DATA`, `FALLBACK_TRANSPORT_SCORES`, `CORRELATION_DATA`, `FALLBACK_DISTRICT_DATA` 및 관련 TypeScript 인터페이스를 전용 상수로 분리 격리.
+  2. **추천 카드 및 혼잡도 테이블 Skeleton Shimmer UI 탑재 (`src/components/SkeletonLoader.tsx`)**:
+     - 초기 API 응답 수신 전까지 세련된 은은한 펄스 효과의 스켈레톤 플레이스홀더를 렌더링하여 고정 숫자 깜빡임 원천 차단.
+  3. **버스 정류소 ID 동적 해석 및 가짜 노선 제거 (`src/TransitMap.tsx`)**:
+     - `stop.stId`가 누락된 경우 좌표 기반 인근 정류소 API(`/api/v1/transit/bus/stations/nearby?radius=350`)를 비동기로 동적 조회하여 실제 `stId`를 바인딩하도록 개선.
+     - 하드코딩된 가짜 노선(`140`, `472`) 대신 정류소 실제 경유 노선(`stop.lineInfo`) 및 실시간 도착 노선으로 정규화.
+  4. **공공 API 폴백/추정치 UI 배지 신설 (`src/TransitMap.tsx`)**:
+     - 백엔드 응답 `source`가 `FALLBACK` 또는 `CIRCUIT`을 포함할 경우, 지하철 및 버스 도착 팝업에 `⚠️ 시간표 추정` (주황색) 배지를 명확히 구분 표출.
+
 ### 🚇 환승역 실측 도보시간·거리 반영 및 다익스트라 최적화 (이슈 #47 · ROUTING-01)
 - **배경**:
   - 기존 지하철 및 멀티모달 경로 탐색에서 모든 환승역의 환승 도보시간을 일괄 `2.0분`으로 고정함에 따라, `0.5분대` 평면 환승역(김포공항, 금정 등)과 `5.0~8.0분대` 막장 환승역(노원 6.2분, 종로3가 6.5분, 고속터미널 4.5분 등) 간의 극심한 차이가 반영되지 않아 비현실적인 경로가 추천되는 문제 해결.

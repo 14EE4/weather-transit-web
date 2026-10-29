@@ -8,10 +8,64 @@
 
 ## 📌 1. 서비스 아키텍처 및 포트 구성
 
+### 1.1 하드웨어 & Docker + NPM 통합 인프라 다이어그램
+
+```mermaid
+flowchart TD
+    subgraph Internet ["🌐 외부 클라이언트 & 공공망"]
+        User["👤 사용자 웹/모바일 브라우저<br>(https://weather.yourdomain.com)"]
+        PublicAPIs["🏛️ 외부 공공 데이터 & AI<br>- 기상청 API허브<br>- 서울 열린데이터광장<br>- 공공데이터포털 버스<br>- FactChat LLM"]
+    end
+
+    subgraph NetworkEdge ["🏠 홈 네트워크 게이트웨이"]
+        Router["공유기 / 라우터 (DDNS & 포트포워딩)<br>• 외부 80/443 ➔ 미니 PC 80/443"]
+    end
+
+    subgraph MiniPC ["🖥️ Intel N100 미니 PC (Linux Ubuntu 22.04 LTS / 16GB RAM)"]
+        subgraph NPM_Layer ["🛡️ 리버스 프록시 & SSL 계층 (Nginx Proxy Manager)"]
+            NPM["Nginx Proxy Manager (NPM)<br>• Web Admin GUI: 포트 81<br>• Let's Encrypt 자동 SSL 갱신<br>• Proxy Host: weather.yourdomain.com ➔ 127.0.0.1:3100<br>• Custom Location: /api/ ➔ 127.0.0.1:8100"]
+        end
+
+        subgraph Docker_Compose ["🐳 Docker Compose 오케스트레이션 (weather-transit-net)"]
+            subgraph Frontend_Container ["weather-transit-frontend (Nginx Alpine)"]
+                FE_Nginx["내부 Nginx 리버스 프록시<br>(호스트 포트 바인딩 3100:80)"]
+                ReactSPA["React 18 SPA 정적 빌드 번들<br>(MapLibre GL + Tailwind CSS)"]
+                FE_Nginx --> ReactSPA
+            end
+
+            subgraph Backend_Container ["weather-transit-backend (Python 3.11-slim)"]
+                FastAPI["FastAPI App (Uvicorn)<br>(호스트 포트 바인딩 8100:8000)"]
+                AdminDash["/health/dashboard<br>실시간 모니터링 콘솔"]
+                ONNX["LightGBM 32D ONNX 3종<br>(지하철·버스·따릉이 0.05ms 추론)"]
+                RouterEngine["LangGraph 멀티모달 라우터<br>(5-Step 복합 경로 탐색)"]
+                FastAPI --> AdminDash
+                FastAPI --> ONNX
+                FastAPI --> RouterEngine
+            end
+
+            subgraph Storage ["💾 호스트 영속 볼륨 바인딩 (Bind Mount)"]
+                HostData["호스트 ./data 디렉터리<br>• timeseries_cache.db (SQLite WAL)<br>• 공공 API 10분 캐시 영속화"]
+            end
+        end
+    end
+
+    %% 연결 관계
+    User -->|HTTPS 443| Router
+    Router -->|포트포워딩| NPM
+    NPM -->|HTTP 프록시 :3100| FE_Nginx
+    NPM -->|HTTP 프록시 /api/ :8100| FastAPI
+    FE_Nginx -->|컨테이너 내부 통신 http://backend:8000| FastAPI
+    FastAPI --> HostData
+    FastAPI -->|HTTPS 아웃바운드 API 쿼리| PublicAPIs
+```
+
+### 1.2 서비스 포트 요약 명세
+
 | 구성 요소 | 구동 기술 | 서빙 포트 | 역할 및 비고 |
 |---|---|---|---|
-| **Frontend** | React SPA (Vite / Static Dist) | **`3100`** | 대화형 MapLibre GL 지도, 날씨/교통 대시보드 |
-| **Backend** | FastAPI + Uvicorn + ONNX | **`8100`** | 실시간 공공 API 중계, AI 수요 예측 추론 서빙 |
+| **Frontend** | React SPA (Vite / Nginx) | **`3100`** | 대화형 MapLibre GL 지도, 날씨/교통 대시보드 |
+| **Backend** | FastAPI + Uvicorn + ONNX | **`8100`** | 실시간 공공 API 중계, AI 수요 예측 추론, 헬스 대시보드 |
+| **NPM Admin** | Nginx Proxy Manager Web UI | **`81`** | 도메인 프록시 호스트, Let's Encrypt SSL 인증서 발급 관리 |
 
 > 💡 **포트 충돌 회피**:
 > 기존 홈서버에서 널리 쓰이는 `3000`(Next.js/React 등), `8000`(FastAPI/Django 등)과의 충돌을 피하기 위해 **`3100`**과 **`8100`**을 기본 포트로 사용합니다.

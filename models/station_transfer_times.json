@@ -1,6 +1,6 @@
 {
   "description": "서울교통공사 및 수도권 도시철도 주요 환승역 실측 환승거리 및 도보 소요시간 마스터 데이터",
-  "version": "2026-10-28",
+  "version": "2026-10-29",
   "default_transfer_walk_minutes": 2.0,
   "default_transfer_distance_m": 130,
   "transfers": [
@@ -387,6 +387,366 @@
       "distance_m": 140,
       "walk_minutes": 2.2,
       "transfer_type": "지상-지하 승강장 계통 환승"
+    },
+    {
+      "station": "청량리역",
+      "line_a": "1호선",
+      "line_b": "경의중앙선",
+      "distance_m": 180,
+      "walk_minutes": 2.8,
+      "transfer_type": "지상 역사 이동통로"
+    },
+    {
+      "station": "청량리역",
+      "line_a": "1호선",
+      "line_b": "수인분당선",
+      "distance_m": 210,
+      "walk_minutes": 3.3,
+      "transfer_type": "지상 환승통로"
+    },
+    {
+      "station": "청량리역",
+      "line_a": "경의중앙선",
+      "line_b": "수인분당선",
+      "distance_m": 90,
+      "walk_minutes": 1.4,
+      "transfer_type": "승강장 환승"
+    },
+    {
+      "station": "신설동역",
+      "line_a": "1호선",
+      "line_b": "2호선",
+      "distance_m": 160,
+      "walk_minutes": 2.5,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "신설동역",
+      "line_a": "1호선",
+      "line_b": "우이신설선",
+      "distance_m": 220,
+      "walk_minutes": 3.5,
+      "transfer_type": "지하 연결통로"
+    },
+    {
+      "station": "신설동역",
+      "line_a": "2호선",
+      "line_b": "우이신설선",
+      "distance_m": 200,
+      "walk_minutes": 3.2,
+      "transfer_type": "지하 연결통로"
+    },
+    {
+      "station": "합정역",
+      "line_a": "2호선",
+      "line_b": "6호선",
+      "distance_m": 130,
+      "walk_minutes": 2.0,
+      "transfer_type": "지하 직결통로"
+    },
+    {
+      "station": "신사역",
+      "line_a": "3호선",
+      "line_b": "신분당선",
+      "distance_m": 180,
+      "walk_minutes": 2.8,
+      "transfer_type": "환승게이트 연결통로"
+    },
+    {
+      "station": "총신대입구역",
+      "line_a": "4호선",
+      "line_b": "7호선",
+      "distance_m": 200,
+      "walk_minutes": 3.2,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "이수역",
+      "line_a": "4호선",
+      "line_b": "7호선",
+      "distance_m": 200,
+      "walk_minutes": 3.2,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "삼각지역",
+      "line_a": "4호선",
+      "line_b": "6호선",
+      "distance_m": 140,
+      "walk_minutes": 2.2,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "동묘앞역",
+      "line_a": "1호선",
+      "line_b": "6호선",
+      "distance_m": 150,
+      "walk_minutes": 2.4,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "태릉입구역",
+      "line_a": "6호선",
+      "line_b": "7호선",
+      "distance_m": 110,
+      "walk_minutes": 1.8,
+      "transfer_type": "지하 직결 계단"
+    },
+    {
+      "station": "석계역",
+      "line_a": "1호선",
+      "line_b": "6호선",
+      "distance_m": 170,
+      "walk_minutes": 2.7,
+      "transfer_type": "지상-지하 연결통로"
+    },
+    {
+      "station": "창동역",
+      "line_a": "1호선",
+      "line_b": "4호선",
+      "distance_m": 130,
+      "walk_minutes": 2.0,
+      "transfer_type": "지상 승강장 환승"
+    },
+    {
+      "station": "도봉산역",
+      "line_a": "1호선",
+      "line_b": "7호선",
+      "distance_m": 90,
+      "walk_minutes": 1.4,
+      "transfer_type": "지상-지하 평면 계단"
+    },
+    {
+      "station": "대림역",
+      "line_a": "2호선",
+      "line_b": "7호선",
+      "distance_m": 220,
+      "walk_minutes": 3.5,
+      "transfer_type": "지상 고가-지하 환승"
+    },
+    {
+      "station": "신길역",
+      "line_a": "1호선",
+      "line_b": "5호선",
+      "distance_m": 330,
+      "walk_minutes": 5.2,
+      "transfer_type": "초장거리 환승통로 (무빙워크)"
+    },
+    {
+      "station": "영등포구청역",
+      "line_a": "2호선",
+      "line_b": "5호선",
+      "distance_m": 150,
+      "walk_minutes": 2.3,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "충정로역",
+      "line_a": "2호선",
+      "line_b": "5호선",
+      "distance_m": 240,
+      "walk_minutes": 3.8,
+      "transfer_type": "지하 연결통로"
+    },
+    {
+      "station": "을지로4가역",
+      "line_a": "2호선",
+      "line_b": "5호선",
+      "distance_m": 140,
+      "walk_minutes": 2.2,
+      "transfer_type": "지하 계단 환승"
+    },
+    {
+      "station": "을지로3가역",
+      "line_a": "2호선",
+      "line_b": "3호선",
+      "distance_m": 130,
+      "walk_minutes": 2.0,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "약수역",
+      "line_a": "3호선",
+      "line_b": "6호선",
+      "distance_m": 140,
+      "walk_minutes": 2.2,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "연신내역",
+      "line_a": "3호선",
+      "line_b": "6호선",
+      "distance_m": 160,
+      "walk_minutes": 2.5,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "불광역",
+      "line_a": "3호선",
+      "line_b": "6호선",
+      "distance_m": 180,
+      "walk_minutes": 2.8,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "옥수역",
+      "line_a": "3호선",
+      "line_b": "경의중앙선",
+      "distance_m": 150,
+      "walk_minutes": 2.4,
+      "transfer_type": "지상 연결통로"
+    },
+    {
+      "station": "이촌역",
+      "line_a": "4호선",
+      "line_b": "경의중앙선",
+      "distance_m": 160,
+      "walk_minutes": 2.5,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "회기역",
+      "line_a": "1호선",
+      "line_b": "경의중앙선",
+      "distance_m": 90,
+      "walk_minutes": 1.4,
+      "transfer_type": "지상 승강장 계단"
+    },
+    {
+      "station": "상봉역",
+      "line_a": "7호선",
+      "line_b": "경의중앙선",
+      "distance_m": 180,
+      "walk_minutes": 2.8,
+      "transfer_type": "지하-지상 환승통로"
+    },
+    {
+      "station": "상봉역",
+      "line_a": "7호선",
+      "line_b": "경춘선",
+      "distance_m": 170,
+      "walk_minutes": 2.6,
+      "transfer_type": "지하-지상 환승통로"
+    },
+    {
+      "station": "상봉역",
+      "line_a": "경의중앙선",
+      "line_b": "경춘선",
+      "distance_m": 70,
+      "walk_minutes": 1.1,
+      "transfer_type": "승강장 환승"
+    },
+    {
+      "station": "군자역",
+      "line_a": "5호선",
+      "line_b": "7호선",
+      "distance_m": 140,
+      "walk_minutes": 2.2,
+      "transfer_type": "지하 십자교차 계단"
+    },
+    {
+      "station": "천호역",
+      "line_a": "5호선",
+      "line_b": "8호선",
+      "distance_m": 160,
+      "walk_minutes": 2.5,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "모란역",
+      "line_a": "8호선",
+      "line_b": "수인분당선",
+      "distance_m": 130,
+      "walk_minutes": 2.0,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "선릉역",
+      "line_a": "2호선",
+      "line_b": "수인분당선",
+      "distance_m": 180,
+      "walk_minutes": 2.8,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "수서역",
+      "line_a": "3호선",
+      "line_b": "수인분당선",
+      "distance_m": 200,
+      "walk_minutes": 3.2,
+      "transfer_type": "지하 연결통로"
+    },
+    {
+      "station": "도곡역",
+      "line_a": "3호선",
+      "line_b": "수인분당선",
+      "distance_m": 130,
+      "walk_minutes": 2.0,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "오금역",
+      "line_a": "3호선",
+      "line_b": "5호선",
+      "distance_m": 140,
+      "walk_minutes": 2.2,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "가락시장역",
+      "line_a": "3호선",
+      "line_b": "8호선",
+      "distance_m": 150,
+      "walk_minutes": 2.4,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "보라매역",
+      "line_a": "7호선",
+      "line_b": "신림선",
+      "distance_m": 150,
+      "walk_minutes": 2.4,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "샛강역",
+      "line_a": "9호선",
+      "line_b": "신림선",
+      "distance_m": 120,
+      "walk_minutes": 1.9,
+      "transfer_type": "지하 직결통로"
+    },
+    {
+      "station": "신림역",
+      "line_a": "2호선",
+      "line_b": "신림선",
+      "distance_m": 200,
+      "walk_minutes": 3.2,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "석촌역",
+      "line_a": "8호선",
+      "line_b": "9호선",
+      "distance_m": 160,
+      "walk_minutes": 2.5,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "올림픽공원역",
+      "line_a": "5호선",
+      "line_b": "9호선",
+      "distance_m": 180,
+      "walk_minutes": 2.8,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "동작역",
+      "line_a": "4호선",
+      "line_b": "9호선",
+      "distance_m": 200,
+      "walk_minutes": 3.2,
+      "transfer_type": "지하-지상 환승통로"
     }
   ]
 }

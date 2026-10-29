@@ -23,7 +23,18 @@
   3. **AI 모델 사양서 및 진행 보고서 동기화**:
      - `docs/AI_MODEL_SPEC.md`에 28열 표준 컬럼 규격 및 3개년 다년도 분할 체계 명시.
      - `docs/PROJECT_PROGRESS_REPORT.md` 데이터 전처리 및 증강 영역 갱신.
+  4. **신규 32차원 ONNX 모델(`benchmarks/2026-10-29/`) 학습 완료 및 배포 모델(`models/`) 전면 반입**:
+     - 3개년 63만 건 기반 Optuna 튜닝 완료:
+       - 🚲 따릉이: $R^2=0.9894$, $\text{RMSE}=15.88$, $\text{MAPE}=16.08\%$ (전 지표 우세)
+       - 🚌 버스: $R^2=0.9928$, $\text{RMSE}=476.17$ (기존 대비 RMSE -16.7% 대폭 개선)
+       - 🚇 지하철: $R^2=0.9950$, $\text{RMSE}=674.22$, $\text{MAE}=284.44$
+     - `models/` 서빙 슬롯으로 모델 3종 및 `feature_schema.json` 복사 반입 완료.
 - **산출물**:
+  - `benchmarks/2026-10-29/lgb_{bike,bus,subway}_demand.onnx` (신규)
+  - `benchmarks/2026-10-29/feature_schema.json` (신규)
+  - `models/lgb_{bike,bus,subway}_demand.onnx` (갱신)
+  - `models/feature_schema.json` (갱신)
+  - `benchmarks/results/comparison_20261029_144330.{json,md}` (신규)
   - `benchmarks/CastTransit.ipynb`
   - `benchmarks/retrain_25d_colab.ipynb`
   - `benchmarks/evaluate_models.py`

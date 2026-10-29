@@ -1,5 +1,5 @@
 {
-  "model_version": "v2-전처리_2-32d",
+  "model_version": "v2.1-multiyear-32d",
   "feature_dim": 32,
   "feature_cols": [
     "month_sin",
@@ -47,80 +47,80 @@
     "subway": "지하철_승차"
   },
   "split": {
-    "train": "2025-01-01~2025-09-30",
-    "valid": "2025-10-01~2025-11-15",
-    "test": "2025-11-16~2025-12-31"
+    "train": "2023-01-01~2024-09-30",
+    "valid": "2024-10-01~2024-12-31",
+    "test": "2025-01-01~2025-12-31"
   },
-  "split_source": "spec_dates",
-  "holiday_calendar": "KR_HOLIDAYS_2025 (19일, main.py::KR_HOLIDAYS 와 동일)",
+  "split_source": "multiyear_2023_2025",
+  "holiday_calendar": "KR_HOLIDAYS (2023~2025 대한민국 공휴일, main.py::KR_HOLIDAYS 동기화)",
   "metrics": {
     "bike": {
       "baseline": {
-        "r2": 0.9865868522017212,
-        "rmse": 17.854366075430207,
-        "mae": 10.17462965109311,
-        "best_iteration": 999
+        "r2": 0.9889,
+        "rmse": 22.97,
+        "mae": 12.59,
+        "best_iteration": 1000
       },
       "tuned": {
-        "r2": 0.9872871387225873,
-        "rmse": 17.382039560409765,
-        "mae": 9.669415831990186,
+        "r2": 0.9896,
+        "rmse": 22.25,
+        "mae": 11.9,
+        "best_iteration": 780,
         "best_params": {
-          "learning_rate": 0.08811950498925582,
-          "num_leaves": 109,
+          "learning_rate": 0.09737213718467148,
+          "num_leaves": 115,
           "max_depth": 10,
-          "subsample": 0.6523792755919405,
-          "colsample_bytree": 0.6790616323310082,
-          "reg_alpha": 0.0024082899040478675,
-          "reg_lambda": 0.011453737805966376
-        },
-        "best_iteration": 834
+          "subsample": 0.6042083739397852,
+          "colsample_bytree": 0.8354334394368443,
+          "reg_alpha": 4.417464355796284,
+          "reg_lambda": 0.38728221291236736
+        }
       }
     },
     "bus": {
       "baseline": {
-        "r2": 0.9878314223594731,
-        "rmse": 621.0843181473621,
-        "mae": 420.12467180165754,
+        "r2": 0.9958,
+        "rmse": 366.35,
+        "mae": 230.91,
         "best_iteration": 1000
       },
       "tuned": {
-        "r2": 0.9900594762233543,
-        "rmse": 561.3520194125099,
-        "mae": 370.4409844971906,
+        "r2": 0.9966,
+        "rmse": 329.91,
+        "mae": 198.86,
+        "best_iteration": 1500,
         "best_params": {
-          "learning_rate": 0.09703869938657278,
-          "num_leaves": 126,
+          "learning_rate": 0.08197452993703759,
+          "num_leaves": 96,
           "max_depth": 10,
-          "subsample": 0.8605477792677568,
-          "colsample_bytree": 0.6661090758204229,
-          "reg_alpha": 3.2075582423454496,
-          "reg_lambda": 0.40019714909533227
-        },
-        "best_iteration": 1390
+          "subsample": 0.8701829831827598,
+          "colsample_bytree": 0.7447529351518585,
+          "reg_alpha": 6.673494947922648,
+          "reg_lambda": 3.025329257064882
+        }
       }
     },
     "subway": {
       "baseline": {
-        "r2": 0.9945479188619325,
-        "rmse": 701.9015184291136,
-        "mae": 309.04969525659953,
+        "r2": 0.9959,
+        "rmse": 592.77,
+        "mae": 257.48,
         "best_iteration": 1000
       },
       "tuned": {
-        "r2": 0.9951487849247284,
-        "rmse": 662.0949742849008,
-        "mae": 277.63284223928423,
+        "r2": 0.9967,
+        "rmse": 525.73,
+        "mae": 218.1,
+        "best_iteration": 1495,
         "best_params": {
-          "learning_rate": 0.09807115232677817,
-          "num_leaves": 117,
-          "max_depth": 8,
-          "subsample": 0.6620109779156034,
-          "colsample_bytree": 0.7180910290353443,
-          "reg_alpha": 0.9148471286354888,
-          "reg_lambda": 0.085461631351953
-        },
-        "best_iteration": 865
+          "learning_rate": 0.061872344269327376,
+          "num_leaves": 115,
+          "max_depth": 10,
+          "subsample": 0.7495170316026032,
+          "colsample_bytree": 0.6186536863498528,
+          "reg_alpha": 6.251880404867598,
+          "reg_lambda": 1.1291269775287658
+        }
       }
     }
   }

@@ -1420,79 +1420,45 @@ export default function AppM() {
               boxShadow: '0 8px 32px var(--app-shadow)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-              {/* 좌측: 실시간 관측 상태 및 지역 정보 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              {/* 실시간 관측 상태 및 지역 정보 (중복 수치 제거 및 심플화) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 12px', borderRadius: 10,
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '5px 10px', borderRadius: 10,
                   background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)'
                 }}>
-                  <span style={{ fontSize: 12 }}>🟢</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#34D399', fontFamily: 'JetBrains Mono' }}>
-                    기상청 초단기실황 실시간 연동
+                  <span style={{ fontSize: 11 }}>🟢</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#34D399', fontFamily: 'JetBrains Mono' }}>
+                    기상청 실시간 연동
                   </span>
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>
-                    {DISTRICTS[selectedDistrict] || '강남구 역삼동'} 실시간 기상 관측
+                    {DISTRICTS[selectedDistrict] || '강남구 역삼동'} 실시간 관측
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
-                    {liveWeather ? `발표시각: ${liveWeather.base_date} ${liveWeather.base_time.slice(0, 2)}:00 | 격자 (${liveWeather.nx}, ${liveWeather.ny})` : '기상청 관측망 수신 대기 중...'}
+                  <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginTop: 1 }}>
+                    {liveWeather ? `발표: ${liveWeather.base_date.slice(4, 6)}/${liveWeather.base_date.slice(6, 8)} ${liveWeather.base_time.slice(0, 2)}:00 | 격자 (${liveWeather.nx}, ${liveWeather.ny})` : '기상청 관측망 수신 대기 중...'}
                   </div>
                 </div>
               </div>
 
-              {/* 우측: 실시간 기상 핵심 수치 4종 (기온, 강수, 습도, 풍속) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>🌡️</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>기온</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{displayTemp}°C</div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: displayRain > 0 ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'var(--color-border)', padding: '6px 14px', borderRadius: 12, border: displayRain > 0 ? '1px solid color-mix(in srgb, var(--color-primary) 40%, transparent)' : '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>{isRaining ? '🌧️' : '☀️'}</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>강수량 ({displayPtyDesc})</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: displayRain > 0 ? 'var(--color-primary)' : '#34D399', fontFamily: 'JetBrains Mono' }}>{displayRain} mm/h</div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>💧</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>습도</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{displayHumidity}%</div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>💨</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>풍속</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{displayWind} m/s</div>
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '6px 12px', borderRadius: 10,
-                  background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
-                  fontSize: 11, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 600
-                }}>
-                  {isCurrentHour ? `현재 ${nowHour}시 기준 실시간` : `${selectedHour}시 기상청 단기예보`}
-                </div>
+              <div style={{
+                padding: '4px 10px', borderRadius: 8,
+                background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
+                fontSize: 11, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 600,
+                whiteSpace: 'nowrap'
+              }}>
+                {isCurrentHour ? `현재 ${nowHour}시 실시간` : `${selectedHour}시 단기예보`}
               </div>
             </div>
           </div>
 
-          {/* 3열 그리드 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 24 }}>
+          {/* 모바일 세로 1열 카드 적층 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
 
             {/* 날씨 카드 */}
-            <div style={{ background: 'linear-gradient(135deg, var(--color-card) 0%, var(--weather-gradient-end) 100%)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 24, gridColumn: '1' }}>
+            <div style={{ background: 'linear-gradient(135deg, var(--color-card) 0%, var(--weather-gradient-end) 100%)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
                   날씨 데이터 · {DISTRICTS[selectedDistrict]}

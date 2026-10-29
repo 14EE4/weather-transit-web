@@ -1,0 +1,127 @@
+{
+  "model_version": "v2.1-multiyear-32d",
+  "feature_dim": 32,
+  "feature_cols": [
+    "month_sin",
+    "month_cos",
+    "hour_sin",
+    "hour_cos",
+    "dayofweek",
+    "is_weekend",
+    "is_holiday",
+    "is_rush_hour",
+    "temperature",
+    "wind_speed",
+    "humidity",
+    "precipitation",
+    "is_raining",
+    "rain_intensity",
+    "sensible_temp",
+    "discomfort_index",
+    "district_code",
+    "district_subway_stations",
+    "district_bus_stops",
+    "district_bike_racks",
+    "commercial_density",
+    "따릉이_대여_lag_1h",
+    "버스_승차_lag_1h",
+    "지하철_승차_lag_1h",
+    "따릉이_대여_roll_3h",
+    "버스_승차_roll_3h",
+    "지하철_승차_roll_3h",
+    "same_day_last_week_bike",
+    "same_day_last_week_bus",
+    "same_day_last_week_sub",
+    "temp_diff_1h",
+    "rain_diff_1h"
+  ],
+  "order": [
+    "calendar(8)",
+    "weather(8)",
+    "spatial(5)",
+    "timeseries(11)"
+  ],
+  "targets": {
+    "bike": "따릉이_대여",
+    "bus": "버스_승차",
+    "subway": "지하철_승차"
+  },
+  "split": {
+    "train": "2023-01-01~2024-09-30",
+    "valid": "2024-10-01~2024-12-31",
+    "test": "2025-01-01~2025-12-31"
+  },
+  "split_source": "multiyear_2023_2025",
+  "holiday_calendar": "KR_HOLIDAYS (2023~2025 대한민국 공휴일, main.py::KR_HOLIDAYS 동기화)",
+  "metrics": {
+    "bike": {
+      "baseline": {
+        "r2": 0.9889,
+        "rmse": 22.97,
+        "mae": 12.59,
+        "best_iteration": 1000
+      },
+      "tuned": {
+        "r2": 0.9896,
+        "rmse": 22.25,
+        "mae": 11.9,
+        "best_iteration": 780,
+        "best_params": {
+          "learning_rate": 0.09737213718467148,
+          "num_leaves": 115,
+          "max_depth": 10,
+          "subsample": 0.6042083739397852,
+          "colsample_bytree": 0.8354334394368443,
+          "reg_alpha": 4.417464355796284,
+          "reg_lambda": 0.38728221291236736
+        }
+      }
+    },
+    "bus": {
+      "baseline": {
+        "r2": 0.9958,
+        "rmse": 366.35,
+        "mae": 230.91,
+        "best_iteration": 1000
+      },
+      "tuned": {
+        "r2": 0.9966,
+        "rmse": 329.91,
+        "mae": 198.86,
+        "best_iteration": 1500,
+        "best_params": {
+          "learning_rate": 0.08197452993703759,
+          "num_leaves": 96,
+          "max_depth": 10,
+          "subsample": 0.8701829831827598,
+          "colsample_bytree": 0.7447529351518585,
+          "reg_alpha": 6.673494947922648,
+          "reg_lambda": 3.025329257064882
+        }
+      }
+    },
+    "subway": {
+      "baseline": {
+        "r2": 0.9959,
+        "rmse": 592.77,
+        "mae": 257.48,
+        "best_iteration": 1000
+      },
+      "tuned": {
+        "r2": 0.9967,
+        "rmse": 525.73,
+        "mae": 218.1,
+        "best_iteration": 1495,
+        "best_params": {
+          "learning_rate": 0.061872344269327376,
+          "num_leaves": 115,
+          "max_depth": 10,
+          "subsample": 0.7495170316026032,
+          "colsample_bytree": 0.6186536863498528,
+          "reg_alpha": 6.251880404867598,
+          "reg_lambda": 1.1291269775287658
+        }
+      }
+    }
+  }
+}

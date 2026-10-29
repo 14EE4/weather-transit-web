@@ -51,10 +51,10 @@ flowchart TD
         DataVol[("./data ➔ SQLite DB & 캐시 영속화")]
     end
 
-    User -->|정적 자산 요청 (HTML/CSS/JS)| Nginx
+    User -->|"정적 자산 요청 (HTML/CSS/JS)"| Nginx
     Nginx -->|정적 파일 서빙| SPA
-    User -->|API 요청 (/api/*, /health)| Nginx
-    Nginx -->|리버스 프록시 (내부망 http://backend:8000)| FastAPI
+    User -->|"API 요청 (/api/*, /health)"| Nginx
+    Nginx -->|"리버스 프록시 (내부망 http://backend:8000)"| FastAPI
 
     FastAPI --> ONNX
     FastAPI --> DB
@@ -103,7 +103,7 @@ COPY main.py timeseries_cache.py feature_schema.py ./
 COPY models/ ./models/
 COPY data/ ./data/
 # 피처 스키마(SSoT) — 컨테이너에서도 기동 시 차원·순서 검증 (models/feature_schema.json 이 있으면 우선)
-COPY benchmarks/2026-10-14/feature_schema.json ./benchmarks/2026-10-14/feature_schema.json
+COPY benchmarks/2026-10-29/feature_schema.json ./benchmarks/2026-10-29/feature_schema.json
 
 # 디렉터리 권한 및 포트 정의
 EXPOSE 8000

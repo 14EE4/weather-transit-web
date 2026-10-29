@@ -1,0 +1,972 @@
+{
+  "description": "수도권 주요 환승역사 호선별 실제 환승통로 도보거리(m) 및 보행 소요시간(분) 실측 마스터 데이터셋 (서울교통공사 최신 실측 2025-03-31 전수 반영)",
+  "version": "2025.03.31-verified",
+  "official_sources": [
+    {
+      "name": "서울교통공사 환승역거리 소요시간 정보 (공공데이터포털)",
+      "dataset_id": "15044419",
+      "url": "https://www.data.go.kr/data/15044419/fileData.do"
+    },
+    {
+      "name": "서울교통공사_환승역거리 소요시간 정보 (서울 열린데이터광장)",
+      "service_id": "OA-13290",
+      "url": "https://data.seoul.go.kr/dataList/OA-13290/S/1/datasetView.do"
+    }
+  ],
+  "default_transfer_walk_minutes": 2.0,
+  "default_transfer_distance_m": 130,
+  "transfers": [
+    {
+      "station": "가락시장역",
+      "line_a": "8호선",
+      "line_b": "3호선",
+      "distance_m": 35,
+      "walk_minutes": 0.5,
+      "transfer_type": "평면 환승 (초단거리)"
+    },
+    {
+      "station": "가산디지털단지역",
+      "line_a": "7호선",
+      "line_b": "1호선",
+      "distance_m": 110,
+      "walk_minutes": 1.5,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "가좌역",
+      "line_a": "경의중앙선",
+      "line_b": "경의중앙선",
+      "distance_m": 140,
+      "walk_minutes": 2.2,
+      "transfer_type": "지상-지하 승강장 계통 환승"
+    },
+    {
+      "station": "강남구청역",
+      "line_a": "7호선",
+      "line_b": "수인분당선",
+      "distance_m": 125,
+      "walk_minutes": 1.7,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "강남역",
+      "line_a": "2호선",
+      "line_b": "수인분당선",
+      "distance_m": 214,
+      "walk_minutes": 3.0,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "강동역",
+      "line_a": "5호선(하남선)",
+      "line_b": "5호선(마천지선)",
+      "distance_m": 60,
+      "walk_minutes": 1.0,
+      "transfer_type": "동일 승강장 계통 분기 환승"
+    },
+    {
+      "station": "건대입구역",
+      "line_a": "7호선",
+      "line_b": "2호선",
+      "distance_m": 77,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "고속터미널역",
+      "line_a": "3호선",
+      "line_b": "9호선",
+      "distance_m": 155,
+      "walk_minutes": 2.1,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "고속터미널역",
+      "line_a": "7호선",
+      "line_b": "3호선",
+      "distance_m": 169,
+      "walk_minutes": 2.4,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "고속터미널역",
+      "line_a": "7호선",
+      "line_b": "9호선",
+      "distance_m": 314,
+      "walk_minutes": 4.4,
+      "transfer_type": "초장거리 환승통로 (막장 환승)"
+    },
+    {
+      "station": "공덕역",
+      "line_a": "5호선",
+      "line_b": "경의중앙선",
+      "distance_m": 214,
+      "walk_minutes": 3.0,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "공덕역",
+      "line_a": "5호선",
+      "line_b": "공항철도",
+      "distance_m": 275,
+      "walk_minutes": 3.8,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "공덕역",
+      "line_a": "6호선",
+      "line_b": "5호선",
+      "distance_m": 73,
+      "walk_minutes": 1.0,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "공덕역",
+      "line_a": "6호선",
+      "line_b": "경의중앙선",
+      "distance_m": 152,
+      "walk_minutes": 2.1,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "공덕역",
+      "line_a": "6호선",
+      "line_b": "공항철도",
+      "distance_m": 265,
+      "walk_minutes": 3.7,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "공덕역",
+      "line_a": "공항철도",
+      "line_b": "경의중앙선",
+      "distance_m": 110,
+      "walk_minutes": 1.8,
+      "transfer_type": "인접 환승통로"
+    },
+    {
+      "station": "교대역",
+      "line_a": "3호선",
+      "line_b": "2호선",
+      "distance_m": 75,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "구로역",
+      "line_a": "1호선(경인)",
+      "line_b": "1호선(경부)",
+      "distance_m": 110,
+      "walk_minutes": 1.8,
+      "transfer_type": "구로역 육교·계단 계통 환승"
+    },
+    {
+      "station": "군자역",
+      "line_a": "7호선",
+      "line_b": "5호선",
+      "distance_m": 75,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "금정역",
+      "line_a": "1호선",
+      "line_b": "4호선",
+      "distance_m": 30,
+      "walk_minutes": 0.5,
+      "transfer_type": "동일 승강장 맞은편 (개념 평면환승)"
+    },
+    {
+      "station": "금천구청역",
+      "line_a": "1호선",
+      "line_b": "1호선(광명셔틀)",
+      "distance_m": 90,
+      "walk_minutes": 1.5,
+      "transfer_type": "광명셔틀 전용 승강장 환승"
+    },
+    {
+      "station": "김포공항역",
+      "line_a": "5호선",
+      "line_b": "9호선",
+      "distance_m": 106,
+      "walk_minutes": 1.5,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "김포공항역",
+      "line_a": "5호선",
+      "line_b": "공항철도",
+      "distance_m": 122,
+      "walk_minutes": 1.7,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "김포공항역",
+      "line_a": "5호선",
+      "line_b": "김포골드라인",
+      "distance_m": 200,
+      "walk_minutes": 2.8,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "김포공항역",
+      "line_a": "5호선",
+      "line_b": "서해선",
+      "distance_m": 100,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "김포공항역",
+      "line_a": "9호선",
+      "line_b": "공항철도",
+      "distance_m": 30,
+      "walk_minutes": 0.5,
+      "transfer_type": "동일 승강장 맞은편 (개념 평면환승)"
+    },
+    {
+      "station": "까치산역",
+      "line_a": "5호선",
+      "line_b": "2호선",
+      "distance_m": 17,
+      "walk_minutes": 0.2,
+      "transfer_type": "평면 환승 (초단거리)"
+    },
+    {
+      "station": "노원역",
+      "line_a": "7호선",
+      "line_b": "4호선",
+      "distance_m": 278,
+      "walk_minutes": 3.9,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "논현역",
+      "line_a": "7호선",
+      "line_b": "수인분당선",
+      "distance_m": 80,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "당산역",
+      "line_a": "2호선",
+      "line_b": "9호선",
+      "distance_m": 105,
+      "walk_minutes": 1.5,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "대림역",
+      "line_a": "7호선",
+      "line_b": "2호선",
+      "distance_m": 276,
+      "walk_minutes": 3.8,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "도곡역",
+      "line_a": "3호선",
+      "line_b": "수인분당선",
+      "distance_m": 78,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "도봉산역",
+      "line_a": "7호선",
+      "line_b": "1호선",
+      "distance_m": 44,
+      "walk_minutes": 0.6,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "동대문역",
+      "line_a": "4호선",
+      "line_b": "1호선",
+      "distance_m": 194,
+      "walk_minutes": 2.7,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "동대문역사문화공원역",
+      "line_a": "4호선",
+      "line_b": "2호선",
+      "distance_m": 45,
+      "walk_minutes": 0.6,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "동대문역사문화공원역",
+      "line_a": "5호선",
+      "line_b": "2호선",
+      "distance_m": 234,
+      "walk_minutes": 3.2,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "동대문역사문화공원역",
+      "line_a": "5호선",
+      "line_b": "4호선",
+      "distance_m": 107,
+      "walk_minutes": 1.5,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "동묘앞역",
+      "line_a": "6호선",
+      "line_b": "1호선",
+      "distance_m": 96,
+      "walk_minutes": 1.3,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "동작역",
+      "line_a": "4호선",
+      "line_b": "9호선",
+      "distance_m": 245,
+      "walk_minutes": 3.4,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "디지털미디어시티역",
+      "line_a": "6호선",
+      "line_b": "경의중앙선",
+      "distance_m": 55,
+      "walk_minutes": 0.8,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "디지털미디어시티역",
+      "line_a": "6호선",
+      "line_b": "공항철도",
+      "distance_m": 186,
+      "walk_minutes": 2.6,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "모란역",
+      "line_a": "8호선",
+      "line_b": "수인분당선",
+      "distance_m": 99,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "병점역",
+      "line_a": "1호선",
+      "line_b": "1호선(서동탄지선)",
+      "distance_m": 90,
+      "walk_minutes": 1.5,
+      "transfer_type": "서동탄지선 승강장 환승"
+    },
+    {
+      "station": "보라매역",
+      "line_a": "7호선",
+      "line_b": "신림선",
+      "distance_m": 71,
+      "walk_minutes": 1.0,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "보문역",
+      "line_a": "6호선",
+      "line_b": "우이신설선",
+      "distance_m": 87,
+      "walk_minutes": 1.2,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "복정역",
+      "line_a": "8호선",
+      "line_b": "수인분당선",
+      "distance_m": 16,
+      "walk_minutes": 0.2,
+      "transfer_type": "평면 환승 (초단거리)"
+    },
+    {
+      "station": "불광역",
+      "line_a": "6호선",
+      "line_b": "3호선",
+      "distance_m": 100,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "사당역",
+      "line_a": "4호선",
+      "line_b": "2호선",
+      "distance_m": 74,
+      "walk_minutes": 1.0,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "삼각지역",
+      "line_a": "6호선",
+      "line_b": "4호선",
+      "distance_m": 155,
+      "walk_minutes": 2.1,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "상봉역",
+      "line_a": "7호선",
+      "line_b": "경의중앙선",
+      "distance_m": 100,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "상봉역",
+      "line_a": "7호선",
+      "line_b": "경춘선",
+      "distance_m": 100,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "상봉역",
+      "line_a": "경의중앙선",
+      "line_b": "경춘선",
+      "distance_m": 70,
+      "walk_minutes": 1.1,
+      "transfer_type": "승강장 환승"
+    },
+    {
+      "station": "샛강역",
+      "line_a": "9호선",
+      "line_b": "신림선",
+      "distance_m": 120,
+      "walk_minutes": 1.9,
+      "transfer_type": "지하 직결통로"
+    },
+    {
+      "station": "서울역",
+      "line_a": "1호선",
+      "line_b": "경의중앙선",
+      "distance_m": 164,
+      "walk_minutes": 2.3,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "서울역",
+      "line_a": "1호선",
+      "line_b": "공항철도",
+      "distance_m": 309,
+      "walk_minutes": 4.3,
+      "transfer_type": "초장거리 환승통로 (막장 환승)"
+    },
+    {
+      "station": "서울역",
+      "line_a": "4호선",
+      "line_b": "1호선",
+      "distance_m": 159,
+      "walk_minutes": 2.2,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "서울역",
+      "line_a": "4호선",
+      "line_b": "경의중앙선",
+      "distance_m": 323,
+      "walk_minutes": 4.5,
+      "transfer_type": "초장거리 환승통로 (막장 환승)"
+    },
+    {
+      "station": "서울역",
+      "line_a": "4호선",
+      "line_b": "공항철도",
+      "distance_m": 224,
+      "walk_minutes": 3.1,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "석계역",
+      "line_a": "1호선",
+      "line_b": "6호선",
+      "distance_m": 170,
+      "walk_minutes": 2.7,
+      "transfer_type": "지상-지하 연결통로"
+    },
+    {
+      "station": "석계역",
+      "line_a": "6호선",
+      "line_b": "경원선",
+      "distance_m": 125,
+      "walk_minutes": 1.7,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "석촌역",
+      "line_a": "8호선",
+      "line_b": "9호선",
+      "distance_m": 82,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "선릉역",
+      "line_a": "2호선",
+      "line_b": "수인분당선",
+      "distance_m": 81,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "성수역",
+      "line_a": "2호선",
+      "line_b": "2호선(성수지선)",
+      "distance_m": 80,
+      "walk_minutes": 1.5,
+      "transfer_type": "성수지선 승강장 계단 환승"
+    },
+    {
+      "station": "성신여대입구역",
+      "line_a": "4호선",
+      "line_b": "우이신설선",
+      "distance_m": 7,
+      "walk_minutes": 0.1,
+      "transfer_type": "평면 환승 (초단거리)"
+    },
+    {
+      "station": "수서역",
+      "line_a": "3호선",
+      "line_b": "국철",
+      "distance_m": 92,
+      "walk_minutes": 1.3,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "수서역",
+      "line_a": "3호선",
+      "line_b": "수인분당선",
+      "distance_m": 200,
+      "walk_minutes": 3.2,
+      "transfer_type": "지하 연결통로"
+    },
+    {
+      "station": "시청역",
+      "line_a": "2호선",
+      "line_b": "1호선",
+      "distance_m": 101,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "신길역",
+      "line_a": "5호선",
+      "line_b": "1호선",
+      "distance_m": 242,
+      "walk_minutes": 3.4,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "신내역",
+      "line_a": "6호선",
+      "line_b": "경춘선",
+      "distance_m": 50,
+      "walk_minutes": 0.7,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "신당역",
+      "line_a": "6호선",
+      "line_b": "2호선",
+      "distance_m": 242,
+      "walk_minutes": 3.4,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "신도림역",
+      "line_a": "2호선",
+      "line_b": "1호선",
+      "distance_m": 81,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "신도림역",
+      "line_a": "2호선",
+      "line_b": "2호선(신정지선)",
+      "distance_m": 90,
+      "walk_minutes": 1.5,
+      "transfer_type": "신정지선 지하 승강장 환승"
+    },
+    {
+      "station": "신림역",
+      "line_a": "2호선",
+      "line_b": "신림선",
+      "distance_m": 88,
+      "walk_minutes": 1.2,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "신사역",
+      "line_a": "3호선",
+      "line_b": "수인분당선",
+      "distance_m": 77,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "신설동역",
+      "line_a": "1호선",
+      "line_b": "우이신설선",
+      "distance_m": 129,
+      "walk_minutes": 1.8,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "신설동역",
+      "line_a": "2호선",
+      "line_b": "1호선",
+      "distance_m": 159,
+      "walk_minutes": 2.2,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "신설동역",
+      "line_a": "2호선",
+      "line_b": "우이신설선",
+      "distance_m": 273,
+      "walk_minutes": 3.8,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "약수역",
+      "line_a": "6호선",
+      "line_b": "3호선",
+      "distance_m": 130,
+      "walk_minutes": 1.8,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "양재역",
+      "line_a": "3호선",
+      "line_b": "수인분당선",
+      "distance_m": 93,
+      "walk_minutes": 1.3,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "여의도역",
+      "line_a": "5호선",
+      "line_b": "9호선",
+      "distance_m": 68,
+      "walk_minutes": 0.9,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "연신내역",
+      "line_a": "6호선",
+      "line_b": "3호선",
+      "distance_m": 181,
+      "walk_minutes": 2.5,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "영등포구청역",
+      "line_a": "5호선",
+      "line_b": "2호선",
+      "distance_m": 110,
+      "walk_minutes": 1.5,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "오금역",
+      "line_a": "5호선",
+      "line_b": "3호선",
+      "distance_m": 65,
+      "walk_minutes": 0.9,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "옥수역",
+      "line_a": "3호선",
+      "line_b": "경의중앙선",
+      "distance_m": 155,
+      "walk_minutes": 2.1,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "온수역",
+      "line_a": "7호선",
+      "line_b": "1호선",
+      "distance_m": 102,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "올림픽공원역",
+      "line_a": "5호선",
+      "line_b": "9호선",
+      "distance_m": 93,
+      "walk_minutes": 1.3,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "왕십리역",
+      "line_a": "2호선",
+      "line_b": "경의중앙선",
+      "distance_m": 50,
+      "walk_minutes": 0.7,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "왕십리역",
+      "line_a": "2호선",
+      "line_b": "수인분당선",
+      "distance_m": 99,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "왕십리역",
+      "line_a": "5호선",
+      "line_b": "2호선",
+      "distance_m": 86,
+      "walk_minutes": 1.2,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "왕십리역",
+      "line_a": "5호선",
+      "line_b": "경의중앙선",
+      "distance_m": 198,
+      "walk_minutes": 2.8,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "왕십리역",
+      "line_a": "5호선",
+      "line_b": "수인분당선",
+      "distance_m": 244,
+      "walk_minutes": 3.4,
+      "transfer_type": "장거리 환승"
+    },
+    {
+      "station": "왕십리역",
+      "line_a": "수인분당선",
+      "line_b": "경의중앙선",
+      "distance_m": 120,
+      "walk_minutes": 1.8,
+      "transfer_type": "동일 층 인접통로"
+    },
+    {
+      "station": "을지로3가역",
+      "line_a": "3호선",
+      "line_b": "2호선",
+      "distance_m": 149,
+      "walk_minutes": 2.1,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "을지로4가역",
+      "line_a": "5호선",
+      "line_b": "2호선",
+      "distance_m": 77,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "이수역",
+      "line_a": "7호선",
+      "line_b": "4호선",
+      "distance_m": 171,
+      "walk_minutes": 2.4,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "이촌역",
+      "line_a": "4호선",
+      "line_b": "경의중앙선",
+      "distance_m": 78,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "잠실역",
+      "line_a": "8호선",
+      "line_b": "2호선",
+      "distance_m": 190,
+      "walk_minutes": 2.6,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "종로3가역",
+      "line_a": "3호선",
+      "line_b": "1호선",
+      "distance_m": 118,
+      "walk_minutes": 1.6,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "종로3가역",
+      "line_a": "5호선",
+      "line_b": "1호선",
+      "distance_m": 312,
+      "walk_minutes": 4.3,
+      "transfer_type": "초장거리 환승통로 (막장 환승)"
+    },
+    {
+      "station": "종로3가역",
+      "line_a": "5호선",
+      "line_b": "3호선",
+      "distance_m": 117,
+      "walk_minutes": 1.6,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "종합운동장역",
+      "line_a": "2호선",
+      "line_b": "9호선",
+      "distance_m": 94,
+      "walk_minutes": 1.3,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "창동역",
+      "line_a": "4호선",
+      "line_b": "1호선",
+      "distance_m": 84,
+      "walk_minutes": 1.2,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "천호역",
+      "line_a": "8호선",
+      "line_b": "5호선",
+      "distance_m": 35,
+      "walk_minutes": 0.5,
+      "transfer_type": "평면 환승 (초단거리)"
+    },
+    {
+      "station": "청구역",
+      "line_a": "6호선",
+      "line_b": "5호선",
+      "distance_m": 104,
+      "walk_minutes": 1.4,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "청량리역",
+      "line_a": "1호선",
+      "line_b": "경의중앙선",
+      "distance_m": 165,
+      "walk_minutes": 2.3,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "청량리역",
+      "line_a": "1호선",
+      "line_b": "경춘선",
+      "distance_m": 203,
+      "walk_minutes": 2.8,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "청량리역",
+      "line_a": "1호선",
+      "line_b": "수인분당선",
+      "distance_m": 180,
+      "walk_minutes": 2.5,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "청량리역",
+      "line_a": "경의중앙선",
+      "line_b": "수인분당선",
+      "distance_m": 90,
+      "walk_minutes": 1.4,
+      "transfer_type": "승강장 환승"
+    },
+    {
+      "station": "총신대입구역",
+      "line_a": "4호선",
+      "line_b": "7호선",
+      "distance_m": 171,
+      "walk_minutes": 2.4,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "충무로역",
+      "line_a": "4호선",
+      "line_b": "3호선",
+      "distance_m": 17,
+      "walk_minutes": 0.2,
+      "transfer_type": "평면 환승 (초단거리)"
+    },
+    {
+      "station": "충정로역",
+      "line_a": "5호선",
+      "line_b": "2호선",
+      "distance_m": 212,
+      "walk_minutes": 3.0,
+      "transfer_type": "일반 환승"
+    },
+    {
+      "station": "태릉입구역",
+      "line_a": "7호선",
+      "line_b": "6호선",
+      "distance_m": 46,
+      "walk_minutes": 0.6,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "판교역",
+      "line_a": "수인분당선",
+      "line_b": "경강선",
+      "distance_m": 160,
+      "walk_minutes": 2.5,
+      "transfer_type": "지하 환승통로"
+    },
+    {
+      "station": "합정역",
+      "line_a": "6호선",
+      "line_b": "2호선",
+      "distance_m": 82,
+      "walk_minutes": 1.1,
+      "transfer_type": "단거리 환승"
+    },
+    {
+      "station": "홍대입구역",
+      "line_a": "2호선",
+      "line_b": "경의중앙선",
+      "distance_m": 305,
+      "walk_minutes": 4.2,
+      "transfer_type": "초장거리 환승통로 (막장 환승)"
+    },
+    {
+      "station": "홍대입구역",
+      "line_a": "2호선",
+      "line_b": "공항철도",
+      "distance_m": 355,
+      "walk_minutes": 4.9,
+      "transfer_type": "초장거리 환승통로 (막장 환승)"
+    },
+    {
+      "station": "홍대입구역",
+      "line_a": "공항철도",
+      "line_b": "경의중앙선",
+      "distance_m": 120,
+      "walk_minutes": 2.0,
+      "transfer_type": "인접 환승통로"
+    },
+    {
+      "station": "회기역",
+      "line_a": "1호선",
+      "line_b": "경의중앙선",
+      "distance_m": 90,
+      "walk_minutes": 1.4,
+      "transfer_type": "지상 승강장 계단"
+    },
+    {
+      "station": "효창공원앞역",
+      "line_a": "6호선",
+      "line_b": "경의중앙선",
+      "distance_m": 110,
+      "walk_minutes": 1.5,
+      "transfer_type": "단거리 환승"
+    }
+  ]
+}

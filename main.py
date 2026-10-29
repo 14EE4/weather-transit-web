@@ -12,14 +12,23 @@ from typing import Optional, Any
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from in_memory_log_handler import in_memory_log_handler, attach_in_memory_log_handler
+from admin_dashboard import render_dashboard_html, get_system_uptime_str, get_cache_stats
 from pydantic import BaseModel, Field
 import numpy as np
 import onnxruntime as ort
 import httpx
 
 from timeseries_cache import timeseries_cache
+from multimodal_router import multimodal_routing_engine
+from kma_forecast import (
+    kma_forecast_manager,
+    District24hForecast,
+    HourlyForecastItem as KMAHourlyForecastItem,
+)
 from feature_schema import (
     FeatureSchemaError,
     legacy_25d_indices,
@@ -38,6 +47,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s"
 )
 logger = logging.getLogger("weather_transit_api")
+attach_in_memory_log_handler()
 
 # .env 로드
 load_dotenv()
@@ -48,6 +58,8 @@ MODEL_DIR = BASE_DIR / "models"
 # 공공데이터 인증키
 KMA_AUTH_KEY = os.getenv("KMA_APIHUB_KEY")
 SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")
+# 따릉이 실시간 대여정보(bikeList)용 인증키: 전용 키 우선, 없으면 서울 열린데이터광장 일반 인증키 재사용
+SEOUL_BIKE_KEY = os.getenv("SEOUL_BIKE_API_KEY") or os.getenv("SEOUL_DATA_API_KEY")
 DATA_GO_KR_BUS_KEY = os.getenv("DATA_GO_KR_API_KEY")
 
 # 서울시 25개 자치구 및 수도권 주요 인접 도시 기상청 격자좌표 (nx, ny) 매핑
@@ -161,6 +173,7 @@ class CircuitBreaker:
 kma_circuit_breaker = CircuitBreaker("KMA_WEATHER", failure_threshold=3, recovery_timeout=45.0)
 subway_circuit_breaker = CircuitBreaker("SEOUL_SUBWAY", failure_threshold=3, recovery_timeout=30.0)
 bus_circuit_breaker = CircuitBreaker("SEOUL_BUS", failure_threshold=3, recovery_timeout=30.0)
+bike_circuit_breaker = CircuitBreaker("SEOUL_BIKE", failure_threshold=3, recovery_timeout=30.0)
 
 # 공공 API 인메모리 단기 캐시 (과도한 외부 호출 방지 및 SLA 10ms 보장)
 _weather_cache: dict[str, tuple[float, dict]] = {}
@@ -171,6 +184,10 @@ _bus_cache: dict[str, tuple[float, dict]] = {}
 _weather_last_good: dict[str, dict] = {}
 _subway_last_good: dict[str, dict] = {}
 _bus_last_good: dict[str, dict] = {}
+
+# 따릉이 전체 대여소 스냅샷 (단일 캐시: (수집시각, 대여소 목록))
+_bike_snapshot_cache: Optional[tuple[float, list[dict]]] = None
+_bike_snapshot_last_good: Optional[list[dict]] = None
 
 # ==============================================================================
 # 1. 서울시 25개 자치구 정수 매핑 딕셔너리 및 인프라/용량 기준 메타데이터
@@ -211,6 +228,18 @@ DISTRICT_CODE_MAP: dict[str, int] = {
 # - ⚠️ 학습 파이프라인(`benchmarks/CastTransit.ipynb` [Cell 4-A] `KR_HOLIDAYS_2025`)과
 #      반드시 동일한 집합을 유지할 것. 연도 추가 시 이 딕셔너리에 항목을 추가한다.
 KR_HOLIDAYS: dict[int, frozenset[str]] = {
+    2023: frozenset({
+        "2023-01-01", "2023-01-21", "2023-01-22", "2023-01-23", "2023-01-24",
+        "2023-03-01", "2023-05-05", "2023-05-27", "2023-05-29", "2023-06-06",
+        "2023-08-15", "2023-09-28", "2023-09-29", "2023-09-30", "2023-10-02",
+        "2023-10-03", "2023-10-09", "2023-12-25",
+    }),
+    2024: frozenset({
+        "2024-01-01", "2024-02-09", "2024-02-10", "2024-02-11", "2024-02-12",
+        "2024-03-01", "2024-04-10", "2024-05-05", "2024-05-06", "2024-05-15",
+        "2024-06-06", "2024-08-15", "2024-09-16", "2024-09-17", "2024-09-18",
+        "2024-10-01", "2024-10-03", "2024-10-09", "2024-12-25",
+    }),
     2025: frozenset({
         "2025-01-01",                                # 신정
         "2025-01-27",                                # 임시공휴일(설 연휴 연결)
@@ -616,7 +645,10 @@ async def lifespan(app: FastAPI):
 # ==============================================================================
 app = FastAPI(
     title="Weather & Transit AI Inference Backend",
-    description="2025 서울시 교통-기상 통합 빅데이터 기반 실시간 수요·혼잡도 예측 및 MCDA 추천 API",
+    description="""2025 서울시 기상-대중교통 빅데이터 기반 실시간 수요·혼잡도 추론 및 MCDA 추천 API
+
+* 📊 **[시스템 상태 및 실시간 로그 대시보드 바로가기](/health/dashboard)**
+* 🔍 **[원천 JSON 헬스체크](/health)**""",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -700,6 +732,51 @@ class SimulationResponse(BaseModel):
     simulation_params: dict
     modal_shift_summary: ModalShiftSummary
     district_congestion: list[DistrictCongestionItem]
+
+# ==============================================================================
+# B2B 기업용 모빌리티 재배치(Fleet Rebalancing) 모델 규격
+# ==============================================================================
+class B2BFleetRebalanceRequest(BaseModel):
+    hour: int = Field(default=9, ge=0, le=23, description="대상 시간대 (0~23시)")
+    rain_mm: float = Field(default=0.0, ge=0.0, le=100.0, description="강수량 (mm/h) - 0이면 맑은 날")
+    temp: float = Field(default=18.0, description="기온 (°C)")
+    use_live_weather: bool = Field(default=False, description="실제 기상청 실황 기상 데이터 자동 적용 여부")
+
+class B2BDistrictRebalanceItem(BaseModel):
+    district: str
+    district_code: int
+    # 따릉이 (PM)
+    bike_demand: float
+    bike_baseline: float
+    bike_delta_pct: float
+    bike_status: str              # "SURPLUS" | "DEFICIT" | "STABLE"
+    bike_action: str              # "RECALL" | "DEPLOY" | "MAINTAIN"
+    bike_rebalance_qty: int       # 권장 조정 수량 (대수)
+    # 버스
+    bus_demand: float
+    bus_baseline: float
+    bus_delta_pct: float
+    bus_status: str               # "CROWDED" | "NORMAL" | "LIGHT"
+    bus_recommended_trips: int    # 배차 조정 권고 (회)
+    # 지하철
+    subway_demand: float
+    subway_baseline: float
+    subway_delta_pct: float
+    # 인프라 & 가이드
+    infra: dict
+    urgency: str                  # "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"
+    actionable_guidance: str
+
+class B2BFleetRebalanceResponse(BaseModel):
+    status: str = "success"
+    latency_ms: float
+    weather_condition: dict
+    total_bike_surplus_qty: int
+    total_bike_deficit_qty: int
+    total_bus_extra_trips: int
+    top_recall_districts: list[dict]
+    top_deploy_districts: list[dict]
+    district_rebalance_list: list[B2BDistrictRebalanceItem]
 
 # ── 실시간 공공 API 응답 스키마 ──
 class RealtimeWeatherResponse(BaseModel):
@@ -1150,11 +1227,107 @@ def calculate_station_crowd(base: int, hour: int, rain: float, stop_type: str, s
 # ==============================================================================
 # 7. 엔드포인트 구현
 # ==============================================================================
+# ==============================================================================
+# [Admin & Health Observability] 독립형 시스템 헬스체크 및 실시간 로그 모니터링
+# ==============================================================================
+@app.get("/health/dashboard", response_class=HTMLResponse, tags=["System"], include_in_schema=True)
+async def admin_health_dashboard():
+    """
+    백엔드 독립형 실시간 시스템 헬스체크 및 로그 모니터링 대시보드 (단독 웹페이지)
+    - 외부 공공 API 4종 상태, ONNX 엔진 상태, 서킷브레이커, 시계열 캐시 및 실시간 로그 스트리밍 제공
+    """
+    return HTMLResponse(content=render_dashboard_html(), status_code=200)
+
+@app.get("/api/v1/admin/logs", tags=["System"])
+async def get_admin_logs(
+    since_id: Optional[int] = None,
+    level: Optional[str] = None,
+    domain: Optional[str] = None,
+    query: Optional[str] = None,
+    limit: int = 200,
+):
+    """
+    서버 인메모리 순환 버퍼에 캡처된 최근 실시간 로그 목록 필터링 조회 API
+    """
+    logs = in_memory_log_handler.get_logs(
+        since_id=since_id,
+        level=level,
+        domain=domain,
+        query=query,
+        limit=min(1000, max(1, limit))
+    )
+    return logs
+
+@app.get("/api/v1/admin/status", tags=["System"])
+async def get_admin_system_status():
+    """
+    서버 업타임, ONNX 32차원 모델, 공공 API 서킷 브레이커, 시계열 캐시 통계 종합 조회 API
+    """
+    return {
+        "status": "ok",
+        "uptime": get_system_uptime_str(),
+        "models_loaded": registry.is_loaded,
+        "feature_schema": registry.schema_report(),
+        "circuit_breakers": {
+            "kma_weather": kma_circuit_breaker.get_status(),
+            "seoul_subway": subway_circuit_breaker.get_status(),
+            "seoul_bus": bus_circuit_breaker.get_status(),
+            "seoul_bike": bike_circuit_breaker.get_status(),
+        },
+        "cache_stats": get_cache_stats(),
+        "log_stats": in_memory_log_handler.get_stats(),
+        "timestamp": datetime.now().astimezone().isoformat(),
+    }
+
+@app.post("/api/v1/admin/cache/clear", tags=["System"])
+async def clear_admin_cache():
+    """
+    시계열 캐시(SQLite timeseries_cache.db) 및 인메모리 단기 캐시를 즉시 비우고 외부 API 강제 재호출을 준비
+    """
+    try:
+        # SQLite DB 레코드 삭제
+        db_candidates = [
+            os.path.join(os.getcwd(), "timeseries_cache.db"),
+            os.path.join(os.getcwd(), "data", "timeseries_cache.db"),
+            "/app/data/timeseries_cache.db",
+            "/app/timeseries_cache.db",
+        ]
+        cleared_db = False
+        for p in db_candidates:
+            if os.path.exists(p):
+                import sqlite3
+                conn = sqlite3.connect(p)
+                cur = conn.cursor()
+                cur.execute("DELETE FROM timeseries_cache")
+                cur.execute("VACUUM")
+                conn.commit()
+                conn.close()
+                cleared_db = True
+
+        # 인메모리 단기 캐시 클리어
+        global _weather_cache, _subway_cache, _bus_cache, _bike_snapshot_cache
+        _weather_cache.clear()
+        _subway_cache.clear()
+        _bus_cache.clear()
+        _bike_snapshot_cache = None
+
+        logger.info("[Admin] 관리자 요청에 의해 시계열 캐시 및 인메모리 스냅샷이 성공적으로 비워졌습니다.")
+        return {
+            "status": "ok",
+            "message": "시계열 캐시 및 인메모리 스냅샷이 성공적으로 초기화되었습니다.",
+            "cleared_sqlite": cleared_db,
+            "timestamp": datetime.now().astimezone().isoformat()
+        }
+    except Exception as exc:
+        logger.error(f"[Admin] 캐시 초기화 중 오류: {exc}")
+        raise HTTPException(status_code=500, detail=f"캐시 초기화 실패: {exc}")
+
 @app.get("/health", tags=["System"])
 async def health_check():
     """서버 헬스체크, 모델 로딩 상태 및 외부 공공 API 서킷 브레이커 상태 확인"""
     return {
         "status": "ok",
+        "dashboard_url": "/health/dashboard",
         "models_loaded": registry.is_loaded,
         "feature_schema": registry.schema_report(),
         "circuit_breakers": {
@@ -1179,11 +1352,13 @@ async def get_circuit_breakers_status():
             "kma_weather": kma_circuit_breaker.get_status(),
             "seoul_subway": subway_circuit_breaker.get_status(),
             "seoul_bus": bus_circuit_breaker.get_status(),
+            "seoul_bike": bike_circuit_breaker.get_status(),
         },
         "snapshot_cache_counts": {
             "weather_last_good": len(_weather_last_good),
             "subway_last_good": len(_subway_last_good),
             "bus_last_good": len(_bus_last_good),
+            "bike_last_good": 1 if _bike_snapshot_last_good else 0,
         }
     }
 
@@ -1225,9 +1400,20 @@ async def predict_recommendation(req: PredictionRequest):
 
     t_start = time.perf_counter()
 
-    # 기상 입력 검증 및 디폴트 보정
-    weather = req.weather or WeatherInput()
     norm_district = normalize_district_name(req.district)
+    # 기상 입력 검증 및 디폴트 보정: 기상 정보가 생략된 경우 해당 시간대(req.hour)의 기상청 단기예보 자동 반영
+    weather = req.weather
+    if weather is None:
+        try:
+            h_fcst = await kma_forecast_manager.get_hour_weather(norm_district, req.hour, auth_key=KMA_AUTH_KEY)
+            weather = WeatherInput(
+                temp=h_fcst.temp,
+                rain=h_fcst.rain,
+                humidity=75.0 if h_fcst.rain > 0 else 50.0,
+                wind=2.0
+            )
+        except Exception:
+            weather = WeatherInput()
 
     # 1. 32차원 피처 벡터 조립
     features_32 = build_feature_vector(norm_district, req.hour, weather)
@@ -1476,6 +1662,158 @@ async def simulate_weather_impact(req: SimulationRequest):
         district_congestion=district_congestions,
     )
 
+@app.post("/api/v1/b2b/fleet-rebalance", response_model=B2BFleetRebalanceResponse, tags=["B2B Fleet Management"])
+async def calculate_fleet_rebalancing(req: B2BFleetRebalanceRequest):
+    """
+    B2B 기업 및 지자체 운영사용 모빌리티 재배치(Fleet Rebalancing) 분석 API
+    - 기상 변화 및 시간대별 25개 자치구 AI 추론 기반 수급 불균형(Surplus/Deficit) 분석
+    - 따릉이(PM) 회수/배치 추천 대수 및 버스 배차 증감 가이드 산출
+    """
+    if not registry.is_loaded:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 추론 세션이 준비되지 않았습니다."
+        )
+
+    t_start = time.perf_counter()
+
+    # 기상 조건 설정 (실시간 또는 사용자 요청)
+    rain = req.rain_mm
+    temp = req.temp
+    if req.use_live_weather:
+        try:
+            fcst_item = await kma_forecast_manager.get_hour_weather("강남구", req.hour, auth_key=KMA_AUTH_KEY)
+            if fcst_item:
+                rain = float(fcst_item.rain)
+                temp = float(fcst_item.temp)
+        except Exception as e:
+            logger.warning(f"B2B 실시간 기상 조회 폴백 적용: {e}")
+
+    w_curr = WeatherInput(temp=temp, rain=rain, humidity=85.0 if rain > 0 else 55.0, wind=3.0 if rain > 0 else 1.8)
+    w_base = WeatherInput(temp=20.0, rain=0.0, humidity=50.0, wind=1.8) # 쾌적한 맑은 날 기준
+
+    district_items = []
+    total_bike_surplus = 0
+    total_bike_deficit = 0
+    total_bus_extra = 0
+
+    for d_name, d_code in DISTRICT_CODE_MAP.items():
+        infra = DISTRICT_INFRA.get(d_name, DISTRICT_INFRA["강남구"])
+        bike_racks = float(infra.get("bike_racks", 150.0))
+        bus_stops = float(infra.get("bus_stops", 450.0))
+        subway_stations = float(infra.get("subway_stations", 20.0))
+
+        # 1. 특성 벡터 생성
+        f_curr = build_feature_vector(d_name, req.hour, w_curr)
+        f_base = build_feature_vector(d_name, req.hour, w_base)
+
+        # 2. AI 모델 추론
+        t_bk_c = prepare_session_input(f_curr, registry.bike_session)
+        t_bk_b = prepare_session_input(f_base, registry.bike_session)
+        t_bu_c = prepare_session_input(f_curr, registry.bus_session)
+        t_bu_b = prepare_session_input(f_base, registry.bus_session)
+        t_sb_c = prepare_session_input(f_curr, registry.subway_session)
+        t_sb_b = prepare_session_input(f_base, registry.subway_session)
+
+        bk_c = max(0.0, float(registry.bike_session.run(None, {"float_input": t_bk_c})[0].flatten()[0]))
+        bk_b = max(1.0, float(registry.bike_session.run(None, {"float_input": t_bk_b})[0].flatten()[0]))
+        bu_c = max(0.0, float(registry.bus_session.run(None, {"float_input": t_bu_c})[0].flatten()[0]))
+        bu_b = max(1.0, float(registry.bus_session.run(None, {"float_input": t_bu_b})[0].flatten()[0]))
+        sb_c = max(0.0, float(registry.subway_session.run(None, {"float_input": t_sb_c})[0].flatten()[0]))
+        sb_b = max(1.0, float(registry.subway_session.run(None, {"float_input": t_sb_b})[0].flatten()[0]))
+
+        bk_delta_pct = round(((bk_c - bk_b) / bk_b) * 100, 1)
+        bu_delta_pct = round(((bu_c - bu_b) / bu_b) * 100, 1)
+        sb_delta_pct = round(((sb_c - sb_b) / sb_b) * 100, 1)
+
+        # 3. 따릉이(PM) 재배치 수량 산출
+        # 거치대 1개소당 평균 약 10~15대 자전거 배치 용량 가정 (scale: racks * 12)
+        fleet_capacity = bike_racks * 12.0
+        
+        if rain >= 1.0: # 우천 시: 이용 급감 -> 잉여 기기 회수 권고
+            bike_status = "SURPLUS"
+            bike_action = "RECALL"
+            rebalance_qty = int(fleet_capacity * min(0.65, abs(bk_delta_pct) / 100.0 * 0.7))
+            total_bike_surplus += rebalance_qty
+            urgency = "CRITICAL" if rain >= 4.0 else "HIGH"
+            guidance = f"우천({rain:.1f}mm)으로 따릉이 수요 {abs(bk_delta_pct)}% 급감. 유휴 기기 약 {rebalance_qty}대 침수 취약지/저류지 선제 회수 권장."
+        elif bk_delta_pct >= 15.0: # 맑고 피크시간대: 수요 급증 -> 추가 배치 권고
+            bike_status = "DEFICIT"
+            bike_action = "DEPLOY"
+            rebalance_qty = int(fleet_capacity * min(0.4, (bk_delta_pct / 100.0) * 0.5))
+            total_bike_deficit += rebalance_qty
+            urgency = "HIGH" if bk_delta_pct >= 30.0 else "MEDIUM"
+            guidance = f"쾌적 기상 및 수요 {bk_delta_pct}% 급증. 주요 역세권 거점 거치대에 {rebalance_qty}대 추가 공급 권장."
+        else:
+            bike_status = "STABLE"
+            bike_action = "MAINTAIN"
+            rebalance_qty = 0
+            urgency = "LOW"
+            guidance = "수급 균형 안정. 현행 거치대 유지 관리 모드."
+
+        # 4. 버스 배차 증차 권고
+        if bu_delta_pct >= 10.0 and (rain > 0 or req.hour in [8, 9, 18, 19]):
+            bus_status = "CROWDED"
+            extra_trips = max(1, int(bu_delta_pct / 10.0))
+            total_bus_extra += extra_trips
+        elif bu_delta_pct <= -15.0:
+            bus_status = "LIGHT"
+            extra_trips = 0
+        else:
+            bus_status = "NORMAL"
+            extra_trips = 0
+
+        district_items.append(B2BDistrictRebalanceItem(
+            district=d_name,
+            district_code=d_code,
+            bike_demand=round(bk_c, 1),
+            bike_baseline=round(bk_b, 1),
+            bike_delta_pct=bk_delta_pct,
+            bike_status=bike_status,
+            bike_action=bike_action,
+            bike_rebalance_qty=rebalance_qty,
+            bus_demand=round(bu_c, 1),
+            bus_baseline=round(bu_b, 1),
+            bus_delta_pct=bu_delta_pct,
+            bus_status=bus_status,
+            bus_recommended_trips=extra_trips,
+            subway_demand=round(sb_c, 1),
+            subway_baseline=round(sb_b, 1),
+            subway_delta_pct=sb_delta_pct,
+            infra={
+                "bike_racks": int(bike_racks),
+                "bus_stops": int(bus_stops),
+                "subway_stations": int(subway_stations),
+            },
+            urgency=urgency,
+            actionable_guidance=guidance,
+        ))
+
+    # 상위 5개 회수/배치 구역 추출
+    surplus_list = sorted([d for d in district_items if d.bike_action == "RECALL"], key=lambda x: x.bike_rebalance_qty, reverse=True)
+    deploy_list = sorted([d for d in district_items if d.bike_action == "DEPLOY"], key=lambda x: x.bike_rebalance_qty, reverse=True)
+
+    top_recall = [{"district": d.district, "qty": d.bike_rebalance_qty, "delta_pct": d.bike_delta_pct, "urgency": d.urgency} for d in surplus_list[:5]]
+    top_deploy = [{"district": d.district, "qty": d.bike_rebalance_qty, "delta_pct": d.bike_delta_pct, "urgency": d.urgency} for d in deploy_list[:5]]
+
+    latency = round((time.perf_counter() - t_start) * 1000, 2)
+
+    return B2BFleetRebalanceResponse(
+        latency_ms=latency,
+        weather_condition={
+            "rain_mm": rain,
+            "temp": temp,
+            "hour": req.hour,
+            "is_raining": rain > 0,
+        },
+        total_bike_surplus_qty=total_bike_surplus,
+        total_bike_deficit_qty=total_bike_deficit,
+        total_bus_extra_trips=total_bus_extra,
+        top_recall_districts=top_recall,
+        top_deploy_districts=top_deploy,
+        district_rebalance_list=district_items,
+    )
+
 HOTSPOT_DEFINITIONS = [
     {"name": "강남 역삼동", "district": "강남구"},
     {"name": "도심 명동", "district": "중구"},
@@ -1612,7 +1950,15 @@ async def get_hourly_transit_forecast(
     base_temp = temp if temp is not None else 19.4
     base_rain = max(0.0, rain if rain is not None else 0.0)
 
-    cache_key = (norm_d, round(base_rain, 1), round(base_temp, 1), cur_hour)
+    # 사용자가 명시적으로 temp/rain을 오버라이드하지 않은 경우, 기상청 단기예보 24시간 실시간 데이터 조회
+    kma_fcst_data = None
+    if rain is None and temp is None:
+        try:
+            kma_fcst_data = await kma_forecast_manager.get_district_forecast(norm_d, auth_key=KMA_AUTH_KEY)
+        except Exception as e:
+            logger.warning(f"단기예보 시계열 조회 폴백: {e}")
+
+    cache_key = (norm_d, round(base_rain, 1), round(base_temp, 1), cur_hour, kma_fcst_data is not None)
     now_ts = time.time()
     if cache_key in HOURLY_FORECAST_CACHE:
         cached_time, cached_resp = HOURLY_FORECAST_CACHE[cache_key]
@@ -1621,15 +1967,22 @@ async def get_hourly_transit_forecast(
 
     items = []
     for h in range(24):
-        # 1. 일교차 및 시간대별 기상 추정 곡선 (최저 05시, 최고 14시)
-        temp_h = round(base_temp + 3.2 * math.sin((h - 8) * math.pi / 12), 1)
-        rain_h = base_rain
-        if base_rain > 0.0:
-            rain_factor = 1.0 + 0.3 * math.sin((h - 6) * math.pi / 6)
-            rain_h = round(max(0.0, base_rain * rain_factor), 1)
-        
-        humid_h = min(95.0, max(40.0, 65.0 - (temp_h - base_temp) * 2.0 + (15.0 if rain_h > 0 else 0.0)))
-        wind_h = round(max(0.5, 2.0 + 0.8 * math.cos((h - 14) * math.pi / 12)), 1)
+        if kma_fcst_data and h < len(kma_fcst_data.hours):
+            h_fcst = kma_fcst_data.hours[h]
+            temp_h = h_fcst.temp
+            rain_h = h_fcst.rain
+            humid_h = 75.0 if rain_h > 0 else 50.0
+            wind_h = 2.0
+        else:
+            # 1. 일교차 및 시간대별 기상 추정 곡선 (최저 05시, 최고 14시)
+            temp_h = round(base_temp + 3.2 * math.sin((h - 8) * math.pi / 12), 1)
+            rain_h = base_rain
+            if base_rain > 0.0:
+                rain_factor = 1.0 + 0.3 * math.sin((h - 6) * math.pi / 6)
+                rain_h = round(max(0.0, base_rain * rain_factor), 1)
+            
+            humid_h = min(95.0, max(40.0, 65.0 - (temp_h - base_temp) * 2.0 + (15.0 if rain_h > 0 else 0.0)))
+            wind_h = round(max(0.5, 2.0 + 0.8 * math.cos((h - 14) * math.pi / 12)), 1)
 
         w_in = WeatherInput(temp=temp_h, rain=rain_h, humidity=round(humid_h, 1), wind=wind_h)
         f_vec = build_feature_vector(norm_d, h, w_in)
@@ -1912,6 +2265,15 @@ async def get_current_weather(
         wind=fallback_data["wind"]
     )
     return RealtimeWeatherResponse(**fallback_data)
+
+
+@app.get("/api/v1/weather/forecast/hourly", response_model=District24hForecast, tags=["Live Public APIs"])
+async def get_hourly_weather_forecast(district: str = "강남구"):
+    """
+    기상청 단기예보(nph-dfs_shrt_grd) 연동 24시간 시간대별 기상(기온, 강수량, 하늘상태, 아이콘) 조회 API
+    - 한반도 149x253 격자 기반 서울 25개 자치구 초저지연(<1ms) 인메모리 캐시 제공
+    """
+    return await kma_forecast_manager.get_district_forecast(district, auth_key=KMA_AUTH_KEY)
 
 
 @app.get("/api/v1/transit/subway/arrival", response_model=SubwayArrivalResponse, tags=["Live Public APIs"])
@@ -2425,6 +2787,7 @@ async def get_bus_route_stations(bus_route_id: str):
             })
 
         stations.sort(key=lambda station: station["sequence"])
+        multimodal_routing_engine.bus_route_stations_cache[route_id] = stations
 
         return {
             "status": "success",
@@ -2656,3 +3019,394 @@ async def get_approaching_bus_positions(bus_route_id: str, stId: str):
             if saved_at < expiry:
                 _bus_approaching_cache.pop(key, None)
     return payload
+
+# ─────────────────────────────────────────────
+# 서울시 대중교통(버스+지하철) 환승경로 실시간 조회 API (Issue #50)
+# ─────────────────────────────────────────────
+
+@app.get("/api/v1/transit/bus/transfer-path", tags=["Live Public APIs"])
+async def get_transit_transfer_path(
+    startX: float = Query(..., description="출발지 WGS84 경도 (126.0~128.0)"),
+    startY: float = Query(..., description="출발지 WGS84 위도 (37.0~38.0)"),
+    endX: float = Query(..., description="도착지 WGS84 경도 (126.0~128.0)"),
+    endY: float = Query(..., description="도착지 WGS84 위도 (37.0~38.0)"),
+):
+    """
+    공공데이터포털 서울시 대중교통환승경로 조회 서비스 (getPathInfoByBusNSub).
+    출발지 좌표와 도착지 좌표 간 실제 환승 가능한 버스-지하철 복합 경로 후보 목록 반환.
+    """
+    if not (126.0 <= startX <= 128.0 and 37.0 <= startY <= 38.0):
+        raise HTTPException(status_code=400, detail="유효한 출발지 좌표 범위(서울·수도권)를 입력해 주세요.")
+    if not (126.0 <= endX <= 128.0 and 37.0 <= endY <= 38.0):
+        raise HTTPException(status_code=400, detail="유효한 도착지 좌표 범위(서울·수도권)를 입력해 주세요.")
+
+    routes = multimodal_routing_engine.fetch_public_transit_transfer_routes(startX, startY, endX, endY)
+    return {
+        "status": "success",
+        "count": len(routes),
+        "startX": startX,
+        "startY": startY,
+        "endX": endX,
+        "endY": endY,
+        "routes": routes,
+        "source": "SEOUL_BUS_SUBWAY_TRANSFER_LIVE" if routes else "EMPTY_OR_UNAVAILABLE"
+    }
+
+# ─────────────────────────────────────────────
+# 서울시 따릉이(공공자전거) 실시간 대여소 API
+# ─────────────────────────────────────────────
+
+BIKE_SNAPSHOT_TTL_SEC = 60
+BIKE_PAGE_SIZE = 1000
+BIKE_MAX_PAGES = 5
+
+
+def _haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = p2 - p1
+    dlmb = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _parse_bike_row(row: dict) -> Optional[dict]:
+    try:
+        lat = float(row.get("stationLatitude"))
+        lng = float(row.get("stationLongitude"))
+        rack_total = int(float(row.get("rackTotCnt") or 0))
+        bikes = int(float(row.get("parkingBikeTotCnt") or 0))
+    except (TypeError, ValueError):
+        return None
+    if not (37.0 <= lat <= 38.0 and 126.0 <= lng <= 128.0):
+        return None
+    station_id = str(row.get("stationId") or "")
+    if not station_id:
+        return None
+    return {
+        "id": station_id,
+        "name": str(row.get("stationName") or "").strip(),
+        "coords": [lng, lat],
+        "rackTotal": rack_total,
+        "availableBikes": bikes,
+        "shared": int(float(row.get("shared") or 0)),
+    }
+
+
+async def _fetch_bike_snapshot() -> tuple[list[dict], str]:
+    """전체 대여소 스냅샷을 반환한다. (stations, source)
+    1) 60초 인메모리 캐시 → 2) 서킷 OPEN 시 last_good → 3) 라이브 호출 → 4) 실패 시 last_good
+    모두 불가하면 HTTPException(503)을 발생시켜 프론트가 정적 데이터로 fallback 하도록 한다.
+    """
+    global _bike_snapshot_cache, _bike_snapshot_last_good
+    now = time.time()
+
+    if _bike_snapshot_cache and now - _bike_snapshot_cache[0] < BIKE_SNAPSHOT_TTL_SEC:
+        return _bike_snapshot_cache[1], "SEOUL_BIKE_LIVE"
+
+    if not SEOUL_BIKE_KEY:
+        raise HTTPException(status_code=503, detail="따릉이 API 인증키가 설정되지 않았습니다.")
+
+    if not bike_circuit_breaker.can_execute():
+        if _bike_snapshot_last_good:
+            return _bike_snapshot_last_good, "SEOUL_BIKE_CIRCUIT_OPEN_STALE"
+        raise HTTPException(status_code=503, detail="따릉이 API 일시 차단(서킷 OPEN)")
+
+    stations: dict[str, dict] = {}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            for page in range(BIKE_MAX_PAGES):
+                start = page * BIKE_PAGE_SIZE + 1
+                end = start + BIKE_PAGE_SIZE - 1
+                url = f"http://openapi.seoul.go.kr:8088/{SEOUL_BIKE_KEY}/json/bikeList/{start}/{end}/"
+                res = await client.get(url)
+                res.raise_for_status()
+                body = res.json().get("rentBikeStatus")
+                if not body:
+                    raise ValueError("bikeList 응답 형식 오류")
+                code = (body.get("RESULT") or {}).get("CODE")
+                if code == "INFO-200":  # 해당 범위 데이터 없음 → 종료
+                    break
+                if code != "INFO-000":
+                    raise ValueError(f"bikeList 오류 코드: {code}")
+                rows = body.get("row") or []
+                for row in rows:
+                    parsed = _parse_bike_row(row)
+                    if parsed:
+                        stations[parsed["id"]] = parsed
+                if len(rows) < BIKE_PAGE_SIZE:
+                    break
+        if not stations:
+            raise ValueError("대여소 데이터가 비어 있습니다.")
+    except Exception as exc:
+        logger.warning("Seoul bike API error: %s", exc)
+        bike_circuit_breaker.record_failure(str(exc))
+        if _bike_snapshot_last_good:
+            return _bike_snapshot_last_good, "SEOUL_BIKE_CACHED_STALE"
+        raise HTTPException(status_code=503, detail="서울시 따릉이 API 연결 실패")
+
+    result = list(stations.values())
+    bike_circuit_breaker.record_success()
+    _bike_snapshot_cache = (now, result)
+    _bike_snapshot_last_good = result
+    return result, "SEOUL_BIKE_LIVE"
+
+
+@app.get("/api/v1/transit/bike/stations/nearby", tags=["Live Public APIs"])
+async def get_nearby_bike_stations(lat: float, lng: float, radius: int = 500, limit: int = 100):
+    if not (37.0 <= lat <= 38.0 and 126.0 <= lng <= 128.0):
+        raise HTTPException(status_code=400, detail="좌표 범위를 확인해 주세요.")
+    if not (1 <= radius <= 3000):
+        raise HTTPException(status_code=400, detail="검색 반경은 1~3000m여야 합니다.")
+    limit = max(1, min(limit, 300))
+
+    stations, source = await _fetch_bike_snapshot()
+    nearby = []
+    for s in stations:
+        dist = _haversine_m(lat, lng, s["coords"][1], s["coords"][0])
+        if dist <= radius:
+            nearby.append({**s, "distance": round(dist)})
+    nearby.sort(key=lambda s: s["distance"])
+    nearby = nearby[:limit]
+    return {
+        "status": "success",
+        "count": len(nearby),
+        "center": [lng, lat],
+        "radius": radius,
+        "stations": nearby,
+        "source": source,
+    }
+
+
+@app.get("/api/v1/transit/bike/stations/search", tags=["Live Public APIs"])
+async def search_bike_stations(q: str, limit: int = 30):
+    keyword = q.strip()
+    if len(keyword) < 2:
+        raise HTTPException(status_code=400, detail="검색어는 2자 이상 입력해 주세요.")
+    limit = max(1, min(limit, 100))
+
+    stations, source = await _fetch_bike_snapshot()
+    matched = [s for s in stations if keyword in s["name"]][:limit]
+    return {
+        "status": "success",
+        "count": len(matched),
+        "stations": matched,
+        "source": source,
+    }
+
+
+@app.get("/api/v1/transit/bike/stations/by-number/{station_no}", tags=["Live Public APIs"])
+async def get_bike_station_by_number(station_no: str):
+    """따릉이 대여소 번호(예: 2301)로 실시간 상태를 조회한다. 대여소명이 '2301. ...' 형식인 점을 이용."""
+    prefix = f"{station_no.strip()}."
+    stations, source = await _fetch_bike_snapshot()
+    for s in stations:
+        if s["name"].startswith(prefix):
+            return {"status": "success", "station": s, "source": source}
+    raise HTTPException(status_code=404, detail="해당 번호의 대여소를 찾을 수 없습니다.")
+
+@app.get("/api/v1/transit/bike/stations/{station_id}", tags=["Live Public APIs"])
+async def get_bike_station(station_id: str):
+    stations, source = await _fetch_bike_snapshot()
+    for s in stations:
+        if s["id"] == station_id:
+            return {"status": "success", "station": s, "source": source}
+    raise HTTPException(status_code=404, detail="해당 대여소를 찾을 수 없습니다.")
+
+
+# ==============================================================================
+# 9. LangGraph × FactChat LLM 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 API (Issue #18)
+# ==============================================================================
+
+class MultimodalRouteRequest(BaseModel):
+    from_station: str = Field("강남역", description="출발역 또는 출발 거점명")
+    to_station: str = Field("서울역", description="도착역 또는 도착 거점명")
+    district: str = Field("강남구", description="기준 자치구명")
+    hour: Optional[int] = Field(None, ge=0, le=23, description="탐색 시간대 (0~23시)")
+    weather: Optional[WeatherInput] = Field(None, description="기상 조건 오버라이드 (미지정 시 KMA 단기예보/실황 연동)")
+
+
+async def _execute_multimodal_search(
+    from_station: str,
+    to_station: str,
+    district: str = "강남구",
+    hour: Optional[int] = None,
+    weather_override: Optional[WeatherInput] = None,
+) -> dict:
+    norm_d = normalize_district_name(district)
+    target_hour = hour if hour is not None else datetime.now().hour
+
+    # 1. 기상 컨텍스트 결정 (명시적 오버라이드 우선 -> KMA 단기예보 시간대별 기상 연동)
+    if weather_override is not None:
+        w_in = weather_override
+        w_ctx = {
+            "temp": w_in.temp,
+            "rain": w_in.rain,
+            "humidity": w_in.humidity,
+            "wind": w_in.wind,
+            "pty_desc": "비" if w_in.rain > 0 else "맑음",
+            "source": "USER_OVERRIDE",
+        }
+    else:
+        try:
+            h_fcst = await kma_forecast_manager.get_hour_weather(norm_d, target_hour, auth_key=KMA_AUTH_KEY)
+            w_in = WeatherInput(
+                temp=h_fcst.temp,
+                rain=h_fcst.rain,
+                humidity=75.0 if h_fcst.rain > 0 else 55.0,
+                wind=2.2,
+            )
+            w_ctx = {
+                "temp": h_fcst.temp,
+                "rain": h_fcst.rain,
+                "humidity": w_in.humidity,
+                "wind": w_in.wind,
+                "pty_desc": h_fcst.pty_desc,
+                "sky_desc": h_fcst.sky_desc,
+                "source": "KMA_SHORT_TERM_FORECAST",
+            }
+        except Exception:
+            w_in = WeatherInput(temp=16.5, rain=0.0, humidity=55.0, wind=2.0)
+            w_ctx = {
+                "temp": 16.5,
+                "rain": 0.0,
+                "humidity": 55.0,
+                "wind": 2.0,
+                "pty_desc": "맑음",
+                "source": "FALLBACK_WEATHER",
+            }
+
+    # 2. 32차원 ONNX 모델 추론으로 수단별 혼잡도 및 MCDA 점수 산출
+    ai_cong = {
+        "subway_crowd": 52,
+        "bus_crowd": 58,
+        "bike_crowd": 22,
+        "subway_score": 88,
+        "bus_score": 79,
+        "bike_score": 82,
+        "subway_volume": 28500,
+        "bus_volume": 19200,
+        "bike_volume": 340,
+    }
+    if registry.is_loaded:
+        try:
+            f_vec = build_feature_vector(norm_d, target_hour, w_in)
+            sub_t = prepare_session_input(f_vec, registry.subway_session)
+            bus_t = prepare_session_input(f_vec, registry.bus_session)
+            bike_t = prepare_session_input(f_vec, registry.bike_session)
+
+            s_v = max(0.0, float(registry.subway_session.run(None, {"float_input": sub_t})[0].flatten()[0]))
+            bu_v = max(0.0, float(registry.bus_session.run(None, {"float_input": bus_t})[0].flatten()[0]))
+            bi_v = max(0.0, float(registry.bike_session.run(None, {"float_input": bike_t})[0].flatten()[0]))
+
+            s_c, s_sc, _ = evaluate_subway(s_v, w_in.rain, norm_d)
+            bu_c, bu_sc, _ = evaluate_bus(bu_v, w_in.rain, norm_d)
+            bi_c, bi_sc, _ = evaluate_bike(bi_v, w_in.rain, norm_d)
+
+            ai_cong = {
+                "subway_crowd": int(s_c),
+                "bus_crowd": int(bu_c),
+                "bike_crowd": int(bi_c),
+                "subway_score": int(s_sc),
+                "bus_score": int(bu_sc),
+                "bike_score": int(bi_sc),
+                "subway_volume": int(round(s_v)),
+                "bus_volume": int(round(bu_v)),
+                "bike_volume": int(round(bi_v)),
+            }
+        except Exception as exc:
+            logger.warning(f"멀티모달 ONNX 추론 폴백: {exc}")
+
+    # 3. 인메모리 캐시된 실시간 따릉이 스냅샷 및 실시간 지하철·버스 도착 정보 연동
+    live_bikes = _bike_snapshot_cache[1] if _bike_snapshot_cache else (_bike_snapshot_last_good or [])
+    live_subway_arrs: list[dict] = []
+    if SEOUL_SUBWAY_KEY:
+        try:
+            sub_resp = await get_subway_arrival(from_station)
+            if sub_resp and sub_resp.source == 'SEOUL_SUBWAY_LIVE' and sub_resp.arrivals:
+                live_subway_arrs = [
+                    a.model_dump() if hasattr(a, 'model_dump') else (a.dict() if hasattr(a, 'dict') else dict(a))
+                    for a in sub_resp.arrivals
+                ]
+        except Exception as exc:
+            logger.debug('멀티모달 실시간 지하철 도착 연동 스킵: %s', exc)
+
+    live_bus_arrs: list[dict] = []
+    if DATA_GO_KR_BUS_KEY:
+        try:
+            origin_st = multimodal_routing_engine.resolve_station(from_station)
+            c = origin_st.get("coords", [126.9780, 37.5665]) if origin_st else [126.9780, 37.5665]
+            nearby_buses = multimodal_routing_engine.find_nearby_bus_stops(
+                c[1], c[0], limit=2, station_name=from_station
+            )
+            if nearby_buses:
+                st_id = nearby_buses[0].get("stId")
+                if st_id:
+                    bus_resp = await get_bus_arrival(stId=str(st_id))
+                    if bus_resp and bus_resp.arrivals:
+                        live_bus_arrs = [
+                            a.model_dump() if hasattr(a, 'model_dump') else (a.dict() if hasattr(a, 'dict') else dict(a))
+                            for a in bus_resp.arrivals
+                        ]
+        except Exception as exc:
+            logger.debug('멀티모달 실시간 버스 도착 연동 스킵: %s', exc)
+
+    # 4. LangGraph StateGraph 파이프라인 실행
+    result = multimodal_routing_engine.run_multimodal_search(
+        from_query=from_station,
+        to_query=to_station,
+        district=norm_d,
+        hour=target_hour,
+        weather_context=w_ctx,
+        ai_congestion=ai_cong,
+        live_bike_snapshot=live_bikes,
+        live_subway_arrivals=live_subway_arrs,
+        live_bus_arrivals=live_bus_arrs,
+    )
+    result["district"] = norm_d
+    result["hour"] = target_hour
+    return result
+
+
+@app.post("/api/v1/routes/multimodal-search", tags=["Multimodal Routing"])
+async def post_multimodal_route_search(req: MultimodalRouteRequest):
+    """
+    LangGraph StateGraph 및 FactChat LLM 기반 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 API
+    - 강수/강풍 시 Weather Gate가 자동으로 따릉이(PM) First/Last-Mile 구간을 배제하고 안전 실내 환승 경로로 우회
+    - 32차원 ONNX 실시간 혼잡도 예측 및 FactChat LLM (또는 XAI 엔진) 자연어 브리핑 제공
+    """
+    return await _execute_multimodal_search(
+        from_station=req.from_station,
+        to_station=req.to_station,
+        district=req.district,
+        hour=req.hour,
+        weather_override=req.weather,
+    )
+
+
+@app.get("/api/v1/routes/multimodal-search", tags=["Multimodal Routing"])
+async def get_multimodal_route_search(
+    from_station: str = "강남역",
+    to_station: str = "서울역",
+    district: str = "강남구",
+    hour: Optional[int] = None,
+    rain: Optional[float] = None,
+    temp: Optional[float] = None,
+):
+    """GET 방식 멀티모달 통합 경로 탐색 API (쿼리 파라미터 기반)"""
+    w_override = None
+    if rain is not None or temp is not None:
+        w_override = WeatherInput(
+            temp=temp if temp is not None else 16.5,
+            rain=max(0.0, rain if rain is not None else 0.0),
+            humidity=75.0 if (rain or 0.0) > 0 else 55.0,
+            wind=2.2,
+        )
+    return await _execute_multimodal_search(
+        from_station=from_station,
+        to_station=to_station,
+        district=district,
+        hour=hour,
+        weather_override=w_override,
+    )
+

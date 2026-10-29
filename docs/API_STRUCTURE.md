@@ -55,17 +55,17 @@
 **GET `/health`** — 파라미터 없음
 ```json
 { "status": "ok", "models_loaded": true,
-  "feature_schema": { "path": "benchmarks/2026-10-14/feature_schema.json", "status": "verified",
-                      "model_version": "v2-전처리_2-32d", "feature_dim": 32,
+  "feature_schema": { "path": "models/feature_schema.json", "status": "verified",
+                      "model_version": "v2.1-multiyear-32d", "feature_dim": 32,
                       "model_input_dims": { "bike": 32, "bus": 32, "subway": 32 } },
   "circuit_breakers": { "kma_weather":"CLOSED","seoul_subway":"CLOSED","seoul_bus":"CLOSED" },
   "available_districts": ["강남구", "..."], "timestamp": "..." }
 ```
 
 - `feature_schema` 는 **기동 시 피처 스키마(SSoT) 검증 결과**입니다(`feature_schema.py` → `main.py::ModelRegistry`).
-  - `status`: **`verified`(현행 배포 상태 — 모델 입력 차원 = 스키마 차원, 2026-10-14 32차원 교체)** / `legacy-subset-25d`(25차원 레거시 자산을 배포 슬롯에 반입한 경우) / `mixed-32d/25d`(수단별 혼합) / `not-found`(스키마 미발견 → 검증 생략)
+  - `status`: **`verified`(현행 배포 상태 — v2.1 32차원 다년도 모델 입력 차원 = 스키마 차원)** / `legacy-subset-25d`(25차원 레거시 자산을 배포 슬롯에 반입한 경우) / `mixed-32d/25d`(수단별 혼합) / `not-found`(스키마 미발견 → 검증 생략)
   - 스키마 순서가 코드(`main.py::FEATURE_ORDER_32`)와 다르면 **서버가 기동하지 않습니다**(조용한 예측 붕괴 방지).
-  - 경로 재정의: `FEATURE_SCHEMA_PATH` 환경변수(미지정 시 `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json` 자동 탐색).
+  - 경로 재정의: `FEATURE_SCHEMA_PATH` 환경변수(미지정 시 `models/feature_schema.json` → `benchmarks/2026-10-29/feature_schema.json` 자동 탐색).
 
 **GET `/api/v1/system/circuit-breakers`** — 3개 서킷브레이커의 상태/실패횟수/쿨다운 잔여시간/누적성공·폴백 + 스냅샷 캐시 개수 반환
 
@@ -175,7 +175,11 @@
 |------|------|
 | `KMA_APIHUB_KEY` | 기상청 API허브 (초단기실황) |
 | `SEOUL_SUBWAY_API_KEY` | 서울 열린데이터광장 (지하철 도착) |
-| `DATA_GO_KR_API_KEY` | 공공데이터포털 (버스 도착) |
+| `SEOUL_DATA_API_KEY` | 서울 열린데이터광장 (따릉이 실시간 대여) |
+| `DATA_GO_KR_API_KEY` / `BUS_API_KEY` | 공공데이터포털 (버스 도착·위치·정류소 5종) |
+| `FACTCHAT_API_KEY` / `BAZE_API_KEY` | FactChat / BAZE Gateway (멀티모달 AI 브리핑 LLM) |
+| `FACTCHAT_BASE_URL` / `BAZE_BASE_URL` | FactChat LLM 엔드포인트 (`https://api.baze.co/v1/gateway`) |
+| `FACTCHAT_MODEL_NAME` | FactChat 모델 지정 (`gpt-6-luna`) |
 | `VITE_API_BASE_URL` | 프론트가 참조하는 백엔드 URL |
 
 | 포트 | 컨텍스트 |

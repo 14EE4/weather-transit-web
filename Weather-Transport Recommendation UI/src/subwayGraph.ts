@@ -1,3 +1,4 @@
+import stationTransferData from './data/stationTransferTimes.json'
 // 서울 및 수도권 지하철 역 간 연결 인접 그래프 (전체 19개 노선 561개 역)
 import { SUBWAY_STATIONS, SubwayStation } from './subwayData'
 
@@ -2682,7 +2683,33 @@ export interface TrainArrivalInfo {
   trainLineNm: string
 }
 
+export interface MultimodalSegment {
+  mode: 'walk' | 'bike' | 'bus' | 'subway'
+  label: string
+  line_name?: string
+  from_name: string
+  to_name: string
+  detail: string
+  minutes: number
+  distance_km: number
+  fare_krw: number
+  color: string
+  stops_count?: number
+  coords: [number, number][]
+  live_badge?: string
+}
+
 export interface TransitRouteResult {
+  id?: string
+  category?: string
+  title?: string
+  badge?: string
+  badge_color?: string
+  is_ai_recommended?: boolean
+  modes_used?: string[]
+  highlights?: string[]
+  segments?: MultimodalSegment[]
+  geometry?: [number, number][]
   from: string
   to: string
   path: RouteStep[]
@@ -3038,6 +3065,70 @@ function checkBranchTransfer(junction: string, prevStation: string | null, nextS
   return null
 }
 
+// 서울교통공사 및 수도권 도시철도 93개 주요 환승역 실측 도보시간(분) 및 환승거리(m) Map
+const TRANSFER_TIMES_MAP = new Map<string, { walkMinutes: number; distanceM: number; transferType: string }>()
+
+if (stationTransferData && Array.isArray((stationTransferData as any).transfers)) {
+  for (const t of (stationTransferData as any).transfers) {
+    const stClean = String(t.station || '').replace(/역$/, '').trim()
+    const la = String(t.line_a || '').trim()
+    const lb = String(t.line_b || '').trim()
+    const info = {
+      walkMinutes: Number(t.walk_minutes) || 2.0,
+      distanceM: Number(t.distance_m) || 130,
+      transferType: String(t.transfer_type || '환승통로')
+    }
+    TRANSFER_TIMES_MAP.set(`${stClean}|${la}|${lb}`, info)
+    TRANSFER_TIMES_MAP.set(`${stClean}|${lb}|${la}`, info)
+    TRANSFER_TIMES_MAP.set(`${stClean}역|${la}|${lb}`, info)
+    TRANSFER_TIMES_MAP.set(`${stClean}역|${lb}|${la}`, info)
+  }
+}
+
+export function formatDurationMinutes(mins: number): string {
+  const m = Math.max(0, Math.round(mins))
+  if (m < 60) {
+    return `${m}분`
+  }
+  const hours = Math.floor(m / 60)
+  const remainingMins = m % 60
+  if (remainingMins === 0) {
+    return `${hours}시간`
+  }
+  return `${hours}시간 ${remainingMins}분`
+}
+
+export function getStationTransferTime(
+  station: string,
+  lineA?: string | null,
+  lineB?: string | null
+): { walkMinutes: number; distanceM: number; transferType: string } {
+  const stClean = (station || '').replace(/역$/, '').trim()
+  if (lineA && lineB) {
+    const key1 = `${stClean}|${lineA}|${lineB}`
+    const key2 = `${stClean}|${lineB}|${lineA}`
+    if (TRANSFER_TIMES_MAP.has(key1)) return TRANSFER_TIMES_MAP.get(key1)!
+    if (TRANSFER_TIMES_MAP.has(key2)) return TRANSFER_TIMES_MAP.get(key2)!
+
+    // 계통 괄호 제거 노선명(예: 1호선(경부) -> 1호선)
+    const baseA = lineA.replace(/\(.*?\)/g, '').trim()
+    const baseB = lineB.replace(/\(.*?\)/g, '').trim()
+    const key3 = `${stClean}|${baseA}|${baseB}`
+    const key4 = `${stClean}|${baseB}|${baseA}`
+    if (TRANSFER_TIMES_MAP.has(key3)) return TRANSFER_TIMES_MAP.get(key3)!
+    if (TRANSFER_TIMES_MAP.has(key4)) return TRANSFER_TIMES_MAP.get(key4)!
+  }
+
+  // 역명만으로 일치하는 첫 번째 대표 환승 정보 반환
+  for (const [k, v] of TRANSFER_TIMES_MAP.entries()) {
+    if (k.startsWith(`${stClean}|`)) {
+      return v
+    }
+  }
+
+  return { walkMinutes: 2.0, distanceM: 130, transferType: '일반 환승통로' }
+}
+
 // ── 최소 환승 우선(Minimum Transfer Priority) 지하철 경로 탐색 ──
 export function findSubwayRoute(fromName: string, toName: string): TransitRouteResult | null {
   if (!fromName || !toName) return null
@@ -3083,6 +3174,8 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
   // 비용 가중치: transfers * 10,000 + stops (환승 최소화가 무조건 1순위, 그 다음 정거장 수 최소화)
   const pq = new PriorityQueue<SearchState>()
   const startLines = startSt.lines || []
+  const getLineTiePenalty = (l: string | null) =>
+    l === '경의중앙선' || l === '경춘선' || l === '경강선' || l === '서해선' ? 0.08 : 0
 
   if (startLines.length > 0) {
     for (const line of startLines) {
@@ -3094,7 +3187,7 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
           currLine: line,
           path: [{ station: startSt.name, lineUsed: line }],
         },
-        1
+        1 + getLineTiePenalty(line)
       )
     }
   } else {
@@ -3141,17 +3234,17 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
       const commonLines = [...currLines].filter(l => nbrLines.has(l))
       const branchTransfer = checkBranchTransfer(curr, prevStation, neighbor)
 
+      const baseCurrLine = currLine ? currLine.replace(/\(.*?\)/g, '').trim() : null
       const isSameLine = !branchTransfer && currLine && (
         commonLines.includes(currLine) ||
-        (currLine.startsWith('1호선') && commonLines.includes('1호선')) ||
-        (currLine.startsWith('5호선') && commonLines.includes('5호선'))
+        (baseCurrLine ? commonLines.includes(baseCurrLine) : false)
       )
 
       if (isSameLine) {
         // 동일 호선 계속 탑승 (환승 0회)
         const nextTransfers = transfers
         const nextStops = stops + 1
-        const prio = nextTransfers * 10000 + nextStops
+        const prio = nextTransfers * 10000 + nextStops + getLineTiePenalty(currLine) * nextStops
         const nbrKey = `${neighbor}|${currLine}`
         if (!bestMap.has(nbrKey) || bestMap.get(nbrKey)! > prio) {
           pq.push(
@@ -3172,14 +3265,18 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
           : (commonLines.length > 0 ? commonLines : (nbrLines.size > 0 ? [...nbrLines] : [null]))
 
         // 지선 분기 환승 시 이전 탑승 경로의 노선 표기를 fromLine으로 동기화하여 이전 구간 0환승 유지 및 curr역 환승 표출
+        const fromBaseLine = branchTransfer ? branchTransfer.fromLine.replace(/\(.*?\)/g, '').trim() : null
         const updatedPath = branchTransfer
-          ? path.map(p => (p.lineUsed === '1호선' || !p.lineUsed ? { ...p, lineUsed: branchTransfer.fromLine } : p))
+          ? path.map(p => (p.lineUsed === fromBaseLine || !p.lineUsed ? { ...p, lineUsed: branchTransfer.fromLine } : p))
           : path
 
         for (const nextLine of targetLines) {
           const nextTransfers = transfers + 1
           const nextStops = stops + 1
-          const prio = nextTransfers * 10000 + nextStops
+          const trInfo = getStationTransferTime(curr, currLine, nextLine)
+          // 실측 도보시간 가중치 (도보 1분 = 약 정거장 1.5개 수준 페널티 부여하여 초장거리 막장환승역 자동 회피)
+          const trWalkPenalty = trInfo.walkMinutes * 1.5
+          const prio = nextTransfers * 10000 + nextStops + trWalkPenalty + getLineTiePenalty(nextLine) * nextStops
           const nbrKey = `${neighbor}|${nextLine || ''}`
           if (!bestMap.has(nbrKey) || bestMap.get(nbrKey)! > prio) {
             pq.push(
@@ -3225,7 +3322,8 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
       transferStations.push(transferStationName)
       transferTrains.push(arrival)
       transferArrivalMap.set(i - 1, arrival)
-      transferInfoMap.set(i - 1, `${prevLine} ➔ ${currLine} 환승 (${arrival.destinationOrNext} 방면, ${arrival.remainingMinutes}분 후)`)
+      const trInfo = getStationTransferTime(transferStationName, prevLine, currLine)
+      transferInfoMap.set(i - 1, `${prevLine} ➔ ${currLine} 환승 (${trInfo.transferType} 도보 ${trInfo.walkMinutes.toFixed(1)}분 · ${trInfo.distanceM}m / ${arrival.destinationOrNext} 방면, ${arrival.remainingMinutes}분 후)`)
     }
   }
 
@@ -3244,19 +3342,34 @@ export function findSubwayRoute(fromName: string, toName: string): TransitRouteR
     }
   })
 
-  const stationCount = pathSteps.length
+  const stationCount = Math.max(1, pathSteps.length - 1)
   const transferCount = transferStations.length
-  // 소요 시간: 역 당 2.5분 + 환승 1회당 4분 가산
-  const estimatedMinutes = Math.max(5, Math.round(stationCount * 2.5 + transferCount * 4))
 
   // 거리 비례제 운임 및 실연장 거리(km) 계산
   const pathCoords: [number, number][] = pathSteps.map(p => p.coords)
   const pathNames: string[] = pathSteps.map(p => p.name)
   const { fareKrw, distanceKm, innerDistanceKm, outerDistanceKm, fareBreakdown } = calculateSubwayFare(pathCoords, pathNames)
 
+  // 물리 주행 공식: (실연장 거리 / 노선 주행속도) * 60 + (정차역 수 * 역당 정차시간) + (환승역별 실측 도보 및 열차 대기시간)
+  const mainLine = pathSteps[0]?.lineUsed || '2호선'
+  const runSpeedKmh = mainLine === 'GTX-A' ? 95 : (mainLine === '공항철도' || mainLine === '신분당선' ? 56 : 45)
+  const dwellMin = mainLine === '공항철도' || mainLine === '신분당선' || mainLine === 'GTX-A' ? 0.55 : 0.45
+  let totalTransferWalkWaitMin = 0
+  for (let i = 1; i < rawPath.length; i++) {
+    const prevL = rawPath[i - 1].lineUsed
+    const currL = rawPath[i].lineUsed
+    if (prevL && currL && prevL !== currL) {
+      const stName = rawPath[i - 1].station
+      const trInfo = getStationTransferTime(stName, prevL, currL)
+      totalTransferWalkWaitMin += trInfo.walkMinutes + 2.0
+    }
+  }
+  const estimatedMinutes = Math.max(2, Math.round((distanceKm / runSpeedKmh) * 60 + stationCount * dwellMin + totalTransferWalkWaitMin))
+
+  const timeDisplay = formatDurationMinutes(estimatedMinutes)
   const summary = transferCount === 0
-    ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
-    : `${startSt.name} ➔ ${endSt.name} (최소 환승: ${transferCount}회 [${transferStations.join(', ')}], ${stationCount}개 역 경유, 약 ${estimatedMinutes}분, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
+    ? `${startSt.name} ➔ ${endSt.name} (환승 없음 [직통], ${stationCount}개 역 경유, 약 ${timeDisplay}, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
+    : `${startSt.name} ➔ ${endSt.name} (최소 환승: ${transferCount}회 [${transferStations.join(', ')}], ${stationCount}개 역 경유, 약 ${timeDisplay}, ${distanceKm}km / ${fareKrw.toLocaleString()}원)`
 
   return {
     from: startSt.name,

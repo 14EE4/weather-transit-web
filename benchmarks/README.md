@@ -10,7 +10,7 @@
 ```text
 benchmarks/
 ├── README.md                     # (이 문서) 자산 구조 및 평가 규약
-├── CastTransit.ipynb             # LightGBM 학습/튜닝/ONNX export 노트북 (v2: 실제 32차원)
+├── CastTransit.ipynb             # LightGBM 학습/튜닝/ONNX export 노트북 (v2.1: 2023~2025 3개년 28열 통합데이터 지원)
 ├── evaluate_models.py            # 공정 비교 평가 스크립트 (v2: 실피처 + 사양서 §6.1 분할 + 스키마 SSoT 검증)
 ├── retrain_25d.py                # [실험] 동일 v2 파라미터 + 25차원 서브셋 재학습 (차원 vs 튜닝 분리)
 ├── retrain_25d_colab.ipynb       # [실험·Colab] 위 재학습을 '노트북 1개 업로드'로 재현 (.py 업로드 불가 환경)

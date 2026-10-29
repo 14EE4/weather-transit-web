@@ -16,12 +16,20 @@
   1. **학습/평가 파이프라인(`benchmarks/evaluate_models.py`, `retrain_25d.py`) 수정**:
      - `지하철_하차` 컬럼 유무 확인 방어 로직 추가로 신규 28열 CSV 로드 시 `KeyError` 원천 차단.
      - 2023+2024 Train(42.0만 건) 및 2025 Test(20.9만 건) 다년도 분할 데이터셋 자동 감지 및 로드 지원.
-  2. **AI 모델 사양서 및 진행 보고서 동기화**:
+  2. **Colab 학습 노트북(`benchmarks/CastTransit.ipynb`, `retrain_25d_colab.ipynb`) 개편**:
+     - 구글 드라이브 신규 3개년 경로(`data/통합데이터/`) 자동 탐색 및 병합 로더 탑재.
+     - 28열 포맷에 맞춘 `지하철_하차` 결측 처리 방어 로직 및 다년도 데이터셋 분할(`2023~2024` Train/Val ➔ `2025` 1년 전체 Test) 지원.
+     - 2023, 2024 대한민국 실제 공휴일 캘린더 통합 반영 (`main.py::KR_HOLIDAYS` 동기화).
+  3. **AI 모델 사양서 및 진행 보고서 동기화**:
      - `docs/AI_MODEL_SPEC.md`에 28열 표준 컬럼 규격 및 3개년 다년도 분할 체계 명시.
      - `docs/PROJECT_PROGRESS_REPORT.md` 데이터 전처리 및 증강 영역 갱신.
 - **산출물**:
+  - `benchmarks/CastTransit.ipynb`
+  - `benchmarks/retrain_25d_colab.ipynb`
   - `benchmarks/evaluate_models.py`
   - `benchmarks/retrain_25d.py`
+  - `benchmarks/README.md`
+  - `main.py`
   - `docs/AI_MODEL_SPEC.md`
   - `docs/PROJECT_PROGRESS_REPORT.md`
   - `docs/CHANGELOG.md`

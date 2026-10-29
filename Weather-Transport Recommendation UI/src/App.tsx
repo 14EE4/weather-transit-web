@@ -23,9 +23,19 @@ type Theme = 'dark' | 'light'
 const getInitialTheme = (): Theme => {
   try {
     const saved = localStorage.getItem('weather-transit-theme')
-    if (saved === 'light' || saved === 'dark') return saved
+    if (saved === 'light' || saved === 'dark') {
+      return saved
+    }
   } catch {
-    // localStorage 사용 불가 시 기본 테마
+    // localStorage 접근 불가 환경 대비
+  }
+
+  // 사용자가 수동 설정한 테마가 없을 경우 OS/기기 시스템 테마(prefers-color-scheme)를 기본값으로 사용
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark'
+    }
+    return 'light'
   }
 
   return 'dark'
@@ -436,6 +446,23 @@ export default function App() {
       // 저장 실패 시에도 화면 테마는 변경
     }
   }, [theme])
+
+  // OS/기기 시스템 테마 실시간 변경 감지 (수동 설정 없을 때 동기화)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = (e: MediaQueryListEvent) => {
+      try {
+        const saved = localStorage.getItem('weather-transit-theme')
+        if (!saved) {
+          setTheme(e.matches ? 'dark' : 'light')
+        }
+      } catch {}
+    }
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
   const toggleTheme = () => {
     setTheme(current => current === 'dark' ? 'light' : 'dark')
   }

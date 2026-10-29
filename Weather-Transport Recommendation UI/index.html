@@ -8,6 +8,16 @@
     <!-- MapLibre GL JS CSS & JS CDN -->
     <link href="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.js"></script>
+        <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('weather-transit-theme');
+          var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = (saved === 'light' || saved === 'dark') ? saved : (systemDark ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {}
+      })();
+    </script>
     <!-- figma:head-end -->
   </head>
   <body>

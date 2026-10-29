@@ -97,7 +97,7 @@
     - **디자인 토큰 기반 CSS 변수 테마 시스템**:
       - `:root`, `html[data-theme="dark"]` 및 `html[data-theme="light"]`에 최적화된 배경색, 서피스, 카드, 보더, 텍스트 컬러 토큰 구축
       - 메인 대시보드, 슬라이더, 대화형 지도(MapLibre GL JS 팝업 및 마커), LangGraph 멀티모달 추천 패널, B2B 기업용 관제 테이블 전역 완벽 연동
-    - **테마 상태 영속화 (LocalStorage)**: 브라우저 새로고침(F5)이나 탭 전환 후에도 사용자가 선택한 테마가 유지되도록 `weather-transit-theme` 자동 저장 및 복원
+    - **OS/기기 시스템 테마(`prefers-color-scheme`) 기본값 자동 감지 & 영속화**: 저장된 테마가 없을 때 사용자의 OS/기기 다크/라이트 설정에 맞춰 자동으로 초기 테마를 결정하고, 사용자가 선택한 테마는 `localStorage`(`weather-transit-theme`)에 보존되어 새로고침 후에도 유지
     - **반응형 모바일(PC & 모바일) 전폭 지원**: 데스크톱 뷰(`App.tsx`)뿐만 아니라 모바일 전용 뷰(`AppM.tsx`)에서도 동일한 테마 전환 및 시각적 일관성 제공
 
 ---

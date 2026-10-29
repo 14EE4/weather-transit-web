@@ -24,7 +24,15 @@ const getInitialTheme = (): Theme => {
       return saved
     }
   } catch {
-    // localStorage를 사용할 수 없는 경우 기본 테마 사용
+    // localStorage 접근 불가 환경 대비
+  }
+
+  // 사용자가 수동 설정한 테마가 없을 경우 OS/기기 시스템 테마(prefers-color-scheme)를 기본값으로 사용
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark'
+    }
+    return 'light'
   }
 
   return 'dark'
@@ -483,6 +491,23 @@ export default function AppM() {
       // 저장에 실패해도 현재 화면 테마는 변경
     }
   }, [theme])
+
+  // OS/기기 시스템 테마 실시간 변경 감지 (수동 설정 없을 때 동기화)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = (e: MediaQueryListEvent) => {
+      try {
+        const saved = localStorage.getItem('weather-transit-theme')
+        if (!saved) {
+          setTheme(e.matches ? 'dark' : 'light')
+        }
+      } catch {}
+    }
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
 
   const toggleTheme = () => {
     setTheme(current => current === 'dark' ? 'light' : 'dark')

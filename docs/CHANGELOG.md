@@ -19,7 +19,8 @@
      - MapLibre GL 팝업(`maplibregl-popup-content`), 입력창(`input`, `select`, `textarea`), 날씨 그라디언트 카드(`weather-gradient-*`)의 테마별 스타일 오버라이드.
   2. **원클릭 테마 토글 버튼 탑재 및 상태 영속화 (`src/App.tsx`, `src/AppM.tsx`)**:
      - 헤더 상단에 `☀️ 화이트 모드` / `🌙 다크 모드` 원클릭 토글 버튼 제공.
-     - `localStorage.getItem('weather-transit-theme')`를 통한 테마 복원 및 `document.documentElement.dataset.theme = theme` 실시간 바인딩. 새로고침(F5) 후에도 기존 테마 유지.
+     - **OS/기기 시스템 테마(`prefers-color-scheme`) 기본값 자동 감지**: 저장된 테마가 없는 첫 방문 시 사용자의 기기(OS/브라우저) 다크/라이트 설정에 맞춰 자동으로 기본 테마 결정 및 OS 테마 변경 실시간 동기화 리스너 탑재.
+     - `localStorage.getItem('weather-transit-theme')`를 통한 사용자 수동 선택 영속화 및 `index.html` 프리로더 스크립트로 첫 진입 시 흰 화면 깜빡임(FOUC) 원천 차단.
   3. **신규 컴포넌트 CSS 변수 전수 정합화 (`src/MultimodalRoutePanel.tsx`, `src/EnterpriseView.tsx`)**:
      - 메인 시간대별 기상 예보 & AI 교통 분석 슬라이더 카드(App.tsx, AppM.tsx), LangGraph 대기/브리핑 헤더 카드(MultimodalRoutePanel.tsx), 지도 내 LangGraph 구간 안내 박스 및 B2B 관제 테이블 내 하드코딩 색상(`#F0F6FF`, `#162040`, `rgba(255,255,255,...)` 등)을 `var(--app-text)`, `var(--color-card)`, `var(--color-card2)`, `var(--color-border)`, `var(--color-muted)`로 전면 치환하여 라이트 모드에서의 선명한 가독성 확보.
   4. **프로덕션 빌드 및 Docker 컨테이너 패키징 검증**:

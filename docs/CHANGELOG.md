@@ -8,6 +8,29 @@
 
 ## [2026-10-29]
 
+### 🚌 버스+지하철 복합 환승 경로 서울시 실시간 대중교통환승 API 연동 (이슈 #50 · ROUTING-02)
+- **배경**:
+  - 기존 멀티모달 경로 탐색 엔진(`multimodal_router.py`)에서 버스+지하철 복합 환승 경로를 생성할 때, 출발지 인근 정류소에서 직선거리 기반의 가상 버스 노선(임의 번호 `143, 402`)과 임의의 평균 시속으로 소요시간을 추정하여 추천하던 한계를 개선.
+  - 공공데이터포털의 서울시 대중교통환승경로 조회 서비스(`getPathInfoByBusNSub`)를 연동하여, 실제 버스와 지하철이 결합된 공식 인가 환승 경로와 실시간 버스 도착 정보(`arrmsg1`, `arrmsg2`)를 연계 제공.
+- **주요 조치**:
+  1. **서울시 대중교통환승경로 API 연동 및 인메모리 캐싱 (`multimodal_router.py`)**:
+     - `http://ws.bus.go.kr/api/rest/pathinfo/getPathInfoByBusNSub` 연동 함수 `fetch_public_transit_transfer_routes` 구현.
+     - 좌표계(WGS84 소수점 6자리), 타임아웃(2.5초 보호), 결과 10분 TTL 인메모리 캐시(`_transit_transfer_cache`) 탑재.
+     - 버스 세그먼트(`routeNm`, `routeId`, `fname`, `fid`, `tname`, `tid`) 및 지하철 세그먼트(`railLinkList` 개수 기반 역수 산출) 자동 파싱.
+  2. **수도권 버스 노선 색상 및 유형 뱃지 시스템 구축 (`multimodal_router.py`)**:
+     - 노선 번호 체계에 맞춘 간선(파랑 `#3B82F6`), 지선(초록 `#10B981`), 광역/직행(빨강 `#EF4444`), 순환(노랑 `#F59E0B`), 심야(남색 `#6366F1`), 마을(연두 `#84CC16`) 색상 자동 매핑.
+     - 프론트엔드 지도 및 타임라인에 `🚌 간선 421번` 형태의 표준화된 라벨링 제공.
+  3. **실시간 버스 도착 정보 결합 및 Heuristic Fallback 안전 보장 (`multimodal_router.py`)**:
+     - 경로 내 버스 승차 정류소에 대해 실시간 버스 도착 정보(`live_bus_arrivals`)를 매칭하여 `🟢 실시간: 3분후[1번째 전]` 뱃지 바인딩.
+     - 비서울 시계 간 광역 이동(예: 송내역 ➔ 두정역) 또는 공공 API 장애/지연 시 기존 인근 버스 정류소 복도(Corridor) 기반 Heuristic Fallback으로 100% 안전 전환.
+  4. **신규 전용 REST API 엔드포인트 신설 (`main.py`)**:
+     - `GET /api/v1/transit/bus/transfer-path`: `startX`, `startY`, `endX`, `endY` 파라미터 유효성 검증(위경도 범위) 및 실시간 환승 경로 목록 반환.
+  5. **프론트엔드 지도 버스 승하차 핀 시각화 고도화 (`src/TransitMap.tsx`)**:
+     - 지도 상에 버스 승차 정류소 핀(`route-bus-pickup-pin`, `🚌 [노선명] 승차: [정류소명]`) 및 하차/환승 핀(`route-bus-drop-pin`, `🚌 [노선명] 하차: [정류소명]`) 신설.
+     - 첫 세그먼트가 버스인 경우 출발 알약 배지에 탑승 버스 정보 자동 표출.
+  6. **단위 테스트 스위트 보강 (`tests/test_multimodal_routing.py`)**:
+     - `test_bus_subway_transfer_api_endpoint` 신설 및 전체 13개 단위 테스트 전원 통과(`OK`).
+
 ### 📊 백엔드 독립형 실시간 로그 확인 및 헬스체크 모니터링 대시보드 구축 (이슈 #53)
 - **배경**:
   - 일반 사용자용 메인 UI(`http://localhost:3100/`)에는 관리자/로그 기능이 노출되지 않도록 완벽히 격리하고,

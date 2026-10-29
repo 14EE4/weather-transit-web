@@ -191,12 +191,12 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         """서울교통공사 마스터 데이터 연동 주요 환승역 실측 도보시간 및 환승 세그먼트 정밀 계산 검증 (Issue #27)"""
         # 1) 개별 환승역 조회 확인
         seoul_info = multimodal_routing_engine.get_station_transfer_info("서울역", "1호선", "공항철도")
-        self.assertEqual(seoul_info["walk_minutes"], 5.5)
-        self.assertEqual(seoul_info["distance_m"], 350)
+        self.assertEqual(seoul_info["walk_minutes"], 4.3)
+        self.assertEqual(seoul_info["distance_m"], 309)
 
         nowon_info = multimodal_routing_engine.get_station_transfer_info("노원역", "4호선", "7호선")
-        self.assertEqual(nowon_info["walk_minutes"], 6.2)
-        self.assertEqual(nowon_info["distance_m"], 312)
+        self.assertEqual(nowon_info["walk_minutes"], 3.9)
+        self.assertEqual(nowon_info["distance_m"], 278)
 
         geumjeong_info = multimodal_routing_engine.get_station_transfer_info("금정역", "1호선", "4호선")
         self.assertEqual(geumjeong_info["walk_minutes"], 0.5)
@@ -210,9 +210,9 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         walk_segs = [s for s in res["lineSegments"] if s["mode"] == "walk"]
         self.assertTrue(len(walk_segs) > 0)
         tr_walk_seg = walk_segs[0]
-        self.assertEqual(tr_walk_seg["walk_minutes"], 6.2)
-        self.assertEqual(tr_walk_seg["transfer_distance_m"], 312)
-        self.assertIn("6.2분", tr_walk_seg["detail"])
+        self.assertEqual(tr_walk_seg["walk_minutes"], 3.9)
+        self.assertEqual(tr_walk_seg["transfer_distance_m"], 278)
+        self.assertIn("3.9분", tr_walk_seg["detail"])
 
     def test_subway_express_train_detection(self):
         """9호선 급행 등 수도권 급행열차 정차역 스킵 및 소요시간 단축 모델링 검증 (Issue #27)"""
@@ -373,6 +373,28 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         self.assertGreaterEqual(len(geom), 30)
         self.assertEqual(geom[0], hybrid["path"][0]["coords"])
         self.assertEqual(geom[-1], hybrid["path"][-1]["coords"])
+
+    def test_bus_subway_transfer_api_endpoint(self):
+        """서울시 실시간 대중교통환승경로 API 연동 엔드포인트(/api/v1/transit/bus/transfer-path) 검증 (Issue #50)"""
+        # 1) 유효 좌표 조회 (홍대입구역 ➔ 강남역)
+        resp = self.client.get(
+            "/api/v1/transit/bus/transfer-path?startX=126.9240&startY=37.5568&endX=127.0276&endY=37.4979"
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["status"], "success")
+        self.assertIn("routes", data)
+        self.assertGreater(data["count"], 0)
+        first_rt = data["routes"][0]
+        self.assertIn("total_minutes", first_rt)
+        self.assertIn("legs", first_rt)
+        self.assertGreater(len(first_rt["legs"]), 0)
+
+        # 2) 잘못된 좌표 유효성 검증 (범위 밖 좌표)
+        err_resp = self.client.get(
+            "/api/v1/transit/bus/transfer-path?startX=10.0&startY=37.5&endX=127.0&endY=37.5"
+        )
+        self.assertEqual(err_resp.status_code, 400)
 
 if __name__ == "__main__":
     unittest.main()

@@ -442,6 +442,63 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 
 ---
 
+### 8) 서울시 실시간 대중교통환승경로 조회 API
+- **엔드포인트**: `GET /api/v1/transit/bus/transfer-path`
+- **목적**: 공공데이터포털 서울시 대중교통환승경로 서비스(`getPathInfoByBusNSub`)를 연동하여 출발-도착 좌표 간 실시간 버스+지하철 복합 환승 경로 목록, 구간별 소요시간, 탑승 노선명(`routeNm`) 및 승하차 정류소 ID(`fid`, `tid`)를 10분 TTL 인메모리 캐시로 제공.
+- **Query Parameters**:
+  - `startX` (필수, float): 출발지 경도 (124.0 ~ 132.0)
+  - `startY` (필수, float): 출발지 위도 (33.0 ~ 39.0)
+  - `endX` (필수, float): 도착지 경도 (124.0 ~ 132.0)
+  - `endY` (필수, float): 도착지 위도 (33.0 ~ 39.0)
+- **Response Body**:
+```json
+{
+  "status": "success",
+  "count": 19,
+  "startX": 126.924,
+  "startY": 37.5568,
+  "endX": 127.0276,
+  "endY": 37.4979,
+  "routes": [
+    {
+      "total_minutes": 55,
+      "total_distance_m": 17364,
+      "has_bus": true,
+      "has_subway": true,
+      "legs": [
+        {
+          "mode": "subway",
+          "route_name": "경의중앙선",
+          "route_id": "",
+          "from_name": "홍대입구역",
+          "from_id": "12640",
+          "from_coords": [126.927038, 37.557434],
+          "to_name": "한남역",
+          "to_id": "10100",
+          "to_coords": [127.009187, 37.529387],
+          "station_count": 7
+        },
+        {
+          "mode": "bus",
+          "route_name": "421",
+          "route_id": "100100409",
+          "from_name": "한남역.용산노인종합복지관",
+          "from_id": "102000192",
+          "from_coords": [127.007761, 37.530612],
+          "to_name": "신분당선강남역",
+          "to_id": "121000009",
+          "to_coords": [127.028533, 37.495791],
+          "station_count": null
+        }
+      ]
+    }
+  ],
+  "source": "SEOUL_BUS_SUBWAY_TRANSFER_LIVE"
+}
+```
+
+---
+
 ## 7. 구동 환경 설정 및 서버 실행 방법
 
 ### 1) 의존성 설치

@@ -2504,6 +2504,12 @@ popupContent.append(title, number)
             <span>(${firstSegment.minutes || 10}분)</span>
           </div>
         ` : ''}
+        ${!isFirstModeSubway && firstSegment?.mode === 'bus' ? `
+          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚌 ${firstSegment.label || '버스'} 탑승</span>
+            <span>(${firstSegment.minutes || 10}분)</span>
+          </div>
+        ` : ''}
       </div>
       <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #10B981;"></div>
     `
@@ -2583,6 +2589,55 @@ popupContent.append(title, number)
             `
             const dMarker = new maplibregl.Marker({ element: dropEl }).setLngLat(dropCoord).addTo(map)
             routeMarkersRef.current.push(dMarker)
+          }
+        }
+
+        // 버스(Bus) 세그먼트 승차/하차 마커 핀 (Issue #50)
+        if (seg.mode === 'bus' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
+          const busPickupCoord = seg.coords[0]
+          const isPickupAtStart = isNearbyCoord(busPickupCoord, startCoord, 0.001)
+          if (!isPickupAtStart) {
+            const busPickupEl = document.createElement('div')
+            busPickupEl.className = 'route-bus-pickup-pin'
+            busPickupEl.style.display = 'flex'
+            busPickupEl.style.flexDirection = 'column'
+            busPickupEl.style.alignItems = 'center'
+            busPickupEl.style.cursor = 'pointer'
+            busPickupEl.innerHTML = `
+              <div style="background: ${seg.color || '#3B82F6'}; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(59,130,246,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚌 승차</span>
+                <span>${seg.from_name || '버스 정류소'}</span>
+                ${seg.line_name ? `<span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${seg.line_name}</span>` : ''}
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid ${seg.color || '#3B82F6'};"></div>
+            `
+            const bMarker = new maplibregl.Marker({ element: busPickupEl }).setLngLat(busPickupCoord).addTo(map)
+            routeMarkersRef.current.push(bMarker)
+          }
+
+          const busDropCoord = seg.coords[seg.coords.length - 1]
+          const isDropAtDest = isNearbyCoord(busDropCoord, endCoord, 0.0015)
+          const isDropAtTransfer = activeRoute.transferTrains?.some(tr => {
+            const trStep = activeRoute.path.find(p => p.name === tr.station)
+            return tr.station === seg.to_name || (trStep && isNearbyCoord(busDropCoord, trStep.coords, 0.0015))
+          })
+
+          if (!isDropAtDest && !isDropAtTransfer) {
+            const busDropEl = document.createElement('div')
+            busDropEl.className = 'route-bus-drop-pin'
+            busDropEl.style.display = 'flex'
+            busDropEl.style.flexDirection = 'column'
+            busDropEl.style.alignItems = 'center'
+            busDropEl.style.cursor = 'pointer'
+            busDropEl.innerHTML = `
+              <div style="background: #F97316; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(249,115,22,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚌 하차</span>
+                <span>${seg.to_name || '버스 하차정류소'}</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #F97316;"></div>
+            `
+            const bdMarker = new maplibregl.Marker({ element: busDropEl }).setLngLat(busDropCoord).addTo(map)
+            routeMarkersRef.current.push(bdMarker)
           }
         }
       })

@@ -2427,34 +2427,37 @@ popupContent.append(title, number)
     const startCoord = coords[0]
     const endCoord = coords[coords.length - 1]
 
-    // 두 좌표가 인접한지 판별 (위경도 차이 0.0035도, 약 300m 이내)
-    const isNearbyCoord = (c1?: [number, number], c2?: [number, number], threshold = 0.0035) => {
+    const firstSegment = activeRoute.segments && activeRoute.segments.length > 0 ? activeRoute.segments[0] : null
+    const lastSegment = activeRoute.segments && activeRoute.segments.length > 0 ? activeRoute.segments[activeRoute.segments.length - 1] : null
+
+    // 첫 이동 모드가 지하철인지 확인 (도보나 따릉이로 이동을 시작할 때는 지하철 실시간 도착 정보를 출발 알약에 노출하지 않음)
+    const isFirstModeSubway = !firstSegment || firstSegment.mode === 'subway'
+    const depTrain = isFirstModeSubway ? activeRoute.departureTrain : null
+
+    // 두 좌표가 인접한지 판별 (위경도 차이 0.001도, 약 90m 이내)
+    const isNearbyCoord = (c1?: [number, number], c2?: [number, number], threshold = 0.001) => {
       if (!c1 || !c2) return false
       return Math.abs(c1[0] - c2[0]) < threshold && Math.abs(c1[1] - c2[1]) < threshold
     }
 
-    // 출발지와 인접/일치하는 따릉이 대여 세그먼트 탐색 (겹침 방지 및 일체형 알약 통합용)
-    const mergedBikePickup = activeRoute.segments?.find(seg => 
-      seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2 &&
-      (isNearbyCoord(seg.coords[0], startCoord) || 
-       seg.from_name === activeRoute.from || 
-       activeRoute.from.includes(seg.from_name) || 
-       seg.from_name.includes(activeRoute.from))
-    )
+    // 도착지와 인접/일치하는 따릉이 반납 세그먼트 탐색:
+    // (전체 경로의 마지막 세그먼트가 따릉이이고, 최종 목적지와 반납 위치가 일치/초근접할 때만 일체형 알약으로 병합)
+    const isLastSegBike = lastSegment && lastSegment.mode === 'bike'
+    const mergedBikeDrop = (isLastSegBike && Array.isArray(lastSegment.coords) && lastSegment.coords.length >= 2 &&
+      (isNearbyCoord(lastSegment.coords[lastSegment.coords.length - 1], endCoord, 0.0015) || 
+       lastSegment.to_name === activeRoute.to || 
+       activeRoute.to.includes(lastSegment.to_name) || 
+       lastSegment.to_name.includes(activeRoute.to))) ? lastSegment : null
 
-    // 도착지와 인접/일치하는 따릉이 반납 세그먼트 탐색 (겹침 방지 및 일체형 알약 통합용)
-    const mergedBikeDrop = activeRoute.segments?.find(seg => 
-      seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2 &&
-      (isNearbyCoord(seg.coords[seg.coords.length - 1], endCoord) || 
-       seg.to_name === activeRoute.to || 
-       activeRoute.to.includes(seg.to_name) || 
-       seg.to_name.includes(activeRoute.to))
-    )
+    // 출발지와 인접/일치하는 따릉이 대여 세그먼트 탐색:
+    // (도보 이동 없이 출발역 위치에서 곧바로 따릉이를 대여하는 경우에만 출발 알약에 병합)
+    const isFirstSegBikeDirect = firstSegment && firstSegment.mode === 'bike'
+    const mergedBikePickup = (isFirstSegBikeDirect && Array.isArray(firstSegment.coords) && firstSegment.coords.length >= 2 &&
+      isNearbyCoord(firstSegment.coords[0], startCoord, 0.0003)) ? firstSegment : null
 
-    // 출발지 마커 핀 (초록색 캡슐 + 탑승 열차 잔여 시간 / 따릉이 대여 정보 표시)
+    // 출발지 마커 핀 (초록색 캡슐 + 이동 모드별 최적화된 안내 표시)
     const startStop = TRANSIT_STOPS.find(s => s.name === activeRoute.from)
     const startCrowd = startStop ? calculateCrowd(startStop) : 65
-    const depTrain = activeRoute.departureTrain
     const startEl = document.createElement('div')
     startEl.className = 'route-start-pin'
     startEl.style.display = 'flex'
@@ -2489,10 +2492,16 @@ popupContent.append(title, number)
             <span style="background: #065F46; color: #6EE7B7; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${depTrain.remainingMinutes}분 후 도착</span>
           </div>
         ` : ''}
-        ${mergedBikePickup ? `
-          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-            <span>🚲 따릉이 대여:</span>
-            <span>${mergedBikePickup.from_name || '대여소'}</span>
+        ${!isFirstModeSubway && firstSegment?.mode === 'walk' ? `
+          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚶 도보 ${firstSegment.minutes || 2}분</span>
+            <span>➔ ${firstSegment.to_name || '따릉이 대여소'}</span>
+          </div>
+        ` : ''}
+        ${!isFirstModeSubway && firstSegment?.mode === 'bike' ? `
+          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚲 따릉이 라이딩 시작</span>
+            <span>(${firstSegment.minutes || 10}분)</span>
           </div>
         ` : ''}
       </div>
@@ -2525,11 +2534,11 @@ popupContent.append(title, number)
       .addTo(map)
     routeMarkersRef.current.push(startMarker)
 
-    // 따릉이(Bike) 세그먼트 대여소/반납소 마커 핀 (출발/도착과 겹치지 않는 독립 구간만 생성)
+    // 따릉이(Bike) 세그먼트 대여소/반납소 마커 핀 (출발/환승/도착과 겹치지 않는 독립 구간만 생성)
     if (activeRoute.segments && activeRoute.segments.length > 0) {
       activeRoute.segments.forEach(seg => {
         if (seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
-          // 대여소 핀 (출발 대여소): 출발 알약과 병합되지 않은 경우에만 독립 마커 생성
+          // 대여소 핀 (출발 대여소): 출발역 알약과 완전히 동일한 위치로 병합된 경우가 아니면 100% 무조건 독립 핀 표출!
           if (mergedBikePickup !== seg) {
             const pickupCoord = seg.coords[0]
             const pickupEl = document.createElement('div')
@@ -2549,9 +2558,16 @@ popupContent.append(title, number)
             routeMarkersRef.current.push(pMarker)
           }
 
-          // 반납소 핀 (도착 반납소): 도착 알약과 병합되지 않은 경우에만 독립 마커 생성
-          if (mergedBikeDrop !== seg) {
-            const dropCoord = seg.coords[seg.coords.length - 1]
+          // 반납소 핀 (도착 반납소):
+          // 1) 최종 도착 알약과 병합된 경우 생략
+          // 2) 환승역과 일치하는 경우 환승 알약에 일체형으로 병합되므로 개별 핀 생략하여 겹침 방지
+          const dropCoord = seg.coords[seg.coords.length - 1]
+          const isDropAtTransfer = activeRoute.transferTrains?.some(tr => {
+            const trStep = activeRoute.path.find(p => p.name === tr.station)
+            return tr.station === seg.to_name || (trStep && isNearbyCoord(dropCoord, trStep.coords, 0.0015))
+          })
+
+          if (mergedBikeDrop !== seg && !isDropAtTransfer) {
             const dropEl = document.createElement('div')
             dropEl.className = 'route-bike-drop-pin'
             dropEl.style.display = 'flex'
@@ -2572,13 +2588,19 @@ popupContent.append(title, number)
       })
     }
 
-    // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 표시)
+    // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 / 따릉이 연계 정보 표시)
     if (activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {
       activeRoute.transferTrains.forEach(tr => {
         const trStep = activeRoute.path.find(p => p.name === tr.station)
         if (!trStep) return
         const trStop = TRANSIT_STOPS.find(s => s.name === tr.station)
         const trCrowd = trStop ? calculateCrowd(trStop) : 70
+
+        // 환승역과 일치하는 따릉이 반납 구간 탐색
+        const matchedBikeDropForTransfer = activeRoute.segments?.find(seg => 
+          seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2 &&
+          (seg.to_name === tr.station || isNearbyCoord(seg.coords[seg.coords.length - 1], trStep.coords, 0.0015))
+        )
 
         const trEl = document.createElement('div')
         trEl.className = 'route-transfer-pin'
@@ -2612,6 +2634,11 @@ popupContent.append(title, number)
               <span>⏱️ ${tr.destinationOrNext} 방면</span>
               <span style="background: #78350F; color: #FDE68A; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${tr.remainingMinutes}분 후 도착</span>
             </div>
+            ${matchedBikeDropForTransfer ? `
+              <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+                <span>🚲 따릉이 반납 ➔ 🚇 ${tr.line} 환승</span>
+              </div>
+            ` : ''}
           </div>
           <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #D97706;"></div>
         `

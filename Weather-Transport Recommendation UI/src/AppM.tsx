@@ -1472,7 +1472,11 @@ export default function AppM() {
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {/* 날씨 패널 핵심 지표 4종 (2x2 그리드) */}
+              <div
+                className="weather-metrics-grid"
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}
+              >
                 {[
                   { label: '습도', value: `${displayHumidity}%`, icon: '💧' },
                   { label: '풍속', value: `${displayWind}m/s`, icon: '💨' },
@@ -3339,6 +3343,13 @@ export default function AppM() {
           }
           div[style*="display: grid"] {
             grid-template-columns: minmax(0, 1fr) !important;
+          }
+
+          /* 날씨 패널 2x2 지표 그리드: 모바일에서도 정확히 2개씩 2*2 유지 */
+          .weather-metrics-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
           }
 
           /* 경로 추천: 입력 패널 먼저, 추천 결과는 아래로 */

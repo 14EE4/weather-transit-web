@@ -8,6 +8,17 @@
 
 ## [2026-10-29]
 
+### 📝 전사 시스템 문서 다년도(2023~2025 63만 건) 규격 전수 동기화 (이슈 #41)
+- **배경**:
+  - 신규 2023~2025 3개년 28열 통합데이터 도입 및 32차원 ONNX v2.1 모델 반입에 따라 기존 문서들에 남아있던 과거 단년도(20.9만 건) 및 25차원 배포 관련 잔여 서술을 전수 교정.
+- **주요 조치**:
+  1. `README.md`: 데이터 규모를 20.9만 건에서 2023~2025 3개년 62.9만 건으로 최신화.
+  2. `docs/SYSTEM_ARCHITECTURE.md`: §6.1 원천 데이터셋 사양(62.9만 행 28열) 및 §6.2 현행 32차원 v2.1 모델 명세(`CURRENT_DATA_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md` 링크) 동기화.
+  3. `docs/BACKEND_INFERENCE_SERVER.md`: 25차원 배포 시절 주석 정정 및 현행 32차원 실피처 계약, `/health` JSON 예시(`v2.1-multiyear-32d`) 최신화.
+  4. `docs/API_STRUCTURE.md`: `/health` 엔드포인트 응답 예시 및 경로를 `v2.1-multiyear-32d` 기준으로 갱신.
+  5. `docs/DOCKER_CONTAINERIZATION_PLAN.md`: Dockerfile COPY 경로를 2026-10-29 스키마로 동기화.
+  6. `docs/PROJECT_PROGRESS_REPORT.md`: §3.2 모델 개선 지표를 2026-10-29 최종 평가 수치(버스 MAPE 13.81% 등)로 갱신.
+
 ### 📚 현행 모델/데이터 명세 분리 및 과거 레거시 문서/자산 아카이빙 개편
 - **배경**:
   - 기존 `docs/` 디렉터리에 과거 버전(25차원, 구 32차원 더미 변수) 개발/인수인계 문서와 현행 문서가 혼재되어 탐색 혼선 발생.

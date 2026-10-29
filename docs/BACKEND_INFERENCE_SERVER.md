@@ -83,11 +83,11 @@ DISTRICT_CODE_MAP = {
 | **3. 공간 인코딩** | 5 | `district_code`<br>`district_subway_stations`<br>`district_bus_stops`<br>`district_bike_racks`<br>`commercial_density` | 서울시 25개 자치구 정수 ID (0 ~ 24)<br>해당 구 내 지하철 역사 수<br>해당 구 내 버스 정류소 수<br>해당 구 내 따릉이 거치대 수<br>상업/업무 지구 밀도 가중치 (강남/중구/여의도 1.4~1.45 등) |
 | **4. 시계열 래그/통계** | 11 | `bike_lag_1h`, `bus_lag_1h`, `subway_lag_1h`<br>`bike_roll_mean_3h`, `bus_roll_mean_3h`, `subway_roll_mean_3h`<br>`same_day_last_week_bike/bus/sub`<br>`temp_diff_1h`, `rain_diff_1h` | 직전 1시간 이용량 래그<br>직전 3시간 이동평균<br>전주 동요일 동시간 이용량<br>전 시간 대비 기온 및 강수량 변화량 |
 
-> **📌 서빙 입력(32차원) ≠ 모델 입력 텐서**
-> - 위 32차원은 `main.py::build_feature_vector()`가 조립하는 **서빙 입력 계약**입니다.
-> - 현재 배포 모델(`models/*.onnx`)은 **25차원** 텐서를 기대하며, 이는 32차원에서 공간 인프라 4차원 + `same_day_last_week_*` 3차원 = **7차원을 제외한 부분집합**입니다.
-> - `main.py::prepare_session_input()`이 모델 기대 차원으로 자동 정렬하므로 25차원·32차원 모델이 공존합니다(상세: `docs/SYSTEM_ARCHITECTURE.md` §6.2).
-> - 신규 후보 산출물은 **`benchmarks/2026-10-14/`**(2026-10-14 학습분)이며 **실제 32차원 실피처**(공간 인프라 4 + `same_day_last_week_*` 3)로 학습되었습니다. 공정 재평가·배포 전까지는 벤치마크 전용입니다. `benchmarks/2026-10-12/tuned_real/` 은 **종료된 배치 위치**이고, v1 자산(`benchmarks/2026-10-12/tuned/`)은 배치 순서가 사양서와 달라 **서빙 불가**이지만, 평가 스크립트가 라벨별 배치(`v1`)를 지정해 **자기 배치 공정 비교에는 포함**합니다(`docs/MODEL_PERFORMANCE_REPORT.md` §0.3).
+> **📌 현행 32차원 배포 모델 및 피처 계약 (v2.1)**
+> - 위 32차원은 `main.py::build_feature_vector()`가 조립하는 **서빙 입력 계약이자 현행 배포 모델(`models/*.onnx`)의 입력 텐서 규격**입니다.
+> - 2026-10-29 배포된 v2.1 다년도 모델은 **32차원 실피처(더미 0 없음)** 로 직접 추론을 수행합니다.
+> - 과거 25차원 레거시 모델을 반입할 경우에도 `main.py::prepare_session_input()`이 모델 차원에 맞추어 25차원 서브셋으로 자동 정렬하여 호환성을 유지합니다(`/health.feature_schema.status = legacy-subset-25d`).
+> - 상세 규격 및 지표: [`docs/CURRENT_DATA_SPEC.md`](./CURRENT_DATA_SPEC.md) 및 [`docs/CURRENT_MODEL_PERFORMANCE.md`](./CURRENT_MODEL_PERFORMANCE.md) 참조.
 ---
 
 ## 5. 혼잡도 지수 및 MCDA 추천 스코어링 알고리즘
@@ -353,9 +353,9 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
   "status": "ok",
   "models_loaded": true,
   "feature_schema": {
-    "path": "benchmarks/2026-10-14/feature_schema.json",
+    "path": "models/feature_schema.json",
     "status": "verified",
-    "model_version": "v2-전처리_2-32d",
+    "model_version": "v2.1-multiyear-32d",
     "feature_dim": 32,
     "model_input_dims": { "bike": 32, "bus": 32, "subway": 32 }
   },
@@ -366,7 +366,7 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 
 #### 피처 스키마(SSoT) 기동 검증
 - 서버는 모델 로딩 직후 [`feature_schema.py`](../feature_schema.py) 가 제공하는 검증을 수행합니다.
-  1. 스키마 탐색: `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`
+  1. 스키마 탐색: `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-29/feature_schema.json`
   2. 스키마 `feature_cols` 순서 == `main.py::FEATURE_ORDER_32` assert(불일치 시 **기동 중단**)
   3. 각 ONNX 세션 입력 차원 == 스키마 차원(32) 또는 25차원 레거시 서브셋인지 확인(그 외 차원이면 기동 중단)
 - 결과는 `/health.feature_schema.status` 로 노출되며, 25차원 레거시로 동작 중이면 **경고 로그**를 남깁니다.

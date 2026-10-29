@@ -22,6 +22,19 @@
 - [x] **[UI-04] 경로 추천 시간대 슬라이더 현재 시각 복귀 버튼 신설 (완료 · 2026-10-29 · 이슈 #59)**:
   - 경로 추천 탭(`activeTab === 'route'`)의 출발 시각 조절 슬라이더에 현재 시각이 아닐 때(`!isCurrentHour`) `🔄 현재 시각` 버튼 표출.
   - 클릭 시 `setSelectedHour(nowHour)`를 실행하여 실시간 현재 시각으로 즉시 재설정 가능하도록 편의성 강화.
+- [x] **[UI-05] 모바일 환경 경로 추천 크래시 핫픽스, 지도 가림 최적화 및 기업용 관제 탭 복구 (완료 · 2026-10-29 · 이슈 #62)**:
+  - `AppM.tsx` 내 `MultimodalRoutePanel` 누락 import 추가로 런타임 `ReferenceError` 및 백지 현상 원천 해결.
+  - 모바일 세로 1열 반응형 레이아웃(`maxWidth: 640px`, `padding: 16px 16px 80px`, `display: flex`, `flexDirection: column`)으로 전면 재구성.
+  - MapLibre GL JS `circle-stroke-color` WebGL paint CSS 변수(`var(--color-surface)`) 에러를 테마 감지 실측 색상으로 치환.
+  - 모바일 지도 뷰포트 오버레이 슬림화 (상단 날씨 1줄 알약화, 하단 긴 배지 숨김, 우측 하단 범례 `ℹ️` 토글화로 지도 가림 90% 이상 제거).
+  - 모바일 뷰에 `🏢 기업용 관제`(`enterprise`) 탭 및 `EnterpriseView` 연결 복구.
+  - 모바일 날씨 현황 상단 초단기실황 배너 내 중복 4수치 제거 및 메인 3개 카드 세로 1열 적층으로 글자 세로 깨짐 원천 해결.
+  - 날씨 현황 중복 상단 관측 바 제거 및 하단 완성형 대형 날씨 패널로 일원화 통합 완료 (`App.tsx`, `AppM.tsx`).
+  - 모바일 날씨 패널 내부 핵심 4종 지표 2x2(2*2) 그리드 복구 완료 (`.weather-metrics-grid`).
+  - 모바일 지도 권역 바로가기 버튼(강남/잠실 등) 숨김 및 활성 경로 플로팅 카드 초슬림 1줄 배지화 완료 (`TransitMap.tsx`).
+  - 모바일 버스정류장 검색(`BusStationSearch`) 및 선택 버스 마커 연동(`selectedBusStation`) 탑재 완료 (`AppM.tsx`).
+  - 경로 탐색 시 모바일 지도 상 불필요한 중간 경유역 마커 숨김 및 [출발 ➔ 환승 ➔ 도착] 전용 핀 정돈 완료 (`TransitMap.tsx`).
+  - 동별 거점 혼잡도 및 시계열 AI 예측 상세 콘솔 로거(`apiLogger.ts`) 신설 및 모바일 헤더 GitHub 버튼 복구 완료.
 ---
 
 ### 🛡️ 0-0. 운영 안정성 및 관제 신뢰도 고도화 (완료 · 2026-10-29 · 이슈 #57)

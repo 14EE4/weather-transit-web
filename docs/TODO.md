@@ -33,6 +33,7 @@
   - 모바일 날씨 패널 내부 핵심 4종 지표 2x2(2*2) 그리드 복구 완료 (`.weather-metrics-grid`).
   - 모바일 지도 권역 바로가기 버튼(강남/잠실 등) 숨김 및 활성 경로 플로팅 카드 초슬림 1줄 배지화 완료 (`TransitMap.tsx`).
   - 모바일 버스정류장 검색(`BusStationSearch`) 및 선택 버스 마커 연동(`selectedBusStation`) 탑재 완료 (`AppM.tsx`).
+  - 경로 탐색 시 모바일 지도 상 불필요한 중간 경유역 마커 숨김 및 [출발 ➔ 환승 ➔ 도착] 전용 핀 정돈 완료 (`TransitMap.tsx`).
   - 동별 거점 혼잡도 및 시계열 AI 예측 상세 콘솔 로거(`apiLogger.ts`) 신설 및 모바일 헤더 GitHub 버튼 복구 완료.
 ---
 

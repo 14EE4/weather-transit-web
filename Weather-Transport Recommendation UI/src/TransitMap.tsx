@@ -783,9 +783,22 @@ popupContent.append(title, number)
       const [lng, lat] = item.stop.coords
 
       // 1. 활성 경로가 있는 경우:
-      // - 사용자가 명시적으로 해당 수단 필터(예: 따릉이 filterType='bike')를 선택했거나,
-      // - 경로 세그먼트에 포함된 대여소/정류소는 숨기지 않고 표출!
+      // - 모바일(isMobile)이거나 일반 시야 뷰(zoom < 14.5)에서는 수많은 중간 경유역 마커들을 모두 숨겨서
+      //   오직 [🟢 출발역 ➔ 🔄 환승역 ➔ 🔴 도착역](및 따릉이 대여/반납, 버스 승하차) 전용 핀만 선명하게 노출 (중간역 겹침 원천 방지)
       if (hasActiveRoute && currentRoute) {
+        // 모바일에서는 화면이 작아 중간 경유역 알약들이 서로 심하게 겹치므로 완전히 숨김
+        // (출발역, 환승역, 도착역은 routeMarkersRef 전용 핀으로 크고 명확하게 표출됨)
+        if (isMobile) {
+          item.el.style.display = 'none'
+          continue
+        }
+
+        // PC 환경에서도 광역/일반 시야(zoom < 14.5)에서는 중간역을 숨겨 겹침 방지 (초근접 줌인 시에만 표출)
+        if (currentZoom < 14.5) {
+          item.el.style.display = 'none'
+          continue
+        }
+
         const isFilterMatched = filterType && filterType === item.stop.type
         const isSegmentStop = routeStationNames.has(item.stop.name) || 
                               routeStationNames.has(item.stop.name.replace(/\(.*?\)/g, '').trim()) ||

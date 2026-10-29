@@ -1,11 +1,11 @@
 /**
  * 공공 API 및 AI 예측 모델 통신 모니터링 로거
- * 브라우저 개발자 콘솔(F12 -> Console)에 컬러풀하고 구조화된 형태로 API 송수신 데이터를 출력합니다.
+ * 브라우저 개발자 콘솔(F12 -> Console)에 컬러풀하고 구조화된 형태로 API 송수신 및 디버깅 데이터를 출력합니다.
  */
 
-// 동일한 API 호출 로그가 단시간(1.2초) 내 중복 출력되는 것을 방지하는 캐시
+// 동일한 이벤트가 1초 내에 중복 호출되는 것을 방지하는 캐시 (디버깅용으로 300ms로 완화)
 const recentLogs = new Map<string, number>()
-const DEDUPE_WINDOW_MS = 1200
+const DEDUPE_WINDOW_MS = 300
 
 function shouldLog(key: string): boolean {
   const now = Date.now()
@@ -24,17 +24,17 @@ function shouldLog(key: string): boolean {
 
 // 1. 기상청 초단기실황 API 로깅
 export function logWeatherApiCall(grid: { nx: number; ny: number }, weatherData: any, rawPayload?: any) {
-  const key = `weather_${grid.nx}_${grid.ny}_${weatherData?.district || ''}_${weatherData?.temp}`
+  const key = `weather_${grid.nx}_${grid.ny}_${weatherData?.district || ''}_${weatherData?.temp}_${weatherData?.rain}`
   if (!shouldLog(key)) return
 
   console.groupCollapsed(
-    `%c🌦️ [기상청 API허브] 실시간 초단기실황(getUltraSrtNcst) 연동: ${weatherData.district || '서울'} (${weatherData.temp ?? '--'}°C, 격자: ${grid.nx}, ${grid.ny})`,
+    `%c🌦️ [기상청 API허브] 실시간 초단기실황(getUltraSrtNcst): ${weatherData.district || '서울'} (${weatherData.temp ?? '--'}°C, 강수 ${weatherData.rain ?? 0}mm/h, 격자: ${grid.nx}, ${grid.ny})`,
     'background: #0284c7; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
   )
   console.log('%c[실제 엔드포인트 URL]', 'color: #38bdf8; font-weight: bold;', 
     'https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst')
   console.log('%c[Backend Proxy API]', 'color: #38bdf8;', `/api/v1/weather/current?district=${encodeURIComponent(weatherData.district || '강남구')}`)
-  console.log('%c[Request Params]', 'color: var(--color-muted); font-weight: bold;', {
+  console.log('%c[Request Params]', 'color: #94a3b8; font-weight: bold;', {
     service: '기상청 초단기실황조회 (VilageFcstInfoService_2.0)',
     authKey: 'KMA_APIHUB_KEY (인증 완료)',
     dataType: 'JSON',
@@ -44,11 +44,13 @@ export function logWeatherApiCall(grid: { nx: number; ny: number }, weatherData:
     ny: grid.ny,
   })
   console.log('%c[Live Response Data - 실시간 기상 관측치]', 'color: #34d399; font-weight: bold;', {
+    지역명: weatherData.district,
     기온_T1H: `${weatherData.temp}°C`,
     강수량_RN1: `${weatherData.rain}mm/h`,
     강수형태_PTY: `${weatherData.pty_desc || (weatherData.rain > 0 ? '1 (비)' : '0 (맑음)')}`,
     습도_REH: `${weatherData.humidity}%`,
     풍속_WSD: `${weatherData.wind}m/s`,
+    발표시각: `${weatherData.base_date} ${weatherData.base_time}`,
     데이터_출처: weatherData.source || 'KMA_APIHUB_LIVE'
   })
   if (rawPayload) {
@@ -98,7 +100,7 @@ export function logSubwayApiCall(stationName: string, arrivalList: any, rawPaylo
 // 4. AI 수요 예측 머신러닝 모델 추론 로깅
 export function logAIPredictionCall(inputFeatures: any, predictionResults: any) {
   const targetName = inputFeatures.station || inputFeatures.district || inputFeatures.location || '서울'
-  const key = `ai_${targetName}_${inputFeatures.hour}_${inputFeatures.weather?.temp ?? inputFeatures.temp ?? ''}`
+  const key = `ai_${targetName}_${inputFeatures.hour}_${inputFeatures.temp}_${inputFeatures.rain}`
   if (!shouldLog(key)) return
 
   const corridorText = predictionResults?.corridor_district ? ` (광역 진입축: ${predictionResults.corridor_district})` : ''
@@ -106,12 +108,53 @@ export function logAIPredictionCall(inputFeatures: any, predictionResults: any) 
     `%c⚡ [AI 머신러닝 엔진] 기상 및 시간대별 대중교통 이용 수요 추론: ${targetName}${corridorText}`,
     'background: #7c3aed; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
   )
-  console.log('%c[Model Input Features (입력 변수)]', 'color: #c084fc; font-weight: bold;', inputFeatures)
-  console.log('%c[Model Output Predictions (예측 혼잡도 및 수단별 전환율)]', 'color: #34d399; font-weight: bold;', predictionResults)
+  console.log('%c[Backend Proxy API]', 'color: #c084fc;', '/api/v1/predict/recommendation')
+  console.log('%c[Model Input Features (32차원 투입 피처)]', 'color: #c084fc; font-weight: bold;', inputFeatures)
+  console.log('%c[Model Output Predictions (수단별 추천 점수, 혼잡도 %, 예측량)]', 'color: #34d399; font-weight: bold;', predictionResults)
   console.groupEnd()
 }
 
-// 5. 서울시 따릉이 실시간 대여정보(bikeList) API 로깅
+// 5. 서울시 주요 거점 및 동별 실시간 교통 혼잡도 ONNX 추론 로깅
+export function logDistrictCongestionCall(params: { rain: number; temp: number; hour: number }, data: any) {
+  const key = `congestion_${params.rain}_${params.temp}_${params.hour}`
+  if (!shouldLog(key)) return
+
+  const hotspotCount = data?.hotspots?.length ?? 0
+  console.groupCollapsed(
+    `%c📊 [AI 머신러닝 엔진] 주요 거점 및 동별 실시간 교통 혼잡도 추론: ${hotspotCount}개소 (${params.hour}시, ${params.temp}°C, 강수 ${params.rain}mm, latency: ${data?.latency_ms ?? 0}ms)`,
+    'background: #4f46e5; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
+  )
+  console.log('%c[Backend Proxy API]', 'color: #818cf8;', `/api/v1/districts/live-congestion?rain=${params.rain}&temp=${params.temp}&hour=${params.hour}`)
+  console.log('%c[32차원 ONNX 배치 추론 결과 (거점별 실시간 혼잡도)]', 'color: #34d399; font-weight: bold;',
+    (data?.hotspots || []).map((h: any) => ({
+      거점명: h.name,
+      자치구: h.district,
+      버스_혼잡도: `${h.bus}%`,
+      지하철_혼잡도: `${h.subway}%`,
+      따릉이_혼잡도: `${h.bike}%`,
+      날씨: `${h.weather} (${h.condition})`
+    }))
+  )
+  console.log('%c[원천 응답 페이로드 (Raw JSON)]', 'color: #a5b4fc;', data)
+  console.groupEnd()
+}
+
+// 6. 24시간 시계열 AI 대중교통 예측 로깅
+export function logHourlyForecastCall(params: { district: string; rain: number; temp: number }, data: any) {
+  const key = `hourly_${params.district}_${params.rain}_${params.temp}`
+  if (!shouldLog(key)) return
+
+  const count = (data?.forecast || data?.hourly || []).length
+  console.groupCollapsed(
+    `%c📈 [AI 머신러닝 엔진] 24시간 시간대별 시계열 대중교통 예측: ${params.district} (${count}개 시간대, ${params.temp}°C, 강수 ${params.rain}mm)`,
+    'background: #0d9488; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
+  )
+  console.log('%c[Backend Proxy API]', 'color: #2dd4bf;', `/api/v1/transit/hourly-forecast?district=${encodeURIComponent(params.district)}&rain=${params.rain}&temp=${params.temp}`)
+  console.log('%c[24시간 예측 데이터]', 'color: #34d399; font-weight: bold;', data)
+  console.groupEnd()
+}
+
+// 7. 서울시 따릉이 실시간 대여정보(bikeList) API 로깅
 export function logBikeApiCall(
   info: {
     stationNo?: string
@@ -152,7 +195,7 @@ export function logBikeApiCall(
   console.groupEnd()
 }
 
-// 6. 따릉이 주변 대여소 일괄 조회(지도 이동) 로깅
+// 8. 따릉이 주변 대여소 일괄 조회(지도 이동) 로깅
 export function logBikeNearbyCall(params: { lat: number; lng: number; radius: number }, data: any) {
   const key = `bike_nearby_${params.lat.toFixed(4)}_${params.lng.toFixed(4)}`
   if (!shouldLog(key)) return

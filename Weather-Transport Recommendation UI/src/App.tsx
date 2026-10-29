@@ -8,7 +8,7 @@ import {
 } from './constants/fallbackData'
 import { TransportScoreSkeleton, DistrictCongestionSkeleton } from './components/SkeletonLoader'
 import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
-import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
+import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logDistrictCongestionCall, logHourlyForecastCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
@@ -1055,6 +1055,7 @@ export default function App() {
         if (data.status === 'success' && data.hotspots && data.hotspots.length > 0) {
           setDistrictList(data.hotspots)
           setDistrictLiveStatus('live')
+          logDistrictCongestionCall({ rain: rainVal, temp: tempVal, hour: hourVal }, data)
         }
       }
     } catch (err) {
@@ -1079,6 +1080,7 @@ export default function App() {
         if (data.status === 'success' && forecastList && forecastList.length > 0) {
           setHourlyForecast(forecastList)
           setHourlyLiveStatus('live')
+          logHourlyForecastCall({ district: targetDistrict, rain: rainVal, temp: tempVal }, data)
         }
       }
     } catch (err) {

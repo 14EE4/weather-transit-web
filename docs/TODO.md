@@ -32,6 +32,7 @@
   - 날씨 현황 중복 상단 관측 바 제거 및 하단 완성형 대형 날씨 패널로 일원화 통합 완료 (`App.tsx`, `AppM.tsx`).
   - 모바일 날씨 패널 내부 핵심 4종 지표 2x2(2*2) 그리드 복구 완료 (`.weather-metrics-grid`).
   - 모바일 지도 권역 바로가기 버튼(강남/잠실 등) 숨김 및 활성 경로 플로팅 카드 초슬림 1줄 배지화 완료 (`TransitMap.tsx`).
+  - 모바일 버스정류장 검색(`BusStationSearch`) 및 선택 버스 마커 연동(`selectedBusStation`) 탑재 완료 (`AppM.tsx`).
   - 동별 거점 혼잡도 및 시계열 AI 예측 상세 콘솔 로거(`apiLogger.ts`) 신설 및 모바일 헤더 GitHub 버튼 복구 완료.
 ---
 

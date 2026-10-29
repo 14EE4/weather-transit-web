@@ -18,8 +18,10 @@ const getApiBaseUrl = (): string => {
   return 'http://localhost:8000'
 }
 const API_BASE_URL = getApiBaseUrl()
-console.log('[API 환경변수]', import.meta.env.VITE_API_BASE_URL)
-console.log('[최종 API 주소]', API_BASE_URL)
+// API Base URL: Docker Nginx 환경에서는 동일 오리진("") 리버스 프록시 적용
+if (import.meta.env.DEV) {
+  console.log('[API 환경변수]', import.meta.env.VITE_API_BASE_URL || '(동일 오리진 프록시)')
+}
 
 // ── 로컬 스토리지 키 (새로고침 시 지도 카메라 위치 및 선택 역 복원) ──
 const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'
@@ -726,8 +728,19 @@ popupContent.append(title, number)
       popupOpenedZoomRef.current = null
     }
 
-    const hasActiveRoute = !!(currentRoute && currentRoute.path && currentRoute.path.length >= 2)
-    const routeStationNames = hasActiveRoute ? new Set(currentRoute.path.map(p => p.name)) : null
+    const hasActiveRoute = !!(currentRoute && ((currentRoute.path && currentRoute.path.length >= 2) || (currentRoute.segments && currentRoute.segments.length > 0)))
+    const routeStationNames = new Set<string>()
+    if (hasActiveRoute && currentRoute) {
+      if (currentRoute.path) {
+        currentRoute.path.forEach(p => routeStationNames.add(p.name))
+      }
+      if (currentRoute.segments) {
+        currentRoute.segments.forEach(seg => {
+          if (seg.from_name) routeStationNames.add(seg.from_name)
+          if (seg.to_name) routeStationNames.add(seg.to_name)
+        })
+      }
+    }
 
     // ── 줌 레벨별 단계적 가시성 (Multi-tier Zoom Visibility) 정책 ──
     // 0. 초광역 뷰 (Zoom < 10.5): 모든 마커 100% 숨김 (수도권/전국 단위 축소 시 점 마커 뭉침 현상 원천 차단)
@@ -753,9 +766,20 @@ popupContent.append(title, number)
     for (const item of markerItemsRef.current) {
       const [lng, lat] = item.stop.coords
 
-      // 1. 활성 경로가 있는 경우: 경로에 포함된 역 이외의 모든 역/정류소는 완전히 숨김
-      if (hasActiveRoute && routeStationNames && currentRoute) {
-        if (item.stop.type !== 'subway' || !routeStationNames.has(item.stop.name)) {
+      // 1. 활성 경로가 있는 경우:
+      // - 사용자가 명시적으로 해당 수단 필터(예: 따릉이 filterType='bike')를 선택했거나,
+      // - 경로 세그먼트에 포함된 대여소/정류소는 숨기지 않고 표출!
+      if (hasActiveRoute && currentRoute) {
+        const isFilterMatched = filterType && filterType === item.stop.type
+        const isSegmentStop = routeStationNames.has(item.stop.name) || 
+                              routeStationNames.has(item.stop.name.replace(/\(.*?\)/g, '').trim()) ||
+                              (currentRoute.segments && currentRoute.segments.some(seg => 
+                                (seg.mode === item.stop.type) && 
+                                (item.stop.name.includes(seg.from_name) || item.stop.name.includes(seg.to_name) ||
+                                 seg.from_name.includes(item.stop.name) || seg.to_name.includes(item.stop.name))
+                              ))
+
+        if (!isFilterMatched && !isSegmentStop && (item.stop.type !== 'subway' || !routeStationNames.has(item.stop.name))) {
           item.el.style.display = 'none'
           continue
         }
@@ -2467,6 +2491,49 @@ popupContent.append(title, number)
       .setLngLat(coords[0])
       .addTo(map)
     routeMarkersRef.current.push(startMarker)
+
+        // 따릉이(Bike) 세그먼트 대여소/반납소 마커 핀 (초록색 캡슐)
+    if (activeRoute.segments && activeRoute.segments.length > 0) {
+      activeRoute.segments.forEach(seg => {
+        if (seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
+          // 대여소 핀 (출발 대여소)
+          const pickupCoord = seg.coords[0]
+          const pickupEl = document.createElement('div')
+          pickupEl.className = 'route-bike-pickup-pin'
+          pickupEl.style.display = 'flex'
+          pickupEl.style.flexDirection = 'column'
+          pickupEl.style.alignItems = 'center'
+          pickupEl.style.cursor = 'pointer'
+          pickupEl.innerHTML = `
+            <div style="background: #10B981; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(16,185,129,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+              <span>🚲 대여</span>
+              <span>${seg.from_name || '따릉이 대여소'}</span>
+            </div>
+            <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #10B981;"></div>
+          `
+          const pMarker = new maplibregl.Marker({ element: pickupEl }).setLngLat(pickupCoord).addTo(map)
+          routeMarkersRef.current.push(pMarker)
+
+          // 반납소 핀 (도착 반납소)
+          const dropCoord = seg.coords[seg.coords.length - 1]
+          const dropEl = document.createElement('div')
+          dropEl.className = 'route-bike-drop-pin'
+          dropEl.style.display = 'flex'
+          dropEl.style.flexDirection = 'column'
+          dropEl.style.alignItems = 'center'
+          dropEl.style.cursor = 'pointer'
+          dropEl.innerHTML = `
+            <div style="background: #059669; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(5,150,105,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+              <span>🚲 반납</span>
+              <span>${seg.to_name || '따릉이 반납소'}</span>
+            </div>
+            <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #059669;"></div>
+          `
+          const dMarker = new maplibregl.Marker({ element: dropEl }).setLngLat(dropCoord).addTo(map)
+          routeMarkersRef.current.push(dMarker)
+        }
+      })
+    }
 
     // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 표시)
     if (activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {

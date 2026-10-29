@@ -101,9 +101,10 @@ def train_25d(df, frozen: dict[str, dict], schema: dict | None) -> dict:
     """25차원 서브셋으로 3수단 모델을 학습하고 테스트 지표를 계산한다."""
     import lightgbm as lgb
 
-    train_mask = df["기준_날짜"] <= TRAIN_END
-    val_mask = (df["기준_날짜"] > TRAIN_END) & (df["기준_날짜"] <= VAL_END)
-    test_mask = df["기준_날짜"] > VAL_END
+    is_split_col = ("분할" in df.columns and set(df["분할"].dropna().unique()) >= {"train", "test"})
+    train_mask = ((df["분할"] == "train") & (df["기준_날짜"] < "2024-10-01")) if is_split_col else (df["기준_날짜"] <= TRAIN_END)
+    val_mask = ((df["분할"] == "train") & (df["기준_날짜"] >= "2024-10-01")) if is_split_col else ((df["기준_날짜"] > TRAIN_END) & (df["기준_날짜"] <= VAL_END))
+    test_mask = (df["분할"] == "test") if is_split_col else (df["기준_날짜"] > VAL_END)
 
     X_train = df.loc[train_mask, FEATURE_COLS_25].astype(np.float32).to_numpy()
     X_val = df.loc[val_mask, FEATURE_COLS_25].astype(np.float32).to_numpy()

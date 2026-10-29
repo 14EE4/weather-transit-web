@@ -195,6 +195,20 @@ def validate_split_bounds(
             )
         parsed[key] = [match.group(1), match.group(2)]
 
+    if schema.get("split_source") == "multiyear_2023_2025" or "multiyear" in str(schema.get("model_version", "")):
+        expected_multiyear = {
+            "train": ["2023-01-01", "2024-09-30"],
+            "valid": ["2024-10-01", "2024-12-31"],
+            "test": ["2025-01-01", "2025-12-31"],
+        }
+        mismatches = []
+        for k in ("train", "valid", "test"):
+            if parsed[k] != expected_multiyear[k]:
+                mismatches.append(f"{k}: 스키마 {parsed[k]} vs 기대 {expected_multiyear[k]}")
+        if mismatches:
+            raise FeatureSchemaError("다년도 분할 경계 불일치 — " + " / ".join(mismatches))
+        return split
+
     mismatches = []
     if parsed["train"][1] != train_end:
         mismatches.append(f"train 종료: 스키마 {parsed['train'][1]} vs 코드 {train_end}")

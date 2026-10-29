@@ -8,6 +8,59 @@
 
 ## [2026-10-29]
 
+### 📚 현행 모델/데이터 명세 분리 및 과거 레거시 문서/자산 아카이빙 개편
+- **배경**:
+  - 기존 `docs/` 디렉터리에 과거 버전(25차원, 구 32차원 더미 변수) 개발/인수인계 문서와 현행 문서가 혼재되어 탐색 혼선 발생.
+  - 사용자의 "현재 모델과 데이터 문서만 깔끔하게 읽을 수 있도록 분리" 요청에 따라 구조 개편 및 아카이빙 수행.
+- **주요 조치**:
+  1. **현행 모델 & 데이터 표준 문서 신설**:
+     - `docs/CURRENT_DATA_SPEC.md`: 2023~2025 3개년 28열 표준 데이터셋 명세 (컬럼 28개 상세, 결측치 도메인 규칙, 32차원 벡터 빌드 공식, 자치구 인프라 통계 표).
+     - `docs/CURRENT_MODEL_PERFORMANCE.md`: 2026-10-29 신규 학습된 v2.1 32차원 모델 3종 최종 성능($R^2 \ge 0.989$, 버스 MAPE 13.81% 개선, 0.05ms 레이턴시), 세대별 비교표, Optuna 최적 파라미터.
+     - `docs/AI_MODEL_SPEC.md`: 구버전 서술을 제거하고 현행 v2.1 32차원 단일 기준으로 전면 슬림화 리팩토링.
+  2. **과거 문서 및 모델 자산 아카이빙**:
+     - `docs/archive/` 생성: `DATA_PREPROCESSING_HANDOFF_v2.md`, `MODEL_PERFORMANCE_REPORT_v1_v2.md`, `AI_INFERENCE_MODEL_SPEC_initial.md` 격리 보관 및 인덱스 `README.md` 작성.
+     - `benchmarks/archive/` 생성: `original/`, `2026-10-12/`, `2026-10-14/` 과거 모델 및 실험 폴더 이동 및 인덱스 `README.md` 작성.
+  3. **코드 및 인덱스 동기화**:
+     - `benchmarks/evaluate_models.py`: `MODEL_SETS`를 `current_32d`(`benchmarks/2026-10-29/`) 및 `archive/` 경로로 동기화.
+     - `benchmarks/README.md`, `README.md`: 신규 문서 구조 및 아카이브 바로가기 링크 반영.
+
+### 🔄 2023~2025 3개년 28열 통합데이터 포맷 동기화 및 학습 파이프라인 개편 (이슈 #30)
+- **배경**:
+  - 2023, 2024, 2025년 3개년 대규모 교통·날씨 통합데이터(`data/통합데이터/`) 도입에 따라 데이터 규격이 33열에서 28열로 표준화됨.
+  - 미사용 5개 컬럼(`지하철_하차`, `지하철_하차_결측`, `풍향(deg)`, `풍향(deg)_결측`, `풍향0_풍속양수`) 삭제 반영.
+- **주요 조치**:
+  1. **학습/평가 파이프라인(`benchmarks/evaluate_models.py`, `retrain_25d.py`) 수정**:
+     - `지하철_하차` 컬럼 유무 확인 방어 로직 추가로 신규 28열 CSV 로드 시 `KeyError` 원천 차단.
+     - 2023+2024 Train(42.0만 건) 및 2025 Test(20.9만 건) 다년도 분할 데이터셋 자동 감지 및 로드 지원.
+  2. **Colab 학습 노트북(`benchmarks/CastTransit.ipynb`, `retrain_25d_colab.ipynb`) 개편**:
+     - 구글 드라이브 신규 3개년 경로(`data/통합데이터/`) 자동 탐색 및 병합 로더 탑재.
+     - 28열 포맷에 맞춘 `지하철_하차` 결측 처리 방어 로직 및 다년도 데이터셋 분할(`2023~2024` Train/Val ➔ `2025` 1년 전체 Test) 지원.
+     - 2023, 2024 대한민국 실제 공휴일 캘린더 통합 반영 (`main.py::KR_HOLIDAYS` 동기화).
+  3. **AI 모델 사양서 및 진행 보고서 동기화**:
+     - `docs/AI_MODEL_SPEC.md`에 28열 표준 컬럼 규격 및 3개년 다년도 분할 체계 명시.
+     - `docs/PROJECT_PROGRESS_REPORT.md` 데이터 전처리 및 증강 영역 갱신.
+  4. **신규 32차원 ONNX 모델(`benchmarks/2026-10-29/`) 학습 완료 및 배포 모델(`models/`) 전면 반입**:
+     - 3개년 63만 건 기반 Optuna 튜닝 완료:
+       - 🚲 따릉이: $R^2=0.9894$, $\text{RMSE}=15.88$, $\text{MAPE}=16.08\%$ (전 지표 우세)
+       - 🚌 버스: $R^2=0.9928$, $\text{RMSE}=476.17$ (기존 대비 RMSE -16.7% 대폭 개선)
+       - 🚇 지하철: $R^2=0.9950$, $\text{RMSE}=674.22$, $\text{MAE}=284.44$
+     - `models/` 서빙 슬롯으로 모델 3종 및 `feature_schema.json` 복사 반입 완료.
+- **산출물**:
+  - `benchmarks/2026-10-29/lgb_{bike,bus,subway}_demand.onnx` (신규)
+  - `benchmarks/2026-10-29/feature_schema.json` (신규)
+  - `models/lgb_{bike,bus,subway}_demand.onnx` (갱신)
+  - `models/feature_schema.json` (갱신)
+  - `benchmarks/results/comparison_20261029_144330.{json,md}` (신규)
+  - `benchmarks/CastTransit.ipynb`
+  - `benchmarks/retrain_25d_colab.ipynb`
+  - `benchmarks/evaluate_models.py`
+  - `benchmarks/retrain_25d.py`
+  - `benchmarks/README.md`
+  - `main.py`
+  - `docs/AI_MODEL_SPEC.md`
+  - `docs/PROJECT_PROGRESS_REPORT.md`
+  - `docs/CHANGELOG.md`
+
 ### 🧹 대용량 학습용 `data/통합데이터/` 폴더 `.gitignore` 제외 규칙 추가 (이슈 #38)
 - **배경**:
   - 2023~2025 교통·날씨 대용량 학습/테스트 데이터셋(약 70MB 및 가공검증 파일)이 저장소에 업로드되어 Git 용량을 비대화시키는 것을 방지.

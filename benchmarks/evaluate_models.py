@@ -138,11 +138,12 @@ FEATURE_COLS_32_V1 = FEATURE_COLS_25 + V1_DUMMY_COLS
 
 # 기본 모델 세트 (라벨 -> 폴더). CLI `--model LABEL=PATH` 로 덮어쓸 수 있다.
 MODEL_SETS: dict[str, Path] = {
-    "production_25d": BENCH_DIR / "original",
-    # 2026-10-14 Colab 학습 산출물(v2 실제 32차원 실피처, feature_schema.json 동봉)
-    "tuned_32d_real": BENCH_DIR / "2026-10-14",
-    # 구 후보(v1): 25차원 + 상수 0 더미 7 — 참고 보관 자산이지만 배치만 맞추면 비교 가능
-    "tuned_32d_v1": BENCH_DIR / "2026-10-12" / "tuned",
+    # 2026-10-29 다년도(2023-2025) 32차원 v2.1 실피처 모델
+    "current_32d": BENCH_DIR / "2026-10-29",
+    # 레거시 아카이브 모델
+    "production_25d": BENCH_DIR / "archive" / "original",
+    "tuned_32d_20261014": BENCH_DIR / "archive" / "2026-10-14",
+    "tuned_32d_v1": BENCH_DIR / "archive" / "2026-10-12" / "tuned",
 }
 
 # 라벨별 피처 배치(32차원 모델에만 적용). 미지정 라벨은 v2(사양서 §3.2 실피처)로 평가한다.
@@ -173,7 +174,9 @@ def load_and_engineer(csv_path: Path) -> pd.DataFrame:
 
     # ---- [Cell 3] 결측치 도메인 정제 ----
     # 지하철 심야 운휴(01~05시)는 결측이 아니라 구조적 0
-    df.loc[df["시간"].isin([1, 2, 3, 4, 5]), ["지하철_승차", "지하철_하차"]] = 0
+    subway_cols = [c for c in ["지하철_승차", "지하철_하차"] if c in df.columns]
+    if subway_cols:
+        df.loc[df["시간"].isin([1, 2, 3, 4, 5]), subway_cols] = 0
     df["강수량(mm)"] = df["강수량(mm)"].fillna(0.0)
     for c in ["기온(°C)", "풍속(m/s)", "습도(%)"]:
         df[c] = df[c].interpolate(method="linear")
@@ -610,9 +613,10 @@ def main() -> None:
     df = load_and_engineer(csv_path)
 
     # ---- 사양서 §6.1 Temporal Split ----
-    train_mask = df["기준_날짜"] <= TRAIN_END
-    val_mask = (df["기준_날짜"] > TRAIN_END) & (df["기준_날짜"] <= VAL_END)
-    test_mask = df["기준_날짜"] > VAL_END
+    is_only_test = ("분할" in df.columns and set(df["분할"].dropna().unique()) == {"test"})
+    train_mask = pd.Series(False, index=df.index) if is_only_test else (df["기준_날짜"] <= TRAIN_END)
+    val_mask = pd.Series(False, index=df.index) if is_only_test else ((df["기준_날짜"] > TRAIN_END) & (df["기준_날짜"] <= VAL_END))
+    test_mask = pd.Series(True, index=df.index) if is_only_test else (df["기준_날짜"] > VAL_END)
     test_dates = df.loc[test_mask, "기준_날짜"]
     print(
         f"[split] train={int(train_mask.sum()):,} val={int(val_mask.sum()):,} "

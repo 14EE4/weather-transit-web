@@ -475,12 +475,51 @@ sequenceDiagram
 
 ## 7. 인프라, 런타임 및 배포 환경
 
-| 계층 | 실행 환경 | 포트 | 실행 명령어 | 주요 구성 요소 |
-| :--- | :--- | :---: | :--- | :--- |
-| **Frontend** | Node.js 18+ (Vite) | `8443` | `npm run dev` | React 18, MapLibre GL, Tailwind CSS |
-| **Backend** | Python 3.10+ (venv) | `8000` | `uvicorn main:app --port 8000 --reload` | FastAPI, ONNX Runtime, Pydantic v2 |
-| **Inference** | In-Memory C++ ORT | - | CPUExecutionProvider | 4-Thread Sequential ORT Session |
-| **API Docs** | Swagger / OpenAPI | `8000` | `http://localhost:8000/docs` | OpenAPI 3.0 대화형 테스트 콘솔 |
+### 7.1 개발 vs 프로덕션 배포 환경 사양
+
+| 계층 | 개발 환경 (Local Dev) | 프로덕션 홈서버 (Intel N100 Mini PC) | 주요 구성 요소 / 역할 |
+| :--- | :---: | :---: | :--- |
+| **Reverse Proxy / SSL** | - | **Nginx Proxy Manager (포트 81, 443)** | Let's Encrypt SSL 자동 갱신, 도메인 라우팅 (`weather.yourdomain.com`) |
+| **Frontend** | Node.js (포트 `8443` / `npm run dev`) | **Docker Nginx (포트 `3100:80`)** | React 18, MapLibre GL, Tailwind CSS, API 리버스 프록시 |
+| **Backend** | Python venv (포트 `8000`) | **Docker FastAPI (포트 `8100:8000`)** | FastAPI, 32D ONNX Runtime, LangGraph 멀티모달 라우터, 모니터링 콘솔 |
+| **Monitoring Dashboard**| `http://localhost:8000/health/dashboard` | `http://localhost:3100/health/dashboard` | 실시간 로그 콘솔(WebSocket/폴링), 시스템 자원 메트릭, 캐시 제어 |
+| **Persistent Storage** | `./data` (SQLite WAL) | 호스트 바인드 볼륨 `./data` | `timeseries_cache.db` 시계열 데이터 및 공공 API 스냅샷 영속화 |
+| **Inference Engine** | In-Memory C++ ORT (CPU) | In-Memory C++ ORT (4-Thread) | `libgomp1` 기반 0.05ms 초고속 병렬 CPU 추론 |
+
+### 7.2 미니 PC + Docker + Nginx Proxy Manager (NPM) 통합 인프라 구조
+
+자세한 배포 절차 및 NPM 프록시 호스트 설정법은 [`docs/SERVER_DEPLOYMENT_GUIDE.md`](./SERVER_DEPLOYMENT_GUIDE.md)를 참조하십시오.
+
+```mermaid
+flowchart LR
+    Client["👤 브라우저 / 모바일<br>(https://weather.yourdomain.com)"]
+    Router["공유기 DDNS / 포트포워딩<br>(포트 80, 443)"]
+    
+    subgraph MiniPC ["🖥️ Intel N100 Linux 미니 PC (Ubuntu 22.04 LTS)"]
+        NPM["Nginx Proxy Manager (NPM)<br>- Web GUI: :81<br>- SSL 종료 (HTTPS 443)<br>- Reverse Proxy"]
+        
+        subgraph DockerNet ["Docker Compose Bridge (weather-transit-net)"]
+            Frontend["frontend 컨테이너 (Nginx Alpine)<br>호스트 :3100 ➔ 컨테이너 :80"]
+            Backend["backend 컨테이너 (FastAPI + ONNX)<br>호스트 :8100 ➔ 컨테이너 :8000"]
+        end
+        
+        HostData[("호스트 ./data 영속 볼륨<br>timeseries_cache.db")]
+    end
+    
+    subgraph ExtCloud ["🌐 외부 서비스"]
+        APIs["공공데이터포털 / 기상청 / 서울열린데이터광장"]
+        LLM["FactChat LLM Gateway"]
+    end
+
+    Client -->|HTTPS 443| Router
+    Router -->|포워딩| NPM
+    NPM -->|호스트 3100 전달| Frontend
+    NPM -->|/api/ 8100 전달| Backend
+    Frontend -->|내부망 http://backend:8000| Backend
+    Backend --> HostData
+    Backend -->|HTTPS 아웃바운드| APIs
+    Backend -->|추론 프롬프트| LLM
+```
 
 ---
 

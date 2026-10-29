@@ -175,7 +175,11 @@
 |------|------|
 | `KMA_APIHUB_KEY` | 기상청 API허브 (초단기실황) |
 | `SEOUL_SUBWAY_API_KEY` | 서울 열린데이터광장 (지하철 도착) |
-| `DATA_GO_KR_API_KEY` | 공공데이터포털 (버스 도착) |
+| `SEOUL_DATA_API_KEY` | 서울 열린데이터광장 (따릉이 실시간 대여) |
+| `DATA_GO_KR_API_KEY` / `BUS_API_KEY` | 공공데이터포털 (버스 도착·위치·정류소 5종) |
+| `FACTCHAT_API_KEY` / `BAZE_API_KEY` | FactChat / BAZE Gateway (멀티모달 AI 브리핑 LLM) |
+| `FACTCHAT_BASE_URL` / `BAZE_BASE_URL` | FactChat LLM 엔드포인트 (`https://api.baze.co/v1/gateway`) |
+| `FACTCHAT_MODEL_NAME` | FactChat 모델 지정 (`gpt-6-luna`) |
 | `VITE_API_BASE_URL` | 프론트가 참조하는 백엔드 URL |
 
 | 포트 | 컨텍스트 |

@@ -14,7 +14,7 @@
 
 ### 2. 개발 목적 (Objective)
 이에 AI 머신러닝 예측 모델과 기상 관측 데이터, 시간대별 교통량 빅데이터 및 자치구 공간 인프라 데이터를 결합하여 **지역별·시간대별 교통수단 이용 수요를 실시간 예측하는 통합 모빌리티 웹 시스템**을 개발하고자 합니다.
-- 수집된 20.9만 건의 시계열 통합 데이터를 정밀 전처리하고 고성능 머신러닝(LightGBM / ONNX) 기반 예측 모델을 구축하여, 기상 상황과 시간, 지역에 따른 교통수단(따릉이, 버스, 지하철) 이용량의 변화를 정량 분석합니다.
+- 수집된 2023~2025 3개년 62.9만 건의 시계열 통합 데이터를 정밀 전처리하고 고성능 머신러닝(LightGBM / ONNX) 기반 예측 모델을 구축하여, 기상 상황과 시간, 지역에 따른 교통수단(따릉이, 버스, 지하철) 이용량의 변화를 정량 분석합니다.
 - 예측된 결과와 혼잡도 지수를 웹 시스템에서 대화형 인터랙티브 지도(MapLibre GL JS) 및 직관적인 시계열 차트 형태로 제공하여, 수요 변화를 누구나 쉽게 확인하고 활용할 수 있도록 구현합니다.
 
 ### 3. 필요성 및 기대 효과 (Impact)
@@ -189,7 +189,7 @@ flowchart TD
 | :--- | :--- | :--- |
 | **AI & Machine Learning** | `LightGBM`, `Optuna`, `ONNX Runtime`, `AHP-MCDA` | • 32차원 입력 피처 기반 3개 수단(따릉이/버스/지하철) 다중 회귀 수요 예측<br>• Optuna 베이지안 최적화 기반 자동 하이퍼파라미터 튜닝<br>• C++ 기반 인메모리 **1~3ms 초저지연(Latency SLA 달성) ONNX 추론**<br>• 계층화 분석법(AHP: 기상 57% + 정시성 29% + 혼잡도 14%) 기반 맞춤 추천 스코어링 |
 | **Agent & LLM** | `LangGraph`, `FactChat (BAZE Gateway)` | • 상태 기반 멀티모달(지하철+버스+따릉이) 에이전트 경로 오케스트레이션<br>• OpenAI 호환 Gateway를 통한 외부 LLM 실시간 환승 판단 및 자연어 안내 브리핑 |
-| **Backend & Data** | `FastAPI`, `Uvicorn`, `Pydantic v2`, `SQLite (WAL)`, `Pandas`, `NumPy` | • 비동기(Async) 고성능 Python RESTful API 서빙<br>• 32차원 데이터 계약(Data Contract) 및 피처 순서 3중 무결성 검증<br>• 시계열 래그(1h Lag, 3h Rolling) 인메모리/디스크 하이브리드 캐싱 (`timeseries_cache`)<br>• 2025 서울시 20.9만 건 완전 그리드 데이터 전처리 및 특성 공학 |
+| **Backend & Data** | `FastAPI`, `Uvicorn`, `Pydantic v2`, `SQLite (WAL)`, `Pandas`, `NumPy` | • 비동기(Async) 고성능 Python RESTful API 서빙<br>• 32차원 데이터 계약(Data Contract) 및 피처 순서 3중 무결성 검증<br>• 시계열 래그(1h Lag, 3h Rolling) 인메모리/디스크 하이브리드 캐싱 (`timeseries_cache`)<br>• 2023~2025 서울시 3개년 62.9만 건 다년도 완전 그리드 데이터 전처리 및 특성 공학 |
 | **Frontend & GIS** | `React 18`, `TypeScript`, `MapLibre GL JS`, `Vite`, `Tailwind CSS` | • 수도권 561개 역사 정밀 GPS 매핑 및 실시간 노선도 시각화<br>• 줌 레벨에 따른 마커 겹침 방지 **화면 충돌 감지(Collision Detection)** 알고리즘 탑재<br>• 모던 다크 테마 기반 반응형 대시보드 및 API 모니터링 콘솔 로거 (`apiLogger.ts`) |
 | **DevOps & Infra** | `Docker`, `Docker Compose`, `Nginx` | • 백엔드(FastAPI) + 프론트엔드(Nginx 리버스 프록시) 멀티 컨테이너 원클릭 배포<br>• SPA 정적 에셋 고속 서빙, API 라우팅 및 CORS 게이트웨이 제어 |
 | **Data Ingestion** | 기상청 API허브, 서울 열린데이터광장, 공공데이터포털 | • [기상청 API허브](https://apihub.kma.go.kr/): 초단기실황(`getUltraSrtNcst`) 및 24시간 단기예보 격자(`nph-dfs_shrt_grd`) 실시간 연동<br>• [서울 열린데이터광장](https://data.seoul.go.kr/): 지하철 실시간 도착 (`realtimeStationArrival`), 따릉이 대여소 실시간 현황 (`bikeList`)<br>• [공공데이터포털](https://www.data.go.kr/): 서울시 버스 실시간 도착정보 5종 (`getArrInfoByRouteAll` 등) |

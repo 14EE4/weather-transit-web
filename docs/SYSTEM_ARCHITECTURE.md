@@ -452,24 +452,23 @@ sequenceDiagram
 ## 6. 데이터 아키텍처 및 모델 규격
 
 ### 6.1 원천 데이터셋 사양
-- **파일명**: `data/2025_서울25개구_시간대별_교통_날씨_통합_01-23시.csv`
-- **레코드 규모**: **209,875행** (365일 $\times$ 23개 시간대 $\times$ 25개 자치구 완전 그리드)
-- **주요 컬럼**: 기준날짜, 시간, 구, 따릉이 대여, 버스 승차, 지하철 승·하차, AWS 지점 관측 기상(기온, 풍향, 풍속, 강수량, 습도)
+- **데이터셋**: **2023~2025 3개년 다년도 완전 그리드 통합 데이터** (`data/통합데이터/` ➔ 2023 Train, 2024 Train, 2025 Test)
+- **레코드 규모**: 총 **629,625행** (연간 209,875행 $	imes$ 3개년 완전 그리드)
+- **표준 컬럼**: **28개 열** (미사용 5개 열인 `풍향(deg)`, `풍향_결측`, `풍향0_풍속양수`, `지하철_하차`, `지하철_하차_결측` 영구 삭제)
+- **상세 규격**: [`docs/CURRENT_DATA_SPEC.md`](./CURRENT_DATA_SPEC.md) 참조
 
 ### 6.2 모델 파일 규격 (`models/`)
-| 모델 파일명 | 원천 알고리즘 | 추론 타겟 | 입력 차원 | 파일 크기 | 추론 지연시간 |
+| 모델 파일명 | 원천 알고리즘 | 추론 타겟 | 입력 차원 | 파일 크기 | 추론 지연시간 (단건) |
 | :--- | :--- | :--- | :---: | :---: | :---: |
-| `lgb_bike_demand.onnx` | LightGBM GBDT | 따릉이 대여량 | 32차원 Float | 약 7.0 MB | ~0.2 ms |
-| `lgb_bus_demand.onnx` | LightGBM GBDT | 버스 승차량 | 32차원 Float | 약 13.6 MB | ~0.2 ms |
-| `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승·하차량 | 32차원 Float | 약 7.3 MB | ~0.2 ms |
+| `lgb_bike_demand.onnx` | LightGBM GBDT | 따릉이 대여량 | 32차원 Float | 약 6.9 MB | **0.057 ms** |
+| `lgb_bus_demand.onnx` | LightGBM GBDT | 버스 승차량 | 32차원 Float | 약 11.1 MB | **0.054 ms** |
+| `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철 승차량 | 32차원 Float | 약 13.4 MB | **0.056 ms** |
 
-> **📌 입력 차원 표기 해설 (25차원 vs 32차원)**
-> - 위 표의 **32차원**은 **현행 배포 모델의 입력 텐서 차원**입니다(`session.get_inputs()[0].shape == [None, 32]` · 2026-10-14 `benchmarks/2026-10-14/` → `models/` 반입).
-> - 서빙 입력 계약(§4.3 및 `docs/AI_INFERENCE_MODEL_SPEC.md` §3.2)도 **32차원**이라 배포 모델과 **문자 단위로 일치**하며, `/health.feature_schema.status = verified` 로 검증됩니다.
-> - 25차원은 32차원에서 **공간 인프라 4차원 + `same_day_last_week_*` 3차원 = 7차원**을 제외한 레거시 서브셋이며, `main.py::prepare_session_input()`이 모델이 기대하는 차원으로 자동 정렬하므로 **25차원 자산을 다시 넣어도 서빙은 계속 동작**합니다(`status` 는 `legacy-subset-25d` / `mixed-32d/25d` 로 보고).
-> - 구 벤치마크 후보(`benchmarks/2026-10-12/tuned/`, 32차원)는 25차원 실피처 + 상수 0 더미 7개로 구성되어 **정보량은 25차원과 동일**하고, **서빙에는 투입할 수 없습니다**(배치 비호환 · 인덱스 17 이후 어긋남). 평가 스크립트는 라벨별 배치(`v1`)를 지정해 **자기 배치 공정 비교에는 포함**합니다(`docs/MODEL_PERFORMANCE_REPORT.md` §0.3 — v1 이 배포본보다 12개 지표 전부 우세).
-> - **롤백·대안 자산**: ① `benchmarks/original/`(25차원 배포본 스냅샷 — 복사만 하면 즉시 원복) ② `benchmarks/2026-10-14/tuned_25d/`(v2 튜닝 + 25차원 서브셋 재학습 — bus·subway 전 지표 개선, `docs/MODEL_PERFORMANCE_REPORT.md` §0.4). 교체 결정·검증 이력: `docs/TODO.md` §4 · `docs/CHANGELOG.md` [2026-10-14] §6.
-> - **피처 스키마(SSoT) 검증**: 서버는 기동 시 `feature_schema.json` 을 읽어 **스키마 ↔ `main.py::FEATURE_ORDER_32` ↔ ONNX 입력 차원**을 3중 대조하고(`feature_schema.py::ModelRegistry.load_feature_schema`), 결과를 `GET /health.feature_schema` 로 노출합니다. 순서 불일치 시 **기동을 중단**해 배치 오적용(예: v1 32차원 자산의 조용한 예측 붕괴)을 원천 차단합니다.
+> **📌 현행 32차원 v2.1 모델 및 피처 스키마 (SSoT)**
+> - 배포 모델은 2026-10-29 신규 학습된 **v2.1 다년도 32차원 실피처 모델**입니다 (`models/feature_schema.json`, `model_version: v2.1-multiyear-32d`).
+> - 서빙 입력 계약([`main.py::build_feature_vector`](../main.py))과 모델 입력 텐서가 **32차원 실피처(더미 0 없음)** 로 100% 일치하며, 기동 시 `/health.feature_schema.status = verified` 로 검증됩니다.
+> - **모델 성능 및 파라미터**: 전 수단 $R^2 \ge 0.989$ 달성 (버스 MAPE 18.09% ➔ 13.81% 대폭 개선). 세부 지표는 [`docs/CURRENT_MODEL_PERFORMANCE.md`](./CURRENT_MODEL_PERFORMANCE.md) 참조.
+> - **레거시 자산 아카이브**: 과거 25차원 및 단년도 32차원 자산은 [`benchmarks/archive/`](../benchmarks/archive/README.md) 및 [`docs/archive/`](./archive/README.md)로 격리 보관 중입니다.
 
 ---
 

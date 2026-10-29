@@ -26,7 +26,7 @@
   - 시간당 30mm 이상 집중호우, 대설, 영하 15도 이하 혹한 등 희귀 기상 상황(0.5% 미만)의 외삽 리스크를 방지하기 위해, 물리 기반 모달 시프트 특성을 반영한 합성 증강 데이터를 추가하여 B2B 시뮬레이션 안정성 확보.
 - [ ] **[DATA-04 · 시계열 정밀도 · P2] 연도별 자치구 공간 인프라 통계 분리 (`main.py::DISTRICT_INFRA`)**:
   - 현재 2025년 기준 고정 상수인 자치구 4대 인프라(지하철역 수, 버스정류소 수, 따릉이 거치대 수, 상업밀도)를 연도별(2023, 2024, 2025) 실제 개통/증설 연혁을 반영한 시계열 인프라 딕셔너리로 세분화.
-- [ ] **[DATA-05 · 실시간 서빙 · P2] 실시간 공공 API 장애 대비 폴백 데이터 품질 고도화 및 UI 배지 연동 (이슈 #29 연계)**:
+- [x] **[DATA-05 · 실시간 서빙 · P2] 실시간 공공 API 장애 대비 폴백 데이터 품질 고도화 및 UI 배지 연동 (완료 · 2026-10-29 · 이슈 #29)**:
   - 기상청/서울시 OpenAPI 장애 시 서킷 브레이커가 반환하는 내부 폴백 추정치가 최신 v2.1 32차원 모델의 통계 분포와 완벽히 정합하도록 조율하고, 프론트엔드에 `⚠️ 실시간 API 점검 중 · 추정치 표시` 배지를 명확히 구분 표출.
 
 ---
@@ -226,7 +226,7 @@
 
 #### 6.2 프론트엔드 초기 렌더링 상수 및 정적 메타데이터 (`App.tsx`, `AppM.tsx`, `TransitMap.tsx`)
 
-- [ ] **[P2 · `App.tsx` / `AppM.tsx` 초기 렌더링용 정적 상수 배열 분리 및 스켈레톤 UI 전환]**
+- [x] **[P2 · `App.tsx` / `AppM.tsx` 초기 렌더링용 정적 상수 배열 분리 및 스켈레톤 UI 전환] (완료 · 2026-10-29 · 이슈 #29)**
   - **현황 (`Weather-Transport Recommendation UI/src/App.tsx` L156~L205)**:
     - `CORRELATION_DATA` (강수량 `0~5mm`별 수단 이용률 상수 배열 6건), `DEFAULT_24H_DATA` (API 응답 전 초기 차트 렌더링용 24시간 배열), `DISTRICT_DATA` (초기 8대 거점 기본 혼잡도 배열), `TRANSPORT_SCORES` (초기 기본 점수 배열)가 소스코드 상단에 하드코딩되어 있음.
     - 마운트 직후 백엔드 API(`/api/v1/transit/hourly-forecast`, `/api/v1/districts/live-congestion`, `/api/v1/predict/recommendation`) 응답으로 덮어써지지만, 네트워크 지연 시 초기 0.1~0.5초 동안 정적 기본값이 노출될 수 있음.
@@ -234,7 +234,7 @@
     1. `DEFAULT_24H_DATA`, `DISTRICT_DATA`, `TRANSPORT_SCORES`를 하드코딩된 숫자 대신 **로딩 스켈레톤(Skeleton Shimmer UI)** 상태로 초기 렌더링하도록 변경하고, 정적 폴백 상수는 `src/constants/fallbackData.ts`로 격리하여 오프라인/에러 시에만 명시적 `Fallback 배지`와 함께 표시.
     2. `CORRELATION_DATA`는 백엔드에 `GET /api/v1/analytics/rain-correlation` 엔드포인트를 신설하여 20.9만 건 실측 데이터셋(또는 자치구별 회귀 계수)에서 동적으로 내려받도록 전환.
 
-- [ ] **[P2 · `TransitMap.tsx` 및 `bikeStopData.ts` / `busStopData.ts` 내 정적 대여소·정류소 ID 전수 검증]**
+- [x] **[P2 · `TransitMap.tsx` 및 `bikeStopData.ts` / `busStopData.ts` 내 정적 대여소·정류소 ID 전수 검증] (완료 · 2026-10-29 · 이슈 #29)**
   - **현황 (`TransitMap.tsx` L120~L155, `bikeStopData.ts`, `busStopData.ts`)**:
     - `bikeStopData.ts`의 52개 거점 대여소 중 일부 `stationNo`가 서울시설공단 실시간 `bikeList` API의 최신 대여소 번호와 불일치할 수 있음 (현재 `TransitMap.tsx`에서 250m 거리 검증 후 `/api/v1/transit/bike/stations/nearby`로 동적 폴백 중).
     - `TransitMap.tsx` 내 버스 도착 조회 시 `stId`가 누락된 정류소에 대해 기본 폴백 ID(`'111000299'`) 또는 기본 노선(`'140'`, `'472'`)을 사용하는 방어 코드가 존재함.
@@ -244,7 +244,7 @@
 
 #### 6.3 백엔드 공공 API 장애 폴백 생성기 (`main.py`, `kma_forecast.py`) 및 데이터 파이프라인
 
-- [ ] **[P2 · 백엔드 시뮬레이션 폴백 응답(`generate_intelligent_*_fallback`)의 UI 배지 명확화]**
+- [x] **[P2 · 백엔드 시뮬레이션 폴백 응답(`generate_intelligent_*_fallback`)의 UI 배지 명확화] (완료 · 2026-10-29 · 이슈 #29)**
   - **현황 (`main.py` L910~L1035, L1490~L1530)**:
     - 공공 API 인증키 미설정, 일일 트래픽 초과 또는 외부 서버 장애 시 서비스 중단을 막기 위해 `generate_intelligent_subway_fallback()`, `generate_intelligent_bus_fallback()`, `_generate_fallback_bike_snapshot()`이 결정론적 해시(`hashlib.md5`) 기반 추정치를 반환함.
     - 응답 JSON에 `source: "SIMULATION_FALLBACK"`이 포함되어 있으나, 일부 프론트엔드 팝업/카드에서 실시간 공공 API 데이터와 동일한 디자인으로 표시될 수 있음.

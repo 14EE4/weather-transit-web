@@ -37,6 +37,17 @@
   - 동별 거점 혼잡도 및 시계열 AI 예측 상세 콘솔 로거(`apiLogger.ts`) 신설 및 모바일 헤더 GitHub 버튼 복구 완료.
 ---
 
+### 📜 0-00. 전역 로깅 정책 수립 및 백엔드·프론트엔드 정형화 (완료 · 2026-10-29 · 이슈 #64)
+- [x] **[LOG-01] 공식 전역 로깅 정책 문서 신설 (`docs/LOGGING_POLICY.md`)**:
+  - 통합 로그 스키마(Unified Log Schema) 정의 (`timestamp`, `level`, `service`, `action`, `params`, `metrics`, `status`, `duration_ms` 등).
+  - 백엔드 인메모리 링 버퍼(`maxlen=500`), 300ms 중복 방지, 서킷 브레이커 연동 정책 수립.
+  - 프론트엔드 F12 콘솔 도메인 배지, 이모지 컨벤션, JSON Dump 규칙 및 보안 마스킹 가이드라인 수립.
+- [x] **[LOG-02] 백엔드 및 프론트엔드 로깅 정형화 구현 (`in_memory_log_handler.py`, `apiLogger.ts`)**:
+  - `in_memory_log_handler.py`에 ISO 8601 UTC `iso_timestamp` 및 `service` 필드 탑재.
+  - `apiLogger.ts`에 `StandardLogRecord` 인터페이스 정의 및 ISO 8601 타임스탬프 표준화 완료.
+
+---
+
 ### 🛡️ 0-0. 운영 안정성 및 관제 신뢰도 고도화 (완료 · 2026-10-29 · 이슈 #57)
 - [x] **[STAB-01] 서울시 버스 API NoneType 응답 방어 및 서킷 브레이커 안정화 (완료 · 2026-10-29 · 이슈 #57)**:
   - 서울시 저상버스 도착 API(`getLowArrInfoByStId`) 응답에서 `msgBody` 또는 `itemList`가 `null`일 때 `TypeError: 'NoneType' object is not subscriptable` 에러 발생 및 서킷 차단 버그 수정.

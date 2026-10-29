@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
+import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logBikeApiCall, logBikeNearbyCall } from './apiLogger'
 import { SUBWAY_STATIONS } from './subwayData'
 import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
@@ -18,8 +18,10 @@ const getApiBaseUrl = (): string => {
   return 'http://localhost:8000'
 }
 const API_BASE_URL = getApiBaseUrl()
-console.log('[API 환경변수]', import.meta.env.VITE_API_BASE_URL)
-console.log('[최종 API 주소]', API_BASE_URL)
+// API Base URL: Docker Nginx 환경에서는 동일 오리진("") 리버스 프록시 적용
+if (import.meta.env.DEV) {
+  console.log('[API 환경변수]', import.meta.env.VITE_API_BASE_URL || '(동일 오리진 프록시)')
+}
 
 // ── 로컬 스토리지 키 (새로고침 시 지도 카메라 위치 및 선택 역 복원) ──
 const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'
@@ -299,8 +301,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const isFlyingRef = useRef<boolean>(false)
   const initialRestoreDoneRef = useRef<boolean>(false)
   const isInitialRestoringRef = useRef<boolean>(false)
+  const prevActiveRouteRef = useRef<any>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  // 실시간 API로 불러온 거점 외 따릉이 대여소 (기존 마커 파이프라인에 합쳐 표시)
+  const [liveBikeStops, setLiveBikeStops] = useState<TransitStop[]>([])
   const [zoomLevel, setZoomLevel] = useState<number>(13)
 
   // 🚌 선택한 버스 노선은 지하철 activeRoute와 별도 레이어로 관리
@@ -409,6 +414,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             type: 'raster',
             tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
             tileSize: 256,
+            maxzoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
           },
         },
@@ -517,6 +523,27 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         },
       })
 
+      // 멀티모달 구간별(따릉이/버스/지하철/도보) 컬러 폴리라인 소스 및 레이어
+      map.addSource('multimodal-segments', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+      })
+
+      map.addLayer({
+        id: 'multimodal-segments-line',
+        type: 'line',
+        source: 'multimodal-segments',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': ['coalesce', ['get', 'color'], '#38BDF8'],
+          'line-width': 6,
+          'line-opacity': 0.95,
+        },
+      })
+
       setMapLoaded(true)
     })
 
@@ -533,11 +560,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     }
 
     map.on('moveend', saveCurrentMapView)
+    map.on('zoomend', saveCurrentMapView)
 
     mapInstanceRef.current = map
 
     return () => {
+      saveCurrentMapView()
       map.off('moveend', saveCurrentMapView)
+      map.off('zoomend', saveCurrentMapView)
       map.remove()
     }
   }, [])
@@ -698,12 +728,26 @@ popupContent.append(title, number)
       popupOpenedZoomRef.current = null
     }
 
-    const hasActiveRoute = !!(currentRoute && currentRoute.path && currentRoute.path.length >= 2)
-    const routeStationNames = hasActiveRoute ? new Set(currentRoute.path.map(p => p.name)) : null
+    const hasActiveRoute = !!(currentRoute && ((currentRoute.path && currentRoute.path.length >= 2) || (currentRoute.segments && currentRoute.segments.length > 0)))
+    const routeStationNames = new Set<string>()
+    if (hasActiveRoute && currentRoute) {
+      if (currentRoute.path) {
+        currentRoute.path.forEach(p => routeStationNames.add(p.name))
+      }
+      if (currentRoute.segments) {
+        currentRoute.segments.forEach(seg => {
+          if (seg.from_name) routeStationNames.add(seg.from_name)
+          if (seg.to_name) routeStationNames.add(seg.to_name)
+        })
+      }
+    }
 
     // ── 줌 레벨별 단계적 가시성 (Multi-tier Zoom Visibility) 정책 ──
-    // 1. 광역 뷰 (Zoom < 11.5): 버스/따릉이 100% 숨김, 지하철 Tier 1 메이저 허브만 미니 점(Dot) 표출
-    const isWideAreaZoom = currentZoom < 11.5 && !hasActiveRoute
+    // 0. 초광역 뷰 (Zoom < 10.5): 모든 마커 100% 숨김 (수도권/전국 단위 축소 시 점 마커 뭉침 현상 원천 차단)
+    const isUltraWideZoom = currentZoom < 10.5 && !hasActiveRoute
+
+    // 1. 중간 광역 뷰 (10.5 <= Zoom < 11.5): 버스/따릉이 100% 숨김, 지하철 Tier 1 메이저 허브만 미니 점(Dot) 표출 (점끼리 충돌 필터링 적용)
+    const isWideAreaZoom = currentZoom >= 10.5 && currentZoom < 11.5 && !hasActiveRoute
 
     // 2. 중거리 도심 원경 (11.5 <= Zoom < 12.5):
     //    버스는 주요 환승센터(isHub), 따릉이는 주요 인기거점(isPopularSpot)만 '점(Dot)'으로 표출
@@ -722,16 +766,37 @@ popupContent.append(title, number)
     for (const item of markerItemsRef.current) {
       const [lng, lat] = item.stop.coords
 
-      // 1. 활성 경로가 있는 경우: 경로에 포함된 역 이외의 모든 역/정류소는 완전히 숨김
-      if (hasActiveRoute && routeStationNames && currentRoute) {
-        if (!routeStationNames.has(item.stop.name)) {
+      // 1. 활성 경로가 있는 경우:
+      // - 사용자가 명시적으로 해당 수단 필터(예: 따릉이 filterType='bike')를 선택했거나,
+      // - 경로 세그먼트에 포함된 대여소/정류소는 숨기지 않고 표출!
+      if (hasActiveRoute && currentRoute) {
+        const isFilterMatched = filterType && filterType === item.stop.type
+        const isSegmentStop = routeStationNames.has(item.stop.name) || 
+                              routeStationNames.has(item.stop.name.replace(/\(.*?\)/g, '').trim()) ||
+                              (currentRoute.segments && currentRoute.segments.some(seg => 
+                                (seg.mode === item.stop.type) && 
+                                (item.stop.name.includes(seg.from_name) || item.stop.name.includes(seg.to_name) ||
+                                 seg.from_name.includes(item.stop.name) || seg.to_name.includes(item.stop.name))
+                              ))
+
+        if (!isFilterMatched && !isSegmentStop && (item.stop.type !== 'subway' || !routeStationNames.has(item.stop.name))) {
           item.el.style.display = 'none'
           continue
         }
-        // 출발역, 도착역, 환승역은 전용 핀 마커가 배치되므로 일반 알약 마커는 숨겨서 중복 방지
+        const firstPathStep = currentRoute.path[0]
+        const lastPathStep = currentRoute.path[currentRoute.path.length - 1]
+        const nearStartPin = firstPathStep && Math.abs(lng - firstPathStep.coords[0]) < 0.0015 && Math.abs(lat - firstPathStep.coords[1]) < 0.0015
+        const nearEndPin = lastPathStep && Math.abs(lng - lastPathStep.coords[0]) < 0.0015 && Math.abs(lat - lastPathStep.coords[1]) < 0.0015
+        const isTransferPin = (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name)) ||
+                              (currentRoute.transferTrains && currentRoute.transferTrains.some(t => t.station === item.stop.name))
+        // 출발역, 도착역, 환승역(또는 출발/도착 핀 반경 150m 이내 역)은 전용 핀 마커가 배치되므로 일반 알약 마커를 완전히 숨겨서 겹침 원천 방지
         const isSpecialPinStation = item.stop.name === currentRoute.from || 
                                     item.stop.name === currentRoute.to || 
-                                    (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name))
+                                    item.stop.name === firstPathStep?.name ||
+                                    item.stop.name === lastPathStep?.name ||
+                                    nearStartPin ||
+                                    nearEndPin ||
+                                    isTransferPin
         if (isSpecialPinStation) {
           item.el.style.display = 'none'
           continue
@@ -802,9 +867,16 @@ popupContent.append(title, number)
 
       // ── [줌 레벨별 단계적 가시성 필터링] ──
 
-      // [규칙 1] 광역 뷰 (Zoom < 11.5):
+      // [규칙 0] 초광역 뷰 (Zoom < 10.5):
+      // - 대축척 광역 뷰에서는 점 마커들이 도심부에 까맣게 뭉치므로 모든 마커 100% 숨김
+      if (isUltraWideZoom) {
+        item.el.style.display = 'none'
+        continue
+      }
+
+      // [규칙 1] 중간 광역 뷰 (10.5 <= Zoom < 11.5):
       // - 버스와 따릉이는 100% 완전히 숨김 (화면 난잡함 방지)
-      // - 지하철도 Tier 1 메이저 허브(priority >= 250)만 점(Dot) 마커로 표출, 일반 역 숨김
+      // - 지하철도 Tier 1 메이저 허브(priority >= 250)만 점(Dot) 마커로 표출하되, 점끼리도 충돌 검사하여 뭉침 방지
       if (isWideAreaZoom) {
         if (item.stop.type === 'bus' || item.stop.type === 'bike') {
           item.el.style.display = 'none'
@@ -814,6 +886,27 @@ popupContent.append(title, number)
           item.el.style.display = 'none'
           continue
         }
+
+        // 점 마커 충돌 박스 (반경 12px)
+        const dotRadius = 12
+        const dotBox = {
+          x1: pt.x - dotRadius,
+          y1: pt.y - dotRadius,
+          x2: pt.x + dotRadius,
+          y2: pt.y + dotRadius,
+        }
+
+        const hasCollision = placedBoxes.some(b =>
+          !(dotBox.x2 < b.x1 || dotBox.x1 > b.x2 || dotBox.y2 < b.y1 || dotBox.y1 > b.y2)
+        )
+
+        if (hasCollision) {
+          item.el.style.display = 'none'
+          continue
+        }
+
+        placedBoxes.push(dotBox)
+
         // 광역 메이저 허브는 점 마커로 표출
         const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
         const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
@@ -1103,6 +1196,102 @@ popupContent.append(title, number)
       } catch {
         // 지도 자체가 이미 제거된 경우
       }
+    }
+  }, [mapLoaded, filterType])
+
+  // 🚲 지도 주변 실제 따릉이 대여소를 기존 거점 마커와 동일한 마커/팝업(AI 모델 + 실시간 잔여 수)으로 통합 표시
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current) return
+    if (filterType !== 'bike' && filterType !== 'all') return
+
+    const map = mapInstanceRef.current
+    let controller: AbortController | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
+
+    const hubNos = new Set(BIKE_STATIONS.map(b => b.stationNo))
+    const avgRainSensitivity =
+      BIKE_STATIONS.reduce((sum, b) => sum + b.rainSensitivity, 0) / Math.max(1, BIKE_STATIONS.length)
+
+    const loadNearbyBikeStations = async () => {
+      controller?.abort()
+      controller = new AbortController()
+
+      // 따릉이 필터에서만, 충분히 확대했을 때만 조회 (전체 모드에서는 기존 거점만 표시)
+      if (filterType !== 'bike' || map.getZoom() < 14.5) return
+
+      const center = map.getCenter()
+      const bounds = map.getBounds()
+
+      try {
+        const params = new URLSearchParams({
+          lat: String(center.lat),
+          lng: String(center.lng),
+          radius: '800',
+          limit: '150'
+        })
+        const reqUrl = `${API_BASE_URL || ''}/api/v1/transit/bike/stations/nearby?${params.toString()}`
+        const response = await fetch(reqUrl, { signal: controller.signal })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+        const data = await response.json()
+        if (disposed) return
+        logBikeNearbyCall({ lat: center.lat, lng: center.lng, radius: 800 }, data)
+
+        const added: TransitStop[] = []
+        for (const s of data.stations || []) {
+          if (!s.id || !s.coords || !bounds.contains(s.coords)) continue
+          const rawName = String(s.name || '')
+          const stationNo = rawName.split('.')[0].trim()
+          // 모델 기반 거점 마커(BIKE_STATIONS)와 중복되는 대여소는 기존 마커를 사용
+          if (hubNos.has(stationNo)) continue
+          added.push({
+            id: `bike-live-${s.id}`,
+            name: rawName.replace(/^\d+\.\s*/, '').trim() || '따릉이 대여소',
+            type: 'bike',
+            coords: s.coords,
+            lineInfo: '서울자전거 따릉이',
+            // 거점 데이터가 없는 대여소는 기본 이용 수요도를 사용하고, 잔여 수는 팝업에서 실시간 값으로 채움
+            baseCrowd: 45,
+            rainSensitivity: avgRainSensitivity,
+            stationNo,
+            rackCount: Number(s.rackTotal) || undefined
+          })
+        }
+
+        // 정보 팝업이 열려 있는 동안 마커를 재생성하면 팝업이 닫히므로, 닫힌 뒤 다음 이동 시 반영
+        if (activePopupRef.current) return
+
+        setLiveBikeStops(prev => {
+          const known = new Set(prev.map(p => p.id))
+          const fresh = added.filter(a => !known.has(a.id))
+          if (fresh.length === 0) return prev
+          // 마커 폭증 방지: 누적 상한 유지 (오래된 항목부터 제거)
+          return [...prev, ...fresh].slice(-600)
+        })
+        console.log(`[서울 따릉이] 주변 대여소 ${added.length}개 통합 (${data.source})`)
+      } catch (error) {
+        if (controller?.signal.aborted || disposed) return
+        console.error('주변 따릉이 대여소 조회 실패:', error)
+      }
+    }
+
+    const scheduleUpdate = () => {
+      if (timer) clearTimeout(timer)
+      controller?.abort()
+      timer = setTimeout(() => {
+        loadNearbyBikeStations()
+      }, 400)
+    }
+
+    map.on('moveend', scheduleUpdate)
+    scheduleUpdate()
+
+    return () => {
+      disposed = true
+      controller?.abort()
+      if (timer) clearTimeout(timer)
+      map.off('moveend', scheduleUpdate)
     }
   }, [mapLoaded, filterType])
 
@@ -1409,9 +1598,10 @@ popupContent.append(title, number)
     markerItemsRef.current.forEach(item => item.marker.remove())
     markerItemsRef.current = []
 
+    const allStops = liveBikeStops.length > 0 ? [...TRANSIT_STOPS, ...liveBikeStops] : TRANSIT_STOPS
     const filtered = filterType === 'all'
-      ? TRANSIT_STOPS
-      : TRANSIT_STOPS.filter(s => s.type === filterType)
+      ? allStops
+      : allStops.filter(s => s.type === filterType)
 
     // 우선순위 정렬 (환승역, 주요 거점 역이 우선적으로 지도에 표시됨)
     const sortedStops = [...filtered].sort((a, b) => calculateStationPriority(b) - calculateStationPriority(a))
@@ -1522,6 +1712,7 @@ popupContent.append(title, number)
           weather?: any
           aiPrediction?: any
           isLoadingAll?: boolean
+          source?: string
         },
         isLoadingArrivalsArg = false
       ) => {
@@ -1530,6 +1721,7 @@ popupContent.append(title, number)
         let weatherData: any = null
         let aiData: any = null
         let isLoadingAll = false
+        let apiSource: string = ''
 
         if (Array.isArray(arrivalsOrOptions)) {
           arrivalsList = arrivalsOrOptions
@@ -1540,6 +1732,7 @@ popupContent.append(title, number)
           weatherData = arrivalsOrOptions.weather || null
           aiData = arrivalsOrOptions.aiPrediction || null
           isLoadingAll = !!arrivalsOrOptions.isLoadingAll
+          apiSource = String((arrivalsOrOptions as any).source || '')
         }
 
         const resolvedDistrict = resolveDistrict(stop.name, stop.coords)
@@ -1713,7 +1906,13 @@ popupContent.append(title, number)
                   <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
                     <span>🚌</span> 실시간 버스 도착
                   </span>
-                  <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">실시간 API</span>
+                  <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; ${
+                    apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT')
+                      ? 'color: #F59E0B; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);'
+                      : 'color: #34D399; background: rgba(52,211,153,0.15);'
+                  }">
+                    ${apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') ? '⚠️ 시간표 추정' : '실시간 API'}
+                  </span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                   ${arrivalsList.slice(0, 3).map((b: any) => `
@@ -1727,10 +1926,13 @@ popupContent.append(title, number)
             `
           }
         } else if (stop.type === 'bike') {
-          const rackTotal = stop.rackCount || 20
-          // 혼잡도와 강수량에 따른 실시간 대여 가능 잔여 대수 추정
+          const liveBike = (arrivalsList || []).find((x: any) => x && x.bikeLive)
+          const rackTotal = liveBike ? liveBike.rackTotal : (stop.rackCount || 20)
+          // 실시간 값이 있으면 사용, 없으면 혼잡도·강수량 기반 추정
           const crowdRatio = (displayCrowd || 60) / 100
-          const availableBikes = rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65)))
+          const availableBikes = liveBike
+            ? liveBike.availableBikes
+            : (rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65))))
           arrivalSection = `
             <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
@@ -1738,12 +1940,12 @@ popupContent.append(title, number)
                   <span>🚲</span> 따릉이 실시간 거치 현황
                 </span>
                 <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">
-                  ${stop.stationNo ? `대여소 #${stop.stationNo}` : '거점 대여소'}
+                  ${liveBike ? '실시간 API' : (stop.stationNo ? `대여소 #${stop.stationNo} · 추정` : '거점 대여소 · 추정')}
                 </span>
               </div>
               <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
                 <span style="color: var(--app-text);">대여 가능 자전거</span>
-                <span style="color: #34D399; font-weight: 800; font-family: monospace;">약 ${availableBikes}대 / 총 ${rackTotal}대</span>
+                <span style="color: #34D399; font-weight: 800; font-family: monospace;">${liveBike ? '' : '약 '}${availableBikes}대 / 총 ${rackTotal}대</span>
               </div>
               ${rainMm > 0 ? `
                 <div style="margin-top: 4px; font-size: 9px; color: #FCA5A5; text-align: center;">
@@ -1899,6 +2101,7 @@ popupContent.append(title, number)
 
           // (3) 실시간 대중교통 도착 정보 조회
           let arrivals: any[] = []
+          let apiCallSource = ''
           if (stop.type === 'subway') {
             try {
               const arrivalRes = await fetch(
@@ -1910,44 +2113,112 @@ popupContent.append(title, number)
                 : [
                     { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
                   ]
+              apiCallSource = String(arrivalData.source || '')
               logSubwayApiCall(cleanName, arrivals, arrivalData)
             } catch {
+              apiCallSource = 'CLIENT_FALLBACK'
               arrivals = [
                 { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '정상 운행중', remaining_minutes: 2, updn_line: '상/하행' }
               ]
               logSubwayApiCall(cleanName, arrivals)
             }
           } else if (stop.type === 'bus') {
-            const targetStId = stop.stId || '111000299'
-            const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : ['간선']
-            const r1 = defaultRoutes[0] || '140'
-            const r2 = defaultRoutes[1] || '472'
-            try {
-              const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
-              const busData = await busRes.json()
-              arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
-                ? busData.arrivals
-                : [
-                    { route_name: r1, arrival_msg1: '곧 도착' },
-                    { route_name: r2, arrival_msg1: '3분 후' }
-                  ]
-              logBusApiCall(r1, targetStId, arrivals, busData)
-            } catch {
-              arrivals = [
-                { route_name: r1, arrival_msg1: '곧 도착' },
-                { route_name: r2, arrival_msg1: '3분 후' }
-              ]
-              logBusApiCall(r1, targetStId, arrivals)
+            let targetStId = stop.stId
+            // stop.stId가 누락된 경우 좌표 기반 인근 정류소 API로 동적 해석
+            if (!targetStId && stop.coordinates) {
+              try {
+                const nearRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/stations/nearby?lat=${stop.coordinates[1]}&lng=${stop.coordinates[0]}&radius=350`)
+                if (nearRes.ok) {
+                  const nearData = await nearRes.json()
+                  if (nearData.stations && nearData.stations.length > 0) {
+                    targetStId = nearData.stations[0].stId || nearData.stations[0].station_id
+                  }
+                }
+              } catch {
+                // ignore
+              }
             }
+
+            const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : []
+            const r1 = defaultRoutes[0] || `${stop.name} 경유 노선`
+            
+            if (targetStId) {
+              try {
+                const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
+                const busData = await busRes.json()
+                apiCallSource = String(busData.source || '')
+                arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
+                  ? busData.arrivals
+                  : [
+                      { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
+                    ]
+                logBusApiCall(r1, targetStId, arrivals, busData)
+              } catch {
+                apiCallSource = 'CLIENT_FALLBACK'
+                arrivals = [
+                  { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
+                ]
+                logBusApiCall(r1, targetStId, arrivals)
+              }
+            } else {
+              apiCallSource = 'NO_STID_FALLBACK'
+              arrivals = [
+                { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
+              ]
+            }
+          } else if (stop.type === 'bike') {
+            // 서울시 따릉이 실시간 대여정보(잔여 자전거 수)로 시뮬레이션 값을 대체
+            let live: any = null
+            let method: 'by-number' | 'nearest-200m' | 'estimated' = 'estimated'
+            let proxyPath = ''
+            let rawPayload: any = null
+            try {
+              if (stop.stationNo) {
+                proxyPath = `/api/v1/transit/bike/stations/by-number/${encodeURIComponent(stop.stationNo)}`
+                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+                if (r.ok) {
+                  rawPayload = await r.json()
+                  live = rawPayload.station
+                  method = 'by-number'
+                  // 하드코딩된 대여소 번호가 실제와 다른 경우 대비: 좌표가 250m 넘게 어긋나면 번호 매칭을 폐기
+                  if (live?.coords) {
+                    const dLat = (live.coords[1] - stop.coords[1]) * 111320
+                    const dLng = (live.coords[0] - stop.coords[0]) * 111320 * Math.cos(stop.coords[1] * Math.PI / 180)
+                    if (Math.hypot(dLat, dLng) > 250) {
+                      console.warn(`[따릉이] 대여소 번호 #${stop.stationNo}(${live.name})가 '${stop.name}'과 250m 이상 떨어져 있어 최근접 대여소로 대체합니다.`)
+                      live = null
+                      method = 'estimated'
+                    }
+                  }
+                }
+              }
+              if (!live) {
+                // 대여소 번호로 못 찾으면 좌표 기준 가장 가까운 실제 대여소(200m 이내)로 대체
+                const params = new URLSearchParams({ lat: String(stop.coords[1]), lng: String(stop.coords[0]), radius: '200', limit: '1' })
+                proxyPath = `/api/v1/transit/bike/stations/nearby?${params.toString()}`
+                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+                if (r.ok) {
+                  rawPayload = await r.json()
+                  live = (rawPayload.stations || [])[0] || null
+                  if (live) method = 'nearest-200m'
+                }
+              }
+              if (live) arrivals = [{ bikeLive: true, rackTotal: live.rackTotal, availableBikes: live.availableBikes, name: live.name }]
+            } catch (e) {
+              console.warn('따릉이 실시간 조회 실패, 추정값 사용:', e)
+            }
+            logBikeApiCall({ stationNo: stop.stationNo, stationName: stop.name, method, proxyPath }, live, rawPayload)
           }
 
           // 최종 통합 데이터로 팝업 갱신
+
           if (activePopupRef.current === popup) {
             popup.setHTML(buildPopupContent({
               weather: weatherData,
               aiPrediction: aiData,
               arrivalsList: arrivals,
-              isLoadingArrivals: false
+              isLoadingArrivals: false,
+              source: apiCallSource
             }))
           }
 
@@ -2049,7 +2320,7 @@ popupContent.append(title, number)
       map.off('resize', onMapMove)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
     }
-  }, [filterType, rainMm, mapLoaded, selectedTime])
+  }, [filterType, rainMm, mapLoaded, selectedTime, liveBikeStops])
 
   // focusedCoords, activeStop 또는 activeRoute 변경 시 즉시 마커 겹침 표시 갱신
   useEffect(() => {
@@ -2066,6 +2337,10 @@ popupContent.append(title, number)
     routeMarkersRef.current = []
 
     const source = map.getSource('active-route')
+    const mmSource = map.getSource('multimodal-segments')
+
+    const hadRoute = !!(prevActiveRouteRef.current && prevActiveRouteRef.current.path && prevActiveRouteRef.current.path.length >= 2)
+    prevActiveRouteRef.current = activeRoute
 
     if (!activeRoute || activeRoute.path.length < 2) {
       if (source) {
@@ -2078,27 +2353,37 @@ popupContent.append(title, number)
           },
         })
       }
+      if (mmSource) {
+        mmSource.setData({
+          type: 'FeatureCollection',
+          features: [],
+        })
+      }
       // 경로 닫기 시 모든 마커의 display를 원상 복원하고 충돌 필터링 재계산
       markerItemsRef.current.forEach(item => {
         item.el.style.display = 'flex'
       })
       updateCollisions()
 
-      // 경로 핏바운즈로 인해 줌이 너무 축소되어 있다면 (zoom < 12.8) 일반 시야각(13.0)으로 부드럽게 복귀
-      const currentZ = map.getZoom()
-      if (currentZ < 12.8) {
-        map.easeTo({
-          zoom: 13.0,
-          duration: 600,
-        })
-        map.once('idle', () => {
-          updateCollisionsRef.current()
-        })
+      // 이전에 경로가 활성화되어 있다가 닫혔을 때만, 경로 핏바운즈로 인해 줌이 너무 축소되어 있다면 (zoom < 12.8) 일반 시야각(13.0)으로 부드럽게 복귀
+      if (hadRoute) {
+        const currentZ = map.getZoom()
+        if (currentZ < 12.8) {
+          map.easeTo({
+            zoom: 13.0,
+            duration: 600,
+          })
+          map.once('idle', () => {
+            updateCollisionsRef.current()
+          })
+        }
       }
       return
     }
 
-    const coords = activeRoute.path.map(p => p.coords)
+    const coords = (activeRoute.geometry && activeRoute.geometry.length >= 2)
+      ? activeRoute.geometry
+      : activeRoute.path.map(p => p.coords)
     if (source) {
       source.setData({
         type: 'Feature',
@@ -2107,6 +2392,26 @@ popupContent.append(title, number)
           type: 'LineString',
           coordinates: coords,
         },
+      })
+    }
+    if (mmSource) {
+      const segFeatures = (activeRoute.segments || [])
+        .filter(seg => Array.isArray(seg.coords) && seg.coords.length >= 2)
+        .map(seg => ({
+          type: 'Feature',
+          properties: {
+            mode: seg.mode,
+            color: seg.color || '#38BDF8',
+            label: seg.label,
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: seg.coords,
+          },
+        }))
+      mmSource.setData({
+        type: 'FeatureCollection',
+        features: segFeatures,
       })
     }
 
@@ -2119,10 +2424,40 @@ popupContent.append(title, number)
       duration: 1000,
     })
 
-    // 출발지 마커 핀 (초록색 캡슐 + 탑승 열차 잔여 시간 표시)
+    const startCoord = coords[0]
+    const endCoord = coords[coords.length - 1]
+
+    const firstSegment = activeRoute.segments && activeRoute.segments.length > 0 ? activeRoute.segments[0] : null
+    const lastSegment = activeRoute.segments && activeRoute.segments.length > 0 ? activeRoute.segments[activeRoute.segments.length - 1] : null
+
+    // 첫 이동 모드가 지하철인지 확인 (도보나 따릉이로 이동을 시작할 때는 지하철 실시간 도착 정보를 출발 알약에 노출하지 않음)
+    const isFirstModeSubway = !firstSegment || firstSegment.mode === 'subway'
+    const depTrain = isFirstModeSubway ? activeRoute.departureTrain : null
+
+    // 두 좌표가 인접한지 판별 (위경도 차이 0.001도, 약 90m 이내)
+    const isNearbyCoord = (c1?: [number, number], c2?: [number, number], threshold = 0.001) => {
+      if (!c1 || !c2) return false
+      return Math.abs(c1[0] - c2[0]) < threshold && Math.abs(c1[1] - c2[1]) < threshold
+    }
+
+    // 도착지와 인접/일치하는 따릉이 반납 세그먼트 탐색:
+    // (전체 경로의 마지막 세그먼트가 따릉이이고, 최종 목적지와 반납 위치가 일치/초근접할 때만 일체형 알약으로 병합)
+    const isLastSegBike = lastSegment && lastSegment.mode === 'bike'
+    const mergedBikeDrop = (isLastSegBike && Array.isArray(lastSegment.coords) && lastSegment.coords.length >= 2 &&
+      (isNearbyCoord(lastSegment.coords[lastSegment.coords.length - 1], endCoord, 0.0015) || 
+       lastSegment.to_name === activeRoute.to || 
+       activeRoute.to.includes(lastSegment.to_name) || 
+       lastSegment.to_name.includes(activeRoute.to))) ? lastSegment : null
+
+    // 출발지와 인접/일치하는 따릉이 대여 세그먼트 탐색:
+    // (도보 이동 없이 출발역 위치에서 곧바로 따릉이를 대여하는 경우에만 출발 알약에 병합)
+    const isFirstSegBikeDirect = firstSegment && firstSegment.mode === 'bike'
+    const mergedBikePickup = (isFirstSegBikeDirect && Array.isArray(firstSegment.coords) && firstSegment.coords.length >= 2 &&
+      isNearbyCoord(firstSegment.coords[0], startCoord, 0.0003)) ? firstSegment : null
+
+    // 출발지 마커 핀 (초록색 캡슐 + 이동 모드별 최적화된 안내 표시)
     const startStop = TRANSIT_STOPS.find(s => s.name === activeRoute.from)
     const startCrowd = startStop ? calculateCrowd(startStop) : 65
-    const depTrain = activeRoute.departureTrain
     const startEl = document.createElement('div')
     startEl.className = 'route-start-pin'
     startEl.style.display = 'flex'
@@ -2157,6 +2492,24 @@ popupContent.append(title, number)
             <span style="background: #065F46; color: #6EE7B7; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${depTrain.remainingMinutes}분 후 도착</span>
           </div>
         ` : ''}
+        ${!isFirstModeSubway && firstSegment?.mode === 'walk' ? `
+          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚶 도보 ${firstSegment.minutes || 2}분</span>
+            <span>➔ ${firstSegment.to_name || '따릉이 대여소'}</span>
+          </div>
+        ` : ''}
+        ${!isFirstModeSubway && firstSegment?.mode === 'bike' ? `
+          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚲 따릉이 라이딩 시작</span>
+            <span>(${firstSegment.minutes || 10}분)</span>
+          </div>
+        ` : ''}
+        ${!isFirstModeSubway && firstSegment?.mode === 'bus' ? `
+          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚌 ${firstSegment.label || '버스'} 탑승</span>
+            <span>(${firstSegment.minutes || 10}분)</span>
+          </div>
+        ` : ''}
       </div>
       <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #10B981;"></div>
     `
@@ -2183,17 +2536,126 @@ popupContent.append(title, number)
       })
     }
     const startMarker = new maplibregl.Marker({ element: startEl })
-      .setLngLat(coords[0])
+      .setLngLat(startCoord)
       .addTo(map)
     routeMarkersRef.current.push(startMarker)
 
-    // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 표시)
+    // 따릉이(Bike) 세그먼트 대여소/반납소 마커 핀 (출발/환승/도착과 겹치지 않는 독립 구간만 생성)
+    if (activeRoute.segments && activeRoute.segments.length > 0) {
+      activeRoute.segments.forEach(seg => {
+        if (seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
+          // 대여소 핀 (출발 대여소): 출발역 알약과 완전히 동일한 위치로 병합된 경우가 아니면 100% 무조건 독립 핀 표출!
+          if (mergedBikePickup !== seg) {
+            const pickupCoord = seg.coords[0]
+            const pickupEl = document.createElement('div')
+            pickupEl.className = 'route-bike-pickup-pin'
+            pickupEl.style.display = 'flex'
+            pickupEl.style.flexDirection = 'column'
+            pickupEl.style.alignItems = 'center'
+            pickupEl.style.cursor = 'pointer'
+            pickupEl.innerHTML = `
+              <div style="background: #10B981; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(16,185,129,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚲 대여</span>
+                <span>${seg.from_name || '따릉이 대여소'}</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #10B981;"></div>
+            `
+            const pMarker = new maplibregl.Marker({ element: pickupEl }).setLngLat(pickupCoord).addTo(map)
+            routeMarkersRef.current.push(pMarker)
+          }
+
+          // 반납소 핀 (도착 반납소):
+          // 1) 최종 도착 알약과 병합된 경우 생략
+          // 2) 환승역과 일치하는 경우 환승 알약에 일체형으로 병합되므로 개별 핀 생략하여 겹침 방지
+          const dropCoord = seg.coords[seg.coords.length - 1]
+          const isDropAtTransfer = activeRoute.transferTrains?.some(tr => {
+            const trStep = activeRoute.path.find(p => p.name === tr.station)
+            return tr.station === seg.to_name || (trStep && isNearbyCoord(dropCoord, trStep.coords, 0.0015))
+          })
+
+          if (mergedBikeDrop !== seg && !isDropAtTransfer) {
+            const dropEl = document.createElement('div')
+            dropEl.className = 'route-bike-drop-pin'
+            dropEl.style.display = 'flex'
+            dropEl.style.flexDirection = 'column'
+            dropEl.style.alignItems = 'center'
+            dropEl.style.cursor = 'pointer'
+            dropEl.innerHTML = `
+              <div style="background: #059669; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(5,150,105,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚲 반납</span>
+                <span>${seg.to_name || '따릉이 반납소'}</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #059669;"></div>
+            `
+            const dMarker = new maplibregl.Marker({ element: dropEl }).setLngLat(dropCoord).addTo(map)
+            routeMarkersRef.current.push(dMarker)
+          }
+        }
+
+        // 버스(Bus) 세그먼트 승차/하차 마커 핀 (Issue #50)
+        if (seg.mode === 'bus' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
+          const busPickupCoord = seg.coords[0]
+          const isPickupAtStart = isNearbyCoord(busPickupCoord, startCoord, 0.001)
+          if (!isPickupAtStart) {
+            const busPickupEl = document.createElement('div')
+            busPickupEl.className = 'route-bus-pickup-pin'
+            busPickupEl.style.display = 'flex'
+            busPickupEl.style.flexDirection = 'column'
+            busPickupEl.style.alignItems = 'center'
+            busPickupEl.style.cursor = 'pointer'
+            busPickupEl.innerHTML = `
+              <div style="background: ${seg.color || '#3B82F6'}; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(59,130,246,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚌 승차</span>
+                <span>${seg.from_name || '버스 정류소'}</span>
+                ${seg.line_name ? `<span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${seg.line_name}</span>` : ''}
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid ${seg.color || '#3B82F6'};"></div>
+            `
+            const bMarker = new maplibregl.Marker({ element: busPickupEl }).setLngLat(busPickupCoord).addTo(map)
+            routeMarkersRef.current.push(bMarker)
+          }
+
+          const busDropCoord = seg.coords[seg.coords.length - 1]
+          const isDropAtDest = isNearbyCoord(busDropCoord, endCoord, 0.0015)
+          const isDropAtTransfer = activeRoute.transferTrains?.some(tr => {
+            const trStep = activeRoute.path.find(p => p.name === tr.station)
+            return tr.station === seg.to_name || (trStep && isNearbyCoord(busDropCoord, trStep.coords, 0.0015))
+          })
+
+          if (!isDropAtDest && !isDropAtTransfer) {
+            const busDropEl = document.createElement('div')
+            busDropEl.className = 'route-bus-drop-pin'
+            busDropEl.style.display = 'flex'
+            busDropEl.style.flexDirection = 'column'
+            busDropEl.style.alignItems = 'center'
+            busDropEl.style.cursor = 'pointer'
+            busDropEl.innerHTML = `
+              <div style="background: #F97316; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(249,115,22,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚌 하차</span>
+                <span>${seg.to_name || '버스 하차정류소'}</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #F97316;"></div>
+            `
+            const bdMarker = new maplibregl.Marker({ element: busDropEl }).setLngLat(busDropCoord).addTo(map)
+            routeMarkersRef.current.push(bdMarker)
+          }
+        }
+      })
+    }
+
+    // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 / 따릉이 연계 정보 표시)
     if (activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {
       activeRoute.transferTrains.forEach(tr => {
         const trStep = activeRoute.path.find(p => p.name === tr.station)
         if (!trStep) return
         const trStop = TRANSIT_STOPS.find(s => s.name === tr.station)
         const trCrowd = trStop ? calculateCrowd(trStop) : 70
+
+        // 환승역과 일치하는 따릉이 반납 구간 탐색
+        const matchedBikeDropForTransfer = activeRoute.segments?.find(seg => 
+          seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2 &&
+          (seg.to_name === tr.station || isNearbyCoord(seg.coords[seg.coords.length - 1], trStep.coords, 0.0015))
+        )
 
         const trEl = document.createElement('div')
         trEl.className = 'route-transfer-pin'
@@ -2227,6 +2689,11 @@ popupContent.append(title, number)
               <span>⏱️ ${tr.destinationOrNext} 방면</span>
               <span style="background: #78350F; color: #FDE68A; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${tr.remainingMinutes}분 후 도착</span>
             </div>
+            ${matchedBikeDropForTransfer ? `
+              <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+                <span>🚲 따릉이 반납 ➔ 🚇 ${tr.line} 환승</span>
+              </div>
+            ` : ''}
           </div>
           <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #D97706;"></div>
         `
@@ -2259,7 +2726,7 @@ popupContent.append(title, number)
       })
     }
 
-    // 도착지 마커 핀 (로즈색 캡슐)
+    // 도착지 마커 핀 (로즈색 캡슐 / 따릉이 반납과 인접 시 일체형 병합 알약 표출)
     const endStop = TRANSIT_STOPS.find(s => s.name === activeRoute.to)
     const endCrowd = endStop ? calculateCrowd(endStop) : 75
     const endEl = document.createElement('div')
@@ -2268,27 +2735,59 @@ popupContent.append(title, number)
     endEl.style.flexDirection = 'column'
     endEl.style.alignItems = 'center'
     endEl.style.cursor = 'pointer'
-    endEl.innerHTML = `
-      <div style="
-        background: #F43F5E;
-        color: var(--app-text);
-        font-weight: 800;
-        font-size: 11px;
-        padding: 4px 10px;
-        border-radius: 9999px;
-        box-shadow: 0 4px 18px rgba(244,63,94,0.6);
-        border: 2px solid var(--color-surface);
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        white-space: nowrap;
-      ">
-        <span>🔴 도착</span>
-        <span>${activeRoute.to}</span>
-        <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
-      </div>
-      <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
-    `
+    if (mergedBikeDrop) {
+      // 도착지와 따릉이 반납소가 겹칠 경우: 유려한 그라디언트 일체형 캡슐 알약으로 통합!
+      endEl.innerHTML = `
+        <div style="
+          background: linear-gradient(135deg, #059669 0%, #E11D48 100%);
+          color: #FFFFFF;
+          font-weight: 800;
+          font-size: 11px;
+          padding: 5px 12px;
+          border-radius: 9999px;
+          box-shadow: 0 4px 18px rgba(225,29,72,0.65);
+          border: 2px solid var(--color-surface);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          white-space: nowrap;
+        ">
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <span>🏁 도착</span>
+            <span>${activeRoute.to}</span>
+            <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+          </div>
+          <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚲 따릉이 반납:</span>
+            <span>${mergedBikeDrop.to_name || '반납소'}</span>
+          </div>
+        </div>
+        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #E11D48;"></div>
+      `
+    } else {
+      endEl.innerHTML = `
+        <div style="
+          background: #F43F5E;
+          color: var(--app-text);
+          font-weight: 800;
+          font-size: 11px;
+          padding: 4px 10px;
+          border-radius: 9999px;
+          box-shadow: 0 4px 18px rgba(244,63,94,0.6);
+          border: 2px solid var(--color-surface);
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          white-space: nowrap;
+        ">
+          <span>🔴 도착</span>
+          <span>${activeRoute.to}</span>
+          <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+        </div>
+        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
+      `
+    }
     if (endStop) {
       endEl.addEventListener('click', () => {
         if (activePopupRef.current) {
@@ -2642,11 +3141,13 @@ popupContent.append(title, number)
         <span style={{ fontSize: 11, color: 'var(--app-text)', fontWeight: 600 }}>
           {activeRoute
             ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
-            : (zoomLevel < 11.5
-                ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
-                : (zoomLevel < 13.5
-                    ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
-                    : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다'))}
+            : (zoomLevel < 10.5
+                ? '광역 지도 (마커 숨김): 지도를 확대하면 주요 거점이 표시됩니다'
+                : (zoomLevel < 11.5
+                    ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
+                    : (zoomLevel < 13.5
+                        ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
+                        : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')))}
         </span>
       </div>
 

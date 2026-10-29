@@ -110,3 +110,60 @@ export function logAIPredictionCall(inputFeatures: any, predictionResults: any) 
   console.log('%c[Model Output Predictions (예측 혼잡도 및 수단별 전환율)]', 'color: #34d399; font-weight: bold;', predictionResults)
   console.groupEnd()
 }
+
+// 5. 서울시 따릉이 실시간 대여정보(bikeList) API 로깅
+export function logBikeApiCall(
+  info: {
+    stationNo?: string
+    stationName: string
+    method: 'by-number' | 'nearest-200m' | 'estimated'
+    proxyPath: string
+  },
+  liveStation: any | null,
+  rawPayload?: any
+) {
+  const key = `bike_${info.stationNo || info.stationName}`
+  if (!shouldLog(key)) return
+
+  const live = !!liveStation
+  console.groupCollapsed(
+    `%c🚲 [서울 열린데이터광장] 따릉이 실시간 대여정보(bikeList): ${info.stationName} ${live ? `(${liveStation.availableBikes}대 / 거치대 ${liveStation.rackTotal}개)` : '(실시간 조회 실패 → 추정값)'}`,
+    `background: ${live ? '#059669' : '#b45309'}; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;`
+  )
+  console.log('%c[실제 엔드포인트 URL]', 'color: #34d399; font-weight: bold;',
+    'http://openapi.seoul.go.kr:8088/{SEOUL_DATA_API_KEY}/json/bikeList/{start}/{end}/')
+  console.log('%c[Backend Proxy API]', 'color: #34d399;', info.proxyPath)
+  console.log('%c[조회 방식]', 'color: #94a3b8; font-weight: bold;', {
+    방식: info.method === 'by-number' ? '대여소 번호 정확 일치' : info.method === 'nearest-200m' ? '좌표 기준 200m 이내 최근접 대여소' : '실시간 값 없음 (혼잡도 기반 추정)',
+    대여소번호: info.stationNo || '-'
+  })
+  if (live) {
+    console.log('%c[Live Response Data - 실시간 대여소 현황]', 'color: #34d399; font-weight: bold;', {
+      대여소명: liveStation.name,
+      대여가능_자전거: `${liveStation.availableBikes}대`,
+      거치대_수: `${liveStation.rackTotal}개`,
+      거치율_shared: `${liveStation.shared}%`,
+      데이터_출처: rawPayload?.source || 'SEOUL_BIKE_LIVE'
+    })
+  }
+  if (rawPayload) {
+    console.log('%c[원천 응답 페이로드 (Raw JSON)]', 'color: #6ee7b7;', rawPayload)
+  }
+  console.groupEnd()
+}
+
+// 6. 따릉이 주변 대여소 일괄 조회(지도 이동) 로깅
+export function logBikeNearbyCall(params: { lat: number; lng: number; radius: number }, data: any) {
+  const key = `bike_nearby_${params.lat.toFixed(4)}_${params.lng.toFixed(4)}`
+  if (!shouldLog(key)) return
+
+  console.groupCollapsed(
+    `%c🚲 [서울 열린데이터광장] 따릉이 주변 대여소 조회: ${data?.count ?? 0}곳 (반경 ${params.radius}m, ${data?.source || '-'})`,
+    'background: #059669; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;'
+  )
+  console.log('%c[Backend Proxy API]', 'color: #34d399;', `/api/v1/transit/bike/stations/nearby?lat=${params.lat}&lng=${params.lng}&radius=${params.radius}`)
+  console.log('%c[Live Response Data - 주변 대여소 (잔여 자전거/거치대)]', 'color: #34d399; font-weight: bold;',
+    (data?.stations || []).map((s: any) => ({ 대여소: s.name, 잔여: s.availableBikes, 거치대: s.rackTotal, 거리m: s.distance })))
+  console.log('%c[원천 응답 페이로드 (Raw JSON)]', 'color: #6ee7b7;', data)
+  console.groupEnd()
+}

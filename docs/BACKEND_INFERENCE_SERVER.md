@@ -40,7 +40,7 @@ flowchart LR
         MemSessions --> SubONNX["지하철 수요 예측\n(lgb_subway_demand.onnx)"]
         BikeONNX & BusONNX & SubONNX --> MCDA["혼잡도 정규화 & MCDA 추천 스코어링\n(우천 시 모달 시프트 반영)"]
     end
-    MCDA -->|추천 랭킹, 혼잡도, latency_ms| Client
+    MCDA -->|"추천 랭킹, 혼잡도, latency_ms"| Client
 ```
 
 - **Cold Start 방지**: 서버 기동 시(`lifespan` 컨텍스트 매니저) 3개 ONNX 모델 세션을 인메모리에 사전 로드하고 더미 웜업(Warmup) 추론을 완료합니다.
@@ -83,11 +83,11 @@ DISTRICT_CODE_MAP = {
 | **3. 공간 인코딩** | 5 | `district_code`<br>`district_subway_stations`<br>`district_bus_stops`<br>`district_bike_racks`<br>`commercial_density` | 서울시 25개 자치구 정수 ID (0 ~ 24)<br>해당 구 내 지하철 역사 수<br>해당 구 내 버스 정류소 수<br>해당 구 내 따릉이 거치대 수<br>상업/업무 지구 밀도 가중치 (강남/중구/여의도 1.4~1.45 등) |
 | **4. 시계열 래그/통계** | 11 | `bike_lag_1h`, `bus_lag_1h`, `subway_lag_1h`<br>`bike_roll_mean_3h`, `bus_roll_mean_3h`, `subway_roll_mean_3h`<br>`same_day_last_week_bike/bus/sub`<br>`temp_diff_1h`, `rain_diff_1h` | 직전 1시간 이용량 래그<br>직전 3시간 이동평균<br>전주 동요일 동시간 이용량<br>전 시간 대비 기온 및 강수량 변화량 |
 
-> **📌 서빙 입력(32차원) ≠ 모델 입력 텐서**
-> - 위 32차원은 `main.py::build_feature_vector()`가 조립하는 **서빙 입력 계약**입니다.
-> - 현재 배포 모델(`models/*.onnx`)은 **25차원** 텐서를 기대하며, 이는 32차원에서 공간 인프라 4차원 + `same_day_last_week_*` 3차원 = **7차원을 제외한 부분집합**입니다.
-> - `main.py::prepare_session_input()`이 모델 기대 차원으로 자동 정렬하므로 25차원·32차원 모델이 공존합니다(상세: `docs/SYSTEM_ARCHITECTURE.md` §6.2).
-> - 신규 후보 산출물은 **`benchmarks/2026-10-14/`**(2026-10-14 학습분)이며 **실제 32차원 실피처**(공간 인프라 4 + `same_day_last_week_*` 3)로 학습되었습니다. 공정 재평가·배포 전까지는 벤치마크 전용입니다. `benchmarks/2026-10-12/tuned_real/` 은 **종료된 배치 위치**이고, v1 자산(`benchmarks/2026-10-12/tuned/`)은 배치 순서가 사양서와 달라 **서빙 불가**이지만, 평가 스크립트가 라벨별 배치(`v1`)를 지정해 **자기 배치 공정 비교에는 포함**합니다(`docs/MODEL_PERFORMANCE_REPORT.md` §0.3).
+> **📌 현행 32차원 배포 모델 및 피처 계약 (v2.1)**
+> - 위 32차원은 `main.py::build_feature_vector()`가 조립하는 **서빙 입력 계약이자 현행 배포 모델(`models/*.onnx`)의 입력 텐서 규격**입니다.
+> - 2026-10-29 배포된 v2.1 다년도 모델은 **32차원 실피처(더미 0 없음)** 로 직접 추론을 수행합니다.
+> - 과거 25차원 레거시 모델을 반입할 경우에도 `main.py::prepare_session_input()`이 모델 차원에 맞추어 25차원 서브셋으로 자동 정렬하여 호환성을 유지합니다(`/health.feature_schema.status = legacy-subset-25d`).
+> - 상세 규격 및 지표: [`docs/CURRENT_DATA_SPEC.md`](./CURRENT_DATA_SPEC.md) 및 [`docs/CURRENT_MODEL_PERFORMANCE.md`](./CURRENT_MODEL_PERFORMANCE.md) 참조.
 ---
 
 ## 5. 혼잡도 지수 및 MCDA 추천 스코어링 알고리즘
@@ -206,8 +206,9 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 }
 ```
 
-### 2) 가상 기상 시뮬레이터 (What-If Simulator)
+### 2) 가상 기상 조건 배치 시뮬레이션 API (What-If Batch Simulator)
 - **엔드포인트**: `POST /api/v1/simulate/weather-impact`
+- **목적**: 25개 자치구 일괄 가상 기상(강수량/기온/시간대) 조건에서의 모달 시프트 및 수요 변동 배치 연산 (B2B 모빌리티 재배치 분석 및 시뮬레이션용).
 - **Request Body**:
 ```json
 {
@@ -235,7 +236,116 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 }
 ```
 
-### 3) 헬스체크 API
+### 3) 기상청 단기예보 24시간 시간대별 기상 조회 API
+- **엔드포인트**: `GET /api/v1/weather/forecast/hourly?district=강남구`
+- **목적**: 기상청 API허브 단기예보 격자자료(`nph-dfs_shrt_grd`)를 호출하여 해당 자치구의 24시간(00시~23시) 매시간별 기온, 강수량, 하늘상태, 강수형태, 아이콘을 인메모리 캐시(<1ms)로 제공.
+- **Response Body**:
+```json
+{
+  "district": "강남구",
+  "nx": 61,
+  "ny": 126,
+  "tmfc": "2026102811",
+  "source": "KMA_APIHUB_VILAGE_FCST",
+  "cached_at": "2026-10-28T13:40:05",
+  "hours": [
+    {
+      "hour": 14,
+      "hour_str": "14시",
+      "date_str": "20261028",
+      "temp": 13.0,
+      "rain": 0.0,
+      "sky": 1,
+      "pty": 0,
+      "pty_desc": "맑음",
+      "weather_icon": "☀️",
+      "source": "KMA_APIHUB_VILAGE_FCST"
+    }
+  ]
+}
+```
+
+### 4) B2B 기업·운영사용 모빌리티 재배치(Fleet Rebalancing) 분석 API
+- **엔드포인트**: `POST /api/v1/b2b/fleet-rebalance`
+- **목적**: 기상 변화 및 시간대별 25개 자치구 32차원 ONNX 일괄 추론 기반 따릉이(PM) 잉여/부족 수량 및 버스 배차 증차 산출.
+- **Request Body**:
+```json
+{
+  "hour": 14,
+  "rain_mm": 0.0,
+  "temp": 13.0,
+  "use_live_weather": true
+}
+```
+- **Response Body**:
+```json
+{
+  "status": "success",
+  "latency_ms": 9.1,
+  "weather_condition": {
+    "rain_mm": 0.0,
+    "temp": 13.0,
+    "hour": 14,
+    "is_raining": false
+  },
+  "total_bike_surplus_qty": 0,
+  "total_bike_deficit_qty": 2453,
+  "total_bus_extra_trips": 0,
+  "top_recall_districts": [],
+  "top_deploy_districts": [
+    { "district": "송파구", "qty": 412, "delta_pct": 28.5, "urgency": "MEDIUM" },
+    { "district": "강남구", "qty": 380, "delta_pct": 25.1, "urgency": "MEDIUM" }
+  ],
+  "district_rebalance_list": [ ... ]
+}
+```
+
+### 5) LangGraph × FactChat LLM 멀티모달 통합 경로 탐색 API
+- **엔드포인트**: `POST /api/v1/routes/multimodal-search` (또는 `GET`)
+- **목적**: 기상청 단기예보, 32차원 ONNX 수단별 혼잡도 및 실시간 따릉이/지하철 도착 정보를 결합하여 도보·따릉이·버스·지하철 최적 복합 경로 3종과 FactChat LLM 자연어 브리핑 반환.
+- **Request Body**:
+```json
+{
+  "from_station": "서울역",
+  "to_station": "홍대입구역",
+  "district": "중구",
+  "hour": 14,
+  "weather_override": null
+}
+```
+- **Response Body**:
+```json
+{
+  "success": true,
+  "query": { "from": "서울역", "to": "홍대입구역", "district": "중구", "hour": 14 },
+  "weather_gate": "CLEAR_MULTIMODAL",
+  "ai_briefing": {
+    "headline": "🤖 FactChat LLM (gpt-6-luna) 멀티모달 경로 브리핑",
+    "summary": "따릉이 혼잡도 예측이 22%로 지하철(52%)보다 낮고 현재 비가 없어 쾌적한 이동이 가능합니다.",
+    "model": "gpt-6-luna"
+  },
+  "routes": [
+    {
+      "id": "route-pure-subway",
+      "badge": "AI 1순위 · 최단·무환승 최적",
+      "title": "공항철도 직통 최단시간",
+      "total_minutes": 7,
+      "total_fare_krw": 1550,
+      "crowd_percent": 52,
+      "comfort_score": 96
+    }
+  ],
+  "langgraph_trace": [
+    { "step": 1, "node": "parse_context_node", "status": "completed" },
+    { "step": 2, "node": "clear_multimodal_tools_node", "status": "completed" },
+    { "step": 3, "node": "candidate_fusion_node", "status": "completed" },
+    { "step": 4, "node": "factchat_llm_briefing_node", "status": "completed" }
+  ]
+}
+```
+> 📖 **ONNX 모델 상세 연동 규격**: ONNX 모델의 3개 수단 혼잡도 결과가 LangGraph의 다목적 효용 함수와 지옥철 회피 보너스(+14.0점), FactChat LLM 프롬프트에 활용되는 전 과정은 [**`docs/ONNX_LANGGRAPH_INTEGRATION.md`**](ONNX_LANGGRAPH_INTEGRATION.md)를 참조하십시오.
+
+### 6) 헬스체크 API
 - **엔드포인트**: `GET /health`
 - **Response Body**:
 ```json
@@ -243,9 +353,9 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
   "status": "ok",
   "models_loaded": true,
   "feature_schema": {
-    "path": "benchmarks/2026-10-14/feature_schema.json",
+    "path": "models/feature_schema.json",
     "status": "verified",
-    "model_version": "v2-전처리_2-32d",
+    "model_version": "v2.1-multiyear-32d",
     "feature_dim": 32,
     "model_input_dims": { "bike": 32, "bus": 32, "subway": 32 }
   },
@@ -256,10 +366,136 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 
 #### 피처 스키마(SSoT) 기동 검증
 - 서버는 모델 로딩 직후 [`feature_schema.py`](../feature_schema.py) 가 제공하는 검증을 수행합니다.
-  1. 스키마 탐색: `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-14/feature_schema.json`
+  1. 스키마 탐색: `FEATURE_SCHEMA_PATH` → `models/feature_schema.json` → `benchmarks/2026-10-29/feature_schema.json`
   2. 스키마 `feature_cols` 순서 == `main.py::FEATURE_ORDER_32` assert(불일치 시 **기동 중단**)
   3. 각 ONNX 세션 입력 차원 == 스키마 차원(32) 또는 25차원 레거시 서브셋인지 확인(그 외 차원이면 기동 중단)
 - 결과는 `/health.feature_schema.status` 로 노출되며, 25차원 레거시로 동작 중이면 **경고 로그**를 남깁니다.
+
+---
+
+### 7) 백엔드 독립형 실시간 모니터링 & 로그 대시보드 API
+
+일반 사용자 화면과 완전히 격리된 개발자/운영자 전용 엔드포인트 세트입니다:
+
+#### 7-1. 관리자 실시간 대시보드 웹페이지
+- **엔드포인트**: `GET /health/dashboard`
+- **반환 형식**: `text/html` (단일 경량 반응형 HTML)
+- **기능**: 공공 API 4종 상태 카드, 서킷 브레이커 실시간 관제, AI ONNX 엔진 상태, 시계열 캐시 통계 및 실시간 로그 스트리밍 콘솔 (1.5초 주기 자동 갱신, 로그 레벨/도메인 필터링, 키워드 검색, 원클릭 캐시 비우기)
+
+#### 7-2. 인메모리 순환 버퍼 로그 조회 API
+- **엔드포인트**: `GET /api/v1/admin/logs?since_id=100&level=INFO&domain=기상청&query=강남구&limit=200`
+- **목적**: 메모리 링 버퍼(`collections.deque(maxlen=2000)`)에 캡처된 최신 서버 로그 목록 필터링 조회.
+- **Query Parameters**:
+  - `since_id` (선택): 특정 시퀀스 번호 이후에 발생한 새 로그만 증분 조회 (스트리밍 최적화)
+  - `level` (선택): `ALL`, `INFO`, `WARN`, `ERROR`
+  - `domain` (선택): `기상청`, `지하철`, `버스`, `따릉이`, `LangGraph`, `AI추론`, `서킷브레이커`, `HTTP`, `시스템`
+  - `query` (선택): 메시지/로거 텍스트 검색어
+  - `limit` (기본 200, 최대 1000): 반환 건수
+- **Response Body**:
+```json
+[
+  {
+    "id": 105,
+    "timestamp": "2026-10-29 19:39:59",
+    "time": "19:39:59",
+    "level": "INFO",
+    "logger": "weather_transit_api",
+    "message": "[AI 머신러닝 엔진] 기상 및 시간대별 대중교통 이용 수요 추론 완료",
+    "domain": "AI추론"
+  }
+]
+```
+
+#### 7-3. 시스템 상태 및 서킷 브레이커 종합 조회 API
+- **엔드포인트**: `GET /api/v1/admin/status`
+- **Response Body**:
+```json
+{
+  "status": "ok",
+  "uptime": "1시간 24분 10초",
+  "models_loaded": true,
+  "feature_schema": { "status": "verified", "expected_dims": 32 },
+  "circuit_breakers": {
+    "kma_weather": { "name": "KMA_WEATHER", "state": "CLOSED", "failure_count": 0, "total_success": 42, "total_fallback": 0 },
+    "seoul_subway": { "name": "SEOUL_SUBWAY", "state": "CLOSED", "failure_count": 0, "total_success": 38, "total_fallback": 0 },
+    "seoul_bus": { "name": "SEOUL_BUS", "state": "CLOSED", "failure_count": 0, "total_success": 30, "total_fallback": 0 },
+    "seoul_bike": { "name": "SEOUL_BIKE", "state": "CLOSED", "failure_count": 0, "total_success": 25, "total_fallback": 0 }
+  },
+  "cache_stats": { "exists": true, "count": 184, "size_kb": 128.0, "path": "/app/data/timeseries_cache.db" },
+  "log_stats": { "total_logs": 250, "counts": { "INFO": 240, "WARNING": 10, "ERROR": 0 } },
+  "timestamp": "2026-10-29T19:40:00+09:00"
+}
+```
+
+#### 7-4. 시계열 및 인메모리 캐시 즉시 비우기 API
+- **엔드포인트**: `POST /api/v1/admin/cache/clear`
+- **목적**: SQLite 시계열 캐시(`timeseries_cache.db`) 및 백엔드 단기 인메모리 스냅샷을 즉시 삭제하여 외부 원천 API 강제 재호출 테스트 지원.
+- **Response Body**:
+```json
+{
+  "status": "ok",
+  "message": "시계열 캐시 및 인메모리 스냅샷이 성공적으로 초기화되었습니다.",
+  "cleared_sqlite": true,
+  "timestamp": "2026-10-29T19:40:05+09:00"
+}
+```
+
+---
+
+### 8) 서울시 실시간 대중교통환승경로 조회 API
+- **엔드포인트**: `GET /api/v1/transit/bus/transfer-path`
+- **목적**: 공공데이터포털 서울시 대중교통환승경로 서비스(`getPathInfoByBusNSub`)를 연동하여 출발-도착 좌표 간 실시간 버스+지하철 복합 환승 경로 목록, 구간별 소요시간, 탑승 노선명(`routeNm`) 및 승하차 정류소 ID(`fid`, `tid`)를 10분 TTL 인메모리 캐시로 제공.
+- **Query Parameters**:
+  - `startX` (필수, float): 출발지 경도 (124.0 ~ 132.0)
+  - `startY` (필수, float): 출발지 위도 (33.0 ~ 39.0)
+  - `endX` (필수, float): 도착지 경도 (124.0 ~ 132.0)
+  - `endY` (필수, float): 도착지 위도 (33.0 ~ 39.0)
+- **Response Body**:
+```json
+{
+  "status": "success",
+  "count": 19,
+  "startX": 126.924,
+  "startY": 37.5568,
+  "endX": 127.0276,
+  "endY": 37.4979,
+  "routes": [
+    {
+      "total_minutes": 55,
+      "total_distance_m": 17364,
+      "has_bus": true,
+      "has_subway": true,
+      "legs": [
+        {
+          "mode": "subway",
+          "route_name": "경의중앙선",
+          "route_id": "",
+          "from_name": "홍대입구역",
+          "from_id": "12640",
+          "from_coords": [126.927038, 37.557434],
+          "to_name": "한남역",
+          "to_id": "10100",
+          "to_coords": [127.009187, 37.529387],
+          "station_count": 7
+        },
+        {
+          "mode": "bus",
+          "route_name": "421",
+          "route_id": "100100409",
+          "from_name": "한남역.용산노인종합복지관",
+          "from_id": "102000192",
+          "from_coords": [127.007761, 37.530612],
+          "to_name": "신분당선강남역",
+          "to_id": "121000009",
+          "to_coords": [127.028533, 37.495791],
+          "station_count": null
+        }
+      ]
+    }
+  ],
+  "source": "SEOUL_BUS_SUBWAY_TRANSFER_LIVE"
+}
+```
 
 ---
 
@@ -300,3 +536,16 @@ pip install -r requirements.txt
 4. **추론 지연 시간(SLA) 10회 연속 측정**:
    - 평균 지연 시간: **1.54 ms** (Min: 1.20 ms, Max: 2.48 ms)
    - 사양서 SLA 기준(**15ms 이하**) 대비 **9배 이상 빠른 성능** 달성
+
+
+---
+
+## 9. LangGraph × FactChat LLM 멀티모달 통합 경로 탐색 API (`multimodal_router.py`)
+
+- **엔드포인트**: `POST /api/v1/routes/multimodal-search` 및 `GET /api/v1/routes/multimodal-search`
+- **파이프라인**:
+  1. `parse_context_node`: 출발/도착지 좌표 해석 + 기상청 단기예보(`kma_forecast_manager`) + 32차원 ONNX 수단별 혼잡도 로드
+  2. `weather_gate_router`: 강수(`rain > 0mm`)/강풍 시 `RAIN_SAFE_ONLY` 노드로 분기하여 따릉이(PM) 탐색 자동 차단
+  3. `clear_multimodal_tools_node` / `rain_safe_tools_node`: 지하철 다익스트라(최소환승/최단시간), 인근 버스정류소, 실시간 따릉이 대여소(`_bike_snapshot_cache`) 통합 수집
+  4. `candidate_fusion_node`: `AI 멀티모달 최적(따릉이 First-Mile + 지하철)`, `지하철 최소환승`, `버스+지하철 복합 환승` 후보 생성 및 구간별(`segments`) GeoJSON 폴리라인 구성
+  5. `factchat_llm_briefing_node`: FactChat / BAZE 게이트웨이(`gpt-6-luna`) 연동 자연어 브리핑 생성 (5분 인메모리 캐시 및 XAI 규칙 엔진 폴백 내장)

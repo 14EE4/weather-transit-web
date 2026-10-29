@@ -32,8 +32,8 @@
    - 예측된 수송 수요를 기반으로 대중교통 수단별/구역별 0~100% 표준 혼잡도 및 상태 라벨(`여유 <45%`, `보통 45~75%`, `혼잡 >75%`) 산출.
 3. **교통수단 최적 추천 스코어링 (Recommendation Scoring Engine)**:
    - 기상 리스크(미끄러짐, 우천 보행 불편 등), 정시성, 혼잡도를 종합 평가하여 `지하철`, `버스`, `따릉이` 추천 점수(0~100점) 및 추천 사유(Explainability) 동적 생성.
-4. **가상 날씨 시뮬레이션 서빙 (Real-time What-If Simulation)**:
-   - 프론트엔드의 가상 강수량 슬라이더(0.0~10.0mm/h) 조작 시 지연 시간 20ms 이내로 수요 전이(따릉이 급감 → 지하철/버스 집중) 결과를 즉각 반환.
+4. **가상 기상 조건 배치 시뮬레이션 서빙 (What-If Batch Simulation)**:
+   - 백엔드 API(`/api/v1/simulate/weather-impact`)를 통해 가상 강수량(0.0~10.0mm/h) 조건 입력 시 25개 자치구 일괄 지연 시간 20ms 이내로 수요 전이(따릉이 급감 → 지하철/버스 집중) 배치 분석 결과를 즉각 반환 (B2B 운영사 및 관리자 분석용).
 
 ---
 
@@ -153,7 +153,10 @@ FEATURE_SCHEMA = {
 > - 그러나 개별 배포 모델의 **입력 텐서 차원은 다를 수 있습니다**. 현재 `models/*.onnx`는 **25차원** 텐서를 기대하며, 이는 32차원에서 `district_subway_stations`, `district_bus_stops`, `district_bike_racks`, `commercial_density`(4) + `same_day_last_week_bike/bus/sub`(3) = **7차원을 제외한 부분집합**입니다.
 > - 서버는 `main.py::prepare_session_input()`에서 모델 기대 차원에 맞춰 자동 정렬(인덱스 매핑)하므로 25차원·32차원 모델이 공존할 수 있습니다.
 > - **학습 데이터**: 2026-10-13부터 원천이 `data/2025_서울25개구_교통날씨_전처리_2.csv` 로 전환되어, 위 7개 피처를 학습 파이프라인이 **실측값으로 직접 산출**합니다(인프라 4종은 `main.py::DISTRICT_INFRA` 조인, `same_day_last_week_*` 3종은 7일 전 타임스탬프 self-merge). 따라서 **"25차원 실피처 + 상수 0 더미 7" 방식은 폐기**되었습니다.
-> - **`is_holiday` 정의**: `is_weekend`(토/일)와 **별개 지표**이며, `main.py::KR_HOLIDAYS` 의 2025년 공휴일 19일 집합을 단일 소스로 사용합니다. 학습 노트북도 동일 집합(`KR_HOLIDAYS_2025`)을 사용해 학습↔서빙 정의를 일치시킵니다.
+> - **[2026-10-29 최신화] 3개년 28열 신규 통합데이터 및 Colab 학습 지원**:
+>   - 2023, 2024, 2025 3개년 63만 건 데이터셋 도입에 따라 `지하철_하차`, `풍향(deg)` 등 미사용 5개 열이 삭제된 **28열 표준 포맷**으로 일원화되었습니다.
+>   - 학습 파이프라인(`benchmarks/CastTransit.ipynb`, `benchmarks/retrain_25d.py`)은 구글 드라이브(`MyDrive/weather-transit-web/data/통합데이터/`) 경로의 3개년 데이터를 자동 감지·병합하여 2023~2024 Train(42만 건) ➔ 2025 Test(20.9만 건)로 분할 학습합니다.
+> - **`is_holiday` 정의**: `is_weekend`(토/일)와 **별개 지표**이며, `main.py::KR_HOLIDAYS` 의 2023~2025년 공휴일 집합을 단일 소스로 사용합니다. 학습 노트북도 동일 집합을 사용해 학습↔서빙 정의를 일치시킵니다.
 
 ---
 
@@ -252,9 +255,9 @@ FEATURE_SCHEMA = {
 
 ---
 
-#### API 2. 가상 기상 시뮬레이터 추론 API (What-If Simulator)
+#### API 2. 가상 기상 조건 배치 시뮬레이션 API (What-If Batch Simulator)
 - **엔드포인트**: `POST /api/v1/simulate/weather-impact`
-- **설명**: 프론트엔드의 슬라이더로 조절한 가상 강수량(0~10mm/h)과 시간대에 따른 모달 시프트(Modal Shift)와 25개 자치구 혼잡도를 즉시 계산합니다.
+- **설명**: 가상 강수량(0~10mm/h)과 기온, 시간대 조건에 따른 모달 시프트(Modal Shift)와 서울시 25개 자치구 일괄 혼잡도 및 수요 변동을 즉시 배치 계산합니다 (B2B 재배치 분석 및 시뮬레이션용).
 - **Request Body (JSON)**:
 ```json
 {

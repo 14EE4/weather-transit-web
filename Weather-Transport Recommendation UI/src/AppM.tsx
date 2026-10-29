@@ -12,6 +12,7 @@ import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall
 import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
+import MultimodalRoutePanel from './MultimodalRoutePanel'
 
 type Page = 'main' | 'route' | 'map'
 
@@ -2012,17 +2013,17 @@ export default function AppM() {
           PAGE: 경로 추천
       ══════════════════════════════════════ */}
       {page === 'route' && (
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 32px 64px' }}>
-          <div style={{ marginBottom: 28 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--app-text)', margin: 0, letterSpacing: '-0.5px' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px 16px 80px' }}>
+          <div style={{ marginBottom: 20 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--app-text)', margin: 0, letterSpacing: '-0.5px' }}>
               경로 추천
             </h1>
-            <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: '6px 0 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--color-muted)', margin: '4px 0 0' }}>
               현재 날씨를 반영해 최적 교통수단과 경로를 추천합니다
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 24, alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* 입력 패널 */}
             <div>

@@ -8,6 +8,18 @@
 
 ## [2026-10-29]
 
+### 📱 모바일 환경 경로 추천 화면 렌더링 크래시 핫픽스 (이슈 #62)
+- **배경**:
+  - 모바일 환경(화면 폭 768px 이하, `AppM.tsx` 실행)에서 '경로 추천' 탭(`page === 'route'`) 선택 시 화면 전체가 백지(Blank Page)로 멈추는 P0 Blocker 버그 발생.
+- **원인 분석**:
+  1. `Weather-Transport Recommendation UI/src/AppM.tsx` 상단에 `<MultimodalRoutePanel />` 컴포넌트의 `import` 구문이 누락되어, 경로 추천 탭 진입 시 `ReferenceError: MultimodalRoutePanel is not defined`가 발생하면서 React 컴포넌트 트리가 전체 언마운트됨.
+  2. 모바일 컴포넌트임에도 PC 전용 그리드 레이아웃(`gridTemplateColumns: '400px 1fr'`) 및 과도한 패딩(`32px 32px 64px`)이 적용되어 모바일 뷰포트 레이아웃 붕괴 유발.
+- **주요 조치**:
+  1. `AppM.tsx` 상단에 `import MultimodalRoutePanel from './MultimodalRoutePanel'` 명시 추가.
+  2. 모바일 환경에 최적화된 세로 1열 반응형 구조(`display: 'flex'`, `flexDirection: 'column'`, `gap: 16px`, `maxWidth: 640px`, `padding: '16px 16px 80px'`)로 레이아웃 재구성.
+  3. `npm run build` 검증 및 `docker compose build frontend; docker compose up -d frontend` 컨테이너 재빌드 완료.
+
+
 ### 🕒 경로 추천 시간대 슬라이더 현재 시각 복귀 버튼 신설 (이슈 #59)
 - **배경**:
   - 경로 추천 탭(`activeTab === 'route'`)에서 출발 시각 및 날씨/혼잡도를 조절하는 시간대 슬라이더를 조작한 후, 실시간 현재 시각으로 빠르게 복귀할 수 있는 버튼이 없어 수동으로 슬라이더를 드래그해야 하는 UX 불편 개선 필요.

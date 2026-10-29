@@ -22,6 +22,9 @@
 - [x] **[UI-04] 경로 추천 시간대 슬라이더 현재 시각 복귀 버튼 신설 (완료 · 2026-10-29 · 이슈 #59)**:
   - 경로 추천 탭(`activeTab === 'route'`)의 출발 시각 조절 슬라이더에 현재 시각이 아닐 때(`!isCurrentHour`) `🔄 현재 시각` 버튼 표출.
   - 클릭 시 `setSelectedHour(nowHour)`를 실행하여 실시간 현재 시각으로 즉시 재설정 가능하도록 편의성 강화.
+- [x] **[UI-05] 모바일 환경(`AppM.tsx`) 경로 추천 화면 렌더링 크래시 긴급 핫픽스 (완료 · 2026-10-29 · 이슈 #62)**:
+  - `AppM.tsx` 내 `MultimodalRoutePanel` 누락 import 추가로 런타임 `ReferenceError` 및 백지 현상 원천 해결.
+  - 모바일 세로 1열 반응형 레이아웃(`maxWidth: 640px`, `padding: 16px 16px 80px`, `display: flex`, `flexDirection: column`)으로 전면 재구성.
 ---
 
 ### 🛡️ 0-0. 운영 안정성 및 관제 신뢰도 고도화 (완료 · 2026-10-29 · 이슈 #57)

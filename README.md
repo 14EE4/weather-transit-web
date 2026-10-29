@@ -252,7 +252,8 @@ docker compose up --build -d
 |---|---|---|
 | **🌐 웹 대시보드 (Frontend)** | **`http://localhost:3100`** | Nginx 리버스 프록시 연동 SPA (포트 3100) |
 | **⚡ AI 추론 API (Backend)** | **`http://localhost:8100/docs`** | FastAPI Swagger 대화형 API 문서 (포트 8100) |
-| **🩺 시스템 헬스체크** | `http://localhost:8100/health` | ONNX 세션 인메모리 웜업 및 서킷 브레이커 상태 |
+| **🩺 시스템 헬스체크** | `http://localhost:8100/health` (또는 `:3100/health`) | ONNX 세션 인메모리 웜업 및 서킷 브레이커 상태 (JSON) |
+| **📊 관리자 로그 & 헬스 대시보드** | **`http://localhost:3100/health/dashboard`** | 백엔드 독립형 실시간 시스템 모니터링 & 로그 스트림 콘솔 (HTML) |
 
 ### 4. 주요 컨테이너 관리 명령어
 ```bash

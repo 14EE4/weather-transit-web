@@ -8,6 +8,27 @@
 
 ## [2026-10-29]
 
+### 📊 백엔드 독립형 실시간 로그 확인 및 헬스체크 모니터링 대시보드 구축 (이슈 #53)
+- **배경**:
+  - 일반 사용자용 메인 UI(`http://localhost:3100/`)에는 관리자/로그 기능이 노출되지 않도록 완벽히 격리하고,
+  - 개발자 및 운영자가 브라우저 개발자 도구(F12)나 Docker CLI 터미널 없이도 URL 접근만으로 외부 공공 API 연동 상태, ONNX AI 추론 엔진, 서킷 브레이커, 실시간 서버 로그를 모니터링하고 트러블슈팅할 수 있는 백엔드 독립형 경량 대시보드 구축.
+- **주요 조치**:
+  1. **인메모리 순환 로그 버퍼 핸들러 구축 (`in_memory_log_handler.py`)**:
+     - 파이썬 표준 `logging.Handler`를 기반으로 최근 `1,000~2,000건`의 실시간 로그를 메모리(`collections.deque`)에 안전하게 캡처 보관.
+     - `_buf_lock = threading.RLock()`을 적용하여 `logging.Handler` 내부 락과의 데드락 충돌을 원천 차단.
+     - 도메인 태그(기상청, 지하철, 버스, 따릉이, LangGraph, AI추론, 서킷브레이커, HTTP, 시스템) 자동 분류.
+  2. **관리자 모니터링 및 제어 API 신설 (`main.py`)**:
+     - `GET /api/v1/admin/logs`: 최근 로그 목록 필터링 조회 (레벨, 도메인, 키워드 검색 지원).
+     - `GET /api/v1/admin/status`: 서버 가동시간(Uptime), 32차원 모델 상태, 공공 API 4종 서킷 브레이커 현황, 캐시 통계 반환.
+     - `POST /api/v1/admin/cache/clear`: SQLite 시계열 캐시(`timeseries_cache.db`) 및 인메모리 단기 캐시 즉시 비우기.
+  3. **단일 파일 경량 웹 대시보드 렌더링 (`/health/dashboard`, `admin_dashboard.py`)**:
+     - 프론트엔드 React 의존성 없는 단일 HTML/Tailwind CDN 기반의 다크 테마 대시보드 서빙.
+     - **상단 KPI 패널**: 기상청 API, 버스·지하철 연동, 따릉이 잔여량, AI ONNX 32차원 모델, 서킷 브레이커 상태 및 [캐시 비우기] 버튼.
+     - **하단 라이브 로그 터미널**: `JetBrains Mono` 폰트, 실시간 자동 갱신(`1.5초` 주기 폴링), 로그 레벨/도메인 필터링, 키워드 검색, 최하단 자동 스크롤(Auto-scroll), 로그 텍스트 다운로드 기능.
+  4. **Nginx 리버스 프록시 및 FastAPI Docs 연동 (`nginx.conf`)**:
+     - Nginx에 `/health` 및 `/docs`, `/openapi.json` 프록시를 보강하여 `:3100` 및 `:8100` 모두에서 `/health/dashboard`와 Swagger UI 접근 지원.
+     - FastAPI `/docs` 상단 설명에 대시보드 바로가기 링크 등록.
+
 ### 🎨 프론트엔드 정적 상수 분리, 스켈레톤 UI 전환 및 API 폴백 배지 명시화 (이슈 #29)
 - **배경**:
   - `App.tsx` 및 `AppM.tsx` 마운트 초기 `0.1~0.5초` 동안 하드코딩된 숫자 배열(`DEFAULT_24H_DATA`, `TRANSPORT_SCORES`, `DISTRICT_DATA`)이 잠깐 번쩍이며 나타나는 현상 제거.

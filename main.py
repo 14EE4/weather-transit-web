@@ -14,6 +14,9 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from in_memory_log_handler import in_memory_log_handler, attach_in_memory_log_handler
+from admin_dashboard import render_dashboard_html, get_system_uptime_str, get_cache_stats
 from pydantic import BaseModel, Field
 import numpy as np
 import onnxruntime as ort
@@ -44,6 +47,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s"
 )
 logger = logging.getLogger("weather_transit_api")
+attach_in_memory_log_handler()
 
 # .env 로드
 load_dotenv()
@@ -641,7 +645,10 @@ async def lifespan(app: FastAPI):
 # ==============================================================================
 app = FastAPI(
     title="Weather & Transit AI Inference Backend",
-    description="2025 서울시 교통-기상 통합 빅데이터 기반 실시간 수요·혼잡도 예측 및 MCDA 추천 API",
+    description="""2025 서울시 기상-대중교통 빅데이터 기반 실시간 수요·혼잡도 추론 및 MCDA 추천 API
+
+* 📊 **[시스템 상태 및 실시간 로그 대시보드 바로가기](/health/dashboard)**
+* 🔍 **[원천 JSON 헬스체크](/health)**""",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -1220,11 +1227,107 @@ def calculate_station_crowd(base: int, hour: int, rain: float, stop_type: str, s
 # ==============================================================================
 # 7. 엔드포인트 구현
 # ==============================================================================
+# ==============================================================================
+# [Admin & Health Observability] 독립형 시스템 헬스체크 및 실시간 로그 모니터링
+# ==============================================================================
+@app.get("/health/dashboard", response_class=HTMLResponse, tags=["System"], include_in_schema=True)
+async def admin_health_dashboard():
+    """
+    백엔드 독립형 실시간 시스템 헬스체크 및 로그 모니터링 대시보드 (단독 웹페이지)
+    - 외부 공공 API 4종 상태, ONNX 엔진 상태, 서킷브레이커, 시계열 캐시 및 실시간 로그 스트리밍 제공
+    """
+    return HTMLResponse(content=render_dashboard_html(), status_code=200)
+
+@app.get("/api/v1/admin/logs", tags=["System"])
+async def get_admin_logs(
+    since_id: Optional[int] = None,
+    level: Optional[str] = None,
+    domain: Optional[str] = None,
+    query: Optional[str] = None,
+    limit: int = 200,
+):
+    """
+    서버 인메모리 순환 버퍼에 캡처된 최근 실시간 로그 목록 필터링 조회 API
+    """
+    logs = in_memory_log_handler.get_logs(
+        since_id=since_id,
+        level=level,
+        domain=domain,
+        query=query,
+        limit=min(1000, max(1, limit))
+    )
+    return logs
+
+@app.get("/api/v1/admin/status", tags=["System"])
+async def get_admin_system_status():
+    """
+    서버 업타임, ONNX 32차원 모델, 공공 API 서킷 브레이커, 시계열 캐시 통계 종합 조회 API
+    """
+    return {
+        "status": "ok",
+        "uptime": get_system_uptime_str(),
+        "models_loaded": registry.is_loaded,
+        "feature_schema": registry.schema_report(),
+        "circuit_breakers": {
+            "kma_weather": kma_circuit_breaker.get_status(),
+            "seoul_subway": subway_circuit_breaker.get_status(),
+            "seoul_bus": bus_circuit_breaker.get_status(),
+            "seoul_bike": bike_circuit_breaker.get_status(),
+        },
+        "cache_stats": get_cache_stats(),
+        "log_stats": in_memory_log_handler.get_stats(),
+        "timestamp": datetime.now().astimezone().isoformat(),
+    }
+
+@app.post("/api/v1/admin/cache/clear", tags=["System"])
+async def clear_admin_cache():
+    """
+    시계열 캐시(SQLite timeseries_cache.db) 및 인메모리 단기 캐시를 즉시 비우고 외부 API 강제 재호출을 준비
+    """
+    try:
+        # SQLite DB 레코드 삭제
+        db_candidates = [
+            os.path.join(os.getcwd(), "timeseries_cache.db"),
+            os.path.join(os.getcwd(), "data", "timeseries_cache.db"),
+            "/app/data/timeseries_cache.db",
+            "/app/timeseries_cache.db",
+        ]
+        cleared_db = False
+        for p in db_candidates:
+            if os.path.exists(p):
+                import sqlite3
+                conn = sqlite3.connect(p)
+                cur = conn.cursor()
+                cur.execute("DELETE FROM timeseries_cache")
+                cur.execute("VACUUM")
+                conn.commit()
+                conn.close()
+                cleared_db = True
+
+        # 인메모리 단기 캐시 클리어
+        global _weather_cache, _subway_cache, _bus_cache, _bike_snapshot_cache
+        _weather_cache.clear()
+        _subway_cache.clear()
+        _bus_cache.clear()
+        _bike_snapshot_cache = None
+
+        logger.info("[Admin] 관리자 요청에 의해 시계열 캐시 및 인메모리 스냅샷이 성공적으로 비워졌습니다.")
+        return {
+            "status": "ok",
+            "message": "시계열 캐시 및 인메모리 스냅샷이 성공적으로 초기화되었습니다.",
+            "cleared_sqlite": cleared_db,
+            "timestamp": datetime.now().astimezone().isoformat()
+        }
+    except Exception as exc:
+        logger.error(f"[Admin] 캐시 초기화 중 오류: {exc}")
+        raise HTTPException(status_code=500, detail=f"캐시 초기화 실패: {exc}")
+
 @app.get("/health", tags=["System"])
 async def health_check():
     """서버 헬스체크, 모델 로딩 상태 및 외부 공공 API 서킷 브레이커 상태 확인"""
     return {
         "status": "ok",
+        "dashboard_url": "/health/dashboard",
         "models_loaded": registry.is_loaded,
         "feature_schema": registry.schema_report(),
         "circuit_breakers": {

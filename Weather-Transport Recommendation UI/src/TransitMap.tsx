@@ -2424,7 +2424,34 @@ popupContent.append(title, number)
       duration: 1000,
     })
 
-    // 출발지 마커 핀 (초록색 캡슐 + 탑승 열차 잔여 시간 표시)
+    const startCoord = coords[0]
+    const endCoord = coords[coords.length - 1]
+
+    // 두 좌표가 인접한지 판별 (위경도 차이 0.0035도, 약 300m 이내)
+    const isNearbyCoord = (c1?: [number, number], c2?: [number, number], threshold = 0.0035) => {
+      if (!c1 || !c2) return false
+      return Math.abs(c1[0] - c2[0]) < threshold && Math.abs(c1[1] - c2[1]) < threshold
+    }
+
+    // 출발지와 인접/일치하는 따릉이 대여 세그먼트 탐색 (겹침 방지 및 일체형 알약 통합용)
+    const mergedBikePickup = activeRoute.segments?.find(seg => 
+      seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2 &&
+      (isNearbyCoord(seg.coords[0], startCoord) || 
+       seg.from_name === activeRoute.from || 
+       activeRoute.from.includes(seg.from_name) || 
+       seg.from_name.includes(activeRoute.from))
+    )
+
+    // 도착지와 인접/일치하는 따릉이 반납 세그먼트 탐색 (겹침 방지 및 일체형 알약 통합용)
+    const mergedBikeDrop = activeRoute.segments?.find(seg => 
+      seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2 &&
+      (isNearbyCoord(seg.coords[seg.coords.length - 1], endCoord) || 
+       seg.to_name === activeRoute.to || 
+       activeRoute.to.includes(seg.to_name) || 
+       seg.to_name.includes(activeRoute.to))
+    )
+
+    // 출발지 마커 핀 (초록색 캡슐 + 탑승 열차 잔여 시간 / 따릉이 대여 정보 표시)
     const startStop = TRANSIT_STOPS.find(s => s.name === activeRoute.from)
     const startCrowd = startStop ? calculateCrowd(startStop) : 65
     const depTrain = activeRoute.departureTrain
@@ -2462,6 +2489,12 @@ popupContent.append(title, number)
             <span style="background: #065F46; color: #6EE7B7; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${depTrain.remainingMinutes}분 후 도착</span>
           </div>
         ` : ''}
+        ${mergedBikePickup ? `
+          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚲 따릉이 대여:</span>
+            <span>${mergedBikePickup.from_name || '대여소'}</span>
+          </div>
+        ` : ''}
       </div>
       <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #10B981;"></div>
     `
@@ -2488,49 +2521,53 @@ popupContent.append(title, number)
       })
     }
     const startMarker = new maplibregl.Marker({ element: startEl })
-      .setLngLat(coords[0])
+      .setLngLat(startCoord)
       .addTo(map)
     routeMarkersRef.current.push(startMarker)
 
-        // 따릉이(Bike) 세그먼트 대여소/반납소 마커 핀 (초록색 캡슐)
+    // 따릉이(Bike) 세그먼트 대여소/반납소 마커 핀 (출발/도착과 겹치지 않는 독립 구간만 생성)
     if (activeRoute.segments && activeRoute.segments.length > 0) {
       activeRoute.segments.forEach(seg => {
         if (seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
-          // 대여소 핀 (출발 대여소)
-          const pickupCoord = seg.coords[0]
-          const pickupEl = document.createElement('div')
-          pickupEl.className = 'route-bike-pickup-pin'
-          pickupEl.style.display = 'flex'
-          pickupEl.style.flexDirection = 'column'
-          pickupEl.style.alignItems = 'center'
-          pickupEl.style.cursor = 'pointer'
-          pickupEl.innerHTML = `
-            <div style="background: #10B981; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(16,185,129,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
-              <span>🚲 대여</span>
-              <span>${seg.from_name || '따릉이 대여소'}</span>
-            </div>
-            <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #10B981;"></div>
-          `
-          const pMarker = new maplibregl.Marker({ element: pickupEl }).setLngLat(pickupCoord).addTo(map)
-          routeMarkersRef.current.push(pMarker)
+          // 대여소 핀 (출발 대여소): 출발 알약과 병합되지 않은 경우에만 독립 마커 생성
+          if (mergedBikePickup !== seg) {
+            const pickupCoord = seg.coords[0]
+            const pickupEl = document.createElement('div')
+            pickupEl.className = 'route-bike-pickup-pin'
+            pickupEl.style.display = 'flex'
+            pickupEl.style.flexDirection = 'column'
+            pickupEl.style.alignItems = 'center'
+            pickupEl.style.cursor = 'pointer'
+            pickupEl.innerHTML = `
+              <div style="background: #10B981; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(16,185,129,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚲 대여</span>
+                <span>${seg.from_name || '따릉이 대여소'}</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #10B981;"></div>
+            `
+            const pMarker = new maplibregl.Marker({ element: pickupEl }).setLngLat(pickupCoord).addTo(map)
+            routeMarkersRef.current.push(pMarker)
+          }
 
-          // 반납소 핀 (도착 반납소)
-          const dropCoord = seg.coords[seg.coords.length - 1]
-          const dropEl = document.createElement('div')
-          dropEl.className = 'route-bike-drop-pin'
-          dropEl.style.display = 'flex'
-          dropEl.style.flexDirection = 'column'
-          dropEl.style.alignItems = 'center'
-          dropEl.style.cursor = 'pointer'
-          dropEl.innerHTML = `
-            <div style="background: #059669; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(5,150,105,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
-              <span>🚲 반납</span>
-              <span>${seg.to_name || '따릉이 반납소'}</span>
-            </div>
-            <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #059669;"></div>
-          `
-          const dMarker = new maplibregl.Marker({ element: dropEl }).setLngLat(dropCoord).addTo(map)
-          routeMarkersRef.current.push(dMarker)
+          // 반납소 핀 (도착 반납소): 도착 알약과 병합되지 않은 경우에만 독립 마커 생성
+          if (mergedBikeDrop !== seg) {
+            const dropCoord = seg.coords[seg.coords.length - 1]
+            const dropEl = document.createElement('div')
+            dropEl.className = 'route-bike-drop-pin'
+            dropEl.style.display = 'flex'
+            dropEl.style.flexDirection = 'column'
+            dropEl.style.alignItems = 'center'
+            dropEl.style.cursor = 'pointer'
+            dropEl.innerHTML = `
+              <div style="background: #059669; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(5,150,105,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+                <span>🚲 반납</span>
+                <span>${seg.to_name || '따릉이 반납소'}</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #059669;"></div>
+            `
+            const dMarker = new maplibregl.Marker({ element: dropEl }).setLngLat(dropCoord).addTo(map)
+            routeMarkersRef.current.push(dMarker)
+          }
         }
       })
     }
@@ -2607,7 +2644,7 @@ popupContent.append(title, number)
       })
     }
 
-    // 도착지 마커 핀 (로즈색 캡슐)
+    // 도착지 마커 핀 (로즈색 캡슐 / 따릉이 반납과 인접 시 일체형 병합 알약 표출)
     const endStop = TRANSIT_STOPS.find(s => s.name === activeRoute.to)
     const endCrowd = endStop ? calculateCrowd(endStop) : 75
     const endEl = document.createElement('div')
@@ -2616,27 +2653,60 @@ popupContent.append(title, number)
     endEl.style.flexDirection = 'column'
     endEl.style.alignItems = 'center'
     endEl.style.cursor = 'pointer'
-    endEl.innerHTML = `
-      <div style="
-        background: #F43F5E;
-        color: #FFFFFF;
-        font-weight: 800;
-        font-size: 11px;
-        padding: 4px 10px;
-        border-radius: 9999px;
-        box-shadow: 0 4px 18px rgba(244,63,94,0.6);
-        border: 2px solid #FFFFFF;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        white-space: nowrap;
-      ">
-        <span>🔴 도착</span>
-        <span>${activeRoute.to}</span>
-        <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
-      </div>
-      <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
-    `
+
+    if (mergedBikeDrop) {
+      // 도착지와 따릉이 반납소가 겹칠 경우: 유려한 그라디언트 일체형 캡슐 알약으로 통합!
+      endEl.innerHTML = `
+        <div style="
+          background: linear-gradient(135deg, #059669 0%, #E11D48 100%);
+          color: #FFFFFF;
+          font-weight: 800;
+          font-size: 11px;
+          padding: 5px 12px;
+          border-radius: 9999px;
+          box-shadow: 0 4px 18px rgba(225,29,72,0.65);
+          border: 2px solid #FFFFFF;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          white-space: nowrap;
+        ">
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <span>🏁 도착</span>
+            <span>${activeRoute.to}</span>
+            <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+          </div>
+          <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚲 따릉이 반납:</span>
+            <span>${mergedBikeDrop.to_name || '반납소'}</span>
+          </div>
+        </div>
+        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #E11D48;"></div>
+      `
+    } else {
+      endEl.innerHTML = `
+        <div style="
+          background: #F43F5E;
+          color: #FFFFFF;
+          font-weight: 800;
+          font-size: 11px;
+          padding: 4px 10px;
+          border-radius: 9999px;
+          box-shadow: 0 4px 18px rgba(244,63,94,0.6);
+          border: 2px solid #FFFFFF;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          white-space: nowrap;
+        ">
+          <span>🔴 도착</span>
+          <span>${activeRoute.to}</span>
+          <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+        </div>
+        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
+      `
+    }
     if (endStop) {
       endEl.addEventListener('click', () => {
         if (activePopupRef.current) {

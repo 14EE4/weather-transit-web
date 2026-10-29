@@ -8,6 +8,25 @@
 
 ## [2026-10-29]
 
+
+### 🐛 서울시 버스 API NoneType 응답 방어 및 인메모리 로그 중복 출력 개선 (이슈 #57)
+- **배경**:
+  - 실시간 운영 환경 및 `/health/dashboard` 관제 로그 스트리밍에서 다음 2가지 결함이 발견됨:
+    1. 서울시 저상버스 도착 API(`getLowArrInfoByStId`) 호출 시, 운행 대기나 저상버스 미운행 정류소에 대해 공공데이터포털이 `{"msgBody": {"itemList": null}}`을 응답할 때 dict 슬라이싱(`items[:10]`)에서 `TypeError: 'NoneType' object is not subscriptable`이 발생하여 서킷 브레이커(`bus_circuit_breaker`)가 연속 실패 5회로 서킷을 OPEN 차단하는 결함.
+    2. 인메모리 로그 핸들러(`InMemoryLogHandler`)가 루트 로거와 자식 로거(`uvicorn`, `weather_transit_api`, `multimodal_router` 등)에 중복 등록되어 `propagate=True` 전파로 인해 모든 로그 라인이 2회씩 연속 중복 수집/출력되는 결함.
+- **주요 조치**:
+  1. **서울시 버스 도착 API `NoneType` 방어 처리 (`main.py`, `multimodal_router.py`)**:
+     - `items = msg_body.get("itemList") or []` 형태로 정규화하여 `itemList`가 `None`이어도 안전하게 빈 리스트(`[]`)로 치환.
+     - `isinstance(items, dict)` 및 `isinstance(items, list)` 검사를 추가하고, 리스트 내 개별 `item` 역시 딕셔너리 검사(`if not isinstance(item, dict): continue`)를 보강.
+     - 저상버스 운행 편수가 0건인 정상 응답(빈 리스트)에 대해 서킷 브레이커가 실패 카운트를 올리지 않고 정상(`record_success()`)으로 처리하여 서킷이 항상 `CLOSED` 상태를 유지하도록 개선.
+  2. **인메모리 로그 핸들러 중복 수집 원천 차단 (`in_memory_log_handler.py`)**:
+     - `attach_in_memory_log_handler()`에서 루트 로거(`logging.getLogger()`)에만 핸들러를 등록하고, 자식 로거(`uvicorn`, `uvicorn.access`, `uvicorn.error`, `weather_transit_api` 등)에는 중복 핸들러를 붙이지 않고 상위 전파(`propagate = True`)만 보장하도록 구조 개선.
+     - `InMemoryLogHandler.emit()` 메서드에 직전 시그니처(`timestamp_str, logger_name, message`) 기반 중복 필터링(Deduplication) 안전장치를 이중 구축.
+  3. **검증 및 Docker 반영**:
+     - `docker compose build backend; docker compose up -d backend` 컨테이너 재빌드.
+     - `/health` 서킷 브레이커 상태 확인(`seoul_bus: CLOSED`), 문제 정류소(`stId=123000600`) 실시간 호출 성공(HTTP 200, 정상 메시지 응답), `/api/v1/admin/logs`에서 로그 라인이 1건씩 중복 없이 정상 기록됨을 확인.
+
+
 ### 🌓 다크 모드 및 화이트(라이트) 모드 테마 지원 & 전역 CSS 변수 정합화 (이슈 #12)
 - **배경**:
   - 사용자 환경(주간 야외, 야간 실내 등) 및 시각적 편의성에 따라 화면 테마를 자유롭게 선택할 수 있도록 다크 모드와 화이트(라이트) 모드 전환 기능 지원 필요.

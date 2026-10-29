@@ -412,6 +412,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             type: 'raster',
             tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
             tileSize: 256,
+            maxzoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
           },
         },

@@ -2184,16 +2184,16 @@ export default function App() {
                 </div>
 
                 {/* 출발 ↔ 도착 맞바꾸기 구분선 */}
-                <div style={{ position: 'relative', height: 1, background: 'rgba(255,255,255,0.07)' }}>
+                <div style={{ position: 'relative', height: 1, background: 'var(--color-border)' }}>
                   <button
                     onClick={handleSwapRoute}
                     title="출발지 ↔ 도착지 맞바꾸기"
                     style={{
                       position: 'absolute', right: 18, top: -14, width: 28, height: 28,
-                      borderRadius: '50%', background: '#1E293B', border: '1px solid rgba(255,255,255,0.18)',
-                      color: '#38BDF8', fontSize: 13, cursor: 'pointer', display: 'flex',
+                      borderRadius: '50%', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                      color: 'var(--color-primary)', fontSize: 13, cursor: 'pointer', display: 'flex',
                       alignItems: 'center', justifyContent: 'center', zIndex: 10,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.4)', transition: 'all 0.15s ease',
+                      boxShadow: '0 2px 8px var(--app-shadow)', transition: 'all 0.15s ease',
                     }}
                   >
                     ⇅

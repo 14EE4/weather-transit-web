@@ -371,7 +371,7 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
       {data && (data.top_recall_districts.length > 0 || data.top_deploy_districts.length > 0) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, marginBottom: 28 }}>
           {/* 회수 집중 구역 */}
-          <div style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 16, padding: '20px 24px' }}>
+          <div style={{ background: 'var(--color-card)', border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)', borderRadius: 16, padding: '20px 24px', boxShadow: '0 8px 24px var(--app-shadow)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <span style={{ fontSize: 16 }}>🚚</span>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--app-text)', margin: 0 }}>
@@ -383,7 +383,7 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {data.top_recall_districts.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)' }}>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: 'var(--color-card2)', border: '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(56,189,248,0.2)', color: '#38BDF8', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {idx + 1}
@@ -401,7 +401,7 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
           </div>
 
           {/* 배치 집중 구역 */}
-          <div style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 16, padding: '20px 24px' }}>
+          <div style={{ background: 'var(--color-card)', border: '1px solid color-mix(in srgb, #F59E0B 30%, transparent)', borderRadius: 16, padding: '20px 24px', boxShadow: '0 8px 24px var(--app-shadow)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <span style={{ fontSize: 16 }}>📦</span>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--app-text)', margin: 0 }}>
@@ -413,7 +413,7 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {data.top_deploy_districts.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)' }}>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: 'var(--color-card2)', border: '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(245,158,11,0.2)', color: '#F59E0B', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {idx + 1}

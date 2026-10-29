@@ -443,3 +443,13 @@ html[data-theme="dark"] input[type="range"]::-moz-range-track {
   background: #1E293B;
   border-color: rgba(255, 255, 255, 0.1);
 }
+
+/* ── 모바일 날씨 패널 2x2 지표 그리드 강제 보호 ── */
+.weather-metrics-grid,
+div.weather-metrics-grid,
+div.weather-metrics-grid[style] {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  width: 100% !important;
+}

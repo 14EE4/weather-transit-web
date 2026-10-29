@@ -304,6 +304,22 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const prevActiveRouteRef = useRef<any>(null)
   const [activeStop, setActiveStop] = useState<TransitStop | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
+  const [showLegend, setShowLegend] = useState(false)
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const getMapThemeSurface = () => {
+    if (typeof document === 'undefined') return '#111D35'
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+    return isLight ? '#FFFFFF' : '#111D35'
+  }
   // 실시간 API로 불러온 거점 외 따릉이 대여소 (기존 마커 파이프라인에 합쳐 표시)
   const [liveBikeStops, setLiveBikeStops] = useState<TransitStop[]>([])
   const [zoomLevel, setZoomLevel] = useState<number>(13)
@@ -767,9 +783,22 @@ popupContent.append(title, number)
       const [lng, lat] = item.stop.coords
 
       // 1. 활성 경로가 있는 경우:
-      // - 사용자가 명시적으로 해당 수단 필터(예: 따릉이 filterType='bike')를 선택했거나,
-      // - 경로 세그먼트에 포함된 대여소/정류소는 숨기지 않고 표출!
+      // - 모바일(isMobile)이거나 일반 시야 뷰(zoom < 14.5)에서는 수많은 중간 경유역 마커들을 모두 숨겨서
+      //   오직 [🟢 출발역 ➔ 🔄 환승역 ➔ 🔴 도착역](및 따릉이 대여/반납, 버스 승하차) 전용 핀만 선명하게 노출 (중간역 겹침 원천 방지)
       if (hasActiveRoute && currentRoute) {
+        // 모바일에서는 화면이 작아 중간 경유역 알약들이 서로 심하게 겹치므로 완전히 숨김
+        // (출발역, 환승역, 도착역은 routeMarkersRef 전용 핀으로 크고 명확하게 표출됨)
+        if (isMobile) {
+          item.el.style.display = 'none'
+          continue
+        }
+
+        // PC 환경에서도 광역/일반 시야(zoom < 14.5)에서는 중간역을 숨겨 겹침 방지 (초근접 줌인 시에만 표출)
+        if (currentZoom < 14.5) {
+          item.el.style.display = 'none'
+          continue
+        }
+
         const isFilterMatched = filterType && filterType === item.stop.type
         const isSegmentStop = routeStationNames.has(item.stop.name) || 
                               routeStationNames.has(item.stop.name.replace(/\(.*?\)/g, '').trim()) ||
@@ -1028,7 +1057,7 @@ popupContent.append(title, number)
           18, 10
         ],
         'circle-color': '#34D399',
-        'circle-stroke-color': 'var(--color-surface)',
+        'circle-stroke-color': getMapThemeSurface(),
         'circle-stroke-width': 2,
         'circle-opacity': 0.95
       }
@@ -1397,7 +1426,7 @@ popupContent.append(title, number)
       paint: {
         'circle-radius': 5,
         'circle-color': '#FBBF24',
-        'circle-stroke-color': 'var(--color-surface)',
+        'circle-stroke-color': getMapThemeSurface(),
         'circle-stroke-width': 1.5
       }
     })
@@ -2869,45 +2898,47 @@ popupContent.append(title, number)
       {/* 지도 컨테이너 */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 
-      {/* 권역 원클릭 카메라 퀵 이동 컨트롤 */}
-      <div style={{
-        position: 'absolute',
-        top: 16,
-        left: 16,
-        zIndex: 10,
-        display: 'flex',
-        gap: 6,
-        background: 'var(--app-glass)',
-        backdropFilter: 'blur(10px)',
-        padding: '6px 8px',
-        borderRadius: 12,
-        border: '1px solid rgba(56, 189, 248, 0.25)',
-      }}>
-        <button
-          onClick={() => flyToArea([127.0276, 37.4979], 14)}
-          style={{ background: 'rgba(56,189,248,0.15)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 강남·역삼
-        </button>
-        <button
-          onClick={() => flyToArea([127.0950, 37.5120], 14)}
-          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 잠실·송파
-        </button>
-        <button
-          onClick={() => flyToArea([126.9242, 37.5219], 14)}
-          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 여의도
-        </button>
-        <button
-          onClick={() => flyToArea([126.9750, 37.5580], 14)}
-          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 서울역·도심
-        </button>
-      </div>
+      {/* 권역 원클릭 카메라 퀵 이동 컨트롤 (모바일에서는 지도 가림 방지를 위해 미표시) */}
+      {!isMobile && (
+        <div style={{
+          position: 'absolute',
+          top: 16,
+          left: 16,
+          zIndex: 10,
+          display: 'flex',
+          gap: 6,
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(10px)',
+          padding: '6px 8px',
+          borderRadius: 12,
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+        }}>
+          <button
+            onClick={() => flyToArea([127.0276, 37.4979], 14)}
+            style={{ background: 'rgba(56,189,248,0.15)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 강남·역삼
+          </button>
+          <button
+            onClick={() => flyToArea([127.0950, 37.5120], 14)}
+            style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 잠실·송파
+          </button>
+          <button
+            onClick={() => flyToArea([126.9242, 37.5219], 14)}
+            style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 여의도
+          </button>
+          <button
+            onClick={() => flyToArea([126.9750, 37.5580], 14)}
+            style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 서울역·도심
+          </button>
+        </div>
+      )}
 
       {/* 🚌 버스 노선 정보 및 경유 정류장 목록 (기존 지하철 안내와 독립) */}
       {selectedBusRoute && (
@@ -2974,224 +3005,358 @@ popupContent.append(title, number)
         </div>
       )}
 
-      {/* 활성 검색 경로 안내 플로팅 카드 */}
+      {/* 활성 검색 경로 안내 플로팅 카드 (모바일에서는 지도를 가리지 않는 초슬림 1줄 배지 적용) */}
       {activeRoute && (
         <div style={{
           position: 'absolute',
-          top: 68,
-          left: 16,
+          top: isMobile ? 12 : 68,
+          left: isMobile ? 12 : 16,
+          maxWidth: isMobile ? 'calc(100% - 150px)' : undefined,
           zIndex: 10,
           background: 'var(--app-glass)',
           backdropFilter: 'blur(14px)',
           border: '1px solid rgba(56, 189, 248, 0.45)',
-          borderRadius: 14,
-          padding: '10px 14px',
+          borderRadius: isMobile ? 20 : 14,
+          padding: isMobile ? '4px 8px' : '10px 14px',
           boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
           display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
+          flexDirection: isMobile ? 'row' : 'column',
+          alignItems: isMobile ? 'center' : 'stretch',
+          gap: isMobile ? 6 : 6,
+          overflow: 'hidden',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
-                출발
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.from}</span>
-              <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
-              <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
-                도착
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.to}</span>
+          {isMobile ? (
+            /* 모바일 초슬림 1줄 알약 배지 */
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--app-text)', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  <span style={{ color: '#34D399' }}>{activeRoute.from}</span>
+                  <span style={{ color: '#38BDF8', margin: '0 3px' }}>➔</span>
+                  <span style={{ color: '#F43F5E' }}>{activeRoute.to}</span>
+                </span>
+                <span style={{
+                  background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                  color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
+                  borderRadius: 4,
+                  padding: '1px 4px',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}환승`}
+                </span>
+                <span style={{ fontSize: 10, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
+                  {activeRoute.estimatedMinutes}분
+                </span>
+              </div>
+
+              {onClearRoute && (
+                <button
+                  onClick={() => {
+                    if (activePopupRef.current) {
+                      activePopupRef.current.remove()
+                      activePopupRef.current = null
+                      popupOpenedZoomRef.current = null
+                    }
+                    markerItemsRef.current.forEach(item => {
+                      item.el.style.display = 'flex'
+                    })
+                    onClearRoute()
+                  }}
+                  title="경로 닫기"
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: 'none',
+                    color: 'var(--app-text)',
+                    borderRadius: 10,
+                    padding: '2px 6px',
+                    fontSize: 10,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
+          ) : (
+            /* PC 버전 기존 상세 레이아웃 */
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+                    출발
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.from}</span>
+                  <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
+                  <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+                    도착
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.to}</span>
+                </div>
 
-            <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{
-                background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
-                color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
-                borderRadius: 6,
-                padding: '2px 7px',
-                fontSize: 10,
-                fontWeight: 800,
-                whiteSpace: 'nowrap',
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                    border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
+                    color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
+                    borderRadius: 6,
+                    padding: '2px 7px',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `최소 환승: ${activeRoute.transferCount}회`}
+                  </span>
+                  <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
+                    약 {activeRoute.estimatedMinutes}분
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
+                    ({activeRoute.stationCount}개 역)
+                  </span>
+                </div>
+
+                {onClearRoute && (
+                  <button
+                    onClick={() => {
+                      if (activePopupRef.current) {
+                        activePopupRef.current.remove()
+                        activePopupRef.current = null
+                        popupOpenedZoomRef.current = null
+                      }
+                      markerItemsRef.current.forEach(item => {
+                        item.el.style.display = 'flex'
+                      })
+                      onClearRoute()
+                    }}
+                    title="경로 안내 닫기"
+                    style={{
+                      background: 'rgba(255,255,255,0.08)',
+                      border: 'none',
+                      color: 'var(--app-text)',
+                      borderRadius: 8,
+                      padding: '4px 8px',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      marginLeft: 'auto',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <span>✕</span>
+                    <span>닫기</span>
+                  </button>
+                )}
+              </div>
+
+              {/* 출발역 & 환승역 탑승 열차 잔여 시간 실시간 안내 행 */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
+                paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap'
               }}>
-                {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `최소 환승: ${activeRoute.transferCount}회`}
-              </span>
-              <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
-                약 {activeRoute.estimatedMinutes}분
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-                ({activeRoute.stationCount}개 역)
-              </span>
-            </div>
-
-            {onClearRoute && (
-              <button
-                onClick={() => {
-                  if (activePopupRef.current) {
-                    activePopupRef.current.remove()
-                    activePopupRef.current = null
-                    popupOpenedZoomRef.current = null
-                  }
-                  markerItemsRef.current.forEach(item => {
-                    item.el.style.display = 'flex'
-                  })
-                  onClearRoute()
-                }}
-                title="경로 안내 닫기"
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: 'none',
-                  color: 'var(--app-text)',
-                  borderRadius: 8,
-                  padding: '4px 8px',
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  marginLeft: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <span>✕</span>
-                <span>닫기</span>
-              </button>
-            )}
-          </div>
-
-          {/* 출발역 & 환승역 탑승 열차 잔여 시간 실시간 안내 행 */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
-            paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap'
-          }}>
-            {activeRoute.departureTrain && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: '#34D399', fontWeight: 700 }}>🟢 {activeRoute.from}</span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{activeRoute.departureTrain.line}]</span>
-                <span style={{ color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
-                  {activeRoute.departureTrain.remainingMinutes}분 후 탑승
-                </span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
+                {activeRoute.departureTrain && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#34D399', fontWeight: 700 }}>🟢 {activeRoute.from}</span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{activeRoute.departureTrain.line}]</span>
+                    <span style={{ color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+                      {activeRoute.departureTrain.remainingMinutes}분 후 탑승
+                    </span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
+                  </div>
+                )}
+                {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
+                  <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: 'var(--color-muted)' }}>•</span>
+                    <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{tr.line}]</span>
+                    <span style={{ color: '#FBBF24', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+                      {tr.remainingMinutes}분 후 탑승
+                    </span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({tr.destinationOrNext} 방면)</span>
+                  </div>
+                ))}
               </div>
-            )}
-            {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
-              <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: 'var(--color-muted)' }}>•</span>
-                <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{tr.line}]</span>
-                <span style={{ color: '#FBBF24', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
-                  {tr.remainingMinutes}분 후 탑승
-                </span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({tr.destinationOrNext} 방면)</span>
-              </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* 실시간 기상청 실황 관측치 오버레이 */}
+      {/* 실시간 기상청 실황 관측치 오버레이 (모바일에서는 컴팩트 알약 배지화) */}
       <div style={{
         position: 'absolute',
-        top: 16,
-        right: 56, // 지도 컨트롤러 피해서 배치
+        top: isMobile ? 12 : 16,
+        right: isMobile ? 54 : 56, // 지도 컨트롤러 피해서 배치
         zIndex: 10,
         background: 'var(--app-glass)',
         backdropFilter: 'blur(12px)',
         border: '1px solid rgba(56, 189, 248, 0.35)',
-        borderRadius: 14,
-        padding: '10px 14px',
+        borderRadius: isMobile ? 20 : 14,
+        padding: isMobile ? '4px 10px' : '10px 14px',
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
+        gap: isMobile ? 6 : 12,
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
       }}>
-        <span style={{ fontSize: 24 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
+        <span style={{ fontSize: isMobile ? 14 : 24 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--app-text)' }}>
-            🟢 기상청 실시간 관측 실황 | {liveWeather ? `${liveWeather.temp}°C · ` : ''}{rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}
+          <div style={{ fontSize: isMobile ? 11 : 12, fontWeight: 700, color: 'var(--app-text)', whiteSpace: 'nowrap' }}>
+            {isMobile
+              ? `${liveWeather ? `${liveWeather.temp}°C · ` : ''}${rainMm > 0 ? `${rainMm.toFixed(1)}mm/h` : '맑음'}`
+              : `🟢 기상청 실시간 관측 실황 | ${liveWeather ? `${liveWeather.temp}°C · ` : ''}${rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}`}
           </div>
-          <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>{liveWeather ? `${liveWeather.district || '관측소'} (${liveWeather.base_time ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : selectedTime})` : '100% 공공데이터 실측 실황'}</span>
-            <span style={{ color: 'var(--app-text)' }}>·</span>
-            <span>OpenStreetMap + MapLibre GL</span>
-          </div>
+          {!isMobile && (
+            <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{liveWeather ? `${liveWeather.district || '관측소'} (${liveWeather.base_time ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : selectedTime})` : '100% 공공데이터 실측 실황'}</span>
+              <span style={{ color: 'var(--app-text)' }}>·</span>
+              <span>OpenStreetMap + MapLibre GL</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 줌 확대 안내 배지 / 경로 집중 모드 배지 */}
-      <div style={{
-        position: 'absolute',
-        bottom: 24,
-        left: 120,
-        zIndex: 10,
-        background: 'var(--app-glass)',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(56, 189, 248, 0.25)',
-        borderRadius: 10,
-        padding: '6px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        boxShadow: '0 4px 16px var(--color-card2)',
-        pointerEvents: 'none',
-      }}>
-        <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.5 ? '🗺️' : '🔍')}</span>
-        <span style={{ fontSize: 11, color: 'var(--app-text)', fontWeight: 600 }}>
-          {activeRoute
-            ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
-            : (zoomLevel < 10.5
-                ? '광역 지도 (마커 숨김): 지도를 확대하면 주요 거점이 표시됩니다'
-                : (zoomLevel < 11.5
-                    ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
-                    : (zoomLevel < 13.5
-                        ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
-                        : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')))}
-        </span>
-      </div>
+      {/* 줌 확대 안내 배지 / 경로 집중 모드 배지 (모바일에서는 지도를 가리지 않도록 숨김) */}
+      {!isMobile && (
+        <div style={{
+          position: 'absolute',
+          bottom: 24,
+          left: 120,
+          zIndex: 10,
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: 10,
+          padding: '6px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          boxShadow: '0 4px 16px var(--color-card2)',
+          pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: 12 }}>{activeRoute ? '🧭' : (zoomLevel < 11.5 ? '🗺️' : '🔍')}</span>
+          <span style={{ fontSize: 11, color: 'var(--app-text)', fontWeight: 600 }}>
+            {activeRoute
+              ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
+              : (zoomLevel < 10.5
+                  ? '광역 지도 (마커 숨김): 지도를 확대하면 주요 거점이 표시됩니다'
+                  : (zoomLevel < 11.5
+                      ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
+                      : (zoomLevel < 13.5
+                          ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
+                          : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')))}
+          </span>
+        </div>
+      )}
 
-      {/* 범례 */}
-      <div style={{
-        position: 'absolute',
-        bottom: 24,
-        right: 16,
-        zIndex: 10,
-        background: 'var(--app-glass)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 14,
-        padding: '10px 14px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-      }}>
-        <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
-          대중교통 인프라 & 혼잡도
+      {/* 범례 (모바일에서는 플로팅 토글 ℹ️ 버튼으로 전환하여 지도를 가리지 않음) */}
+      {isMobile ? (
+        <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 11 }}>
+          {showLegend && (
+            <div style={{
+              position: 'absolute',
+              bottom: 40,
+              right: 0,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              padding: '10px 14px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              minWidth: 170,
+              whiteSpace: 'nowrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', fontWeight: 700 }}>대중교통 인프라 & 혼잡도</span>
+                <button
+                  type="button"
+                  onClick={() => setShowLegend(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--color-muted)', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981' }} />
+                  <span style={{ fontSize: 10, color: 'var(--app-text)' }}>여유 (&lt; 45%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8' }} />
+                  <span style={{ fontSize: 10, color: 'var(--app-text)' }}>보통 (45% ~ 75%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F43F5E' }} />
+                  <span style={{ fontSize: 10, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowLegend(!showLegend)}
+            title="지도 혼잡도 범례 보기"
+            style={{
+              padding: '6px 10px',
+              borderRadius: 20,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--app-text)',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            }}
+          >
+            <span>ℹ️</span> 범례
+          </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
-            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>여유 (&lt; 45%)</span>
+      ) : (
+        <div style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 16,
+          zIndex: 10,
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 14,
+          padding: '10px 14px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
+            대중교통 인프라 & 혼잡도
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#38BDF8' }} />
-            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>보통 (45% ~ 75%)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F43F5E' }} />
-            <span style={{ fontSize: 11, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
-          </div>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid var(--color-surface)', boxShadow: '0 0 6px #38BDF8' }} />
-            <span style={{ fontSize: 10, color: 'var(--app-text)' }}>밀집 구간 정류소 (점 마커)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-            <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
-              🚇 561역 · 🚌 55개소 · 🚲 52개소
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
+              <span style={{ fontSize: 11, color: 'var(--app-text)' }}>여유 (&lt; 45%)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#38BDF8' }} />
+              <span style={{ fontSize: 11, color: 'var(--app-text)' }}>보통 (45% ~ 75%)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F43F5E' }} />
+              <span style={{ fontSize: 11, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
+            </div>
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#38BDF8', border: '1.5px solid var(--color-surface)', boxShadow: '0 0 6px #38BDF8' }} />
+              <span style={{ fontSize: 10, color: 'var(--app-text)' }}>밀집 구간 정류소 (점 마커)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
+                🚇 561역 · 🚌 55개소 · 🚲 52개소
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

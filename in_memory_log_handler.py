@@ -28,6 +28,7 @@ class InMemoryLogHandler(logging.Handler):
             now = datetime.fromtimestamp(record.created)
             time_str = now.strftime("%H:%M:%S")
             timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S")
+            iso_timestamp_str = now.isoformat() + "Z"
 
             # 도메인 태그 자동 감지
             domain = self._detect_domain(record.name, msg)
@@ -48,6 +49,8 @@ class InMemoryLogHandler(logging.Handler):
                     "logger": record.name,
                     "message": msg,
                     "domain": domain,
+                    "service": domain,
+                    "iso_timestamp": iso_timestamp_str,
                 }
                 self.buffer.append(entry)
         except Exception:

@@ -8,12 +8,15 @@ import {
 } from './constants/fallbackData'
 import { TransportScoreSkeleton, DistrictCongestionSkeleton } from './components/SkeletonLoader'
 import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
-import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
+import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logDistrictCongestionCall, logHourlyForecastCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
+import BusStationSearch, { type BusStationResult } from './BusStationSearch'
+import MultimodalRoutePanel from './MultimodalRoutePanel'
+import EnterpriseView from './EnterpriseView'
 
-type Page = 'main' | 'route' | 'map'
+type Page = 'main' | 'route' | 'map' | 'enterprise'
 
 type Theme = 'dark' | 'light'
 
@@ -467,6 +470,7 @@ export default function AppM() {
   const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null)
   const [subwaySearchQuery, setSubwaySearchQuery] = useState('')
   const [focusedCoords, setFocusedCoords] = useState<[number, number] | null>(null)
+  const [selectedBusStation, setSelectedBusStation] = useState<BusStationResult | null>(null)
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showDepartureList, setShowDepartureList] = useState(false)
   const [showDestinationList, setShowDestinationList] = useState(false)
@@ -1054,6 +1058,7 @@ export default function AppM() {
         if (data.status === 'success' && data.hotspots && data.hotspots.length > 0) {
           setDistrictList(data.hotspots)
           setDistrictLiveStatus('live')
+          logDistrictCongestionCall({ rain: rainVal, temp: tempVal, hour: hourVal }, data)
         }
       }
     } catch (err) {
@@ -1078,6 +1083,7 @@ export default function AppM() {
         if (data.status === 'success' && forecastList && forecastList.length > 0) {
           setHourlyForecast(forecastList)
           setHourlyLiveStatus('live')
+          logHourlyForecastCall({ district: targetDistrict, rain: rainVal, temp: tempVal }, data)
         }
       }
     } catch (err) {
@@ -1194,11 +1200,12 @@ export default function AppM() {
 
 
           {/* Nav tabs */}
-          <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+          <div style={{ display: 'flex', gap: 4, flex: 1, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
             {([
               { id: 'main', label: '날씨 현황', icon: '🏠' },
               { id: 'route', label: '경로 추천', icon: '🔍' },
               { id: 'map', label: '지도 보기', icon: '🗺' },
+              { id: 'enterprise', label: '기업용 관제', icon: '🏢' },
             ] as { id: Page; label: string; icon: string }[]).map(nav => (
               <button
                 key={nav.id}
@@ -1216,6 +1223,30 @@ export default function AppM() {
               </button>
             ))}
           </div>
+
+          <a
+            href="https://github.com/14EE4/weather-transit-web"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="GitHub 저장소 바로가기"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px 10px',
+              borderRadius: 10,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-card)',
+              color: 'var(--app-text)',
+              textDecoration: 'none',
+              flexShrink: 0,
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+          </a>
 
           <button
             type="button"
@@ -1406,96 +1437,30 @@ export default function AppM() {
             </div>
           </div>
 
-          {/* 기상청 실시간 관측 현황 바 (가상 시뮬레이션 완전 배제, 100% 실시간 공공 데이터) */}
-          <div
-            style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 20,
-              padding: '16px 24px',
-              marginBottom: 24,
-              boxShadow: '0 8px 32px var(--app-shadow)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-              {/* 좌측: 실시간 관측 상태 및 지역 정보 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '6px 12px', borderRadius: 10,
-                  background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)'
-                }}>
-                  <span style={{ fontSize: 12 }}>🟢</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#34D399', fontFamily: 'JetBrains Mono' }}>
-                    기상청 초단기실황 실시간 연동
+          {/* 모바일 세로 1열 카드 적층 (날씨 통합 패널 + AI 교통수요 + 상관관계) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+
+            {/* 날씨 통합 패널 (기상청 실시간 관측 + 핵심 기상 4종 + 관측망 통합) */}
+            <div style={{ background: 'linear-gradient(135deg, var(--color-card) 0%, var(--weather-gradient-end) 100%)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '3px 8px', borderRadius: 8,
+                    background: isCurrentHour ? 'rgba(16,185,129,0.15)' : 'rgba(56,189,248,0.15)',
+                    border: isCurrentHour ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(56,189,248,0.4)',
+                  }}>
+                    <span style={{ fontSize: 10 }}>{isCurrentHour ? '🟢' : '🌦️'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: isCurrentHour ? '#34D399' : '#38BDF8', fontFamily: 'JetBrains Mono' }}>
+                      {isCurrentHour ? '기상청 실시간 관측' : `${selectedHour}시 단기예보`}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--app-text)' }}>
+                    {DISTRICTS[selectedDistrict] || '강남구 역삼동'}
                   </span>
                 </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>
-                    {DISTRICTS[selectedDistrict] || '강남구 역삼동'} 실시간 기상 관측
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
-                    {liveWeather ? `발표시각: ${liveWeather.base_date} ${liveWeather.base_time.slice(0, 2)}:00 | 격자 (${liveWeather.nx}, ${liveWeather.ny})` : '기상청 관측망 수신 대기 중...'}
-                  </div>
-                </div>
-              </div>
-
-              {/* 우측: 실시간 기상 핵심 수치 4종 (기온, 강수, 습도, 풍속) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>🌡️</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>기온</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{displayTemp}°C</div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: displayRain > 0 ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'var(--color-border)', padding: '6px 14px', borderRadius: 12, border: displayRain > 0 ? '1px solid color-mix(in srgb, var(--color-primary) 40%, transparent)' : '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>{isRaining ? '🌧️' : '☀️'}</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>강수량 ({displayPtyDesc})</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: displayRain > 0 ? 'var(--color-primary)' : '#34D399', fontFamily: 'JetBrains Mono' }}>{displayRain} mm/h</div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>💧</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>습도</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{displayHumidity}%</div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-card)', padding: '6px 14px', borderRadius: 12, border: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: 16 }}>💨</span>
-                  <div>
-                    <div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>풍속</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{displayWind} m/s</div>
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '6px 12px', borderRadius: 10,
-                  background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)',
-                  fontSize: 11, color: '#38BDF8', fontFamily: 'JetBrains Mono', fontWeight: 600
-                }}>
-                  {isCurrentHour ? `현재 ${nowHour}시 기준 실시간` : `${selectedHour}시 기상청 단기예보`}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 3열 그리드 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 24 }}>
-
-            {/* 날씨 카드 */}
-            <div style={{ background: 'linear-gradient(135deg, var(--color-card) 0%, var(--weather-gradient-end) 100%)', border: '1px solid var(--color-border)', borderRadius: 24, padding: 24, gridColumn: '1' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
-                  날씨 데이터 · {DISTRICTS[selectedDistrict]}
-                </div>
-                <span style={{ fontSize: 9, color: isCurrentHour ? '#34D399' : '#38BDF8', background: isCurrentHour ? 'rgba(16,185,129,0.15)' : 'rgba(56,189,248,0.15)', border: isCurrentHour ? '1px solid rgba(16,185,129,0.4)' : '1px solid rgba(56,189,248,0.4)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 700 }}>
-                  {isCurrentHour ? `🟢 기상청 실시간 실황 ${liveWeather ? `(${liveWeather.base_time.slice(0, 2)}:00)` : ''}` : `🌦️ 기상청 단기예보 (${selectedHour}:00 예보)`}
+                <span style={{ fontSize: 9, color: isCurrentHour ? '#34D399' : '#38BDF8', background: isCurrentHour ? 'rgba(16,185,129,0.1)' : 'rgba(56,189,248,0.1)', padding: '2px 8px', borderRadius: 6, fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
+                  {isCurrentHour ? `실황 ${liveWeather ? `${liveWeather.base_time.slice(0, 2)}:00` : ''}` : `${selectedHour}:00 예보`}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
@@ -1509,7 +1474,11 @@ export default function AppM() {
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {/* 날씨 패널 핵심 지표 4종 (2x2 그리드) */}
+              <div
+                className="weather-metrics-grid"
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}
+              >
                 {[
                   { label: '습도', value: `${displayHumidity}%`, icon: '💧' },
                   { label: '풍속', value: `${displayWind}m/s`, icon: '💨' },
@@ -1525,9 +1494,9 @@ export default function AppM() {
                 ))}
               </div>
               {liveWeather && (
-                <div style={{ marginTop: 14, fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--color-border)', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>KMA 격자 ({liveWeather.nx}, {liveWeather.ny})</span>
-                  <span>{liveWeather.base_date.slice(4, 6)}/{liveWeather.base_date.slice(6, 8)} {liveWeather.base_time.slice(0, 2)}:00 발표</span>
+                  <span>발표: {liveWeather.base_date.slice(4, 6)}/{liveWeather.base_date.slice(6, 8)} {liveWeather.base_time.slice(0, 2)}:00</span>
                 </div>
               )}
             </div>
@@ -2012,17 +1981,17 @@ export default function AppM() {
           PAGE: 경로 추천
       ══════════════════════════════════════ */}
       {page === 'route' && (
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 32px 64px' }}>
-          <div style={{ marginBottom: 28 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--app-text)', margin: 0, letterSpacing: '-0.5px' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px 16px 80px' }}>
+          <div style={{ marginBottom: 20 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--app-text)', margin: 0, letterSpacing: '-0.5px' }}>
               경로 추천
             </h1>
-            <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: '6px 0 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--color-muted)', margin: '4px 0 0' }}>
               현재 날씨를 반영해 최적 교통수단과 경로를 추천합니다
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 24, alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* 입력 패널 */}
             <div>
@@ -2578,6 +2547,13 @@ export default function AppM() {
       )}
 
       {/* ══════════════════════════════════════
+          PAGE: 기업용 모빌리티 재배치 분석 (B2B)
+      ══════════════════════════════════════ */}
+      {page === 'enterprise' && (
+        <EnterpriseView apiBaseUrl={API_BASE_URL} />
+      )}
+
+      {/* ══════════════════════════════════════
           PAGE: 지도
       ══════════════════════════════════════ */}
       {page === 'map' && (
@@ -2590,126 +2566,139 @@ export default function AppM() {
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
             {/* 지하철역 검색 및 자동완성 입력창 */}
-            <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>🔍</span> 지하철역 검색 & 바로가기
-              </div>
-              <div style={{ background: 'var(--color-card)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14 }}>🚇</span>
-                <input
-                  value={subwaySearchQuery}
-                  onChange={e => {
-                    setSubwaySearchQuery(e.target.value)
-                    setShowSearchResults(true)
-                    setSelectedSubwayIndex(0)
-                  }}
-                  onFocus={() => setShowSearchResults(true)}
-                  onKeyDown={e => {
-                    const results = searchSubwayStations(subwaySearchQuery).slice(0, 15)
-                    if (!showSearchResults || results.length === 0) {
-                      if (e.key === 'Enter' && subwaySearchQuery.trim() && results.length > 0) {
-                        e.preventDefault()
-                        handleSelectStation(results[0])
-                      }
-                      return
-                    }
-                    if (e.key === 'ArrowDown') {
-                      e.preventDefault()
-                      setSelectedSubwayIndex(prev => (prev + 1) % results.length)
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault()
-                      setSelectedSubwayIndex(prev => (prev - 1 + results.length) % results.length)
-                    } else if (e.key === 'Tab') {
-                      e.preventDefault()
-                      if (e.shiftKey) {
-                        setSelectedSubwayIndex(prev => (prev - 1 + results.length) % results.length)
-                      } else {
-                        setSelectedSubwayIndex(prev => (prev + 1) % results.length)
-                      }
-                    } else if (e.key === 'Enter') {
-                      e.preventDefault()
-                      const target = results[selectedSubwayIndex >= 0 ? selectedSubwayIndex : 0]
-                      if (target) {
-                        handleSelectStation(target)
-                      }
-                    } else if (e.key === 'Escape') {
-                      setShowSearchResults(false)
-                    }
-                  }}
-                  placeholder="지하철역 이름 입력 (예: 강남, 시청, 구로...)"
-                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--app-text)', fontFamily: "'Outfit','Noto Sans KR',sans-serif" }}
-                />
-                {subwaySearchQuery && (
-                  <button
-                    onClick={() => {
-                      setSubwaySearchQuery('')
-                      setShowSearchResults(false)
+            {mapTransport !== 'bus' && (
+              <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🔍</span> 지하철역 검색 & 바로가기
+                </div>
+                <div style={{ background: 'var(--color-card)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>🚇</span>
+                  <input
+                    value={subwaySearchQuery}
+                    onChange={e => {
+                      setSubwaySearchQuery(e.target.value)
+                      setShowSearchResults(true)
+                      setSelectedSubwayIndex(0)
                     }}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12 }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+                    onFocus={() => setShowSearchResults(true)}
+                    onKeyDown={e => {
+                      const results = searchSubwayStations(subwaySearchQuery).slice(0, 15)
+                      if (!showSearchResults || results.length === 0) {
+                        if (e.key === 'Enter' && subwaySearchQuery.trim() && results.length > 0) {
+                          e.preventDefault()
+                          handleSelectStation(results[0])
+                        }
+                        return
+                      }
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setSelectedSubwayIndex(prev => (prev + 1) % results.length)
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setSelectedSubwayIndex(prev => (prev - 1 + results.length) % results.length)
+                      } else if (e.key === 'Tab') {
+                        e.preventDefault()
+                        if (e.shiftKey) {
+                          setSelectedSubwayIndex(prev => (prev - 1 + results.length) % results.length)
+                        } else {
+                          setSelectedSubwayIndex(prev => (prev + 1) % results.length)
+                        }
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const target = results[selectedSubwayIndex >= 0 ? selectedSubwayIndex : 0]
+                        if (target) {
+                          handleSelectStation(target)
+                        }
+                      } else if (e.key === 'Escape') {
+                        setShowSearchResults(false)
+                      }
+                    }}
+                    placeholder="지하철역 이름 입력 (예: 강남, 시청, 구로...)"
+                    style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--app-text)', fontFamily: "'Outfit','Noto Sans KR',sans-serif" }}
+                  />
+                  {subwaySearchQuery && (
+                    <button
+                      onClick={() => {
+                        setSubwaySearchQuery('')
+                        setShowSearchResults(false)
+                      }}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12 }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
 
-              {/* 지하철역 검색 결과 자동완성 드롭다운 */}
-              {showSearchResults && subwaySearchQuery.trim() && (() => {
-                const results = searchSubwayStations(subwaySearchQuery).slice(0, 15)
-                return (
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 20, right: 20, zIndex: 100,
-                    background: 'var(--color-surface)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 12,
-                    boxShadow: '0 8px 30px rgba(0,0,0,0.6)', maxHeight: 260, overflowY: 'auto',
-                  }}>
-                    {results.length > 0 && (
-                      <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>검색 결과 {results.length}건</span>
-                        <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
-                      </div>
-                    )}
-                    {results.length > 0 ? (
-                      results.map((st, idx) => (
-                        <div
-                          key={st.id}
-                          ref={el => {
-                            if (idx === selectedSubwayIndex && el) el.scrollIntoView({ block: 'nearest' })
-                          }}
-                          onClick={() => handleSelectStation(st)}
-                          style={{
-                            padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            background: idx === selectedSubwayIndex ? 'rgba(56,189,248,0.22)' : 'transparent',
-                            borderLeft: idx === selectedSubwayIndex ? '3px solid #38BDF8' : '3px solid transparent',
-                            transition: 'background 0.1s ease',
-                          }}
-                          onMouseEnter={() => setSelectedSubwayIndex(idx)}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 15 }}>🚇</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
-                            <span style={{ fontSize: 10, color: '#38BDF8', background: 'rgba(56,189,248,0.15)', padding: '2px 6px', borderRadius: 4 }}>
-                              {st.lines[0]}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
-                              {st.zone}
-                            </span>
-                            {idx === selectedSubwayIndex && (
-                              <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>↵</span>
-                            )}
-                          </div>
+                {/* 지하철역 검색 결과 자동완성 드롭다운 */}
+                {showSearchResults && subwaySearchQuery.trim() && (() => {
+                  const results = searchSubwayStations(subwaySearchQuery).slice(0, 15)
+                  return (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 20, right: 20, zIndex: 100,
+                      background: 'var(--color-surface)', border: '1px solid rgba(56,189,248,0.35)', borderRadius: 12,
+                      boxShadow: '0 8px 30px rgba(0,0,0,0.6)', maxHeight: 260, overflowY: 'auto',
+                    }}>
+                      {results.length > 0 && (
+                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>검색 결과 {results.length}건</span>
+                          <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
                         </div>
-                      ))
-                    ) : (
-                      <div style={{ padding: '14px', fontSize: 12, color: 'var(--color-muted)', textAlign: 'center' }}>
-                        검색된 지하철역이 없습니다.
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
+                      )}
+                      {results.length > 0 ? (
+                        results.map((st, idx) => (
+                          <div
+                            key={st.id}
+                            ref={el => {
+                              if (idx === selectedSubwayIndex && el) el.scrollIntoView({ block: 'nearest' })
+                            }}
+                            onClick={() => handleSelectStation(st)}
+                            style={{
+                              padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              background: idx === selectedSubwayIndex ? 'rgba(56,189,248,0.22)' : 'transparent',
+                              borderLeft: idx === selectedSubwayIndex ? '3px solid #38BDF8' : '3px solid transparent',
+                              transition: 'background 0.1s ease',
+                            }}
+                            onMouseEnter={() => setSelectedSubwayIndex(idx)}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 15 }}>🚇</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
+                              <span style={{ fontSize: 10, color: '#38BDF8', background: 'rgba(56,189,248,0.15)', padding: '2px 6px', borderRadius: 4 }}>
+                                {st.lines[0]}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
+                                {st.zone}
+                              </span>
+                              {idx === selectedSubwayIndex && (
+                                <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>↵</span>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '14px', fontSize: 12, color: 'var(--color-muted)', textAlign: 'center' }}>
+                          검색된 지하철역이 없습니다.
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
+            {/* 버스정류장 검색 */}
+            {mapTransport === 'bus' && (
+              <BusStationSearch
+                onSelect={station => {
+                  setActiveRoute(null)
+                  setSelectedBusStation(station)
+                  setFocusedCoords(station.coords)
+                }}
+              />
+            )}
 
             {/* 교통수단 탭 */}
             <div style={{ display: 'flex', gap: 6, padding: '14px 20px', borderBottom: '1px solid var(--color-border)' }}>
@@ -3259,11 +3248,13 @@ export default function AppM() {
               selectedTime={liveWeather ? `${parseInt(liveWeather.base_time.slice(0, 2), 10)}시` : `${new Date().getHours()}시`}
               liveWeather={liveWeather}
               focusedCoords={focusedCoords}
+              selectedBusStation={selectedBusStation}
               onSelectStop={handleSelectStop}
               activeRoute={activeRoute}
               onClearRoute={() => {
                 setActiveRoute(null)
                 setFocusedCoords(null)
+                setSelectedBusStation(null)
               }}
             />
           </div>
@@ -3363,12 +3354,22 @@ export default function AppM() {
             max-width: 100% !important;
           }
 
-          /* 대시보드의 다열 카드/통계 그리드를 세로 한 열로 */
-          div[style*="grid-template-columns"] {
+          /* 대시보드의 다열 카드/통계 그리드를 세로 한 열로 (날씨 2x2 그리드는 제외) */
+          div[style*="grid-template-columns"]:not(.weather-metrics-grid) {
             grid-template-columns: minmax(0, 1fr) !important;
           }
-          div[style*="display: grid"] {
+          div[style*="display: grid"]:not(.weather-metrics-grid) {
             grid-template-columns: minmax(0, 1fr) !important;
+          }
+
+          /* 날씨 패널 2x2 지표 그리드: 모바일에서도 정확히 2개씩 2*2 유지 (높은 Specificity 적용) */
+          div.weather-metrics-grid,
+          div.weather-metrics-grid[style],
+          .weather-metrics-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+            width: 100% !important;
           }
 
           /* 경로 추천: 입력 패널 먼저, 추천 결과는 아래로 */

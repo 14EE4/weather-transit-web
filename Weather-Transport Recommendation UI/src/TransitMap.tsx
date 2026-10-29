@@ -2885,45 +2885,47 @@ popupContent.append(title, number)
       {/* 지도 컨테이너 */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 
-      {/* 권역 원클릭 카메라 퀵 이동 컨트롤 */}
-      <div style={{
-        position: 'absolute',
-        top: 16,
-        left: 16,
-        zIndex: 10,
-        display: 'flex',
-        gap: 6,
-        background: 'var(--app-glass)',
-        backdropFilter: 'blur(10px)',
-        padding: '6px 8px',
-        borderRadius: 12,
-        border: '1px solid rgba(56, 189, 248, 0.25)',
-      }}>
-        <button
-          onClick={() => flyToArea([127.0276, 37.4979], 14)}
-          style={{ background: 'rgba(56,189,248,0.15)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 강남·역삼
-        </button>
-        <button
-          onClick={() => flyToArea([127.0950, 37.5120], 14)}
-          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 잠실·송파
-        </button>
-        <button
-          onClick={() => flyToArea([126.9242, 37.5219], 14)}
-          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 여의도
-        </button>
-        <button
-          onClick={() => flyToArea([126.9750, 37.5580], 14)}
-          style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-        >
-          📍 서울역·도심
-        </button>
-      </div>
+      {/* 권역 원클릭 카메라 퀵 이동 컨트롤 (모바일에서는 지도 가림 방지를 위해 미표시) */}
+      {!isMobile && (
+        <div style={{
+          position: 'absolute',
+          top: 16,
+          left: 16,
+          zIndex: 10,
+          display: 'flex',
+          gap: 6,
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(10px)',
+          padding: '6px 8px',
+          borderRadius: 12,
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+        }}>
+          <button
+            onClick={() => flyToArea([127.0276, 37.4979], 14)}
+            style={{ background: 'rgba(56,189,248,0.15)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 강남·역삼
+          </button>
+          <button
+            onClick={() => flyToArea([127.0950, 37.5120], 14)}
+            style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 잠실·송파
+          </button>
+          <button
+            onClick={() => flyToArea([126.9242, 37.5219], 14)}
+            style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 여의도
+          </button>
+          <button
+            onClick={() => flyToArea([126.9750, 37.5580], 14)}
+            style={{ background: 'var(--color-card2)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+          >
+            📍 서울역·도심
+          </button>
+        </div>
+      )}
 
       {/* 🚌 버스 노선 정보 및 경유 정류장 목록 (기존 지하철 안내와 독립) */}
       {selectedBusRoute && (
@@ -2990,120 +2992,183 @@ popupContent.append(title, number)
         </div>
       )}
 
-      {/* 활성 검색 경로 안내 플로팅 카드 */}
+      {/* 활성 검색 경로 안내 플로팅 카드 (모바일에서는 지도를 가리지 않는 초슬림 1줄 배지 적용) */}
       {activeRoute && (
         <div style={{
           position: 'absolute',
-          top: 68,
-          left: 16,
+          top: isMobile ? 12 : 68,
+          left: isMobile ? 12 : 16,
+          maxWidth: isMobile ? 'calc(100% - 150px)' : undefined,
           zIndex: 10,
           background: 'var(--app-glass)',
           backdropFilter: 'blur(14px)',
           border: '1px solid rgba(56, 189, 248, 0.45)',
-          borderRadius: 14,
-          padding: '10px 14px',
+          borderRadius: isMobile ? 20 : 14,
+          padding: isMobile ? '4px 8px' : '10px 14px',
           boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
           display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
+          flexDirection: isMobile ? 'row' : 'column',
+          alignItems: isMobile ? 'center' : 'stretch',
+          gap: isMobile ? 6 : 6,
+          overflow: 'hidden',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
-                출발
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.from}</span>
-              <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
-              <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
-                도착
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.to}</span>
+          {isMobile ? (
+            /* 모바일 초슬림 1줄 알약 배지 */
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, width: '100%', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--app-text)', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  <span style={{ color: '#34D399' }}>{activeRoute.from}</span>
+                  <span style={{ color: '#38BDF8', margin: '0 3px' }}>➔</span>
+                  <span style={{ color: '#F43F5E' }}>{activeRoute.to}</span>
+                </span>
+                <span style={{
+                  background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                  color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
+                  borderRadius: 4,
+                  padding: '1px 4px',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}환승`}
+                </span>
+                <span style={{ fontSize: 10, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
+                  {activeRoute.estimatedMinutes}분
+                </span>
+              </div>
+
+              {onClearRoute && (
+                <button
+                  onClick={() => {
+                    if (activePopupRef.current) {
+                      activePopupRef.current.remove()
+                      activePopupRef.current = null
+                      popupOpenedZoomRef.current = null
+                    }
+                    markerItemsRef.current.forEach(item => {
+                      item.el.style.display = 'flex'
+                    })
+                    onClearRoute()
+                  }}
+                  title="경로 닫기"
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: 'none',
+                    color: 'var(--app-text)',
+                    borderRadius: 10,
+                    padding: '2px 6px',
+                    fontSize: 10,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
+          ) : (
+            /* PC 버전 기존 상세 레이아웃 */
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10B981', color: '#10B981', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+                    출발
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.from}</span>
+                  <span style={{ color: '#38BDF8', fontSize: 12, margin: '0 2px' }}>➔</span>
+                  <span style={{ background: 'rgba(244, 63, 94, 0.25)', border: '1px solid #F43F5E', color: '#F43F5E', borderRadius: 6, padding: '2px 6px', fontSize: 10, fontWeight: 800 }}>
+                    도착
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{activeRoute.to}</span>
+                </div>
 
-            <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ height: 18, width: 1, background: 'rgba(255,255,255,0.1)' }} />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{
-                background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
-                color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
-                borderRadius: 6,
-                padding: '2px 7px',
-                fontSize: 10,
-                fontWeight: 800,
-                whiteSpace: 'nowrap',
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    background: activeRoute.transferCount === 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                    border: activeRoute.transferCount === 0 ? '1px solid #10B981' : '1px solid #F59E0B',
+                    color: activeRoute.transferCount === 0 ? '#10B981' : '#FBBF24',
+                    borderRadius: 6,
+                    padding: '2px 7px',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `최소 환승: ${activeRoute.transferCount}회`}
+                  </span>
+                  <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
+                    약 {activeRoute.estimatedMinutes}분
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
+                    ({activeRoute.stationCount}개 역)
+                  </span>
+                </div>
+
+                {onClearRoute && (
+                  <button
+                    onClick={() => {
+                      if (activePopupRef.current) {
+                        activePopupRef.current.remove()
+                        activePopupRef.current = null
+                        popupOpenedZoomRef.current = null
+                      }
+                      markerItemsRef.current.forEach(item => {
+                        item.el.style.display = 'flex'
+                      })
+                      onClearRoute()
+                    }}
+                    title="경로 안내 닫기"
+                    style={{
+                      background: 'rgba(255,255,255,0.08)',
+                      border: 'none',
+                      color: 'var(--app-text)',
+                      borderRadius: 8,
+                      padding: '4px 8px',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      marginLeft: 'auto',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <span>✕</span>
+                    <span>닫기</span>
+                  </button>
+                )}
+              </div>
+
+              {/* 출발역 & 환승역 탑승 열차 잔여 시간 실시간 안내 행 */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
+                paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap'
               }}>
-                {activeRoute.transferCount === 0 ? '환승 0회 (직통)' : `최소 환승: ${activeRoute.transferCount}회`}
-              </span>
-              <span style={{ fontSize: 12, color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono', whiteSpace: 'nowrap' }}>
-                약 {activeRoute.estimatedMinutes}분
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-                ({activeRoute.stationCount}개 역)
-              </span>
-            </div>
-
-            {onClearRoute && (
-              <button
-                onClick={() => {
-                  if (activePopupRef.current) {
-                    activePopupRef.current.remove()
-                    activePopupRef.current = null
-                    popupOpenedZoomRef.current = null
-                  }
-                  markerItemsRef.current.forEach(item => {
-                    item.el.style.display = 'flex'
-                  })
-                  onClearRoute()
-                }}
-                title="경로 안내 닫기"
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: 'none',
-                  color: 'var(--app-text)',
-                  borderRadius: 8,
-                  padding: '4px 8px',
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  marginLeft: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <span>✕</span>
-                <span>닫기</span>
-              </button>
-            )}
-          </div>
-
-          {/* 출발역 & 환승역 탑승 열차 잔여 시간 실시간 안내 행 */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, fontSize: 11,
-            paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)', flexWrap: 'wrap'
-          }}>
-            {activeRoute.departureTrain && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: '#34D399', fontWeight: 700 }}>🟢 {activeRoute.from}</span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{activeRoute.departureTrain.line}]</span>
-                <span style={{ color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
-                  {activeRoute.departureTrain.remainingMinutes}분 후 탑승
-                </span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
+                {activeRoute.departureTrain && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#34D399', fontWeight: 700 }}>🟢 {activeRoute.from}</span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{activeRoute.departureTrain.line}]</span>
+                    <span style={{ color: '#38BDF8', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+                      {activeRoute.departureTrain.remainingMinutes}분 후 탑승
+                    </span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
+                  </div>
+                )}
+                {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
+                  <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: 'var(--color-muted)' }}>•</span>
+                    <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{tr.line}]</span>
+                    <span style={{ color: '#FBBF24', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
+                      {tr.remainingMinutes}분 후 탑승
+                    </span>
+                    <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({tr.destinationOrNext} 방면)</span>
+                  </div>
+                ))}
               </div>
-            )}
-            {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
-              <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: 'var(--color-muted)' }}>•</span>
-                <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>[{tr.line}]</span>
-                <span style={{ color: '#FBBF24', fontWeight: 800, fontFamily: 'JetBrains Mono' }}>
-                  {tr.remainingMinutes}분 후 탑승
-                </span>
-                <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({tr.destinationOrNext} 방면)</span>
-              </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       )}
 

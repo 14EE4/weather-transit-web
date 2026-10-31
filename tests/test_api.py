@@ -54,9 +54,10 @@ def test_kma_weather(nx=61, ny=125):
     print("[1] 기상청 실시간 날씨 API 테스트 (초단기실황)")
     print("="*50)
     
+    # 기상청 가이드: 매시간 정시 관측치는 매시 40분경 생성
+    # 40분 이전이면 직전 시간대(H-1) 조회
     now = datetime.now()
-    # 가이드 기준: 매시 10분 이후 호출 가능 (안정적인 조회를 위해 10분 기준)
-    if now.minute < 10:
+    if now.minute < 40:
         target_time = now - timedelta(hours=1)
     else:
         target_time = now

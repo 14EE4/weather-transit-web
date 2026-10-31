@@ -7,6 +7,19 @@
 ---
 
 ## [2026-10-31]
+### 🌦️⏱️ Docker 컨테이너 및 기상청 API KST(한국 표준시) 동기화 및 초단기실황 발표 시점 보정 (이슈 #75)
+- **배경/문제**:
+  1. Docker 컨테이너 기본 타임존이 UTC(UTC+0)로 구동되어, 현재 시각이 17시(KST)임에도 컨테이너 내부 `datetime.now()`가 08시로 계산되어 기상청 초단기실황(`getUltraSrtNcst`)을 아침 8시(`base_time: "0800"`) 데이터로 조회하는 결함 발생.
+  2. 기상청 초단기실황 API(`getUltraSrtNcst`)의 공식 데이터 생성 시각(매시 40분 이후)과 달리 `minute < 10`만 직전 시간을 조회하도록 되어 있어, `10~39분` 사이 호출 시 기상청 데이터 미생성(NO_DATA) 오류 위험 존재.
+- **조치**:
+  1. `Dockerfile.backend`: `tzdata` 패키지 설치, `ENV TZ=Asia/Seoul`, `/etc/localtime` 심볼릭 링크 및 `/etc/timezone` 설정으로 컨테이너 시스템 타임존을 대한민국 표준시(KST)로 동기화.
+  2. `docker-compose.yml`: `backend` 및 `frontend` 서비스에 `TZ=Asia/Seoul` 환경변수 주입.
+  3. `main.py`, `kma_forecast.py`, `timeseries_cache.py`: `get_kst_now()` 헬퍼 함수를 전역 도입하여 호스트 환경과 무관하게 항상 일관된 KST(UTC+9) `datetime`으로 시간/날짜/시간대를 계산하도록 수정.
+  4. `main.py` 초단기실황(`get_current_weather`): `now.minute < 40`일 때 직전 시간(`H-1:00`)을 조회하도록 발표 기준 시점을 보정하고, 매시 40분 이후 정시 데이터 요청 시 기상청 배치 지연으로 비어있을 경우 직전 시간대로 1회 안전 재시도(Graceful Fallback)하는 방어 로직 추가.
+- **영향도**: 백엔드 `/api/v1/weather/current`, AI 시계열 예측, 헬스체크 타임스탬프 및 프론트엔드 기상 로거의 한국 표준시(KST) 100% 정합성 확보.
+
+---
+
 ### 🚌🎨 버스 정류장 점 색상 혼잡도 연동(보통=파랑) 및 전체 보기 모드 복원 (이슈 #72)
 - **배경/문제**:
   1. 주변 버스 정류장(live-bus-stations-circle) 레이어 색상이 #34D399(초록색)으로 하드코딩되어 있어, 실제 혼잡도가 '보통(45~74%, 파란색)'이어도 초록색으로 잘못 표출되는 결함 존재.

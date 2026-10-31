@@ -2,10 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 런타임 필수 패키지: libgomp1(ONNX Runtime OpenMP 가속), curl(헬스체크용)
+# 타임존 설정 (대한민국 표준시 KST, UTC+9)
+ENV TZ=Asia/Seoul
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 런타임 필수 패키지: libgomp1(ONNX Runtime OpenMP 가속), curl(헬스체크용), tzdata(한국 타임존 동기화)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     curl \
+    tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 # 레이어 캐시 활용을 위해 requirements.txt 먼저 복사 및 설치

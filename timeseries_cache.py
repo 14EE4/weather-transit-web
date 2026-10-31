@@ -26,7 +26,18 @@ import logging
 import threading
 import queue
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+try:
+    from zoneinfo import ZoneInfo
+    KST = ZoneInfo("Asia/Seoul")
+except Exception:
+    KST = timezone(timedelta(hours=9))
+
+
+def get_kst_now() -> datetime:
+    """한국 표준시(KST, UTC+9) 기준 datetime 반환"""
+    return datetime.now(KST)
 from typing import Optional, Dict, Tuple, Any
 
 logger = logging.getLogger("weather_transit_timeseries_cache")
@@ -337,7 +348,7 @@ class TimeseriesCacheManager:
         - bike_roll_mean_3h, bus_roll_mean_3h, subway_roll_mean_3h
         - same_day_last_week_bike, same_day_last_week_bus, same_day_last_week_sub
         """
-        now_dt = dt or datetime.now()
+        now_dt = dt or get_kst_now()
         now_ts = now_dt.timestamp()
         dayofweek = now_dt.weekday()
 

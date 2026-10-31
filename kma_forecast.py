@@ -13,7 +13,18 @@ import logging
 import math
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+try:
+    from zoneinfo import ZoneInfo
+    KST = ZoneInfo("Asia/Seoul")
+except Exception:
+    KST = timezone(timedelta(hours=9))
+
+
+def get_kst_now() -> datetime:
+    """한국 표준시(KST, UTC+9) 기준 datetime 반환"""
+    return datetime.now(KST)
 from typing import Dict, List, Optional, Tuple
 from pydantic import BaseModel
 
@@ -70,7 +81,7 @@ def get_latest_tmfc(dt: Optional[datetime] = None) -> Tuple[str, str]:
     현재 시각 기준 최신 단기예보 발표 시각 (tmfc = YYYYMMDDHH) 계산
     단기예보 발표 시각: 02, 05, 08, 11, 14, 17, 20, 23시 (발표 후 약 10~15분 소요)
     """
-    now = dt or datetime.now()
+    now = dt or get_kst_now()
     # 15분 마진 적용: 예를 들어 14:14분이면 11:00 발표분 사용, 14:15분 이후면 14:00 발표분 사용
     effective = now - timedelta(minutes=15)
     
@@ -204,7 +215,7 @@ class KMAForecastManager:
             logger.info("KMA_APIHUB_KEY 없음 - 지능형 기상 예보 폴백 유지")
             return False
 
-        now = datetime.now()
+        now = get_kst_now()
         base_date, tmfc = get_latest_tmfc(now)
 
         # 오늘 00시부터 23시까지의 발효 시각(tmef) 리스트
@@ -346,7 +357,7 @@ class KMAForecastManager:
             )
 
         # 완전 폴백
-        now = datetime.now()
+        now = get_kst_now()
         nx, ny = self._get_district_grid(norm_d)
         fb_hours = generate_fallback_24h(norm_d, now)
         return District24hForecast(

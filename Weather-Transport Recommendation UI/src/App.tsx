@@ -13,6 +13,7 @@ import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
 import BusStationSearch, { type BusStationResult } from './BusStationSearch'
+import BikeStationSearch from './BikeStationSearch'
 import EnterpriseView from './EnterpriseView'
 import MultimodalRoutePanel from './MultimodalRoutePanel'
 
@@ -2531,7 +2532,7 @@ export default function App() {
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
             {/* 지하철역 검색 및 자동완성 입력창 */}
-            {mapTransport != 'bus' && (
+            {mapTransport !== 'bus' && mapTransport !== 'bike' && (
               <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>🔍</span> 지하철역 검색 & 바로가기
@@ -2660,6 +2661,16 @@ export default function App() {
                 onSelect={station => {
                   setActiveRoute(null)
                   setSelectedBusStation(station)
+                  setFocusedCoords(station.coords)
+                }}
+              />
+            )}
+
+            {/* 따릉이 대여소 검색 */}
+            {mapTransport === 'bike' && (
+              <BikeStationSearch
+                onSelect={station => {
+                  setActiveRoute(null)
                   setFocusedCoords(station.coords)
                 }}
               />

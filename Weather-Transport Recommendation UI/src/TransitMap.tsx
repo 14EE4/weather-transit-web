@@ -1475,8 +1475,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   // 🚌 지도 주변 실제 버스정류장 자동 표시
   useEffect(() => {
     if (!mapLoaded || !mapInstanceRef.current) return
-    // 실시간 주변 버스정류장 레이어는 버스 전용 탭에서만 켜서 전체 보기 가림 방지
-    if (filterType !== 'bus') return
+    // 전체 보기(all) 및 버스(bus) 모드에서 주변 버스정류장 실시간 표시
+    if (filterType !== 'bus' && filterType !== 'all') return
 
     const map = mapInstanceRef.current
     const sourceId = 'live-bus-stations'
@@ -1508,7 +1508,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           16, 7,
           18, 10
         ],
-        'circle-color': '#34D399',
+        'circle-color': ['coalesce', ['get', 'color'], '#38BDF8'],
         'circle-stroke-color': getMapThemeSurface(),
         'circle-stroke-width': 2,
         'circle-opacity': 0.95
@@ -1564,18 +1564,37 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             bounds.contains(station.coords)
         )
 
-        const features = stations.map((station: any) => ({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: station.coords
-          },
-          properties: {
-            stId: station.stId,
+        const features = stations.map((station: any) => {
+          const tempStop: TransitStop = {
+            id: station.stId || station.id,
             name: station.name,
-            arsId: station.arsId
+            type: 'bus',
+            coords: station.coords,
+            lineInfo: station.arsId ? `정류장 번호 ${station.arsId}` : '시내버스 정류소',
+            baseCrowd: 45,
+            rainSensitivity: 0.15,
+            stId: station.stId,
+            arsId: station.arsId,
           }
-        }))
+          const crowd = calculateCrowd(tempStop)
+          const { label, color } = getCrowdLevel(crowd)
+
+          return {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: station.coords
+            },
+            properties: {
+              stId: station.stId,
+              name: station.name,
+              arsId: station.arsId,
+              crowd,
+              label,
+              color,
+            }
+          }
+        })
 
         setStations(features)
         console.log(
@@ -1626,12 +1645,31 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       openStationDetail(stop, { popupOffset: 12 })
     }
 
-    const onMouseEnter = () => {
+    const busHoverPopup = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: 10,
+    })
+
+    const onMouseEnter = (e: any) => {
       map.getCanvas().style.cursor = 'pointer'
+      const f = e.features?.[0]
+      if (!f || f.geometry.type !== 'Point') return
+      const p = f.properties || {}
+      const col = p.color || '#38BDF8'
+      busHoverPopup
+        .setLngLat(f.geometry.coordinates as [number, number])
+        .setHTML(`
+          <div style="font-size: 11px; font-weight: 700; color: var(--app-text); padding: 2px 6px; white-space: nowrap; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+            🚌 ${p.name || '버스정류장'} <span style="color: ${col}; font-weight: 800; margin-left: 3px;">${p.crowd || 45}% (${p.label || '보통'})</span>
+          </div>
+        `)
+        .addTo(map)
     }
 
     const onMouseLeave = () => {
       map.getCanvas().style.cursor = ''
+      busHoverPopup.remove()
     }
 
     map.on('moveend', scheduleUpdate)
@@ -1651,6 +1689,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       map.off('click', layerId, handleStationClick)
       map.off('mouseenter', layerId, onMouseEnter)
       map.off('mouseleave', layerId, onMouseLeave)
+      busHoverPopup.remove()
 
       try {
         if (map.getLayer(layerId)) map.removeLayer(layerId)
@@ -1659,7 +1698,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         // 지도 자체가 이미 제거된 경우
       }
     }
-  }, [mapLoaded, filterType])
+  }, [mapLoaded, filterType, selectedTime, rainMm])
 
   // 🚲 지도 주변 실제 따릉이 대여소를 기존 거점 마커와 동일한 마커/팝업(AI 모델 + 실시간 잔여 수)으로 통합 표시
   useEffect(() => {

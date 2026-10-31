@@ -7,6 +7,17 @@
 ---
 
 ## [2026-10-31]
+### 🚌✨ 모든 버스 정류장(검색·주변·노선) 상세 팝업 UI 및 기상·AI 추론 기능 일원화 (이슈 #70)
+- **배경/문제**: 기존에는 55개 주요 거점 버스 정류장(BUS_STOPS)에만 자치구/혼잡도 칩, 기상청 실시간 기상, ONNX 32차원 AI 모델 추천 혼잡도, 실시간 도착정보 및 노선 보기가 제공되었고, 상단 검색창에서 선택한 정류장(selectedBusStation) 및 지도 확대 시 나타나는 일반 정류장(live-bus-stations-circle), 노선 경유 정류장에는 텍스트 몇 줄만 표시되는 불일치 결함 존재.
+- **조치**:
+  1. TransitMap.tsx: 상세 팝업 렌더러 uildStationPopupHtml 및 상세 정보 Fetch/이동 파이프라인 openStationDetail을 공통 함수로 모듈화.
+  2. 검색 정류장 마커(selectedBusStation): 선택 및 클릭 시 주요 거점과 100% 동일한 풀 스펙 팝업(기상청 날씨 + AI 추론 혼잡도 + 실시간 버스 도착정보 + 노선 보기) 오픈.
+  3. 일반 버스 정류장(handleStationClick): 원 클릭 시 TransitStop 객체로 매핑하여 동일한 풀 스펙 상세 팝업 및 앱 사이드패널 연동(onSelectStop) 일원화.
+  4. 노선 경유 정류장(onBusRouteStopClick): 점 클릭 시 동일한 상세 팝업으로 연동.
+  5. 미사용 구형 loadBusArrivals 헬퍼 제거 및 코드 중복 670여 줄 정리.
+- **영향도**: 프론트엔드 지도 팝업 기능 전면 일원화, PC/모바일(TransitMap.tsx) 동시 적용.
+
+---
 
 ### 🐛🚲 버스 정류장 검색 API 호출 오류 수정 및 따릉이 대여소 검색 신규 지원 (이슈 #67)
 - **배경/문제**: Docker(Nginx 프록시) 환경에서 VITE_API_BASE_URL=""이 || 단락 평가로 http://127.0.0.1:8000으로 폴백되어 버스 정류장 검색이 

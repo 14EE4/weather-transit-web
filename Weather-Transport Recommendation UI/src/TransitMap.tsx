@@ -1946,7 +1946,7 @@ popupContent.append(title, number)
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                   ${arrivalsList.slice(0, 3).map((b: any) => `
                     <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #34D399;">
-                      <span style="color: #34D399; font-weight: 800;">${b.route_name || b.rtNm || '간선'}</span>
+                      ${(b.bus_route_id && (b.stId || stop.stId)) ? `<button type="button" data-bus-route-id="${b.bus_route_id}" data-bus-route-name="${b.route_name || ''}" data-bus-st-id="${b.stId || stop.stId}" title="노선 보기" style="color: #34D399; font-weight: 800; background: transparent; border: none; padding: 0; cursor: pointer; text-align: left; font-size: 10px;">${b.route_name || b.rtNm || '간선'} · 노선 보기 ↗</button>` : `<span style="color: #34D399; font-weight: 800;">${b.route_name || b.rtNm || '간선'}</span>`}
                       <span style="color: #FCD34D; font-weight: 700; font-family: monospace;">${b.arrival_msg1 || b.arrmsg1 || '운행중'}</span>
                     </div>
                   `).join('')}
@@ -2013,7 +2013,18 @@ popupContent.append(title, number)
         maxWidth: '310px',
       }).setHTML(buildPopupContent())
 
+      // 주요 거점 팝업의 버스 노선 보기 버튼 (이벤트 위임, setHTML 재호출 후에도 유지)
+      const onPopupRouteClick = (ev: Event) => {
+        const btn = (ev.target as HTMLElement | null)?.closest?.('[data-bus-route-id]') as HTMLElement | null
+        if (!btn) return
+        ev.stopPropagation()
+        selectBusRouteRef.current(btn.dataset.busRouteId || '', btn.dataset.busRouteName || '', btn.dataset.busStId || '')
+      }
+
       popup.on('open', () => {
+        const popupEl = popup.getElement()
+        popupEl?.removeEventListener('click', onPopupRouteClick)
+        popupEl?.addEventListener('click', onPopupRouteClick)
         if (activePopupRef.current && activePopupRef.current !== popup) {
           activePopupRef.current.remove()
         }
@@ -2154,9 +2165,9 @@ popupContent.append(title, number)
           } else if (stop.type === 'bus') {
             let targetStId = stop.stId
             // stop.stId가 누락된 경우 좌표 기반 인근 정류소 API로 동적 해석
-            if (!targetStId && stop.coordinates) {
+            if (!targetStId && stop.coords) {
               try {
-                const nearRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/stations/nearby?lat=${stop.coordinates[1]}&lng=${stop.coordinates[0]}&radius=350`)
+                const nearRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/stations/nearby?lat=${stop.coords[1]}&lng=${stop.coords[0]}&radius=350`)
                 if (nearRes.ok) {
                   const nearData = await nearRes.json()
                   if (nearData.stations && nearData.stations.length > 0) {
@@ -2195,6 +2206,8 @@ popupContent.append(title, number)
                 { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
               ]
             }
+            // 노선 보기 버튼용: 해석된 정류소 ID를 도착 데이터에 포함 (모든 정류장 동일하게 노선 표시)
+            if (targetStId) arrivals = arrivals.map((a: any) => ({ ...a, stId: targetStId }))
           } else if (stop.type === 'bike') {
             // 서울시 따릉이 실시간 대여정보(잔여 자전거 수)로 시뮬레이션 값을 대체
             let live: any = null
@@ -2946,7 +2959,7 @@ popupContent.append(title, number)
           position: 'absolute', top: activeRoute ? 160 : 68, left: 16, zIndex: 12,
           width: 'min(305px, calc(100% - 32px))', maxHeight: 'min(450px, 65vh)',
           overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          background: 'rgba(17,29,53,0.96)', border: '1px solid #F59E0B',
+          background: 'var(--color-surface)', border: '1px solid #F59E0B',
           borderRadius: 12, padding: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.55)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -2954,14 +2967,14 @@ popupContent.append(title, number)
             <button
               type="button"
               onClick={() => setSelectedBusRoute(null)}
-              style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--app-text)', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
+              style={{ background: 'var(--color-card2)', color: 'var(--app-text)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
             >닫기 ✕</button>
           </div>
           <div style={{ color: 'var(--color-muted)', fontSize: 11, marginTop: 6, marginBottom: 8 }}>
             {busRouteLoading ? '경유 정류장 불러오는 중...' :
               busRouteError || `${busRouteStations.length}개 경유 정류장 · 점과 선은 정류장 좌표 기반`}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--app-text)', marginBottom: 8, padding: '8px', background: 'var(--app-text)', borderRadius: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--app-text)', marginBottom: 8, padding: '8px', background: 'var(--color-card2)', borderRadius: 8 }}>
             <div style={{ fontWeight: 700, color: '#34D399' }}>📍 선택 정류장 접근 차량 (최대 2대)</div>
             {approachingBusLoading && <div style={{ marginTop: 5, color: 'var(--color-muted)' }}>실시간 위치 갱신 중...</div>}
             {approachingBusError && <div style={{ marginTop: 5, color: '#FCA5A5' }}>{approachingBusError}</div>}
@@ -2973,7 +2986,7 @@ popupContent.append(title, number)
                 key={vehicle.vehicle_id}
                 type="button"
                 onClick={() => mapInstanceRef.current?.flyTo({ center: vehicle.coords, zoom: 15, pitch: DEFAULT_MAP_PITCH, duration: 700, essential: true })}
-                style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--app-text)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
+                style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
               >
                 {vehicle.arrival_order === 1 ? '🟢 첫차' : '🔵 다음 차'} · {vehicle.arrival_message || '도착정보 없음'}
               </button>

@@ -24,6 +24,14 @@ et::ERR_CONNECTION_REFUSED로 실패. 따릉이 선택 시 검색 UI가 없어 �
   2. 키보드 탐색(↑↓/Tab/Enter/Esc), debounce 350ms, 요청 취소, 바깥 클릭 닫기, 버스·따릉이 중 하나가 실패해도 나머지 결과 표시.
   3. App.tsx·AppM.tsx의 개별 검색 UI를 통합 컴포넌트로 교체(선택 시 해당 교통수단 탭으로 전환 및 지도 포커스).
 - **영향도**: 프론트엔드만 변경. BusStationSearch.tsx는 타입(BusStationResult)만 사용, BikeStationSearch.tsx는 통합 컴포넌트로 대체되어 미사용.
+### 🎨🚌 지도 팝업 X버튼·버스 노선 창 테마 적용 및 전 정류장 버스 노선 보기 통일 (이슈 #69)
+- **배경/문제**: 라이트 모드에서 팝업 닫기(X) 버튼이 ackground: var(--app-text) + 어두운 글자색으로 식별 불가, 버스 노선 창은 배경 gba(17,29,53,0.96) 하드코딩 및 내부 박스에 ar(--app-text)(글자색)를 배경으로 오용. 주요 거점 정류장 팝업에는 노선 보기 버튼이 없어 정류장별 동작이 불일치.
+- **조치**:
+  1. index.css: 팝업 닫기 버튼을 --color-card2/--app-text/--color-border 변수 기반으로 통일(라이트 전용 오버라이드 제거).
+  2. TransitMap.tsx: 버스 노선 창 배경·닫기 버튼·접근 차량 박스를 테마 변수로 교체.
+  3. 주요 거점 버스 팝업 도착 행에 노선 보기 ↗ 버튼 추가(이벤트 위임), 해석된 정류소 ID(stId)를 도착 데이터에 포함.
+  4. 버그 수정: 거점에 stId가 없을 때 인근 정류소를 찾는 로직이 존재하지 않는 stop.coordinates를 참조하여 항상 건너뛰던 문제를 stop.coords로 수정.
+- **영향도**: 프론트엔드만 변경(PC/모바일 공용 TransitMap.tsx·index.css).
 ---
 ## [2026-10-29]
 

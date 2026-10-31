@@ -11,7 +11,9 @@ interface Props {
   onSelect: (station: BusStationResult) => void
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+// 빈 문자열("")은 Docker/Nginx 리버스 프록시용 유효값이므로 `||` 대신 typeof 로 판별한다.
+const envApiBase = import.meta.env.VITE_API_BASE_URL
+const API_BASE: string = typeof envApiBase === 'string' ? envApiBase : 'http://127.0.0.1:8000'
 
 export default function BusStationSearch({ onSelect }: Props) {
   const [query, setQuery] = useState('')

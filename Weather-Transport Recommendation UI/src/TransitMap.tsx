@@ -197,98 +197,6 @@ type ApproachingBusVehicle = {
 }
 
 // 버스 도착정보 표시
-type BusArrival = {
-  route_name: string
-  station_name: string
-  arrival_msg1: string
-  arrival_msg2: string
-  station_order: string
-  bus_route_id: string
-}
-
-async function loadBusArrivals(
-  stationId: string,
-  container: HTMLElement,
-  onSelectRoute?: (routeId: string, routeName: string, stationId: string) => void
-) {
-  container.textContent = '버스 도착정보 불러오는 중...'
-  container.style.color = 'var(--color-muted)'
-  container.style.fontSize = '12px'
-
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(stationId)}`
-    )
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const data = await response.json()
-    const arrivals: BusArrival[] = data.arrivals || []
-
-    container.replaceChildren()
-
-    if (arrivals.length === 0) {
-      container.textContent = '현재 조회 가능한 도착정보가 없습니다.'
-      return
-    }
-
-    for (const arrival of arrivals) {
-      const row = document.createElement('div')
-
-      Object.assign(row.style, {
-        marginTop: '12px',
-        paddingTop: '10px',
-        borderTop: '1px solid rgba(255,255,255,0.12)'
-      })
-
-      const route = document.createElement('button')
-      route.type = 'button'
-      route.textContent = `🚌 ${arrival.route_name}번  ·  노선 보기 ↗`
-      route.title = `${arrival.route_name}번 버스 노선 표시`
-      route.disabled = !arrival.bus_route_id || !onSelectRoute
-
-      Object.assign(route.style, {
-        color: '#34D399',
-        fontWeight: '700',
-        fontSize: '14px',
-        background: 'transparent',
-        border: 'none',
-        padding: '0',
-        cursor: route.disabled ? 'default' : 'pointer',
-        textAlign: 'left',
-        opacity: route.disabled ? '0.65' : '1'
-      })
-      if (!route.disabled && onSelectRoute) {
-        route.addEventListener('click', (event) => {
-          event.stopPropagation()
-          onSelectRoute(arrival.bus_route_id, arrival.route_name, stationId)
-        })
-      }
-
-      const firstArrival = document.createElement('div')
-      firstArrival.textContent =
-        `첫 번째: ${arrival.arrival_msg1 || '정보 없음'}`
-      firstArrival.style.color = 'var(--app-text)'
-      firstArrival.style.marginTop = '6px'
-
-      const secondArrival = document.createElement('div')
-      secondArrival.textContent =
-        `두 번째: ${arrival.arrival_msg2 || '정보 없음'}`
-      secondArrival.style.color = 'var(--color-muted)'
-      secondArrival.style.marginTop = '4px'
-
-      row.append(route, firstArrival, secondArrival)
-      container.appendChild(row)
-    }
-  } catch (error) {
-    console.error('버스 도착정보 조회 실패:', error)
-    container.textContent = '도착정보를 불러오지 못했습니다.'
-    container.style.color = '#FCA5A5'
-  }
-}
-
 
 export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation ,onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -297,6 +205,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const routeMarkersRef = useRef<any[]>([])
   const animFrameRef = useRef<number | null>(null)
   const activePopupRef = useRef<any>(null)
+  // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
+  const busStopPopupRef = useRef<any>(null)
+  const searchedBusMarkerRef = useRef<any>(null)
   const popupOpenedZoomRef = useRef<number | null>(null)
   const isFlyingRef = useRef<boolean>(false)
   const initialRestoreDoneRef = useRef<boolean>(false)
@@ -400,6 +311,560 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     if (crowd < 45) return { label: '여유', color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' }
     if (crowd < 75) return { label: '보통', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.15)' }
     return { label: '혼잡', color: '#F43F5E', bg: 'rgba(244, 63, 94, 0.15)' }
+  }
+
+  // ── 정류소/역 상세 팝업 HTML 생성 헬퍼 (모든 대중교통 거점에 공통 적용) ──
+  const buildStationPopupHtml = (
+    stop: TransitStop,
+    arrivalsOrOptions?: any[] | {
+      arrivalsList?: any[]
+      isLoadingArrivals?: boolean
+      weather?: any
+      aiPrediction?: any
+      isLoadingAll?: boolean
+      source?: string
+    },
+    isLoadingArrivalsArg = false
+  ) => {
+    let arrivalsList: any[] = []
+    let isLoadingArrivals = false
+    let weatherData: any = null
+    let aiData: any = null
+    let isLoadingAll = false
+    let apiSource: string = ''
+
+    if (Array.isArray(arrivalsOrOptions)) {
+      arrivalsList = arrivalsOrOptions
+      isLoadingArrivals = isLoadingArrivalsArg
+    } else if (arrivalsOrOptions && typeof arrivalsOrOptions === 'object') {
+      arrivalsList = arrivalsOrOptions.arrivalsList || []
+      isLoadingArrivals = !!arrivalsOrOptions.isLoadingArrivals
+      weatherData = arrivalsOrOptions.weather || null
+      aiData = arrivalsOrOptions.aiPrediction || null
+      isLoadingAll = !!arrivalsOrOptions.isLoadingAll
+      apiSource = String((arrivalsOrOptions as any).source || '')
+    }
+
+    const crowd = calculateCrowd(stop)
+    const { label, color } = getCrowdLevel(crowd)
+    const resolvedDistrict = resolveDistrict(stop.name, stop.coords)
+    const rec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
+    const displayCrowd = rec ? rec.crowd : crowd
+    const displayLabel = rec ? rec.crowdLabel : label
+    const displayColor = rec ? rec.crowdColor : color
+
+    let weatherSection = ''
+    if (isLoadingAll) {
+      weatherSection = `
+        <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 9px; margin-bottom: 7px; text-align: center;">
+          <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
+            ⏳ 기상청 실시간 관측 및 AI 모델 추론 중...
+          </div>
+          <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 32차원 ONNX 텐서 연산 진행</div>
+        </div>
+      `
+    } else if (weatherData) {
+      const wTemp = typeof weatherData.temp === 'number' ? weatherData.temp.toFixed(1) : (weatherData.weather?.temperature ?? 14.0)
+      const wRain = typeof weatherData.rain === 'number' ? weatherData.rain : (weatherData.weather?.precipitation_mm ?? 0.0)
+      const wHum = typeof weatherData.humidity === 'number' ? weatherData.humidity : (weatherData.weather?.humidity ?? 60.0)
+      const wWind = typeof weatherData.wind === 'number' ? weatherData.wind : (weatherData.weather?.wind_speed ?? 2.0)
+      const wNx = weatherData.nx ?? weatherData.grid?.nx ?? 60
+      const wNy = weatherData.ny ?? weatherData.grid?.ny ?? 127
+      const wDistrict = weatherData.district || resolvedDistrict
+
+      weatherSection = `
+        <div style="background: rgba(14, 165, 233, 0.09); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+            <span style="font-size: 10px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
+              <span>🌦️</span> ${wDistrict} 국지 기상 실황
+            </span>
+            <span style="font-size: 9px; color: var(--color-muted); font-family: monospace;">
+              격자 (${wNx}, ${wNy})
+            </span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; background: var(--color-card2); border-radius: 6px; padding: 4px 2px; margin-bottom: 5px;">
+            <div>
+              <div style="font-size: 8px; color: var(--color-muted);">기온</div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wTemp}°C</div>
+            </div>
+            <div>
+              <div style="font-size: 8px; color: var(--color-muted);">강수</div>
+              <div style="font-size: 11px; font-weight: 800; color: ${wRain > 0 ? '#60A5FA' : '#34D399'}; font-family: monospace;">${wRain}mm</div>
+            </div>
+            <div>
+              <div style="font-size: 8px; color: var(--color-muted);">습도</div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wHum}%</div>
+            </div>
+            <div>
+              <div style="font-size: 8px; color: var(--color-muted);">풍속</div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wWind}m/s</div>
+            </div>
+          </div>
+          <div style="font-size: 9px; color: #BAE6FD; display: flex; align-items: center; justify-content: space-between;">
+            <span>${wRain > 0 ? `🌧️ ${weatherData.pty_desc || '비'} (강수 관측)` : '☀️ 맑음 (평시 패턴)'}</span>
+            <span style="color: #64748B;">기상청 초단기실황</span>
+          </div>
+        </div>
+      `
+    } else {
+      weatherSection = `
+        <div style="font-size: 11px; color: var(--app-text); background: rgba(255, 255, 255, 0.07); padding: 7px 9px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.45; margin-bottom: 7px;">
+          ${rainMm > 0 
+            ? `🌧 강수(${rainMm.toFixed(1)}mm) 영향으로 ${stop.type === 'bike' ? '따릉이 이용 위험 및 급감' : '지하철·버스 환승 승객 증가'}` 
+            : '☀️ 맑은 날씨로 평시 이동 패턴 유지'}
+        </div>
+      `
+    }
+
+    let aiSection = ''
+    if (aiData && rec) {
+      aiSection = `
+        <div style="background: rgba(124, 58, 237, 0.1); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+            <span style="font-size: 10px; font-weight: 800; color: #C084FC; display: flex; align-items: center; gap: 4px;">
+              <span>🤖</span> AI 수요 추론 (${rec.name})
+            </span>
+            <span style="font-size: 9px; font-weight: 700; color: #C084FC; background: rgba(168,85,247,0.22); padding: 1px 5px; border-radius: 4px;">
+              ⚡ ONNX ${aiData.latency_ms ?? 1.2}ms
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">
+            <span style="color: var(--app-text);">예측 혼잡도: <strong style="color: ${displayColor};">${displayCrowd}%</strong> (${displayLabel})</span>
+            <span style="color: var(--color-muted); font-family: monospace;">시간당 ${rec.predicted_volume ? rec.predicted_volume.toLocaleString() : '1,200'}명</span>
+          </div>
+          <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 5px;">
+            <div style="width: ${displayCrowd}%; height: 100%; background: ${displayColor}; border-radius: 2px;"></div>
+          </div>
+          <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: var(--color-card2); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
+            ${rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석'}
+          </div>
+        </div>
+      `
+    }
+
+    let arrivalSection = ''
+    if (stop.type === 'subway') {
+      if (isLoadingArrivals) {
+        arrivalSection = `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+              <span style="font-size: 11px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
+                <span>🚇</span> 실시간 열차 도착
+              </span>
+              <span style="font-size: 9px; color: var(--color-muted);">수신 중...</span>
+            </div>
+            <div style="font-size: 10px; color: var(--color-muted); background: var(--color-card2); padding: 7px 9px; border-radius: 6px; text-align: center;">
+              ⏳ 실시간 열차 운행 정보 조회 중...
+            </div>
+          </div>
+        `
+      } else if (arrivalsList && arrivalsList.length > 0) {
+        arrivalSection = `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+              <span style="font-size: 11px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
+                <span>🚇</span> 실시간 열차 도착
+              </span>
+              <span style="font-size: 9px; font-weight: 700; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px;">
+                실시간 API
+              </span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
+              ${arrivalsList.slice(0, 8).map((arr: any) => `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #38BDF8;">
+                  <div style="min-width: 0; flex: 1; margin-right: 6px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <span style="background: rgba(56,189,248,0.22); color: #38BDF8; font-weight: 800; font-size: 9px; padding: 1px 4px; border-radius: 3px; white-space: nowrap;">
+                        ${arr.line || '전철'}
+                      </span>
+                      <span style="color: var(--app-text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${arr.destination ? arr.destination.split(' - ')[0] : '열차'}
+                      </span>
+                    </div>
+                    ${arr.updn_line ? `<div style="font-size: 9px; color: var(--color-muted); margin-top: 1px;">${arr.updn_line} ${arr.destination && arr.destination.includes(' - ') ? `(${arr.destination.split(' - ')[1]})` : ''}</div>` : ''}
+                  </div>
+                  <div style="text-align: right; flex-shrink: 0;">
+                    <div style="color: #FCD34D; font-weight: 800; font-family: monospace; font-size: 10px;">
+                      ${arr.message}
+                    </div>
+                    ${arr.remaining_minutes > 0 ? `<div style="font-size: 9px; color: var(--app-text); margin-top: 1px;">약 ${arr.remaining_minutes}분 후</div>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `
+      } else {
+        arrivalSection = `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+            <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">배차 간격 2~5분 정상 운행중</div>
+          </div>
+        `
+      }
+    } else if (stop.type === 'bus') {
+      if (isLoadingArrivals) {
+        arrivalSection = `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+            <div style="font-size: 10px; color: var(--color-muted); background: var(--color-card2); padding: 7px 9px; border-radius: 6px; text-align: center;">
+              ⏳ 실시간 버스 도착 정보 수신 중...
+            </div>
+          </div>
+        `
+      } else if (arrivalsList && arrivalsList.length > 0) {
+        arrivalSection = `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+              <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
+                <span>🚌</span> 실시간 버스 도착
+              </span>
+              <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; ${
+                apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT')
+                  ? 'color: #F59E0B; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);'
+                  : 'color: #34D399; background: rgba(52,211,153,0.15);'
+              }">
+                ${apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') ? '⚠️ 시간표 추정' : '실시간 API'}
+              </span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
+              ${arrivalsList.slice(0, 6).map((b: any) => `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #34D399;">
+                  ${(b.bus_route_id && (b.stId || stop.stId)) ? `<button type="button" data-bus-route-id="${b.bus_route_id}" data-bus-route-name="${b.route_name || ''}" data-bus-st-id="${b.stId || stop.stId}" title="노선 보기" style="color: #34D399; font-weight: 800; background: transparent; border: none; padding: 0; cursor: pointer; text-align: left; font-size: 10px;">${b.route_name || b.rtNm || '간선'} · 노선 보기 ↗</button>` : `<span style="color: #34D399; font-weight: 800;">${b.route_name || b.rtNm || '간선'}</span>`}
+                  <span style="color: #FCD34D; font-weight: 700; font-family: monospace;">${b.arrival_msg1 || b.arrmsg1 || '운행중'}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `
+      } else {
+        arrivalSection = `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+            <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">배차 간격 유지 정상 운행중</div>
+          </div>
+        `
+      }
+    } else if (stop.type === 'bike') {
+      const liveBike = (arrivalsList || []).find((x: any) => x && x.bikeLive)
+      const rackTotal = liveBike ? liveBike.rackTotal : (stop.rackCount || 20)
+      const crowdRatio = (displayCrowd || 60) / 100
+      const availableBikes = liveBike
+        ? liveBike.availableBikes
+        : (rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65))))
+      arrivalSection = `
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+            <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
+              <span>🚲</span> 따릉이 실시간 거치 현황
+            </span>
+            <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">
+              ${liveBike ? '실시간 API' : (stop.stationNo ? `대여소 #${stop.stationNo} · 추정` : '거점 대여소 · 추정')}
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
+            <span style="color: var(--app-text);">대여 가능 자전거</span>
+            <span style="color: #34D399; font-weight: 800; font-family: monospace;">${liveBike ? '' : '약 '}${availableBikes}대 / 총 ${rackTotal}대</span>
+          </div>
+          ${rainMm > 0 ? `
+            <div style="margin-top: 4px; font-size: 9px; color: #FCA5A5; text-align: center;">
+              🌧️ 우천 감속 및 안전모 착용 필수 (우천 시 대여 자제 권고)
+            </div>
+          ` : ''}
+        </div>
+      `
+    }
+
+    const typeIcon = stop.type === 'subway' ? '🚇' : stop.type === 'bus' ? '🚌' : '🚲'
+
+    return `
+      <div style="min-width: 250px; max-width: 310px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
+          <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+            <span style="font-size: 15px; flex-shrink: 0;">${typeIcon}</span>
+            <strong style="font-size: 14px; color: var(--app-text); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${stop.name}</strong>
+            <span style="font-size: 9px; color: var(--color-muted); background: var(--color-card); padding: 1px 5px; border-radius: 4px; flex-shrink: 0;">${resolvedDistrict}</span>
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: var(--app-text); background: ${displayColor}; padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;">
+            ${displayLabel} (${displayCrowd}%)
+          </span>
+        </div>
+        <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 6px; font-family: monospace;">${stop.lineInfo}</div>
+        ${weatherSection}
+        ${aiSection}
+        ${arrivalSection}
+      </div>
+    `
+  }
+
+  // ── 정류소/역 상세 정보 파이프라인 및 통합 팝업 오픈 (지하철·버스·따릉이 모든 거점 공통) ──
+  const openStationDetail = async (
+    stop: TransitStop,
+    options?: {
+      skipFlyTo?: boolean
+      popupOffset?: number
+      customPopup?: any
+      targetZoom?: number
+      onCrowdUpdate?: (rec: any) => void
+    }
+  ) => {
+    if (!mapLoaded || !mapInstanceRef.current) return
+    const map = mapInstanceRef.current
+
+    try {
+      localStorage.setItem(STORAGE_SELECTED_STOP_KEY, stop.id)
+    } catch {}
+
+    if (activePopupRef.current) {
+      activePopupRef.current.remove()
+      activePopupRef.current = null
+    }
+    if (busStopPopupRef.current) {
+      busStopPopupRef.current.remove()
+      busStopPopupRef.current = null
+    }
+
+    setActiveStop(stop)
+    if (onSelectStop) onSelectStop(stop, { loading: true })
+
+    if (!options?.skipFlyTo && !isInitialRestoringRef.current) {
+      const currentZ = map.getZoom()
+      const targetZoom = options?.targetZoom ?? (currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5))
+      isFlyingRef.current = true
+      map.flyTo({
+        center: stop.coords,
+        zoom: targetZoom,
+        pitch: DEFAULT_MAP_PITCH,
+        duration: 700,
+        essential: true,
+      })
+      setTimeout(() => {
+        isFlyingRef.current = false
+        if (mapInstanceRef.current) {
+          popupOpenedZoomRef.current = mapInstanceRef.current.getZoom()
+        }
+      }, 750)
+    }
+
+    const popup = options?.customPopup || new maplibregl.Popup({
+      offset: options?.popupOffset ?? 25,
+      closeButton: true,
+      closeOnClick: false,
+      maxWidth: '310px',
+    })
+
+    const onPopupRouteClick = (ev: Event) => {
+      const btn = (ev.target as HTMLElement | null)?.closest?.('[data-bus-route-id]') as HTMLElement | null
+      if (!btn) return
+      ev.stopPropagation()
+      selectBusRouteRef.current(btn.dataset.busRouteId || '', btn.dataset.busRouteName || '', btn.dataset.busStId || '')
+    }
+
+    popup.on('open', () => {
+      const popupEl = popup.getElement()
+      popupEl?.removeEventListener('click', onPopupRouteClick)
+      popupEl?.addEventListener('click', onPopupRouteClick)
+      activePopupRef.current = popup
+      busStopPopupRef.current = popup
+      if (mapInstanceRef.current) {
+        popupOpenedZoomRef.current = mapInstanceRef.current.getZoom()
+      }
+    })
+
+    popup.on('close', () => {
+      if (activePopupRef.current === popup) {
+        activePopupRef.current = null
+        popupOpenedZoomRef.current = null
+      }
+      if (busStopPopupRef.current === popup) {
+        busStopPopupRef.current = null
+      }
+      setActiveStop(null)
+      try {
+        localStorage.removeItem(STORAGE_SELECTED_STOP_KEY)
+      } catch {}
+      if (onSelectStop) onSelectStop(null)
+    })
+
+    popup.setHTML(buildStationPopupHtml(stop, { isLoadingAll: true }))
+    popup.setLngLat(stop.coords)
+    if (!options?.customPopup) {
+      popup.addTo(map)
+    }
+
+    activePopupRef.current = popup
+    busStopPopupRef.current = popup
+
+    const district = resolveDistrict(stop.name, stop.coords)
+    const cleanName = stop.name.replace(/역$/, '').trim()
+
+    try {
+      const weatherRes = await fetch(
+        `${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(district)}&lat=${stop.coords[1]}&lng=${stop.coords[0]}&station=${encodeURIComponent(cleanName)}`
+      )
+      const weatherData = await weatherRes.json()
+      logWeatherApiCall({ nx: weatherData.nx, ny: weatherData.ny }, weatherData, weatherData)
+
+      const parsedHour = parseInt(selectedTime, 10)
+      const currentHour = !isNaN(parsedHour) ? parsedHour : new Date().getHours()
+
+      const aiPayload = {
+        district,
+        station: stop.name,
+        stop_type: stop.type,
+        base_crowd: stop.baseCrowd,
+        hour: currentHour,
+        weather: {
+          temp: weatherData.temp,
+          rain: weatherData.rain,
+          humidity: weatherData.humidity,
+          wind: weatherData.wind,
+        }
+      }
+
+      const aiRes = await fetch(`${API_BASE_URL}/api/v1/predict/recommendation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(aiPayload)
+      })
+      const aiData = await aiRes.json()
+      logAIPredictionCall(aiPayload, aiData)
+
+      let arrivals: any[] = []
+      let apiCallSource = ''
+      if (stop.type === 'subway') {
+        try {
+          const arrivalRes = await fetch(
+            `${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`
+          )
+          const arrivalData = await arrivalRes.json()
+          arrivals = (arrivalData.status === 'success' && arrivalData.arrivals && arrivalData.arrivals.length > 0)
+            ? arrivalData.arrivals
+            : [
+                { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
+              ]
+          apiCallSource = String(arrivalData.source || '')
+          logSubwayApiCall(cleanName, arrivals, arrivalData)
+        } catch {
+          apiCallSource = 'CLIENT_FALLBACK'
+          arrivals = [
+            { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '정상 운행중', remaining_minutes: 2, updn_line: '상/하행' }
+          ]
+          logSubwayApiCall(cleanName, arrivals)
+        }
+      } else if (stop.type === 'bus') {
+        let targetStId = stop.stId
+        if (!targetStId && stop.coords) {
+          try {
+            const nearRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/stations/nearby?lat=${stop.coords[1]}&lng=${stop.coords[0]}&radius=350`)
+            if (nearRes.ok) {
+              const nearData = await nearRes.json()
+              if (nearData.stations && nearData.stations.length > 0) {
+                targetStId = nearData.stations[0].stId || nearData.stations[0].station_id
+              }
+            }
+          } catch {}
+        }
+
+        const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : []
+        const r1 = defaultRoutes[0] || `${stop.name} 경유 노선`
+
+        if (targetStId) {
+          try {
+            const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
+            const busData = await busRes.json()
+            apiCallSource = String(busData.source || '')
+            arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
+              ? busData.arrivals
+              : [{ route_name: r1, arrival_msg1: '배차간격 유지 운행중' }]
+            logBusApiCall(r1, targetStId, arrivals, busData)
+          } catch {
+            apiCallSource = 'CLIENT_FALLBACK'
+            arrivals = [{ route_name: r1, arrival_msg1: '배차간격 유지 운행중' }]
+            logBusApiCall(r1, targetStId, arrivals)
+          }
+        } else {
+          apiCallSource = 'NO_STID_FALLBACK'
+          arrivals = [{ route_name: r1, arrival_msg1: '배차간격 유지 운행중' }]
+        }
+        if (targetStId) arrivals = arrivals.map((a: any) => ({ ...a, stId: targetStId }))
+      } else if (stop.type === 'bike') {
+        let live: any = null
+        let method: 'by-number' | 'nearest-200m' | 'estimated' = 'estimated'
+        let proxyPath = ''
+        let rawPayload: any = null
+        try {
+          if (stop.stationNo) {
+            proxyPath = `/api/v1/transit/bike/stations/by-number/${encodeURIComponent(stop.stationNo)}`
+            const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+            if (r.ok) {
+              rawPayload = await r.json()
+              live = rawPayload.station
+              method = 'by-number'
+              if (live?.coords) {
+                const dLat = (live.coords[1] - stop.coords[1]) * 111320
+                const dLng = (live.coords[0] - stop.coords[0]) * 111320 * Math.cos(stop.coords[1] * Math.PI / 180)
+                if (Math.hypot(dLat, dLng) > 250) {
+                  live = null
+                  method = 'estimated'
+                }
+              }
+            }
+          }
+          if (!live) {
+            const params = new URLSearchParams({ lat: String(stop.coords[1]), lng: String(stop.coords[0]), radius: '200', limit: '1' })
+            proxyPath = `/api/v1/transit/bike/stations/nearby?${params.toString()}`
+            const r = await fetch(`${API_BASE_URL}${proxyPath}`)
+            if (r.ok) {
+              rawPayload = await r.json()
+              live = (rawPayload.stations || [])[0] || null
+              if (live) method = 'nearest-200m'
+            }
+          }
+          if (live) arrivals = [{ bikeLive: true, rackTotal: live.rackTotal, availableBikes: live.availableBikes, name: live.name }]
+        } catch (e) {
+          console.warn('따릉이 실시간 조회 실패, 추정값 사용:', e)
+        }
+        logBikeApiCall({ stationNo: stop.stationNo, stationName: stop.name, method, proxyPath }, live, rawPayload)
+      }
+
+      if (activePopupRef.current === popup) {
+        popup.setHTML(buildStationPopupHtml(stop, {
+          weather: weatherData,
+          aiPrediction: aiData,
+          arrivalsList: arrivals,
+          isLoadingArrivals: false,
+          source: apiCallSource
+        }))
+      }
+
+      const targetRec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
+      if (targetRec && options?.onCrowdUpdate) {
+        options.onCrowdUpdate(targetRec)
+      }
+
+      if (onSelectStop) {
+        onSelectStop(stop, {
+          loading: false,
+          weather: weatherData,
+          aiPrediction: aiData,
+          arrivals,
+        })
+      }
+    } catch (err) {
+      console.error('역/정류소 정보 파이프라인 조회 실패:', err)
+      if (activePopupRef.current === popup) {
+        popup.setHTML(buildStationPopupHtml(stop, {
+          arrivalsList: [],
+          isLoadingArrivals: false
+        }))
+      }
+      if (onSelectStop) {
+        onSelectStop(stop, {
+          loading: false,
+          weather: null,
+          aiPrediction: null,
+          arrivals: [],
+        })
+      }
+    }
   }
 
   // 1. MapLibre GL 지도 초기화
@@ -599,24 +1064,37 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     })
   }, [focusedCoords, mapLoaded])
 
-  // 검색으로 선택한 버스정류장 마커 표시
+  // 🚌 상단 버스 검색에서 선택된 버스정류장 전용 마커 및 상세 팝업 (주요 거점과 100% 동일한 기능/UI 적용)
   useEffect(() => {
-    console.log('[버스 마커 확인]', {
-      mapLoaded,
-      selectedBusStation,
-      mapExists: !!mapInstanceRef.current,
-    })
-
     if (!mapLoaded || !mapInstanceRef.current || !selectedBusStation) {
+      if (searchedBusMarkerRef.current) {
+        searchedBusMarkerRef.current.remove()
+        searchedBusMarkerRef.current = null
+      }
       return
     }
 
+    if (searchedBusMarkerRef.current) {
+      searchedBusMarkerRef.current.remove()
+      searchedBusMarkerRef.current = null
+    }
+
     const map = mapInstanceRef.current
+    const stop: TransitStop = {
+      id: `bus-search-${selectedBusStation.id}`,
+      name: selectedBusStation.name,
+      type: 'bus',
+      coords: selectedBusStation.coords,
+      lineInfo: selectedBusStation.arsId ? `정류장 번호 ${selectedBusStation.arsId}` : '시내버스 정류소',
+      baseCrowd: 45,
+      rainSensitivity: 0.15,
+      stId: selectedBusStation.id,
+      arsId: selectedBusStation.arsId,
+    }
 
     const el = document.createElement('div')
     el.textContent = '🚌'
     el.title = selectedBusStation.name
-
     Object.assign(el.style, {
       fontSize: '24px',
       cursor: 'pointer',
@@ -629,58 +1107,29 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       alignItems: 'center',
       justifyContent: 'center',
       boxShadow: '0 0 18px rgba(52,211,153,0.5)',
-    })
-    const popupContent = document.createElement('div')
-
-    Object.assign(popupContent.style, {
-      padding: '10px 14px',
-      background: 'var(--color-surface)',
-      borderRadius: '10px',
-      fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
-      minWidth: '180px'
+      zIndex: '1500',
     })
 
-const title = document.createElement('strong')
-title.textContent = `🚌 ${selectedBusStation.name}`
+    const marker = new maplibregl.Marker({ element: el })
+      .setLngLat(selectedBusStation.coords)
+      .addTo(map)
 
-Object.assign(title.style, {
-  color: 'var(--app-text)',
-  fontSize: '14px',
-  fontWeight: '800'
-})
+    searchedBusMarkerRef.current = marker
 
-const number = document.createElement('div')
-number.textContent = `정류장 번호: ${selectedBusStation.arsId}`
+    el.addEventListener('click', () => {
+      openStationDetail(stop)
+    })
 
-Object.assign(number.style, {
-  marginTop: '8px',
-  color: 'var(--color-muted)',
-  fontSize: '11px'
-})
+    // 선택 시 자동으로 주요 거점과 동일한 풀 스펙 상세 팝업(기상+AI+도착정보+노선) 오픈
+    openStationDetail(stop)
 
-popupContent.append(title, number)
-
-  const arrivalContainer = document.createElement('div')
-  popupContent.appendChild(arrivalContainer)
-
-  const popup = new maplibregl.Popup({ offset: 25 })
-    .setDOMContent(popupContent)
-
-  popup.on('open', () => {
-    loadBusArrivals(selectedBusStation.id, arrivalContainer, (id, name, stationId) => selectBusRouteRef.current(id, name, stationId))
-})
-
-
-  // 팝업은 위에서 한 번만 생성했으므로 다시 선언하지 않음
-  const marker = new maplibregl.Marker({ element: el })
-    .setLngLat(selectedBusStation.coords)
-    .setPopup(popup)
-    .addTo(map)
-
-  return () => {
-    marker.remove()
-  }
-}, [mapLoaded, selectedBusStation])
+    return () => {
+      marker.remove()
+      if (searchedBusMarkerRef.current === marker) {
+        searchedBusMarkerRef.current = null
+      }
+    }
+  }, [mapLoaded, selectedBusStation])
 
   // 역/정류소 중요도 가중치 계산 (환승역 및 주요 환승센터/대형 거점 우선 노출)
   const calculateStationPriority = (stop: TransitStop): number => {
@@ -776,8 +1225,9 @@ popupContent.append(title, number)
     const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = []
 
     // 줌 레벨에 따라 겹침 감지 박스 크기 동적 조절 (확대할수록 간격 좁아져 많은 역 등장)
-    const halfW = currentZoom >= 16 ? 32 : (currentZoom >= 14 ? 44 : (currentZoom >= 13 ? 56 : 72))
-    const halfH = currentZoom >= 16 ? 12 : (currentZoom >= 14 ? 16 : (currentZoom >= 13 ? 20 : 26))
+    // 알약 마커 실제 크기(~125px 너비)를 고려한 충돌 여백 확장 (글자 겹침 원천 방지)
+    const halfW = currentZoom >= 16 ? 56 : (currentZoom >= 14 ? 66 : (currentZoom >= 13 ? 76 : 90))
+    const halfH = currentZoom >= 16 ? 16 : (currentZoom >= 14 ? 18 : (currentZoom >= 13 ? 22 : 28))
 
     for (const item of markerItemsRef.current) {
       const [lng, lat] = item.stop.coords
@@ -967,7 +1417,8 @@ popupContent.append(title, number)
 
       // [규칙 3] 중거리 뷰 (11.5 <= Zoom < 13.5)에서 버스와 따릉이는 거대한 알약 마커 금지!
       // 오직 원형 점(Dot) 마커로만 단정하게 찍혀서 도로와 도시 가림을 원천 방지
-      const forceDotForNonSubway = (isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike')
+      // 전체 보기(all)에서는 지하철역만 알약 배지로 표출하고, 버스·따릉이는 혼잡도 점(Dot)으로 고정하여 겹침 방지
+      const forceDotForNonSubway = (filterType === 'all' || isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike')
 
       item.el.style.zIndex = '1'
 
@@ -1024,6 +1475,7 @@ popupContent.append(title, number)
   // 🚌 지도 주변 실제 버스정류장 자동 표시
   useEffect(() => {
     if (!mapLoaded || !mapInstanceRef.current) return
+    // 전체 보기(all) 및 버스(bus) 모드에서 주변 버스정류장 실시간 표시
     if (filterType !== 'bus' && filterType !== 'all') return
 
     const map = mapInstanceRef.current
@@ -1056,7 +1508,7 @@ popupContent.append(title, number)
           16, 7,
           18, 10
         ],
-        'circle-color': '#34D399',
+        'circle-color': ['coalesce', ['get', 'color'], '#38BDF8'],
         'circle-stroke-color': getMapThemeSurface(),
         'circle-stroke-width': 2,
         'circle-opacity': 0.95
@@ -1112,18 +1564,37 @@ popupContent.append(title, number)
             bounds.contains(station.coords)
         )
 
-        const features = stations.map((station: any) => ({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: station.coords
-          },
-          properties: {
-            stId: station.stId,
+        const features = stations.map((station: any) => {
+          const tempStop: TransitStop = {
+            id: station.stId || station.id,
             name: station.name,
-            arsId: station.arsId
+            type: 'bus',
+            coords: station.coords,
+            lineInfo: station.arsId ? `정류장 번호 ${station.arsId}` : '시내버스 정류소',
+            baseCrowd: 45,
+            rainSensitivity: 0.15,
+            stId: station.stId,
+            arsId: station.arsId,
           }
-        }))
+          const crowd = calculateCrowd(tempStop)
+          const { label, color } = getCrowdLevel(crowd)
+
+          return {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: station.coords
+            },
+            properties: {
+              stId: station.stId,
+              name: station.name,
+              arsId: station.arsId,
+              crowd,
+              label,
+              color,
+            }
+          }
+        })
 
         setStations(features)
         console.log(
@@ -1148,57 +1619,57 @@ popupContent.append(title, number)
       }, 350)
     }
 
-    // 정류장 원 클릭 시 팝업 표시
+    // 정류장 원 클릭 시 풀 스펙 상세 팝업 표시 (기상 실황 + AI 추론 + 실시간 도착정보 + 노선 보기)
     const handleStationClick = (e: any) => {
       const feature = e.features?.[0]
       if (!feature || feature.geometry?.type !== 'Point') return
 
+      // 노선 경유 정류장 점과 겹쳐 클릭된 경우 경유 정류장 팝업만 표시
+      if (map.getLayer('selected-bus-route-stations') && map.queryRenderedFeatures(e.point, { layers: ['selected-bus-route-stations'] }).length > 0) return
+
       const coords = feature.geometry.coordinates as [number, number]
       const properties = feature.properties || {}
 
-      const content = document.createElement('div')
-      content.style.padding = '10px'
-      content.style.background = 'var(--color-surface)'
-      content.style.borderRadius = '8px'
+      const stop: TransitStop = {
+        id: `bus-dyn-${properties.stId || properties.id || properties.arsId || `${coords[0]}_${coords[1]}`}`,
+        name: properties.name || '버스정류장',
+        type: 'bus',
+        coords: coords,
+        lineInfo: properties.arsId ? `정류장 번호 ${properties.arsId}` : '시내버스 정류소',
+        baseCrowd: 45,
+        rainSensitivity: 0.15,
+        stId: properties.stId || properties.station_id || properties.id,
+        arsId: properties.arsId,
+      }
 
-      const title = document.createElement('strong')
-      title.textContent = `🚌 ${properties.name || '버스정류장'}`
-      title.style.color = 'var(--app-text)'
-
-      const number = document.createElement('div')
-      number.textContent = `정류장 번호: ${properties.arsId || '-'}`
-      number.style.color = 'var(--color-muted)'
-      number.style.marginTop = '7px'
-
-      content.append(title, number)
-
-      // 주변 정류장에서도 검색 마커와 동일한 실시간 도착정보 제공
-      const arrivalContainer = document.createElement('div')
-      content.appendChild(arrivalContainer)
-
-      const popup = new maplibregl.Popup({ offset: 12 })
-        .setLngLat(coords)
-        .setDOMContent(content)
-
-      popup.on('open', () => {
-        const stationId = String(properties.stId || '')
-        if (stationId) {
-          loadBusArrivals(stationId, arrivalContainer, (id, name) => selectBusRouteRef.current(id, name, stationId))
-        } else {
-          arrivalContainer.textContent = '정류장 ID가 없어 도착정보를 조회할 수 없습니다.'
-          arrivalContainer.style.color = '#FCA5A5'
-        }
-      })
-
-      popup.addTo(map)
+      openStationDetail(stop, { popupOffset: 12 })
     }
 
-    const onMouseEnter = () => {
+    const busHoverPopup = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: 10,
+    })
+
+    const onMouseEnter = (e: any) => {
       map.getCanvas().style.cursor = 'pointer'
+      const f = e.features?.[0]
+      if (!f || f.geometry.type !== 'Point') return
+      const p = f.properties || {}
+      const col = p.color || '#38BDF8'
+      busHoverPopup
+        .setLngLat(f.geometry.coordinates as [number, number])
+        .setHTML(`
+          <div style="font-size: 11px; font-weight: 700; color: var(--app-text); padding: 2px 6px; white-space: nowrap; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
+            🚌 ${p.name || '버스정류장'} <span style="color: ${col}; font-weight: 800; margin-left: 3px;">${p.crowd || 45}% (${p.label || '보통'})</span>
+          </div>
+        `)
+        .addTo(map)
     }
 
     const onMouseLeave = () => {
       map.getCanvas().style.cursor = ''
+      busHoverPopup.remove()
     }
 
     map.on('moveend', scheduleUpdate)
@@ -1218,6 +1689,7 @@ popupContent.append(title, number)
       map.off('click', layerId, handleStationClick)
       map.off('mouseenter', layerId, onMouseEnter)
       map.off('mouseleave', layerId, onMouseLeave)
+      busHoverPopup.remove()
 
       try {
         if (map.getLayer(layerId)) map.removeLayer(layerId)
@@ -1226,7 +1698,7 @@ popupContent.append(title, number)
         // 지도 자체가 이미 제거된 경우
       }
     }
-  }, [mapLoaded, filterType])
+  }, [mapLoaded, filterType, selectedTime, rainMm])
 
   // 🚲 지도 주변 실제 따릉이 대여소를 기존 거점 마커와 동일한 마커/팝업(AI 모델 + 실시간 잔여 수)으로 통합 표시
   useEffect(() => {
@@ -1435,24 +1907,21 @@ popupContent.append(title, number)
       const feature = event.features?.[0]
       if (!feature || feature.geometry?.type !== 'Point') return
       const props = feature.properties || {}
-      const content = document.createElement('div')
-      Object.assign(content.style, {
-        padding: '10px 12px',
-        background: 'var(--color-surface)',
-        borderRadius: '8px',
-        color: 'var(--app-text)',
-        fontSize: '12px'
-      })
-      const heading = document.createElement('strong')
-      heading.textContent = `${props.sequence}번째 · ${props.name || '경유 정류장'}`
-      const number = document.createElement('div')
-      number.textContent = `정류장 번호: ${props.arsId || '-'}`
-      Object.assign(number.style, { marginTop: '6px', color: 'var(--color-muted)' })
-      content.append(heading, number)
-      new maplibregl.Popup({ offset: 10 })
-        .setLngLat(feature.geometry.coordinates)
-        .setDOMContent(content)
-        .addTo(map)
+      const coords = feature.geometry.coordinates as [number, number]
+
+      const stop: TransitStop = {
+        id: `bus-route-${props.id || props.stationId || `${coords[0]}_${coords[1]}`}`,
+        name: props.name || '경유 정류장',
+        type: 'bus',
+        coords: coords,
+        lineInfo: `${props.sequence}번째 경유 · ${props.arsId ? `정류장 번호 ${props.arsId}` : ''}`,
+        baseCrowd: 45,
+        rainSensitivity: 0.15,
+        stId: props.stId || props.stationId || props.id,
+        arsId: props.arsId,
+      }
+
+      openStationDetail(stop, { popupOffset: 10, skipFlyTo: true })
     }
     const onEnter = () => { map.getCanvas().style.cursor = 'pointer' }
     const onLeave = () => { map.getCanvas().style.cursor = '' }
@@ -1473,6 +1942,7 @@ popupContent.append(title, number)
       map.off('click', pointLayerId, onBusRouteStopClick)
       map.off('mouseenter', pointLayerId, onEnter)
       map.off('mouseleave', pointLayerId, onLeave)
+      busStopPopupRef.current?.remove()
       try {
         if (map.getLayer(pointLayerId)) map.removeLayer(pointLayerId)
         if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId)
@@ -1683,29 +2153,52 @@ popupContent.append(title, number)
           "></div>
         </div>
 
-        <!-- 2. 점 마커 뷰 (이름 겹침 및 중거리 줌아웃 시 대체 표출되는 미니 원형 점) -->
+        <!-- 2. 점 마커 뷰 (이름 겹침 및 전체 보기 시 정갈하게 표출되는 혼잡도 미니 원형 점) -->
         <div class="marker-dot-view" style="
           display: none;
           align-items: center;
           justify-content: center;
-          padding: 3px;
-        " title="${typeIcon} ${stop.name} (${label} ${crowd}%)">
+          padding: 4px;
+          position: relative;
+        ">
           <div class="marker-dot-circle" style="
-            width: 10px;
-            height: 10px;
+            width: 11px;
+            height: 11px;
             border-radius: 50%;
             background: ${color};
             border: 2px solid var(--color-surface);
             box-shadow: 0 2px 8px var(--app-shadow), 0 0 10px ${color}bb;
             transition: transform 0.18s ease, box-shadow 0.18s ease;
           "></div>
+          <!-- 마우스 호버 시 즉시 뜨는 미니 말풍선 툴팁 -->
+          <div class="marker-dot-tooltip" style="
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 5px);
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            background: var(--color-surface);
+            color: var(--app-text);
+            border: 1px solid ${color};
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            box-shadow: 0 4px 14px var(--app-shadow);
+            pointer-events: none;
+            z-index: 10000;
+          ">
+            ${typeIcon} ${stop.name} <span style="color: ${color}; font-weight: 800; margin-left: 3px;">${crowd}% (${label})</span>
+          </div>
         </div>
       `
 
-      // 호버 인터랙션 (알약 또는 점 마커 상태에 따라 부드러운 하이라이트)
+      // 호버 인터랙션 (알약 또는 점 마커 상태에 따라 부드러운 하이라이트 & 점 툴팁 표시)
       const pill = el.querySelector('.marker-pill') as HTMLElement | null
       const dotView = el.querySelector('.marker-dot-view') as HTMLElement | null
       const dotCircle = el.querySelector('.marker-dot-circle') as HTMLElement | null
+      const dotTooltip = el.querySelector('.marker-dot-tooltip') as HTMLElement | null
 
       el.addEventListener('mouseenter', () => {
         if (dotView && dotView.style.display !== 'none') {
@@ -1713,6 +2206,7 @@ popupContent.append(title, number)
             dotCircle.style.transform = 'scale(1.6)'
             dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px var(--app-shadow)`
           }
+          if (dotTooltip) dotTooltip.style.display = 'block'
           el.style.zIndex = '5000'
         } else if (pill) {
           pill.style.transform = 'scale(1.1) translateY(-2px)'
@@ -1726,6 +2220,7 @@ popupContent.append(title, number)
           dotCircle.style.transform = 'scale(1)'
           dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${color}bb`
         }
+        if (dotTooltip) dotTooltip.style.display = 'none'
         if (pill) {
           pill.style.transform = 'scale(1) translateY(0)'
           pill.style.boxShadow = '0 4px 14px var(--app-shadow)'
@@ -1733,527 +2228,13 @@ popupContent.append(title, number)
         el.style.zIndex = '1'
       })
 
-      // 팝업 HTML 생성 헬퍼 (실시간 기상 관측, AI 추론 모델, 열차/버스 도착 정보 연동)
-      const buildPopupContent = (
-        arrivalsOrOptions?: any[] | {
-          arrivalsList?: any[]
-          isLoadingArrivals?: boolean
-          weather?: any
-          aiPrediction?: any
-          isLoadingAll?: boolean
-          source?: string
-        },
-        isLoadingArrivalsArg = false
-      ) => {
-        let arrivalsList: any[] = []
-        let isLoadingArrivals = false
-        let weatherData: any = null
-        let aiData: any = null
-        let isLoadingAll = false
-        let apiSource: string = ''
-
-        if (Array.isArray(arrivalsOrOptions)) {
-          arrivalsList = arrivalsOrOptions
-          isLoadingArrivals = isLoadingArrivalsArg
-        } else if (arrivalsOrOptions && typeof arrivalsOrOptions === 'object') {
-          arrivalsList = arrivalsOrOptions.arrivalsList || []
-          isLoadingArrivals = !!arrivalsOrOptions.isLoadingArrivals
-          weatherData = arrivalsOrOptions.weather || null
-          aiData = arrivalsOrOptions.aiPrediction || null
-          isLoadingAll = !!arrivalsOrOptions.isLoadingAll
-          apiSource = String((arrivalsOrOptions as any).source || '')
-        }
-
-        const resolvedDistrict = resolveDistrict(stop.name, stop.coords)
-        const rec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
-        const displayCrowd = rec ? rec.crowd : crowd
-        const displayLabel = rec ? rec.crowdLabel : label
-        const displayColor = rec ? rec.crowdColor : color
-
-        let weatherSection = ''
-        if (isLoadingAll) {
-          weatherSection = `
-            <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 9px; margin-bottom: 7px; text-align: center;">
-              <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
-                ⏳ 기상청 실시간 관측 및 AI 모델 추론 중...
-              </div>
-              <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 32차원 ONNX 텐서 연산 진행</div>
-            </div>
-          `
-        } else if (weatherData) {
-          const wTemp = typeof weatherData.temp === 'number' ? weatherData.temp.toFixed(1) : (weatherData.weather?.temperature ?? 14.0)
-          const wRain = typeof weatherData.rain === 'number' ? weatherData.rain : (weatherData.weather?.precipitation_mm ?? 0.0)
-          const wHum = typeof weatherData.humidity === 'number' ? weatherData.humidity : (weatherData.weather?.humidity ?? 60.0)
-          const wWind = typeof weatherData.wind === 'number' ? weatherData.wind : (weatherData.weather?.wind_speed ?? 2.0)
-          const wNx = weatherData.nx ?? weatherData.grid?.nx ?? 60
-          const wNy = weatherData.ny ?? weatherData.grid?.ny ?? 127
-          const wDistrict = weatherData.district || resolvedDistrict
-
-          weatherSection = `
-            <div style="background: rgba(14, 165, 233, 0.09); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
-                <span style="font-size: 10px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
-                  <span>🌦️</span> ${wDistrict} 국지 기상 실황
-                </span>
-                <span style="font-size: 9px; color: var(--color-muted); font-family: monospace;">
-                  격자 (${wNx}, ${wNy})
-                </span>
-              </div>
-              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; background: var(--color-card2); border-radius: 6px; padding: 4px 2px; margin-bottom: 5px;">
-                <div>
-                  <div style="font-size: 8px; color: var(--color-muted);">기온</div>
-                  <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wTemp}°C</div>
-                </div>
-                <div>
-                  <div style="font-size: 8px; color: var(--color-muted);">강수</div>
-                  <div style="font-size: 11px; font-weight: 800; color: ${wRain > 0 ? '#60A5FA' : '#34D399'}; font-family: monospace;">${wRain}mm</div>
-                </div>
-                <div>
-                  <div style="font-size: 8px; color: var(--color-muted);">습도</div>
-                  <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wHum}%</div>
-                </div>
-                <div>
-                  <div style="font-size: 8px; color: var(--color-muted);">풍속</div>
-                  <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wWind}m/s</div>
-                </div>
-              </div>
-              <div style="font-size: 9px; color: #BAE6FD; display: flex; align-items: center; justify-content: space-between;">
-                <span>${wRain > 0 ? `🌧️ ${weatherData.pty_desc || '비'} (강수 관측)` : '☀️ 맑음 (평시 패턴)'}</span>
-                <span style="color: #64748B;">기상청 초단기실황</span>
-              </div>
-            </div>
-          `
-        } else {
-          weatherSection = `
-            <div style="font-size: 11px; color: var(--app-text); background: rgba(255, 255, 255, 0.07); padding: 7px 9px; border-radius: 6px; border-left: 3px solid ${color}; line-height: 1.45; margin-bottom: 7px;">
-              ${rainMm > 0 
-                ? `🌧 강수(${rainMm.toFixed(1)}mm) 영향으로 ${stop.type === 'bike' ? '따릉이 이용 위험 및 급감' : '지하철·버스 환승 승객 증가'}` 
-                : '☀️ 맑은 날씨로 평시 이동 패턴 유지'}
-            </div>
-          `
-        }
-
-        let aiSection = ''
-        if (aiData && rec) {
-          aiSection = `
-            <div style="background: rgba(124, 58, 237, 0.1); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                <span style="font-size: 10px; font-weight: 800; color: #C084FC; display: flex; align-items: center; gap: 4px;">
-                  <span>🤖</span> AI 수요 추론 (${rec.name})
-                </span>
-                <span style="font-size: 9px; font-weight: 700; color: #C084FC; background: rgba(168,85,247,0.22); padding: 1px 5px; border-radius: 4px;">
-                  ⚡ ONNX ${aiData.latency_ms ?? 1.2}ms
-                </span>
-              </div>
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">
-                <span style="color: var(--app-text);">예측 혼잡도: <strong style="color: ${displayColor};">${displayCrowd}%</strong> (${displayLabel})</span>
-                <span style="color: var(--color-muted); font-family: monospace;">시간당 ${rec.predicted_volume ? rec.predicted_volume.toLocaleString() : '1,200'}명</span>
-              </div>
-              <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 5px;">
-                <div style="width: ${displayCrowd}%; height: 100%; background: ${displayColor}; border-radius: 2px;"></div>
-              </div>
-              <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: var(--color-card2); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
-                ${rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석'}
-              </div>
-            </div>
-          `
-        }
-
-        let arrivalSection = ''
-
-        if (stop.type === 'subway') {
-          if (isLoadingArrivals) {
-            arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="font-size: 11px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
-                    <span>🚇</span> 실시간 열차 도착
-                  </span>
-                  <span style="font-size: 9px; color: var(--color-muted);">수신 중...</span>
-                </div>
-                <div style="font-size: 10px; color: var(--color-muted); background: var(--color-card2); padding: 7px 9px; border-radius: 6px; text-align: center;">
-                  ⏳ 실시간 열차 운행 정보 조회 중...
-                </div>
-              </div>
-            `
-          } else if (arrivalsList && arrivalsList.length > 0) {
-            arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="font-size: 11px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
-                    <span>🚇</span> 실시간 열차 도착
-                  </span>
-                  <span style="font-size: 9px; font-weight: 700; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px;">
-                    실시간 API
-                  </span>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
-                  ${arrivalsList.slice(0, 8).map((arr: any) => `
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #38BDF8;">
-                      <div style="min-width: 0; flex: 1; margin-right: 6px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                          <span style="background: rgba(56,189,248,0.22); color: #38BDF8; font-weight: 800; font-size: 9px; padding: 1px 4px; border-radius: 3px; white-space: nowrap;">
-                            ${arr.line || '전철'}
-                          </span>
-                          <span style="color: var(--app-text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            ${arr.destination ? arr.destination.split(' - ')[0] : '열차'}
-                          </span>
-                        </div>
-                        ${arr.updn_line ? `<div style="font-size: 9px; color: var(--color-muted); margin-top: 1px;">${arr.updn_line} ${arr.destination && arr.destination.includes(' - ') ? `(${arr.destination.split(' - ')[1]})` : ''}</div>` : ''}
-                      </div>
-                      <div style="text-align: right; flex-shrink: 0;">
-                        <div style="color: #FCD34D; font-weight: 800; font-family: monospace; font-size: 10px;">
-                          ${arr.message}
-                        </div>
-                        ${arr.remaining_minutes > 0 ? `<div style="font-size: 9px; color: var(--app-text); margin-top: 1px;">약 ${arr.remaining_minutes}분 후</div>` : ''}
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            `
-          } else {
-            arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-                <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">배차 간격 2~5분 정상 운행중</div>
-              </div>
-            `
-          }
-        } else if (stop.type === 'bus') {
-          if (isLoadingArrivals) {
-            arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-                <div style="font-size: 10px; color: var(--color-muted); background: var(--color-card2); padding: 7px 9px; border-radius: 6px; text-align: center;">
-                  ⏳ 실시간 버스 도착 정보 수신 중...
-                </div>
-              </div>
-            `
-          } else if (arrivalsList && arrivalsList.length > 0) {
-            arrivalSection = `
-              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
-                    <span>🚌</span> 실시간 버스 도착
-                  </span>
-                  <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; ${
-                    apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT')
-                      ? 'color: #F59E0B; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);'
-                      : 'color: #34D399; background: rgba(52,211,153,0.15);'
-                  }">
-                    ${apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') ? '⚠️ 시간표 추정' : '실시간 API'}
-                  </span>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  ${arrivalsList.slice(0, 3).map((b: any) => `
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #34D399;">
-                      <span style="color: #34D399; font-weight: 800;">${b.route_name || b.rtNm || '간선'}</span>
-                      <span style="color: #FCD34D; font-weight: 700; font-family: monospace;">${b.arrival_msg1 || b.arrmsg1 || '운행중'}</span>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            `
-          }
-        } else if (stop.type === 'bike') {
-          const liveBike = (arrivalsList || []).find((x: any) => x && x.bikeLive)
-          const rackTotal = liveBike ? liveBike.rackTotal : (stop.rackCount || 20)
-          // 실시간 값이 있으면 사용, 없으면 혼잡도·강수량 기반 추정
-          const crowdRatio = (displayCrowd || 60) / 100
-          const availableBikes = liveBike
-            ? liveBike.availableBikes
-            : (rainMm > 0 ? Math.max(0, Math.round(rackTotal * 0.85)) : Math.max(1, Math.round(rackTotal * (1 - crowdRatio * 0.65))))
-          arrivalSection = `
-            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
-                <span style="font-size: 11px; font-weight: 800; color: #34D399; display: flex; align-items: center; gap: 4px;">
-                  <span>🚲</span> 따릉이 실시간 거치 현황
-                </span>
-                <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">
-                  ${liveBike ? '실시간 API' : (stop.stationNo ? `대여소 #${stop.stationNo} · 추정` : '거점 대여소 · 추정')}
-                </span>
-              </div>
-              <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
-                <span style="color: var(--app-text);">대여 가능 자전거</span>
-                <span style="color: #34D399; font-weight: 800; font-family: monospace;">${liveBike ? '' : '약 '}${availableBikes}대 / 총 ${rackTotal}대</span>
-              </div>
-              ${rainMm > 0 ? `
-                <div style="margin-top: 4px; font-size: 9px; color: #FCA5A5; text-align: center;">
-                  🌧️ 우천 감속 및 안전모 착용 필수 (우천 시 대여 자제 권고)
-                </div>
-              ` : ''}
-            </div>
-          `
-        }
-
-        return `
-          <div style="min-width: 250px; max-width: 310px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
-            <!-- 닫기(X) 버튼과 겹치지 않도록 padding-right: 36px 적용 -->
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
-              <div style="display: flex; align-items: center; gap: 5px;">
-                <span style="font-size: 15px;">${typeIcon}</span>
-                <strong style="font-size: 14px; color: var(--app-text); font-weight: 800;">${stop.name}</strong>
-                <span style="font-size: 9px; color: var(--color-muted); background: var(--color-card); padding: 1px 5px; border-radius: 4px;">${resolvedDistrict}</span>
-              </div>
-              <span style="font-size: 10px; font-weight: 800; color: var(--app-text); background: ${displayColor}; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">
-                ${displayLabel} (${displayCrowd}%)
-              </span>
-            </div>
-            <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 6px; font-family: monospace;">${stop.lineInfo}</div>
-            ${weatherSection}
-            ${aiSection}
-            ${arrivalSection}
-          </div>
-        `
-      }
-
-      const popup = new maplibregl.Popup({ 
-        offset: 25,
-        closeButton: true,
-        closeOnClick: false,
-        maxWidth: '310px',
-      }).setHTML(buildPopupContent())
-
-      popup.on('open', () => {
-        if (activePopupRef.current && activePopupRef.current !== popup) {
-          activePopupRef.current.remove()
-        }
-        activePopupRef.current = popup
-        if (mapInstanceRef.current) {
-          popupOpenedZoomRef.current = mapInstanceRef.current.getZoom()
-        }
-      })
-
-      popup.on('close', () => {
-        if (activePopupRef.current === popup) {
-          activePopupRef.current = null
-          popupOpenedZoomRef.current = null
-        }
-        setActiveStop(null)
-        try {
-          localStorage.removeItem(STORAGE_SELECTED_STOP_KEY)
-        } catch {}
-        if (onSelectStop) onSelectStop(null)
-      })
-
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat(stop.coords)
-        .setPopup(popup)
         .addTo(mapInstanceRef.current)
 
-      el.addEventListener('click', async () => {
-        // 선택된 역 ID 로컬 스토리지에 저장 (새로고침 시 복원용)
-        try {
-          localStorage.setItem(STORAGE_SELECTED_STOP_KEY, stop.id)
-        } catch {}
-
-        // 다른 역 누르면 이전 열려 있던 역 정보 팝업 즉시 제거 (요청사항 반영)
-        if (activePopupRef.current && activePopupRef.current !== popup) {
-          activePopupRef.current.remove()
-        }
-        activePopupRef.current = popup
-        if (mapInstanceRef.current) {
-          popupOpenedZoomRef.current = mapInstanceRef.current.getZoom()
-        }
-
-        setActiveStop(stop)
-        if (onSelectStop) onSelectStop(stop, { loading: true })
-
-        // 1. 역 클릭 시 중심 이동 및 부드러운 줌인 (기본 15.5 배율로 확대, 비행 애니메이션 중 팝업 유지)
-        // 단, 새로고침 시 원래 보던 위치 복원 중일 때는 사용자가 맞춰둔 줌/중심을 유지하기 위해 flyTo 생략
-        if (mapInstanceRef.current && !isInitialRestoringRef.current) {
-          const currentZ = mapInstanceRef.current.getZoom()
-          const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
-          isFlyingRef.current = true
-          // 이동 후에도 기본 탑뷰(0°)를 유지 — 시야각이 3D 틸트로 되돌아가지 않도록 고정
-          mapInstanceRef.current.flyTo({
-            center: stop.coords,
-            zoom: targetZoom,
-            pitch: DEFAULT_MAP_PITCH,
-            duration: 700,
-            essential: true,
-          })
-          setTimeout(() => {
-            isFlyingRef.current = false
-            if (mapInstanceRef.current) {
-              popupOpenedZoomRef.current = mapInstanceRef.current.getZoom()
-            }
-          }, 750)
-        }
-
-        const district = resolveDistrict(stop.name, stop.coords)
-        const cleanName = stop.name.replace(/역$/, '').trim()
-
-        // 2. 실시간 국지 기상 및 AI 모델 추론 로딩 UI 선반영
-        popup.setHTML(buildPopupContent({ isLoadingAll: true }))
-
-        try {
-          // (1) 해당 역의 실시간 기상 API 조회 (위도/경도 기반 정밀 KMA 격자 nx, ny 계산)
-          const weatherRes = await fetch(
-            `${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(district)}&lat=${stop.coords[1]}&lng=${stop.coords[0]}&station=${encodeURIComponent(cleanName)}`
-          )
-          const weatherData = await weatherRes.json()
-
-          // 기상청 API 호출 로깅
-          logWeatherApiCall(
-            { nx: weatherData.nx, ny: weatherData.ny },
-            weatherData,
-            weatherData
-          )
-
-          // (2) 실시간 관측 기상 데이터를 투입하여 AI 모델(ONNX 32차원 Feature Vector) 추론 호출
-          const parsedHour = parseInt(selectedTime, 10)
-          const currentHour = !isNaN(parsedHour) ? parsedHour : new Date().getHours()
-
-          const aiPayload = {
-            district,
-            station: stop.name,
-            stop_type: stop.type,
-            base_crowd: stop.baseCrowd,
-            hour: currentHour,
-            weather: {
-              temp: weatherData.temp,
-              rain: weatherData.rain,
-              humidity: weatherData.humidity,
-              wind: weatherData.wind,
-            }
-          }
-
-          const aiRes = await fetch(`${API_BASE_URL}/api/v1/predict/recommendation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(aiPayload)
-          })
-          const aiData = await aiRes.json()
-
-          // AI 모델 추론 결과 로깅
-          logAIPredictionCall(aiPayload, aiData)
-
-          // (3) 실시간 대중교통 도착 정보 조회
-          let arrivals: any[] = []
-          let apiCallSource = ''
-          if (stop.type === 'subway') {
-            try {
-              const arrivalRes = await fetch(
-                `${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`
-              )
-              const arrivalData = await arrivalRes.json()
-              arrivals = (arrivalData.status === 'success' && arrivalData.arrivals && arrivalData.arrivals.length > 0)
-                ? arrivalData.arrivals
-                : [
-                    { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
-                  ]
-              apiCallSource = String(arrivalData.source || '')
-              logSubwayApiCall(cleanName, arrivals, arrivalData)
-            } catch {
-              apiCallSource = 'CLIENT_FALLBACK'
-              arrivals = [
-                { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '정상 운행중', remaining_minutes: 2, updn_line: '상/하행' }
-              ]
-              logSubwayApiCall(cleanName, arrivals)
-            }
-          } else if (stop.type === 'bus') {
-            let targetStId = stop.stId
-            // stop.stId가 누락된 경우 좌표 기반 인근 정류소 API로 동적 해석
-            if (!targetStId && stop.coordinates) {
-              try {
-                const nearRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/stations/nearby?lat=${stop.coordinates[1]}&lng=${stop.coordinates[0]}&radius=350`)
-                if (nearRes.ok) {
-                  const nearData = await nearRes.json()
-                  if (nearData.stations && nearData.stations.length > 0) {
-                    targetStId = nearData.stations[0].stId || nearData.stations[0].station_id
-                  }
-                }
-              } catch {
-                // ignore
-              }
-            }
-
-            const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : []
-            const r1 = defaultRoutes[0] || `${stop.name} 경유 노선`
-            
-            if (targetStId) {
-              try {
-                const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
-                const busData = await busRes.json()
-                apiCallSource = String(busData.source || '')
-                arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
-                  ? busData.arrivals
-                  : [
-                      { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
-                    ]
-                logBusApiCall(r1, targetStId, arrivals, busData)
-              } catch {
-                apiCallSource = 'CLIENT_FALLBACK'
-                arrivals = [
-                  { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
-                ]
-                logBusApiCall(r1, targetStId, arrivals)
-              }
-            } else {
-              apiCallSource = 'NO_STID_FALLBACK'
-              arrivals = [
-                { route_name: r1, arrival_msg1: '배차간격 유지 운행중' }
-              ]
-            }
-          } else if (stop.type === 'bike') {
-            // 서울시 따릉이 실시간 대여정보(잔여 자전거 수)로 시뮬레이션 값을 대체
-            let live: any = null
-            let method: 'by-number' | 'nearest-200m' | 'estimated' = 'estimated'
-            let proxyPath = ''
-            let rawPayload: any = null
-            try {
-              if (stop.stationNo) {
-                proxyPath = `/api/v1/transit/bike/stations/by-number/${encodeURIComponent(stop.stationNo)}`
-                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
-                if (r.ok) {
-                  rawPayload = await r.json()
-                  live = rawPayload.station
-                  method = 'by-number'
-                  // 하드코딩된 대여소 번호가 실제와 다른 경우 대비: 좌표가 250m 넘게 어긋나면 번호 매칭을 폐기
-                  if (live?.coords) {
-                    const dLat = (live.coords[1] - stop.coords[1]) * 111320
-                    const dLng = (live.coords[0] - stop.coords[0]) * 111320 * Math.cos(stop.coords[1] * Math.PI / 180)
-                    if (Math.hypot(dLat, dLng) > 250) {
-                      console.warn(`[따릉이] 대여소 번호 #${stop.stationNo}(${live.name})가 '${stop.name}'과 250m 이상 떨어져 있어 최근접 대여소로 대체합니다.`)
-                      live = null
-                      method = 'estimated'
-                    }
-                  }
-                }
-              }
-              if (!live) {
-                // 대여소 번호로 못 찾으면 좌표 기준 가장 가까운 실제 대여소(200m 이내)로 대체
-                const params = new URLSearchParams({ lat: String(stop.coords[1]), lng: String(stop.coords[0]), radius: '200', limit: '1' })
-                proxyPath = `/api/v1/transit/bike/stations/nearby?${params.toString()}`
-                const r = await fetch(`${API_BASE_URL}${proxyPath}`)
-                if (r.ok) {
-                  rawPayload = await r.json()
-                  live = (rawPayload.stations || [])[0] || null
-                  if (live) method = 'nearest-200m'
-                }
-              }
-              if (live) arrivals = [{ bikeLive: true, rackTotal: live.rackTotal, availableBikes: live.availableBikes, name: live.name }]
-            } catch (e) {
-              console.warn('따릉이 실시간 조회 실패, 추정값 사용:', e)
-            }
-            logBikeApiCall({ stationNo: stop.stationNo, stationName: stop.name, method, proxyPath }, live, rawPayload)
-          }
-
-          // 최종 통합 데이터로 팝업 갱신
-
-          if (activePopupRef.current === popup) {
-            popup.setHTML(buildPopupContent({
-              weather: weatherData,
-              aiPrediction: aiData,
-              arrivalsList: arrivals,
-              isLoadingArrivals: false,
-              source: apiCallSource
-            }))
-          }
-
-          // 클릭된 역 알약 마커 UI도 AI 추론 혼잡도 수치와 100% 동일하게 실시간 동기화
-          const targetRec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
-          if (targetRec) {
+      el.addEventListener('click', () => {
+        openStationDetail(stop, {
+          onCrowdUpdate: (targetRec) => {
             const pillBadge = el.querySelector('.marker-crowd-badge') as HTMLElement | null
             const pillBox = el.querySelector('.marker-pill') as HTMLElement | null
             const pillArrow = el.querySelector('.marker-pill-arrow') as HTMLElement | null
@@ -2261,40 +2242,10 @@ popupContent.append(title, number)
               pillBadge.textContent = `${targetRec.crowd}%`
               pillBadge.style.background = targetRec.crowdColor
             }
-            if (pillBox) {
-              pillBox.style.borderColor = targetRec.crowdColor
-            }
-            if (pillArrow) {
-              pillArrow.style.borderTopColor = targetRec.crowdColor
-            }
+            if (pillBox) pillBox.style.borderColor = targetRec.crowdColor
+            if (pillArrow) pillArrow.style.borderTopColor = targetRec.crowdColor
           }
-
-          // 상위 App 컴포넌트에 실시간 기상/AI예측/도착정보 일괄 전달 (중복 API Fetch 방지)
-          if (onSelectStop) {
-            onSelectStop(stop, {
-              loading: false,
-              weather: weatherData,
-              aiPrediction: aiData,
-              arrivals,
-            })
-          }
-        } catch (err) {
-          console.error('역 정보 파이프라인 조회 실패:', err)
-          if (activePopupRef.current === popup) {
-            popup.setHTML(buildPopupContent({
-              arrivalsList: [],
-              isLoadingArrivals: false
-            }))
-          }
-          if (onSelectStop) {
-            onSelectStop(stop, {
-              loading: false,
-              weather: null,
-              aiPrediction: null,
-              arrivals: [],
-            })
-          }
-        }
+        })
       })
 
       markerItemsRef.current.push({
@@ -2946,7 +2897,7 @@ popupContent.append(title, number)
           position: 'absolute', top: activeRoute ? 160 : 68, left: 16, zIndex: 12,
           width: 'min(305px, calc(100% - 32px))', maxHeight: 'min(450px, 65vh)',
           overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          background: 'rgba(17,29,53,0.96)', border: '1px solid #F59E0B',
+          background: 'var(--color-surface)', border: '1px solid #F59E0B',
           borderRadius: 12, padding: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.55)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -2954,14 +2905,14 @@ popupContent.append(title, number)
             <button
               type="button"
               onClick={() => setSelectedBusRoute(null)}
-              style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--app-text)', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
+              style={{ background: 'var(--color-card2)', color: 'var(--app-text)', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
             >닫기 ✕</button>
           </div>
           <div style={{ color: 'var(--color-muted)', fontSize: 11, marginTop: 6, marginBottom: 8 }}>
             {busRouteLoading ? '경유 정류장 불러오는 중...' :
               busRouteError || `${busRouteStations.length}개 경유 정류장 · 점과 선은 정류장 좌표 기반`}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--app-text)', marginBottom: 8, padding: '8px', background: 'var(--app-text)', borderRadius: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--app-text)', marginBottom: 8, padding: '8px', background: 'var(--color-card2)', borderRadius: 8 }}>
             <div style={{ fontWeight: 700, color: '#34D399' }}>📍 선택 정류장 접근 차량 (최대 2대)</div>
             {approachingBusLoading && <div style={{ marginTop: 5, color: 'var(--color-muted)' }}>실시간 위치 갱신 중...</div>}
             {approachingBusError && <div style={{ marginTop: 5, color: '#FCA5A5' }}>{approachingBusError}</div>}
@@ -2973,7 +2924,7 @@ popupContent.append(title, number)
                 key={vehicle.vehicle_id}
                 type="button"
                 onClick={() => mapInstanceRef.current?.flyTo({ center: vehicle.coords, zoom: 15, pitch: DEFAULT_MAP_PITCH, duration: 700, essential: true })}
-                style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--app-text)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
+                style={{ display: 'block', marginTop: 6, padding: '5px 7px', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: vehicle.arrival_order === 1 ? '#34D399' : '#38BDF8', fontWeight: 700, fontSize: 11 }}
               >
                 {vehicle.arrival_order === 1 ? '🟢 첫차' : '🔵 다음 차'} · {vehicle.arrival_message || '도착정보 없음'}
               </button>

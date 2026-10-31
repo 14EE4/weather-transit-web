@@ -1225,8 +1225,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = []
 
     // 줌 레벨에 따라 겹침 감지 박스 크기 동적 조절 (확대할수록 간격 좁아져 많은 역 등장)
-    const halfW = currentZoom >= 16 ? 32 : (currentZoom >= 14 ? 44 : (currentZoom >= 13 ? 56 : 72))
-    const halfH = currentZoom >= 16 ? 12 : (currentZoom >= 14 ? 16 : (currentZoom >= 13 ? 20 : 26))
+    // 알약 마커 실제 크기(~125px 너비)를 고려한 충돌 여백 확장 (글자 겹침 원천 방지)
+    const halfW = currentZoom >= 16 ? 56 : (currentZoom >= 14 ? 66 : (currentZoom >= 13 ? 76 : 90))
+    const halfH = currentZoom >= 16 ? 16 : (currentZoom >= 14 ? 18 : (currentZoom >= 13 ? 22 : 28))
 
     for (const item of markerItemsRef.current) {
       const [lng, lat] = item.stop.coords
@@ -1416,7 +1417,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
 
       // [규칙 3] 중거리 뷰 (11.5 <= Zoom < 13.5)에서 버스와 따릉이는 거대한 알약 마커 금지!
       // 오직 원형 점(Dot) 마커로만 단정하게 찍혀서 도로와 도시 가림을 원천 방지
-      const forceDotForNonSubway = (isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike')
+      // 전체 보기(all)에서는 지하철역만 알약 배지로 표출하고, 버스·따릉이는 혼잡도 점(Dot)으로 고정하여 겹침 방지
+      const forceDotForNonSubway = (filterType === 'all' || isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike')
 
       item.el.style.zIndex = '1'
 
@@ -1473,7 +1475,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   // 🚌 지도 주변 실제 버스정류장 자동 표시
   useEffect(() => {
     if (!mapLoaded || !mapInstanceRef.current) return
-    if (filterType !== 'bus' && filterType !== 'all') return
+    // 실시간 주변 버스정류장 레이어는 버스 전용 탭에서만 켜서 전체 보기 가림 방지
+    if (filterType !== 'bus') return
 
     const map = mapInstanceRef.current
     const sourceId = 'live-bus-stations'
@@ -2111,29 +2114,52 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           "></div>
         </div>
 
-        <!-- 2. 점 마커 뷰 (이름 겹침 및 중거리 줌아웃 시 대체 표출되는 미니 원형 점) -->
+        <!-- 2. 점 마커 뷰 (이름 겹침 및 전체 보기 시 정갈하게 표출되는 혼잡도 미니 원형 점) -->
         <div class="marker-dot-view" style="
           display: none;
           align-items: center;
           justify-content: center;
-          padding: 3px;
-        " title="${typeIcon} ${stop.name} (${label} ${crowd}%)">
+          padding: 4px;
+          position: relative;
+        ">
           <div class="marker-dot-circle" style="
-            width: 10px;
-            height: 10px;
+            width: 11px;
+            height: 11px;
             border-radius: 50%;
             background: ${color};
             border: 2px solid var(--color-surface);
             box-shadow: 0 2px 8px var(--app-shadow), 0 0 10px ${color}bb;
             transition: transform 0.18s ease, box-shadow 0.18s ease;
           "></div>
+          <!-- 마우스 호버 시 즉시 뜨는 미니 말풍선 툴팁 -->
+          <div class="marker-dot-tooltip" style="
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 5px);
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            background: var(--color-surface);
+            color: var(--app-text);
+            border: 1px solid ${color};
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            box-shadow: 0 4px 14px var(--app-shadow);
+            pointer-events: none;
+            z-index: 10000;
+          ">
+            ${typeIcon} ${stop.name} <span style="color: ${color}; font-weight: 800; margin-left: 3px;">${crowd}% (${label})</span>
+          </div>
         </div>
       `
 
-      // 호버 인터랙션 (알약 또는 점 마커 상태에 따라 부드러운 하이라이트)
+      // 호버 인터랙션 (알약 또는 점 마커 상태에 따라 부드러운 하이라이트 & 점 툴팁 표시)
       const pill = el.querySelector('.marker-pill') as HTMLElement | null
       const dotView = el.querySelector('.marker-dot-view') as HTMLElement | null
       const dotCircle = el.querySelector('.marker-dot-circle') as HTMLElement | null
+      const dotTooltip = el.querySelector('.marker-dot-tooltip') as HTMLElement | null
 
       el.addEventListener('mouseenter', () => {
         if (dotView && dotView.style.display !== 'none') {
@@ -2141,6 +2167,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             dotCircle.style.transform = 'scale(1.6)'
             dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px var(--app-shadow)`
           }
+          if (dotTooltip) dotTooltip.style.display = 'block'
           el.style.zIndex = '5000'
         } else if (pill) {
           pill.style.transform = 'scale(1.1) translateY(-2px)'
@@ -2154,6 +2181,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           dotCircle.style.transform = 'scale(1)'
           dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${color}bb`
         }
+        if (dotTooltip) dotTooltip.style.display = 'none'
         if (pill) {
           pill.style.transform = 'scale(1) translateY(0)'
           pill.style.boxShadow = '0 4px 14px var(--app-shadow)'

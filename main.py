@@ -6,7 +6,18 @@ import time
 import asyncio
 import logging
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+try:
+    from zoneinfo import ZoneInfo
+    KST = ZoneInfo("Asia/Seoul")
+except Exception:
+    KST = timezone(timedelta(hours=9))
+
+
+def get_kst_now() -> datetime:
+    """대한민국 표준시(KST, UTC+9) 기준 datetime 반환"""
+    return datetime.now(KST)
 from pathlib import Path
 from typing import Optional, Any
 from contextlib import asynccontextmanager
@@ -914,7 +925,7 @@ def build_feature_vector(
        temp_diff_1h, rain_diff_1h
     """
     if dt is None:
-        dt = datetime.now()
+        dt = get_kst_now()
 
     # 시간 정규화 (0시와 24시는 24시/0시 순환에 반영)
     h_norm = 0 if hour == 24 else hour
@@ -1276,7 +1287,7 @@ async def get_admin_system_status():
         },
         "cache_stats": get_cache_stats(),
         "log_stats": in_memory_log_handler.get_stats(),
-        "timestamp": datetime.now().astimezone().isoformat(),
+        "timestamp": get_kst_now().isoformat(),
     }
 
 @app.post("/api/v1/admin/cache/clear", tags=["System"])
@@ -1316,7 +1327,7 @@ async def clear_admin_cache():
             "status": "ok",
             "message": "시계열 캐시 및 인메모리 스냅샷이 성공적으로 초기화되었습니다.",
             "cleared_sqlite": cleared_db,
-            "timestamp": datetime.now().astimezone().isoformat()
+            "timestamp": get_kst_now().isoformat()
         }
     except Exception as exc:
         logger.error(f"[Admin] 캐시 초기화 중 오류: {exc}")
@@ -1336,7 +1347,7 @@ async def health_check():
             "seoul_bus": bus_circuit_breaker.state,
         },
         "available_districts": list(DISTRICT_CODE_MAP.keys()),
-        "timestamp": datetime.now().astimezone().isoformat()
+        "timestamp": get_kst_now().isoformat()
     }
 
 @app.get("/api/v1/system/circuit-breakers", tags=["System"])
@@ -1347,7 +1358,7 @@ async def get_circuit_breakers_status():
     """
     return {
         "status": "success",
-        "timestamp": datetime.now().astimezone().isoformat(),
+        "timestamp": get_kst_now().isoformat(),
         "circuit_breakers": {
             "kma_weather": kma_circuit_breaker.get_status(),
             "seoul_subway": subway_circuit_breaker.get_status(),
@@ -1371,7 +1382,7 @@ async def get_timeseries_cache_status(district: Optional[str] = None):
     status_info = timeseries_cache.get_status()
     if district:
         norm_d = normalize_district_name(district)
-        now = datetime.now()
+        now = get_kst_now()
         stats = DISTRICT_STATS.get(norm_d, DISTRICT_STATS["강남구"])
         lags = timeseries_cache.get_transit_lags(norm_d, now.hour, now, stats)
         diff_temp, diff_rain = timeseries_cache.get_weather_diff_1h(norm_d, current_temp=15.0, current_rain=0.0, dt=now)
@@ -1569,7 +1580,7 @@ async def predict_recommendation(req: PredictionRequest):
 
     return PredictionResponse(
         status="success",
-        timestamp=datetime.now().astimezone().isoformat(),
+        timestamp=get_kst_now().isoformat(),
         district=req.district,
         station=req.station,
         corridor_district=norm_district if norm_district != req.district else None,
@@ -1847,7 +1858,7 @@ async def get_live_district_congestion(
         )
 
     t_start = time.perf_counter()
-    now = datetime.now()
+    now = get_kst_now()
     cur_hour = hour if hour is not None else now.hour
     cur_temp = temp if temp is not None else 19.4
     cur_rain = max(0.0, rain if rain is not None else 0.0)
@@ -1915,7 +1926,7 @@ async def get_live_district_congestion(
 
     resp = LiveDistrictCongestionResponse(
         status="success",
-        timestamp=datetime.now().astimezone().isoformat(),
+        timestamp=get_kst_now().isoformat(),
         hour=cur_hour,
         latency_ms=round(latency_ms, 2),
         hotspots=hotspots,
@@ -1945,7 +1956,7 @@ async def get_hourly_transit_forecast(
 
     t_start = time.perf_counter()
     norm_d = normalize_district_name(district)
-    now = datetime.now()
+    now = get_kst_now()
     cur_hour = now.hour
     base_temp = temp if temp is not None else 19.4
     base_rain = max(0.0, rain if rain is not None else 0.0)
@@ -2022,7 +2033,7 @@ async def get_hourly_transit_forecast(
     resp = HourlyForecastResponse(
         status="success",
         district=norm_d,
-        timestamp=now.astimezone().isoformat(),
+        timestamp=now.isoformat(),
         current_hour=cur_hour,
         latency_ms=round(latency_ms, 2),
         hourly=items,
@@ -2044,7 +2055,7 @@ def generate_intelligent_weather_fallback(
     source: str = "KMA_FALLBACK"
 ) -> dict:
     """시간대 및 월(계절) 기반 자연스러운 디폴트 기상 생성"""
-    now = datetime.now()
+    now = get_kst_now()
     month = now.month
     hour = now.hour
 
@@ -2140,8 +2151,10 @@ async def get_current_weather(
     """
     target_name, nx, ny = resolve_weather_target(district, lat=lat, lng=lng, station=station)
 
-    now = datetime.now()
-    if now.minute < 10:
+    now = get_kst_now()
+    # 기상청 초단기실황(getUltraSrtNcst)은 매시간 정시 관측값을 매시 40분경에 API로 제공합니다.
+    # 따라서 현재 분이 40분 미만인 경우 아직 해당 정시 실황이 생성되지 않았으므로 직전 시간대(H-1)를 조회합니다.
+    if now.minute < 40:
         target_time = now - timedelta(hours=1)
     else:
         target_time = now
@@ -2199,6 +2212,23 @@ async def get_current_weather(
             if res.status_code == 200:
                 data = res.json()
                 items = data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+                # 만약 매시 40분 이후 정시 데이터를 요청했으나 기상청 배치 지연으로 items가 비어있을 경우, 직전 시간대로 1회 안전 재시도
+                if not items and target_time == now:
+                    prev_time = now - timedelta(hours=1)
+                    prev_base_date = prev_time.strftime("%Y%m%d")
+                    prev_base_time = prev_time.strftime("%H00")
+                    prev_params = dict(params)
+                    prev_params["base_date"] = prev_base_date
+                    prev_params["base_time"] = prev_base_time
+                    retry_res = await client.get(url, params=prev_params)
+                    if retry_res.status_code == 200:
+                        retry_data = retry_res.json()
+                        retry_items = retry_data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+                        if retry_items:
+                            items = retry_items
+                            base_date = prev_base_date
+                            base_time = prev_base_time
+
                 if items:
                     result = {item["category"]: item["obsrValue"] for item in items if "category" in item}
                     pty_desc_map = {
@@ -3235,7 +3265,7 @@ async def _execute_multimodal_search(
     weather_override: Optional[WeatherInput] = None,
 ) -> dict:
     norm_d = normalize_district_name(district)
-    target_hour = hour if hour is not None else datetime.now().hour
+    target_hour = hour if hour is not None else get_kst_now().hour
 
     # 1. 기상 컨텍스트 결정 (명시적 오버라이드 우선 -> KMA 단기예보 시간대별 기상 연동)
     if weather_override is not None:

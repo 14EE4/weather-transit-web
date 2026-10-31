@@ -297,6 +297,8 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const routeMarkersRef = useRef<any[]>([])
   const animFrameRef = useRef<number | null>(null)
   const activePopupRef = useRef<any>(null)
+  // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
+  const busStopPopupRef = useRef<any>(null)
   const popupOpenedZoomRef = useRef<number | null>(null)
   const isFlyingRef = useRef<boolean>(false)
   const initialRestoreDoneRef = useRef<boolean>(false)
@@ -1153,6 +1155,9 @@ popupContent.append(title, number)
       const feature = e.features?.[0]
       if (!feature || feature.geometry?.type !== 'Point') return
 
+      // 노선 경유 정류장 점과 겹쳐 클릭된 경우 경유 정류장 팝업(순번 포함)만 표시
+      if (map.getLayer('selected-bus-route-stations') && map.queryRenderedFeatures(e.point, { layers: ['selected-bus-route-stations'] }).length > 0) return
+
       const coords = feature.geometry.coordinates as [number, number]
       const properties = feature.properties || {}
 
@@ -1176,9 +1181,12 @@ popupContent.append(title, number)
       const arrivalContainer = document.createElement('div')
       content.appendChild(arrivalContainer)
 
+      busStopPopupRef.current?.remove()
       const popup = new maplibregl.Popup({ offset: 12 })
         .setLngLat(coords)
         .setDOMContent(content)
+      busStopPopupRef.current = popup
+      popup.on('close', () => { if (busStopPopupRef.current === popup) busStopPopupRef.current = null })
 
       popup.on('open', () => {
         const stationId = String(properties.stId || '')
@@ -1449,10 +1457,13 @@ popupContent.append(title, number)
       number.textContent = `정류장 번호: ${props.arsId || '-'}`
       Object.assign(number.style, { marginTop: '6px', color: 'var(--color-muted)' })
       content.append(heading, number)
-      new maplibregl.Popup({ offset: 10 })
+      busStopPopupRef.current?.remove()
+      const routeStopPopup = new maplibregl.Popup({ offset: 10 })
         .setLngLat(feature.geometry.coordinates)
         .setDOMContent(content)
         .addTo(map)
+      busStopPopupRef.current = routeStopPopup
+      routeStopPopup.on('close', () => { if (busStopPopupRef.current === routeStopPopup) busStopPopupRef.current = null })
     }
     const onEnter = () => { map.getCanvas().style.cursor = 'pointer' }
     const onLeave = () => { map.getCanvas().style.cursor = '' }
@@ -1473,6 +1484,7 @@ popupContent.append(title, number)
       map.off('click', pointLayerId, onBusRouteStopClick)
       map.off('mouseenter', pointLayerId, onEnter)
       map.off('mouseleave', pointLayerId, onLeave)
+      busStopPopupRef.current?.remove()
       try {
         if (map.getLayer(pointLayerId)) map.removeLayer(pointLayerId)
         if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId)

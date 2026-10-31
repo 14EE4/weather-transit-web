@@ -12,8 +12,8 @@ import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall
 import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
-import BusStationSearch, { type BusStationResult } from './BusStationSearch'
-import BikeStationSearch from './BikeStationSearch'
+import { type BusStationResult } from './BusStationSearch'
+import UnifiedStationSearch from './UnifiedStationSearch'
 import EnterpriseView from './EnterpriseView'
 import MultimodalRoutePanel from './MultimodalRoutePanel'
 
@@ -2531,150 +2531,22 @@ export default function App() {
             borderRight: '1px solid var(--color-border)',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
-            {/* 지하철역 검색 및 자동완성 입력창 */}
-            {mapTransport !== 'bus' && mapTransport !== 'bike' && (
-              <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>🔍</span> 지하철역 검색 & 바로가기
-                </div>
-                <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', color: 'var(--app-text)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14 }}>🚇</span>
-                  <input
-                    value={subwaySearchQuery}
-                    onChange={e => {
-                      setSubwaySearchQuery(e.target.value)
-                      setShowSearchResults(true)
-                      setSelectedSubwayIndex(0)
-                    }}
-                    onFocus={() => setShowSearchResults(true)}
-                    onKeyDown={e => {
-                      const results = searchSubwayStations(subwaySearchQuery).slice(0, 15)
-                      if (!showSearchResults || results.length === 0) {
-                        if (e.key === 'Enter' && subwaySearchQuery.trim() && results.length > 0) {
-                          e.preventDefault()
-                          handleSelectStation(results[0])
-                        }
-                        return
-                      }
-                      if (e.key === 'ArrowDown') {
-                        e.preventDefault()
-                        setSelectedSubwayIndex(prev => (prev + 1) % results.length)
-                      } else if (e.key === 'ArrowUp') {
-                        e.preventDefault()
-                        setSelectedSubwayIndex(prev => (prev - 1 + results.length) % results.length)
-                      } else if (e.key === 'Tab') {
-                        e.preventDefault()
-                        if (e.shiftKey) {
-                          setSelectedSubwayIndex(prev => (prev - 1 + results.length) % results.length)
-                        } else {
-                          setSelectedSubwayIndex(prev => (prev + 1) % results.length)
-                        }
-                      } else if (e.key === 'Enter') {
-                        e.preventDefault()
-                        const target = results[selectedSubwayIndex >= 0 ? selectedSubwayIndex : 0]
-                        if (target) {
-                          handleSelectStation(target)
-                        }
-                      } else if (e.key === 'Escape') {
-                        setShowSearchResults(false)
-                      }
-                    }}
-                    placeholder="지하철역 이름 입력 (예: 강남, 시청, 구로...)"
-                    style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--app-text)', fontFamily: "'Outfit','Noto Sans KR',sans-serif" }}
-                  />
-                  {subwaySearchQuery && (
-                    <button
-                      onClick={() => {
-                        setSubwaySearchQuery('')
-                        setShowSearchResults(false)
-                      }}
-                      style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12 }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {/* 지하철역 검색 결과 자동완성 드롭다운 */}
-                {showSearchResults && subwaySearchQuery.trim() && (() => {
-                  const results = searchSubwayStations(subwaySearchQuery).slice(0, 15)
-                  return (
-                    <div style={{
-                      position: 'absolute', top: '100%', left: 20, right: 20, zIndex: 100,
-                      background: 'var(--color-surface)', border: '1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)', borderRadius: 12,
-                      boxShadow: '0 8px 30px rgba(0,0,0,0.6)', maxHeight: 260, overflowY: 'auto',
-                    }}>
-                      {results.length > 0 && (
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>검색 결과 {results.length}건</span>
-                          <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
-                        </div>
-                      )}
-                      {results.length > 0 ? (
-                        results.map((st, idx) => (
-                          <div
-                            key={st.id}
-                            ref={el => {
-                              if (idx === selectedSubwayIndex && el) el.scrollIntoView({ block: 'nearest' })
-                            }}
-                            onClick={() => handleSelectStation(st)}
-                            style={{
-                              padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
-                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              background: idx === selectedSubwayIndex ? 'color-mix(in srgb, var(--color-primary) 22%, transparent)' : 'transparent',
-                              borderLeft: idx === selectedSubwayIndex ? '3px solid var(--color-primary)' : '3px solid transparent',
-                              transition: 'background 0.1s ease',
-                            }}
-                            onMouseEnter={() => setSelectedSubwayIndex(idx)}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: 15 }}>🚇</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
-                              <span style={{ fontSize: 10, color: 'var(--color-primary)', background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)', padding: '2px 6px', borderRadius: 4 }}>
-                                {st.lines[0]}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
-                                {st.zone}
-                              </span>
-                              {idx === selectedSubwayIndex && (
-                                <span style={{ fontSize: 10, color: 'var(--color-primary)', fontFamily: 'JetBrains Mono' }}>↵</span>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ padding: '14px', fontSize: 12, color: 'var(--color-muted)', textAlign: 'center' }}>
-                          검색된 지하철역이 없습니다.
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-              </div>
-            )}
-
-            {/* 버스정류장 검색 */}
-            {mapTransport === 'bus' && (
-              <BusStationSearch
-                onSelect={station => {
-                  setActiveRoute(null)
-                  setSelectedBusStation(station)
-                  setFocusedCoords(station.coords)
-                }}
-              />
-            )}
-
-            {/* 따릉이 대여소 검색 */}
-            {mapTransport === 'bike' && (
-              <BikeStationSearch
-                onSelect={station => {
-                  setActiveRoute(null)
-                  setFocusedCoords(station.coords)
-                }}
-              />
-            )}
+            {/* 통합 검색 (지하철·버스·따릉이) */}
+            <UnifiedStationSearch
+              transport={mapTransport}
+              onSelectSubway={handleSelectStation}
+              onSelectBus={station => {
+                setActiveRoute(null)
+                setMapTransport('bus')
+                setSelectedBusStation(station)
+                setFocusedCoords(station.coords)
+              }}
+              onSelectBike={station => {
+                setActiveRoute(null)
+                setMapTransport('bike')
+                setFocusedCoords(station.coords)
+              }}
+            />
 
             {/* 교통수단 탭 */}
             <div style={{ display: 'flex', gap: 6, padding: '14px 20px', borderBottom: '1px solid var(--color-border)' }}>

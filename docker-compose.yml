@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile.backend
     container_name: weather-transit-backend
     restart: unless-stopped
+    environment:
+      - TZ=Asia/Seoul
     env_file:
       - path: .env
         required: false
@@ -21,6 +23,8 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: weather-transit-frontend
     restart: unless-stopped
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "${FRONTEND_PORT:-3100}:80"
     depends_on:

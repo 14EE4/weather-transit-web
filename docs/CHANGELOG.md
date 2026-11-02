@@ -18,16 +18,18 @@
      - `MultimodalRouteRequest` 및 `_execute_multimodal_search`에 `from_coords`, `to_coords`, `from_type`, `to_type` 선택 필드를 신설하여 프론트엔드에서 좌표가 주입된 경우 100% 오차 없는 직접 거점 해석 지원.
      - 정류소 해석 시 `res["nearest_subway"] = res`로 인한 순환 참조(Circular Reference)와 FastAPI 직렬화 `RecursionError`를 원천 제거(`nearest_subway = None` 명시).
      - 검색 쿼리 정규화 비교 시 `역` 제거 여부에 따른 불일치(`서울역버스환승센터` vs `서울버스환승센터`)를 해소하기 위해 키워드 힌트(`is_bus_hint`, `is_bike_hint`) 우선순위 및 이중 정규화(`b_clean`, `b_norm`) 비교 알고리즘 탑재.
-  2. **First-Mile / Last-Mile 도보 세그먼트 자동 계산 및 경로 결합 (`multimodal_router.py`)**:
+  2. **First-Mile / Last-Mile 도보 세그먼트 자동 계산 및 전 경로 결합 (`multimodal_router.py`)**:
      - `_make_walk_segment(from_node, to_node)` 헬퍼 구현: 하버사인 거리 기반 도보 거리(`km`) 및 소요시간(`minutes`, 분속 `65m/min` 기준 최소 `1분` 보장) 산출.
      - `_node_candidate_fusion()`에서 출발지가 버스/따릉이인 경우 인접 지하철 탑승역까지의 First-Mile 도보 세그먼트를 생성하여 `segments` 최전방에 삽입하고 총 소요시간/도보시간/이용 수단 목록(`modes_used`)에 `walk` 자동 반영.
-     - 도착지가 버스/따릉이인 경우 지하철 하차역부터 목적지까지의 Last-Mile 도보 세그먼트를 생성하여 `segments` 후미에 추가.
+     - 도착지가 버스/따릉이인 경우: 지하철 최소환승 경로뿐 아니라 **AI 멀티모달 최적(`route-ai-multimodal`), 버스-지하철 환승(`route-bus-subway-hybrid`), 지하철 최단시간(`route-subway-fast`) 등 모든 후보 경로 후미에 Last-Mile 도보 세그먼트(`last_walk_seg`)를 일괄 결합**하고 소요시간·도보시간·하이라이트 및 `compat_path` 목적지 명칭을 최종 동기화.
      - `_pack_route_candidate()`에서 `compat_path`의 출발/도착 지점을 실제 출발지/도착지 명칭 및 좌표로 갱신하고 첫 탑승역과 최종 하차역에 환승 안내 정보 부여.
   3. **프론트엔드 좌표 연동 및 UI 표출 일체화 (`MultimodalRoutePanel.tsx`, `App.tsx`, `AppM.tsx`, `TransitMap.tsx`)**:
      - `App.tsx` (PC) 및 `AppM.tsx` (모바일): `departureCoords`, `destinationCoords`, `departureType`, `destinationType` 상태를 신설하여 지도 팝업 클릭 또는 `UnifiedStationSearch` 선택 시의 정확한 좌표와 거점 유형을 `searchedRoute` 및 `MultimodalRoutePanel`로 완벽히 포워딩.
-     - `TransitMap.tsx`: 도착지가 도보 세그먼트인 경우 도착 핀 뱃지에 `🚶 {출발거점}에서 도보 {N}분` 이동 뱃지 시각화.
+     - `TransitMap.tsx`:
+       - 도착지가 도보 세그먼트인 경우 도착 핀 뱃지에 `🚶 {출발거점}에서 도보 {N}분` 이동 뱃지 시각화.
+       - **출발 알약과 따릉이 대여소 핀 중복 겹침 해소**: 위치 인접 임계값 확장(`0.0015도`) 및 명칭 상호 매칭을 적용하여 출발지와 동일/인접한 대여소 핀은 출발 알약 내부(`🚲 따릉이 대여: ...`)로 일체형 통합하고 중복 마커 렌더링을 차단.
   4. **단위 테스트 추가 및 100% 통과 (`tests/test_multimodal_routing.py`)**:
-     - `test_bus_and_bike_first_last_mile_walk_segments`: 버스 정류소 출발 경로 탐색 시 첫 세그먼트가 `walk`(서울역버스환승센터 ➔ 서울역)로 자동 삽입되고 소요시간과 수단이 정상 결합되는지 E2E 검증.
+     - `test_bus_and_bike_first_last_mile_walk_segments`: 버스 정류소 출발 및 도착 시 First/Last-Mile 도보 세그먼트 자동 삽입(`walk`), `from`/`to` 실제 거점 명칭 온전 보존 여부 전수 검증 통과.
 - **영향도**: 사용자가 버스 정류소나 따릉이 대여소에서 출발/도착하더라도 인근 지하철역으로 왜곡되지 않고, 실제 거점과 연결 도보 안내를 정확하게 제공받음으로써 멀티모달 길찾기의 신뢰성과 정밀도 극대화.
 
 ---

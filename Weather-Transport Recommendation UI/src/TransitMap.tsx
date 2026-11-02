@@ -2514,10 +2514,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
        lastSegment.to_name.includes(activeRoute.to))) ? lastSegment : null
 
     // 출발지와 인접/일치하는 따릉이 대여 세그먼트 탐색:
-    // (도보 이동 없이 출발역 위치에서 곧바로 따릉이를 대여하는 경우에만 출발 알약에 병합)
-    const isFirstSegBikeDirect = firstSegment && firstSegment.mode === 'bike'
-    const mergedBikePickup = (isFirstSegBikeDirect && Array.isArray(firstSegment.coords) && firstSegment.coords.length >= 2 &&
-      isNearbyCoord(firstSegment.coords[0], startCoord, 0.0003)) ? firstSegment : null
+    // (위치 인접 threshold 0.0015도 또는 거점 명칭 상호 포함 매칭)
+    const matchedBikePickup = activeRoute.segments?.find(seg => 
+      seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2 &&
+      (isNearbyCoord(seg.coords[0], startCoord, 0.0015) || 
+       seg.from_name === activeRoute.from || 
+       activeRoute.from.includes(seg.from_name) || 
+       seg.from_name.includes(activeRoute.from))
+    ) || null
 
     // 출발지 마커 핀 (초록색 캡슐 + 이동 모드별 최적화된 안내 표시)
     const startStop = TRANSIT_STOPS.find(s => s.name === activeRoute.from)
@@ -2556,24 +2560,25 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             <span style="background: #065F46; color: #6EE7B7; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${depTrain.remainingMinutes}분 후 도착</span>
           </div>
         ` : ''}
-        ${!isFirstModeSubway && firstSegment?.mode === 'walk' ? `
-          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-            <span>🚶 도보 ${firstSegment.minutes || 2}분</span>
-            <span>➔ ${firstSegment.to_name || '따릉이 대여소'}</span>
+        ${matchedBikePickup ? `
+          <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+            <span>🚲 따릉이 대여:</span>
+            <span>${matchedBikePickup.from_name || '대여소'}</span>
+            <span>(${matchedBikePickup.minutes || 10}분)</span>
           </div>
-        ` : ''}
-        ${!isFirstModeSubway && firstSegment?.mode === 'bike' ? `
-          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-            <span>🚲 따릉이 라이딩 시작</span>
-            <span>(${firstSegment.minutes || 10}분)</span>
-          </div>
-        ` : ''}
-        ${!isFirstModeSubway && firstSegment?.mode === 'bus' ? `
-          <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-            <span>🚌 ${firstSegment.label || '버스'} 탑승</span>
-            <span>(${firstSegment.minutes || 10}분)</span>
-          </div>
-        ` : ''}
+        ` : (
+          !isFirstModeSubway && firstSegment?.mode === 'walk' ? `
+            <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+              <span>🚶 도보 ${firstSegment.minutes || 2}분</span>
+              <span>➔ ${firstSegment.to_name || '대여소/정류장'}</span>
+            </div>
+          ` : (!isFirstModeSubway && firstSegment?.mode === 'bus' ? `
+            <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+              <span>🚌 ${firstSegment.label || '버스'} 탑승</span>
+              <span>(${firstSegment.minutes || 10}분)</span>
+            </div>
+          ` : '')
+        )}
       </div>
       <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #10B981;"></div>
     `
@@ -2608,9 +2613,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     if (activeRoute.segments && activeRoute.segments.length > 0) {
       activeRoute.segments.forEach(seg => {
         if (seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
-          // 대여소 핀 (출발 대여소): 출발역 알약과 완전히 동일한 위치로 병합된 경우가 아니면 100% 무조건 독립 핀 표출!
-          if (mergedBikePickup !== seg) {
-            const pickupCoord = seg.coords[0]
+          const pickupCoord = seg.coords[0]
+          const isPickupNearStart = isNearbyCoord(pickupCoord, startCoord, 0.0015) ||
+            seg.from_name === activeRoute.from ||
+            activeRoute.from.includes(seg.from_name) ||
+            seg.from_name.includes(activeRoute.from)
+
+          // 대여소 핀 (출발 대여소): 출발 알약과 인접/일치하거나 병합된 경우 개별 핀 생략하여 중복 겹침 원천 차단!
+          if (!isPickupNearStart && mergedBikePickup !== seg) {
             const pickupEl = document.createElement('div')
             pickupEl.className = 'route-bike-pickup-pin'
             pickupEl.style.display = 'flex'
@@ -2629,15 +2639,19 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           }
 
           // 반납소 핀 (도착 반납소):
-          // 1) 최종 도착 알약과 병합된 경우 생략
+          // 1) 최종 도착 알약과 병합되거나 인접한 경우 생략
           // 2) 환승역과 일치하는 경우 환승 알약에 일체형으로 병합되므로 개별 핀 생략하여 겹침 방지
           const dropCoord = seg.coords[seg.coords.length - 1]
+          const isDropNearEnd = isNearbyCoord(dropCoord, endCoord, 0.0015) ||
+            seg.to_name === activeRoute.to ||
+            activeRoute.to.includes(seg.to_name) ||
+            seg.to_name.includes(activeRoute.to)
           const isDropAtTransfer = activeRoute.transferTrains?.some(tr => {
             const trStep = activeRoute.path.find(p => p.name === tr.station)
             return tr.station === seg.to_name || (trStep && isNearbyCoord(dropCoord, trStep.coords, 0.0015))
           })
 
-          if (mergedBikeDrop !== seg && !isDropAtTransfer) {
+          if (mergedBikeDrop !== seg && !isDropNearEnd && !isDropAtTransfer) {
             const dropEl = document.createElement('div')
             dropEl.className = 'route-bike-drop-pin'
             dropEl.style.display = 'flex'
@@ -2656,10 +2670,13 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           }
         }
 
-        // 버스(Bus) 세그먼트 승차/하차 마커 핀 (Issue #50)
+        // 버스(Bus) 세그먼트 승차/하차 마커 핀 (Issue #50, #89)
         if (seg.mode === 'bus' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
           const busPickupCoord = seg.coords[0]
-          const isPickupAtStart = isNearbyCoord(busPickupCoord, startCoord, 0.001)
+          const isPickupAtStart = isNearbyCoord(busPickupCoord, startCoord, 0.0015) ||
+            seg.from_name === activeRoute.from ||
+            activeRoute.from.includes(seg.from_name) ||
+            seg.from_name.includes(activeRoute.from)
           if (!isPickupAtStart) {
             const busPickupEl = document.createElement('div')
             busPickupEl.className = 'route-bus-pickup-pin'
@@ -2680,7 +2697,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           }
 
           const busDropCoord = seg.coords[seg.coords.length - 1]
-          const isDropAtDest = isNearbyCoord(busDropCoord, endCoord, 0.0015)
+          const isDropAtDest = isNearbyCoord(busDropCoord, endCoord, 0.0015) ||
+            seg.to_name === activeRoute.to ||
+            activeRoute.to.includes(seg.to_name) ||
+            seg.to_name.includes(activeRoute.to)
           const isDropAtTransfer = activeRoute.transferTrains?.some(tr => {
             const trStep = activeRoute.path.find(p => p.name === tr.station)
             return tr.station === seg.to_name || (trStep && isNearbyCoord(busDropCoord, trStep.coords, 0.0015))

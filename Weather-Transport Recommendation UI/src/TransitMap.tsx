@@ -157,9 +157,12 @@ interface TransitMapProps {
   arsId: string
   coords: [number, number]
 } | null
+  selectedStop?: TransitStop | null
   onSelectStop?: (stop: TransitStop | null, details?: StopDetailData) => void
   activeRoute?: TransitRouteResult | null
   onClearRoute?: () => void
+  onSetOrigin?: (stop: TransitStop) => void
+  onSetDestination?: (stop: TransitStop) => void
 }
 
 interface MarkerItem {
@@ -198,7 +201,7 @@ type ApproachingBusVehicle = {
 
 // 버스 도착정보 표시
 
-export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation ,onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
+export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation, selectedStop, onSelectStop, activeRoute, onClearRoute, onSetOrigin, onSetDestination }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
@@ -208,6 +211,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
   const busStopPopupRef = useRef<any>(null)
   const searchedBusMarkerRef = useRef<any>(null)
+  const onSetOriginRef = useRef<((stop: TransitStop) => void) | undefined>(onSetOrigin)
+  onSetOriginRef.current = onSetOrigin
+  const onSetDestinationRef = useRef<((stop: TransitStop) => void) | undefined>(onSetDestination)
+  onSetDestinationRef.current = onSetDestination
   const popupOpenedZoomRef = useRef<number | null>(null)
   const isFlyingRef = useRef<boolean>(false)
   const initialRestoreDoneRef = useRef<boolean>(false)
@@ -225,6 +232,24 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // ── 사이드바 또는 외부에서 거점 선택 해제(selectedStop === null) 시 지도 팝업 동기화 닫기 ──
+  useEffect(() => {
+    if (!selectedStop) {
+      if (activePopupRef.current) {
+        activePopupRef.current.remove()
+        activePopupRef.current = null
+        popupOpenedZoomRef.current = null
+      }
+      if (busStopPopupRef.current) {
+        try {
+          busStopPopupRef.current.remove()
+        } catch {}
+        busStopPopupRef.current = null
+      }
+      setActiveStop(null)
+    }
+  }, [selectedStop])
 
   const getMapThemeSurface = () => {
     if (typeof document === 'undefined') return '#111D35'
@@ -590,6 +615,28 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         ${weatherSection}
         ${aiSection}
         ${arrivalSection}
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+          <button
+            type="button"
+            data-action="set-origin"
+            title="${stop.name}을(를) 출발지로 설정"
+            style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-card2); color: var(--app-text); font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
+            onmouseover="this.style.background='color-mix(in srgb, var(--color-primary) 15%, var(--color-card2))'; this.style.borderColor='var(--color-primary)';"
+            onmouseout="this.style.background='var(--color-card2)'; this.style.borderColor='var(--color-border)';"
+          >
+            <span>🚩</span> 출발지로 설정
+          </button>
+          <button
+            type="button"
+            data-action="set-destination"
+            title="${stop.name}을(를) 도착지로 설정"
+            style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-card2); color: var(--app-text); font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
+            onmouseover="this.style.background='color-mix(in srgb, var(--color-primary) 15%, var(--color-card2))'; this.style.borderColor='var(--color-primary)';"
+            onmouseout="this.style.background='var(--color-card2)'; this.style.borderColor='var(--color-border)';"
+          >
+            <span>🏁</span> 도착지로 설정
+          </button>
+        </div>
       </div>
     `
   }
@@ -628,8 +675,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       const currentZ = map.getZoom()
       const targetZoom = options?.targetZoom ?? (currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5))
       isFlyingRef.current = true
+      // 마커 하단에 달리는 팝업 창 전체가 화면 세로 중앙에 오도록 카메라 뷰를 아래쪽으로 이동 (마커를 위로 오프셋)
+      const offsetY = isMobile ? -120 : -150
       map.flyTo({
         center: stop.coords,
+        offset: [0, offsetY],
         zoom: targetZoom,
         pitch: DEFAULT_MAP_PITCH,
         duration: 700,
@@ -648,6 +698,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       closeButton: true,
       closeOnClick: false,
       maxWidth: '310px',
+      anchor: 'top',
     })
 
     const onPopupRouteClick = (ev: Event) => {
@@ -657,10 +708,24 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       selectBusRouteRef.current(btn.dataset.busRouteId || '', btn.dataset.busRouteName || '', btn.dataset.busStId || '')
     }
 
+    const onPopupActionClick = (ev: Event) => {
+      const btn = (ev.target as HTMLElement | null)?.closest?.('[data-action]') as HTMLElement | null
+      if (!btn) return
+      ev.stopPropagation()
+      const action = btn.dataset.action
+      if (action === 'set-origin') {
+        onSetOriginRef.current?.(stop)
+      } else if (action === 'set-destination') {
+        onSetDestinationRef.current?.(stop)
+      }
+    }
+
     popup.on('open', () => {
       const popupEl = popup.getElement()
       popupEl?.removeEventListener('click', onPopupRouteClick)
       popupEl?.addEventListener('click', onPopupRouteClick)
+      popupEl?.removeEventListener('click', onPopupActionClick)
+      popupEl?.addEventListener('click', onPopupActionClick)
       activePopupRef.current = popup
       busStopPopupRef.current = popup
       if (mapInstanceRef.current) {
@@ -669,6 +734,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     })
 
     popup.on('close', () => {
+      const popupEl = popup.getElement()
+      popupEl?.removeEventListener('click', onPopupRouteClick)
+      popupEl?.removeEventListener('click', onPopupActionClick)
       if (activePopupRef.current === popup) {
         activePopupRef.current = null
         popupOpenedZoomRef.current = null
@@ -760,7 +828,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                 targetStId = nearData.stations[0].stId || nearData.stations[0].station_id
               }
             }
-          } catch {}
+          } catch (err) {
+            console.debug('[TransitMap] Failed to fetch nearby bus stations for stop:', err)
+          }
         }
 
         const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : []
@@ -1037,7 +1107,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           center: [Math.round(center.lng * 1000000) / 1000000, Math.round(center.lat * 1000000) / 1000000],
           zoom: Math.round(zoom * 100) / 100,
         }))
-      } catch {}
+      } catch (err) {
+        console.debug('[TransitMap] Failed to persist map view to storage:', err)
+      }
     }
 
     map.on('moveend', saveCurrentMapView)
@@ -1266,8 +1338,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         const lastPathStep = currentRoute.path[currentRoute.path.length - 1]
         const nearStartPin = firstPathStep && Math.abs(lng - firstPathStep.coords[0]) < 0.0015 && Math.abs(lat - firstPathStep.coords[1]) < 0.0015
         const nearEndPin = lastPathStep && Math.abs(lng - lastPathStep.coords[0]) < 0.0015 && Math.abs(lat - lastPathStep.coords[1]) < 0.0015
-        const isTransferPin = (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name)) ||
-                              (currentRoute.transferTrains && currentRoute.transferTrains.some(t => t.station === item.stop.name))
+        const hasRouteTransfers = (currentRoute.transferCount ?? 0) > 0
+        const isTransferPin = hasRouteTransfers && (
+          (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name)) ||
+          (currentRoute.transferTrains && currentRoute.transferTrains.some(t => t.station === item.stop.name))
+        )
         // 출발역, 도착역, 환승역(또는 출발/도착 핀 반경 150m 이내 역)은 전용 핀 마커가 배치되므로 일반 알약 마커를 완전히 숨겨서 겹침 원천 방지
         const isSpecialPinStation = item.stop.name === currentRoute.from || 
                                     item.stop.name === currentRoute.to || 
@@ -1416,9 +1491,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       }
 
       // [규칙 3] 중거리 뷰 (11.5 <= Zoom < 13.5)에서 버스와 따릉이는 거대한 알약 마커 금지!
-      // 오직 원형 점(Dot) 마커로만 단정하게 찍혀서 도로와 도시 가림을 원천 방지
-      // 전체 보기(all)에서는 지하철역만 알약 배지로 표출하고, 버스·따릉이는 혼잡도 점(Dot)으로 고정하여 겹침 방지
-      const forceDotForNonSubway = (filterType === 'all' || isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike')
+      // 전체 보기(all)에서는 모든 수단(지하철·버스·따릉이)을 혼잡도 원형 점(Dot) 마커로 표출하여 역/정류소 이름 텍스트로 인한 화면 복잡도를 원천 방지.
+      // 역/정류소 이름(알약 배지)은 사용자가 해당 교통수단 전용 보기(subway, bus, bike)를 선택했을 때만 표출!
+      // (단, 검색된 역, 클릭된 역, 활성 경로 경유역은 위 4번 규칙에 의해 항상 알약 배지로 우선 표시됨)
+      const forceDot = filterType === 'all' || ((isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike'))
 
       item.el.style.zIndex = '1'
 
@@ -1452,14 +1528,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
       const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
 
-      // 겹치거나 forceDotForNonSubway(중거리 뷰의 버스/따릉이)인 경우 ➔ 혼잡도 색상의 원형 점(Dot) 마커로 표출!
-      if (overlaps || forceDotForNonSubway) {
+      // 겹치거나 forceDot(전체 보기 또는 중거리 뷰 버스/따릉이)인 경우 ➔ 혼잡도 색상의 원형 점(Dot) 마커로 표출!
+      if (overlaps || forceDot) {
         if (pillView) pillView.style.display = 'none'
         if (dotView) dotView.style.display = 'flex'
         item.el.style.display = 'flex'
         item.el.style.zIndex = '5'
       } else {
-        // 상세 배율(Zoom >= 13.5)에서 여유 공간 확보 시 온전한 알약 마커(이름 + 아이콘 + 혼잡도%)로 표시
+        // 전용 보기(subway, bus, bike)에서 여유 공간 확보 시 온전한 알약 마커(이름 + 아이콘 + 혼잡도%)로 표시
         if (pillView) pillView.style.display = 'flex'
         if (dotView) dotView.style.display = 'none'
         item.el.style.display = 'flex'
@@ -1533,6 +1609,12 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         return
       }
 
+      // 카메라 애니메이션(easeTo, flyTo) 이동 중에는 완료될 때까지 조회 스킵
+      if (map.isMoving() || map.isRotating()) {
+        scheduleUpdate(250)
+        return
+      }
+
       const center = map.getCenter()
       const bounds = map.getBounds()
 
@@ -1603,20 +1685,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       } catch (error) {
         if (controller?.signal.aborted || disposed) return
 
-        console.error('주변 버스정류장 조회 실패:', error)
+        // 외부 API 지연/점검 시 과도한 에러 로그 대신 warning 수준으로 조용히 완충
+        console.warn('[서울 버스] 주변 버스정류장 조회 지연/Fallback (서버 점검/오프라인):', error)
         setStations([])
       }
     }
 
-    // 지도 이동 후 잠시 기다렸다가 조회
-    const scheduleUpdate = () => {
+    // 지도 이동 후 잠시 기다렸다가 조회 (카메라 안정화 후 1회 호출)
+    const scheduleUpdate = (delay = 500) => {
       if (timer) clearTimeout(timer)
 
       controller?.abort()
 
       timer = setTimeout(() => {
         loadNearbyStations()
-      }, 350)
+      }, delay)
     }
 
     // 정류장 원 클릭 시 풀 스펙 상세 팝업 표시 (기상 실황 + AI 추론 + 실시간 도착정보 + 노선 보기)
@@ -1720,6 +1803,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
 
       // 따릉이 필터에서만, 충분히 확대했을 때만 조회 (전체 모드에서는 기존 거점만 표시)
       if (filterType !== 'bike' || map.getZoom() < 14.5) return
+      if (map.isMoving() || map.isRotating()) return
 
       const center = map.getCenter()
       const bounds = map.getBounds()
@@ -2623,8 +2707,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       })
     }
 
-    // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 / 따릉이 연계 정보 표시)
-    if (activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {
+    // 환승역 마커 핀: 환승 횟수가 1회 이상이고 대중교통(지하철/버스)을 사용하는 경우에만 렌더링 (따릉이/도보 단독 경로 오염 방지)
+    const hasTransfers = (activeRoute.transferCount ?? 0) > 0 &&
+      (!activeRoute.modes_used || activeRoute.modes_used.some(m => m === 'subway' || m === 'bus'))
+    if (hasTransfers && activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {
       activeRoute.transferTrains.forEach(tr => {
         const trStep = activeRoute.path.find(p => p.name === tr.station)
         if (!trStep) return
@@ -3119,7 +3205,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                     <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
                   </div>
                 )}
-                {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
+                {(activeRoute.transferCount ?? 0) > 0 && activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
                   <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ color: 'var(--color-muted)' }}>•</span>
                     <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>

@@ -6,6 +6,121 @@
 
 ---
 
+## [2026-11-02]
+
+### 🛡️ 전체 코드베이스 로깅 정책(LOGGING_POLICY.md) 준수 전수 감사 및 무음 예외·민감정보 정비 (이슈 #81)
+- **배경/문제**:
+  - `LOGGING_POLICY.md`의 보안 규정(§7)에도 불구하고 외부 HTTP 에러(`httpx.HTTPError`) 출력 시 URL 쿼리스트링 내 공공 API 개인키(`serviceKey=...`)가 로그에 평문 노출되는 잠재적 보안 취약점 존재.
+  - `main.py`, `timeseries_cache.py`, `multimodal_router.py`, `TransitMap.tsx` 등 코드베이스 곳곳에 예외 이유가 기록되지 않고 무음으로 삼켜지던 빈 예외 블록(`except: pass`, `catch {}`) 존재.
+- **조치**:
+  1. **민감정보 마스킹 공통 모듈 신설 (`logging_utils.py`)**:
+     - `mask_sensitive_text(text)`: 공공데이터포털 `serviceKey`, `auth_key`, `api_key`, `token`, `Bearer` 토큰을 정규식으로 감지하여 식별용 앞 4자리만 보존하고 나머지를 `****`로 자동 치환.
+     - `sanitize_exception(exc)`: 예외 문자열 내 URL 쿼리 파라미터 API 키를 안전하게 마스킹하는 헬퍼 구현.
+  2. **인메모리 링 버퍼 로그 핸들러 전역 마스킹 적용 (`in_memory_log_handler.py`)**:
+     - `emit()` 단계에서 `mask_sensitive_text()`를 기본 적용하여, 백엔드 어떤 로거에서 출력된 문자열이라도 관리자 관제 대시보드(`/health/dashboard`) 및 메모리 버퍼에 저장되기 전 100% 자동 마스킹되도록 이중 방어선 구축.
+  3. **백엔드 무음 예외 전면 색출 및 표준 레벨 로깅 부여**:
+     - `main.py`: 기상청 단기예보 자동 조회 실패(`line 1426`, `line 3321`) 시 무음 디폴트 전환 대신 원인과 대체 적용 내역(`logger.warning`) 명시 기록. 버스/지하철/KMA 외부 통신 에러 출력 시 `sanitize_exception()` 적용.
+     - `timeseries_cache.py`: 백그라운드 SQLite 비동기 큐 포화(`queue.Full`) 시 무음 `pass` 대신 `logger.warning` 경고 로그 기록.
+     - `multimodal_router.py`: `dotenv` 로드 실패(`logger.debug`), LangGraph 미설치/로드 실패(`logger.info`), 실시간 따릉이 파싱 예외(`logger.debug`) 로깅 보강.
+  4. **프론트엔드 빈 `catch` 블록 정비 (`TransitMap.tsx`)**:
+     - 팝업 주변 버스 정류소 조회 및 지도 뷰 로컬스토리지 영속화 실패 시 무음 삼킴 대신 `console.debug`로 기록하여 브라우저 콘솔 관측성 확보.
+  5. **단위 테스트 스위트 확장 (`tests/test_observability_logging.py`)**:
+     - `test_sensitive_info_masking`: 공공 API 키 마스킹, Bearer 헤더 마스킹, 인메모리 핸들러 emit 시 자동 마스킹 3종 검증 케이스 추가 및 100% 통과.
+- **영향도**: 외부 API 장애 및 네트워크 에러 시 개인키 누출 위험을 원천 차단하고, 백엔드/프론트엔드 전반의 무음 결함을 해소하여 운영 안정성과 장애 원인 추적 속도를 극대화.
+
+### 🎨 WeatherMove 서비스 전용 브랜드 로고(SVG) 제작 및 브라우저 파비콘(Favicon) 전면 탑재 (이슈 #78)
+- **배경/문제**:
+  - 기존 웹 앱은 브라우저 탭에 전용 파비콘이 설정되어 있지 않아 기본 빈 문서 아이콘이 노출되었으며, 상단 헤더 로고가 단순 이모지(`🌦`)로 구성되어 있어 서비스의 시각적 완성도와 브랜드 아이덴티티가 미흡했음.
+- **조치**:
+  1. **브랜드 벡터 로고 및 파비콘 에셋 제작 (`Weather-Transport Recommendation UI/public/`)**:
+     - `favicon.svg` & `favicon.ico`: 다크 스퀴클 배경 위에 기상 햇살(골드), 은은한 구름 아크(점선), 스카이블루-민트 그라데이션 모빌리티 쾌속 궤적선 및 3개 거점(출발->환승->도착) 핀을 융합한 세련된 벡터 심볼 디자인 (16x16, 32x32, 64x64 멀티 규격 지원).
+     - `logo.svg`: 풀 브랜드 로고 벡터 에셋 (심볼 마크 + 'Weather' 볼드 타이포 + 'Move' 그라데이션 텍스트 + 'AI' 캡슐 뱃지).
+     - `logo-symbol.svg`: 정사각형 모바일/앱 아이콘용 심볼 에셋.
+  2. **`index.html` 파비콘 및 메타태그 연동**:
+     - `<link rel="icon" type="image/svg+xml" href="/favicon.svg" />` 및 `<link rel="alternate icon" href="/favicon.ico" />` 연동.
+     - 서비스 타이틀을 `WeatherMove | 기상 맞춤형 대중교통 인텔리전스`로 격상하고 브랜드 설명 메타 태그 탑재.
+  3. **헤더 네비게이션 UI 고도화 (`WeatherMoveLogo.tsx`, `App.tsx`, `AppM.tsx`)**:
+     - 인라인 반응형 SVG 로고 컴포넌트(`WeatherMoveLogo.tsx`)를 신설하여 0ms 즉시 렌더링 및 호버 스케일 인터랙션, 원클릭 홈 복귀 지원.
+     - PC(`App.tsx`) 및 모바일(`AppM.tsx`) 상단 GNB의 기존 이모지를 신규 브랜드 로고로 전면 교체하여 플랫폼 간 통일감 구축.
+  4. **백엔드 관리자 대시보드 브랜딩 일체화 (`admin_dashboard.py`)**:
+     - HTML 헤더에 인라인 SVG 파비콘 데이터 URI 연동 및 상단 헤더 심볼을 WeatherMove 브랜드 로고로 정합화.
+- **영향도**: 브라우저 탭, 모바일 홈 화면, 관리자 대시보드 전반에 걸쳐 고유하고 전문적인 모빌리티 AI 서비스의 브랜드 아이덴티티와 높은 시각적 완성도 확립.
+
+### 🚏🔍 경로 추천 탭 내 출발/도착지 검색을 통합 정류소(지하철·버스·따릉이) 검색으로 확장 및 전 수단 경로 탐색 호환 (이슈 #83)
+- **배경/문제**:
+  - 기존 경로 추천 탭(`App.tsx`, `AppM.tsx`)에서는 출발지/도착지 입력 인터페이스가 `searchSubwayStations()` 전용으로 구현되어 있어 지하철역만 검색 가능하였음.
+  - 이로 인해 버스 정류소나 따릉이 대여소를 검색하거나 지도 팝업(이슈 #79)에서 버스/따릉이를 출발·도착지로 지정해 넘어오더라도, `MultimodalRoutePanel.tsx`의 `VALID_STATION_NAMES`가 지하철역 이름 집합으로 엄격히 제한되어 경로 탐색 API 호출이 차단되거나 지하철 경로 없음 알림창이 뜨는 제약 존재.
+- **조치**:
+  1. `UnifiedStationSearch.tsx`:
+     - `variant="route"` 지원 추가: 카드 내부 스타일에 맞추어 상단 헤더 라벨, 지우기(`✕`) 버튼, 반응형 입력 필드 및 고우선순위(z-index 150) 통합 자동완성 드롭다운을 깔끔하게 렌더링.
+     - 양방향 바인딩 지원: 외부 `value` 변경(출발/도착 맞바꾸기, 지도 팝업 주입, 즐겨찾기)과 내부 입력(`query`) 실시간 동기화.
+     - 지하철(🚇), 버스 정류소(🚌), 따릉이 대여소(🚲)를 실시간 통합 검색하여 원클릭 선택 및 좌표 연동 지원.
+  2. `App.tsx` (PC) 및 `AppM.tsx` (모바일) 동시 전면 개편:
+     - 기존의 지하철 전용 입력창 및 드롭다운을 `UnifiedStationSearch variant="route"`로 전면 교체하여 코드 약 260줄 경량화 및 플랫폼 간 완전 동기화.
+     - `handleSearchRoute`: 지하철 직결 경로가 없더라도 에러 alert를 띄우지 않고, 하단의 LangGraph × FactChat `MultimodalRoutePanel`이 버스·따릉이·지하철 복합 멀티모달 경로(3종)를 자연스럽게 탐색·제공하도록 방어.
+     - **검색 시점 정밀화 (`searchedRoute`)**: 입력창에 역·정류소를 선택/입력하는 것만으로 백그라운드 탐색이 조기 발화되던 문제를 교정하여, 사용자가 **[🔍 최적 경로 검색]** 버튼이나 자주 찾는 경로를 명시적으로 클릭했을 때만 멀티모달 탐색이 시작되도록 검색 버튼 본연의 UX 복원.
+     - **지도 팝업 강제 페이지 전환 제거**: 지도 마커 상세 팝업에서 `[🚩 출발지로 설정]`, `[🏁 도착지로 설정]`을 클릭했을 때 사용자의 의사와 무관하게 경로 탭으로 자동 이동하던 타이머를 전면 제거하고, 지도 탐색을 유지하며 토스트의 `[경로 추천 탭 이동 ➔]` 버튼을 통해 필요할 때 자율적으로 이동하도록 개선.
+     - **사이드바 거점 상세 정보 내 출발/도착 상단 버튼 신설 및 지도 팝업 동기화 닫기**:
+       - 지도 팝업에 날씨, AI 혼잡도 예측, 실시간 도착 정보가 길게 표시될 때 하단 출발/도착 버튼을 누르기 위해 스크롤을 내려야 했던 불편을 해소하기 위해, 좌측 사이드바(모바일 패널)의 '선택된 거점 상세 정보' 카드 상단(노선 정보 바로 아래)에 `[🚩 출발지로 설정]` 및 `[🏁 도착지로 설정]` 버튼을 신설하여 스크롤 없이 즉시 길찾기에 바인딩할 수 있도록 개선.
+       - 사이드바 상세 정보의 `✕` 닫기 버튼을 누르면 지도 뷰의 거점 팝업(`activePopupRef`)도 즉시 함께 닫히도록 양방향 동기화(`TransitMapProps.selectedStop` 및 닫기 이펙트) 구현.
+      - **거점 클릭 시 카메라 뷰포트 오프셋 보정 및 팝업 창 화면 세로 중앙 정렬**:
+        - 역/정류소 클릭 시 마커 좌표(`stop.coords`)를 뷰포트 정중앙으로 이동시키면 역 하단으로 길게 전개되는 팝업 창 때문에 화면 상단은 텅 비고 하단은 짤리거나 스크롤해야 했던 문제 해결.
+        - `TransitMap.tsx`의 `map.flyTo`에 세로 오프셋(`offset: [0, isMobile ? -120 : -150]`)을 적용하여 마커를 화면 상단으로 올리고 카메라 시야를 아래쪽으로 이동시켰으며, 팝업을 `anchor: 'top'`으로 고정하여 마커 하단 팝업 창 전체가 화면의 세로 중앙에 완벽하게 안착되도록 카메라 뷰포트 최적화.
+      - **전체 보기('all') 화면 지하철역 마커 점(Dot) 마커 일원화 및 화면 시야 최적화**:
+        - 전체 보기 모드에서 지하철역만 예외적으로 역 이름 알약 배지가 표출되어 화면 전역을 텍스트로 뒤덮던 시각적 피로도를 해소.
+        - 버스·따릉이와 동일하게 '전체 보기'에서는 모든 대중교통 거점을 깔끔한 혼잡도 원형 점(Dot) 마커로 정갈하게 표출하고, 역 이름 알약 배지는 '지하철역 보기'(`filterType === 'subway'`) 선택 시에만 표출되도록 수단 간 일관성 확립 (검색·선택·경로 역은 항상 알약 배지로 유지).
+  3. `MultimodalRoutePanel.tsx`:
+     - `VALID_STATION_NAMES`의 지하철역 단독 제약을 해제하고, `hasValidRouteInput`이 모든 유효한 거점명(`cleanFrom && cleanTo && cleanFrom !== cleanTo`)에 대해 LangGraph 멀티모달 경로 탐색을 정상 발화하도록 확장.
+  4. `multimodal_router.py` & `main.py`:
+     - `resolve_station()` 고도화: 지하철역뿐 아니라 버스 정류소(이름, ARS-ID, stId) 및 서울시 전역 따릉이 대여소(마스터 허브 52개소 + 실시간 스냅샷 약 2,500개소의 이름, stationNo, 대여소 번호 접두어 제거 매칭)를 인접 대중교통 거점으로 정밀하게 해석.
+     - 버스 정류소나 따릉이 대여소가 출발/도착지로 지정되더라도 최적의 First/Last-Mile 멀티모달 추천 경로(AI 추천, 최단 시간, 최소 환승 3종)를 성공적으로 도출.
+     - **따릉이/도보 단독 경로 지도 환승 핀 오염 결함 원천 해결**: 지하철을 전혀 타지 않는 순수 따릉이 라이딩(`route-ai-bike-direct`) 또는 도보 직통 경로에 `base_subway_route`의 지하철역 환승 정보가 상속되어 지도에 타 경로의 환승 캡슐(`🔄 환승 역명`) 핀이 잘못 노출되던 문제를 교정. `multimodal_router.py`에서 비지하철 경로는 세그먼트 기반 독자 `compat_path`를 생성하고 `transfer_stations`/`transfer_trains`를 원천 공백(`[]`) 처리하였으며, `TransitMap.tsx`에서도 `transferCount > 0` 및 대중교통 이용 여부 가드를 추가하여 렌더링을 완전히 격리.
+- **영향도**: 사용자가 지하철역뿐만 아니라 집 근처 버스 정류소나 따릉이 대여소를 자유롭게 출발/도착지로 지정하여 날씨 맞춤형 멀티모달 복합 경로를 직관적으로 검색할 수 있게 됨.
+
+---
+
+### 🗺️🚩 지도 거점(지하철역·정류소·따릉이) 상세 팝업 내 '출발/도착' 설정 버튼 탑재 및 경로 추천 탭 원클릭 연동 (이슈 #79)
+- **배경/문제**:
+  - 사용자가 지도 뷰에서 마커를 클릭하여 팝업창(기상, AI 혼잡도, 도착정보)을 확인한 뒤 길찾기를 하려면, 경로 추천 탭으로 이동해 역·정류소 이름을 검색창에 다시 수동 타이핑해야 하는 불편한 UX 단절 존재.
+- **조치**:
+  1. `TransitMap.tsx`:
+     - 거점 상세 팝업(`buildStationPopupHtml`) 하단에 `[🚩 출발지로 설정]` 및 `[🏁 도착지로 설정]` 액션 버튼 툴바 탑재.
+     - 라이트/다크 모드 공통 테마 스타일(`var(--color-card2)`, `var(--color-border)`, `var(--app-text)`, 프라이머리 호버 하이라이트) 적용.
+     - 팝업 열림/닫힘 시 이벤트 위임(`data-action="set-origin"`, `data-action="set-destination"`) 핸들러 및 최신 콜백 ref(`onSetOriginRef`, `onSetDestinationRef`) 연동.
+     - `TransitMapProps`에 `onSetOrigin`, `onSetDestination` 콜백 속성 추가.
+  2. `App.tsx` (PC) 및 `AppM.tsx` (모바일) 100% 동시 동기화:
+     - `handleSetOriginFromMap`: 출발지(`departure`)에 거점 이름 자동 주입 및 로컬 스토리지 동기화.
+     - `handleSetDestinationFromMap`: 도착지(`destination`)에 거점 이름 자동 주입 및 로컬 스토리지 동기화.
+     - **스마트 카카오맵 스타일 인터랙션**: 출발지 설정 시 "지도에서 도착지를 마저 선택하세요" 가이드 토스트를 띄워 지도 탐색을 유지하고, 도착지까지 양쪽 모두 설정되면 자동으로 경로 추천 탭(`setPage('route')`)으로 전환.
+     - 지도 상단에 슬릭한 글래스모피즘 피드백 토스트 배너 탑재 (원클릭 [경로 추천 탭 이동 ➔] 버튼 및 ✕ 닫기 지원).
+- **영향도**: 지도 뷰에서 원하는 대중교통 거점을 원클릭으로 길찾기 출발지·도착지에 즉시 바인딩하여 PC와 모바일 전반의 탐색 편의성과 사용자 경험 대폭 향상.
+
+---
+
+### 🛡️🔍 FactChat LLM 연동 무음 Fallback 개선 및 외부 버스 API 장애 시 관측성·Graceful Degradation 강화 (이슈 #80)
+- **배경/문제**:
+  1. `.env`에 `FACTCHAT_API_KEY`가 미설정되었거나 더미 상태인 경우, 또는 LLM 호출 시 HTTP 401/429/500 에러 발생 시 경고 로그 없이 조용히 자체 XAI 룰 엔진으로 Fallback되어 관리자가 원인을 인지하기 어려움 (Silent Degradation).
+  2. 서울시 버스 서버(`ws.bus.go.kr`)가 503 점검/과부하 상태일 때, 백엔드 `GET /api/v1/transit/bus/stations/nearby`가 HTTP 502 Bad Gateway를 던져 클라이언트 콘솔에 다량의 빨간색 에러 발생.
+  3. 경로 탐색 후 지도 카메라가 출발지에서 도착지로 날아가는 동안(`easeTo`/`flyTo`), 렌더 프레임마다 주변 정류장 조회가 발생하여 1초에 수십 건의 `nearby` 요청 연타가 발생하고 서킷브레이커가 불필요하게 OPEN되는 현상.
+  4. 인메모리 로거(`in_memory_log_handler.py`)에서 시스템 명칭(`weather-transit-backend`)에 포함된 'weather' 키워드로 인해 버스 API 에러 로그가 `[기상청]` 도메인으로 잘못 라벨링되는 현상.
+- **조치**:
+  1. `multimodal_router.py`:
+     - 유효한 FactChat API 키 부재 시 명시적 `logger.warning("[FactChat] 유효한 FACTCHAT_API_KEY가 설정되지 않아 XAI 규칙 엔진으로 대체 브리핑을 생성합니다.")` 출력.
+     - HTTP 비정상 응답(401, 429 등) 및 네트워크 예외 시 상태 코드/사유를 담은 명시적 WARNING 로그 기록.
+     - `langgraph_trace` 및 `ai_briefing` 페이로드에 `fallback_reason` 필드를 추가하여 프론트엔드 모니터링 콘솔에서도 전환 원인을 즉시 확인 가능하도록 개선.
+  2. `main.py` (`get_nearby_bus_stations`):
+     - 서울시 버스 API 키 부재, 503 장애, 타임아웃, 서킷브레이커 오픈 시 HTTP 502를 던지지 않고 `HTTP 200` 정상 응답과 함께 `"stations": []` (빈 목록) 및 Fallback 사유를 반환하는 Graceful Degradation 전면 적용.
+  3. `TransitMap.tsx`:
+     - `map.isMoving()` 및 `map.isRotating()` 감지 로직을 추가하여 카메라 애니메이션 이동 중에는 주변 정류장 조회를 자동 유예하고, 카메라가 완전히 정지한 후 500ms 디바운스 뒤 1회만 호출하도록 방어.
+     - 외부 API 지연 시 `console.error` 대신 `console.warn`으로 완화.
+  4. `in_memory_log_handler.py`:
+     - 도메인 태그 판별 우선순위를 재설계하여, 서킷브레이커 ➔ LangGraph ➔ 버스 ➔ 지하철 ➔ 따릉이 순서로 정확히 매핑하고 시스템 명칭 `weather`로 인한 기상청 오분류 원천 제거.
+  5. `tests/test_observability_logging.py`:
+     - 도메인 정밀 판별, 502 없는 주변 정류장 200 OK Fallback, FactChat 트레이스 내 `fallback_reason` 주입 검증 단위 테스트 추가 (전원 통과).
+- **영향도**: 외부 API 점검 시 브라우저 콘솔 에러 폭주 원천 차단, 실시간 AI 브리핑 추론 상태의 완벽한 가시성 및 관측성(Observability) 확보.
+
+---
+
 ## [2026-10-31]
 ### 🌦️⏱️ Docker 컨테이너 및 기상청 API KST(한국 표준시) 동기화 및 초단기실황 발표 시점 보정 (이슈 #75)
 - **배경/문제**:
@@ -71,7 +186,8 @@ et::ERR_CONNECTION_REFUSED로 실패. 따릉이 선택 시 검색 UI가 없어 �
   3. App.tsx·AppM.tsx의 개별 검색 UI를 통합 컴포넌트로 교체(선택 시 해당 교통수단 탭으로 전환 및 지도 포커스).
 - **영향도**: 프론트엔드만 변경. BusStationSearch.tsx는 타입(BusStationResult)만 사용, BikeStationSearch.tsx는 통합 컴포넌트로 대체되어 미사용.
 ### 🎨🚌 지도 팝업 X버튼·버스 노선 창 테마 적용 및 전 정류장 버스 노선 보기 통일 (이슈 #69)
-- **배경/문제**: 라이트 모드에서 팝업 닫기(X) 버튼이 ackground: var(--app-text) + 어두운 글자색으로 식별 불가, 버스 노선 창은 배경 gba(17,29,53,0.96) 하드코딩 및 내부 박스에 ar(--app-text)(글자색)를 배경으로 오용. 주요 거점 정류장 팝업에는 노선 보기 버튼이 없어 정류장별 동작이 불일치.
+- **배경/문제**: 라이트 모드에서 팝업 닫기(X) 버튼이 ackground: var(--app-text) + 어두운 글자색으로 식별 불가, 버스 노선 창은 배경 
+gba(17,29,53,0.96) 하드코딩 및 내부 박스에 ar(--app-text)(글자색)를 배경으로 오용. 주요 거점 정류장 팝업에는 노선 보기 버튼이 없어 정류장별 동작이 불일치.
 - **조치**:
   1. index.css: 팝업 닫기 버튼을 --color-card2/--app-text/--color-border 변수 기반으로 통일(라이트 전용 오버라이드 제거).
   2. TransitMap.tsx: 버스 노선 창 배경·닫기 버튼·접근 차량 박스를 테마 변수로 교체.

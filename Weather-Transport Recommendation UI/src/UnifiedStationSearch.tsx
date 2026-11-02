@@ -5,11 +5,18 @@ import type { BikeStationResult } from './BikeStationSearch'
 
 export type SearchTransport = 'all' | 'subway' | 'bus' | 'bike'
 
-interface Props {
-  transport: SearchTransport
-  onSelectSubway: (station: SubwayStation) => void
-  onSelectBus: (station: BusStationResult) => void
-  onSelectBike: (station: BikeStationResult) => void
+export interface UnifiedStationSearchProps {
+  transport?: SearchTransport
+  value?: string
+  onChange?: (val: string) => void
+  onSelectSubway?: (station: SubwayStation) => void
+  onSelectBus?: (station: BusStationResult) => void
+  onSelectBike?: (station: BikeStationResult) => void
+  placeholder?: string
+  title?: string
+  headerColor?: string
+  variant?: 'sidebar' | 'route'
+  onClear?: () => void
 }
 
 type Item =
@@ -30,8 +37,20 @@ const META = {
 const PER_KIND_ALL = 5
 const PER_KIND_SINGLE = 15
 
-export default function UnifiedStationSearch({ transport, onSelectSubway, onSelectBus, onSelectBike }: Props) {
-  const [query, setQuery] = useState('')
+export default function UnifiedStationSearch({
+  transport = 'all',
+  value,
+  onChange,
+  onSelectSubway,
+  onSelectBus,
+  onSelectBike,
+  placeholder,
+  title,
+  headerColor,
+  variant = 'sidebar',
+  onClear,
+}: UnifiedStationSearchProps) {
+  const [query, setQuery] = useState(value ?? '')
   const [open, setOpen] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const [busResults, setBusResults] = useState<BusStationResult[]>([])
@@ -39,6 +58,13 @@ export default function UnifiedStationSearch({ transport, onSelectSubway, onSele
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+
+  // 외부 value 동기화 (맞바꾸기, 지도 팝업 등 부모 변경 반영)
+  useEffect(() => {
+    if (value !== undefined && value !== query) {
+      setQuery(value)
+    }
+  }, [value])
 
   const keyword = query.trim()
   const wantSubway = transport === 'all' || transport === 'subway'
@@ -123,10 +149,18 @@ export default function UnifiedStationSearch({ transport, onSelectSubway, onSele
 
   const select = (item: Item) => {
     setQuery(item.name)
+    onChange?.(item.name)
     setOpen(false)
-    if (item.kind === 'subway') onSelectSubway(item.data)
-    else if (item.kind === 'bus') onSelectBus(item.data)
-    else onSelectBike(item.data)
+    if (item.kind === 'subway') onSelectSubway?.(item.data)
+    else if (item.kind === 'bus') onSelectBus?.(item.data)
+    else onSelectBike?.(item.data)
+  }
+
+  const handleClear = () => {
+    setQuery('')
+    onChange?.('')
+    setOpen(false)
+    onClear?.()
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -145,31 +179,79 @@ export default function UnifiedStationSearch({ transport, onSelectSubway, onSele
   }
 
   const headerMeta = transport === 'all' ? null : META[transport]
-  const placeholder = transport === 'all' ? '지하철·버스·따릉이 통합 검색 (예: 강남)' : META[transport].placeholder
-  const title = transport === 'all' ? '통합 검색 & 바로가기' : `${META[transport].label} 검색 & 바로가기`
+  const defaultPlaceholder = transport === 'all' ? '지하철·버스·따릉이 통합 검색 (예: 강남)' : META[transport].placeholder
+  const finalPlaceholder = placeholder || defaultPlaceholder
+  const defaultTitle = transport === 'all' ? '통합 검색 & 바로가기' : `${META[transport].label} 검색 & 바로가기`
+  const finalTitle = title || defaultTitle
   const showDropdown = open && keyword.length >= 1
   const needMore = keyword.length < 2 && (wantBus || wantBike) && !wantSubway
 
-  return (
-    <div ref={rootRef} style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: headerMeta?.color ?? 'var(--color-primary)', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span>🔍</span> {title}
-      </div>
+  const isRouteVariant = variant === 'route'
 
-      <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+  return (
+    <div
+      ref={rootRef}
+      style={{
+        padding: isRouteVariant ? '12px 18px 16px' : '16px 20px 14px',
+        borderBottom: isRouteVariant ? 'none' : '1px solid var(--color-border)',
+        position: 'relative',
+      }}
+    >
+      {/* 헤더 */}
+      {isRouteVariant ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: headerColor || 'var(--color-primary)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
+            {finalTitle}
+          </div>
+          {query && (
+            <button
+              type="button"
+              onClick={handleClear}
+              title="지우기"
+              style={{
+                background: 'var(--color-card2)', border: 'none', borderRadius: 999,
+                padding: '2px 8px', fontSize: 10, color: 'var(--color-muted)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 3,
+              }}
+            >
+              <span>✕</span> 지우기
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, fontWeight: 700, color: headerColor || headerMeta?.color || 'var(--color-primary)', letterSpacing: '0.04em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🔍</span> {finalTitle}
+        </div>
+      )}
+
+      {/* 검색 입력창 */}
+      <div style={{
+        background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 12,
+        padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8,
+        transition: 'all 0.15s ease',
+      }}>
         <span style={{ fontSize: 14 }}>{headerMeta?.icon ?? '🔎'}</span>
         <input
           value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onChange={e => {
+            const next = e.target.value
+            setQuery(next)
+            onChange?.(next)
+            setOpen(true)
+          }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder={placeholder}
-          style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, color: 'var(--app-text)', fontFamily: "'Outfit','Noto Sans KR',sans-serif" }}
+          placeholder={finalPlaceholder}
+          style={{
+            flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
+            fontSize: isRouteVariant ? 14 : 13, color: 'var(--app-text)', fontFamily: "'Outfit','Noto Sans KR',sans-serif",
+            fontWeight: isRouteVariant ? 500 : 400,
+          }}
         />
         {query && (
           <button
             type="button"
-            onClick={() => { setQuery(''); setOpen(false) }}
+            onClick={handleClear}
             style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12 }}
           >
             ✕
@@ -177,15 +259,17 @@ export default function UnifiedStationSearch({ transport, onSelectSubway, onSele
         )}
       </div>
 
+      {/* 드롭다운 자동완성 리스트 */}
       {showDropdown && (
         <div style={{
-          position: 'absolute', top: '100%', left: 20, right: 20, zIndex: 200,
+          position: 'absolute', top: '100%', left: isRouteVariant ? 18 : 20, right: isRouteVariant ? 18 : 20,
+          zIndex: isRouteVariant ? 150 : 200,
           background: 'var(--color-surface)', border: '1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)',
           borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.6)', maxHeight: 320, overflowY: 'auto',
         }}>
           {items.length > 0 && (
             <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
-              <span>검색 결과 {items.length}건</span>
+              <span>검색 결과 {items.length}건 (지하철·버스·따릉이)</span>
               <span>⌨️ [↑↓ / Tab] 이동 · [Enter] 선택</span>
             </div>
           )}
@@ -222,7 +306,7 @@ export default function UnifiedStationSearch({ transport, onSelectSubway, onSele
             )
           })}
 
-          {loading && <div style={{ padding: 12, fontSize: 12, color: 'var(--color-muted)' }}>검색 중...</div>}
+          {loading && <div style={{ padding: 12, fontSize: 12, color: 'var(--color-muted)' }}>통합 검색 중...</div>}
           {error && <div style={{ padding: 12, fontSize: 12, color: '#FCA5A5' }}>{error}</div>}
           {needMore && <div style={{ padding: 12, fontSize: 12, color: 'var(--color-muted)' }}>2글자 이상 입력해 주세요.</div>}
           {!loading && !error && !needMore && items.length === 0 && (

@@ -1,3 +1,4 @@
+from logging_utils import mask_sensitive_text
 """
 in_memory_log_handler.py - 서버 실시간 로그를 인메모리 링 버퍼에 안전하게 캡처하는 로깅 핸들러
 관리자 모니터링 대시보드(/health/dashboard)에서 실시간으로 스트리밍 조회할 수 있도록 지원합니다.
@@ -24,7 +25,7 @@ class InMemoryLogHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         try:
-            msg = self.format(record)
+            msg = mask_sensitive_text(self.format(record))
             now = datetime.fromtimestamp(record.created)
             time_str = now.strftime("%H:%M:%S")
             timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -57,25 +58,46 @@ class InMemoryLogHandler(logging.Handler):
             self.handleError(record)
 
     def _detect_domain(self, logger_name: str, msg: str) -> str:
-        """메시지 및 로거 이름 기반 도메인 태그 분류"""
-        if "기상청" in msg or "weather" in msg.lower() or "kma" in msg.lower():
-            return "기상청"
-        elif "지하철" in msg or "subway" in msg.lower() or "열차" in msg:
-            return "지하철"
-        elif "버스" in msg or "bus" in msg.lower() or "정류" in msg:
-            return "버스"
-        elif "따릉이" in msg or "bike" in msg.lower() or "대여소" in msg:
-            return "따릉이"
-        elif "LangGraph" in msg or "멀티모달" in msg or "multimodal" in msg.lower():
-            return "LangGraph"
-        elif "ONNX" in msg or "머신러닝" in msg or "AI" in msg or "추론" in msg:
-            return "AI추론"
-        elif "CircuitBreaker" in msg or "서킷" in msg:
+        """메시지 및 로거 이름 기반 정밀 도메인 태그 분류 (시스템명 'weather'로 인한 기상청 오분류 원천 방지)"""
+        msg_lower = msg.lower()
+        log_lower = logger_name.lower()
+
+        # 1. 서킷브레이커 상태 전이
+        if "circuitbreaker" in msg_lower or "circuitbreaker" in log_lower or "서킷" in msg:
             return "서킷브레이커"
-        elif "cache" in msg.lower() or "캐시" in msg:
+
+        # 2. LangGraph & FactChat 멀티모달 오케스트레이션 (로거명 multimodal 포함)
+        if "langgraph" in msg_lower or "factchat" in msg_lower or "multimodal" in msg_lower or "multimodal" in log_lower or "멀티모달" in msg:
+            return "LangGraph"
+
+        # 3. 버스 관련 (서울시 ws.bus.go.kr, 정류소, 버스도착)
+        if "bus" in msg_lower or "버스" in msg or "정류" in msg or "st_id" in msg_lower:
+            return "버스"
+
+        # 4. 지하철 관련 (서울교통공사, 역, 호선)
+        if "subway" in msg_lower or "지하철" in msg or "열차" in msg or "호선" in msg:
+            return "지하철"
+
+        # 5. 따릉이 공공자전거
+        if "bike" in msg_lower or "따릉이" in msg or "대여소" in msg:
+            return "따릉이"
+
+        # 6. ONNX 인메모리 머신러닝 추론
+        if "onnx" in msg_lower or "머신러닝" in msg or "추론" in msg or "inference" in msg_lower:
+            return "AI추론"
+
+        # 7. 시계열 SQLite WAL 캐시
+        if "timeseries_cache" in log_lower or "캐시" in msg or "cache" in msg_lower:
             return "캐시"
-        elif "uvicorn" in logger_name.lower():
+
+        # 8. 기상청 API허브 (시스템 명칭 weather-transit-backend 제외, 순수 기상 관련만 매칭)
+        if "기상청" in msg or "kma" in msg_lower or "초단기" in msg or "단기예보" in msg or "강수" in msg or "기온" in msg:
+            return "기상청"
+
+        # 9. HTTP 서버 계층
+        if "uvicorn" in log_lower or "fastapi" in log_lower or "http" in log_lower:
             return "HTTP"
+
         return "시스템"
 
     def get_logs(

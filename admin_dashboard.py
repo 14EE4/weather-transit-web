@@ -65,7 +65,8 @@ def render_dashboard_html() -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Weather & Transit | Backend Health & Live Logs</title>
+  <title>WeatherMove Observability | Backend Health & Live Logs</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Crect width='64' height='64' rx='16' fill='%230F172A'/%3E%3Ccircle cx='43' cy='20' r='6.5' fill='%23FBBF24'/%3E%3Cpath d='M13 43 C 14 34, 21 29, 29 33 C 36 37, 42 32, 47 23' stroke='%2338BDF8' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M40 22.5 L47.5 23 L46.5 30.5' stroke='%2334D399' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -116,12 +117,19 @@ def render_dashboard_html() -> str:
   <!-- Header -->
   <header class="bg-slate-900/80 backdrop-blur border-b border-slate-800 sticky top-0 z-50 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-sky-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-bold text-lg">
-        ⚡
+      <div class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shadow-lg shadow-sky-500/10 text-white font-bold text-lg p-1">
+        <svg viewBox="0 0 64 64" fill="none" class="w-full h-full">
+          <circle cx="43" cy="20" r="6.5" fill="#FBBF24"/>
+          <path d="M13 43 C 14 34, 21 29, 29 33 C 36 37, 42 32, 47 23" stroke="#38BDF8" stroke-width="5" stroke-linecap="round"/>
+          <path d="M40 22.5 L47.5 23 L46.5 30.5" stroke="#34D399" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="14" cy="42" r="3" fill="#38BDF8"/>
+          <circle cx="29" cy="33" r="3.5" fill="#34D399"/>
+          <circle cx="47.5" cy="23" r="2.5" fill="#FFFFFF"/>
+        </svg>
       </div>
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-base font-bold tracking-tight text-white">Weather & Transit Observability</h1>
+          <h1 class="text-base font-bold tracking-tight text-white"><span class="text-slate-100">Weather</span><span class="text-sky-400">Move</span> <span class="text-xs text-slate-400 font-normal">Observability</span></h1>
           <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
             System Live

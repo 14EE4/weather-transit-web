@@ -675,8 +675,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       const currentZ = map.getZoom()
       const targetZoom = options?.targetZoom ?? (currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5))
       isFlyingRef.current = true
+      // 마커 하단에 달리는 팝업 창 전체가 화면 세로 중앙에 오도록 카메라 뷰를 아래쪽으로 이동 (마커를 위로 오프셋)
+      const offsetY = isMobile ? -120 : -150
       map.flyTo({
         center: stop.coords,
+        offset: [0, offsetY],
         zoom: targetZoom,
         pitch: DEFAULT_MAP_PITCH,
         duration: 700,
@@ -695,6 +698,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       closeButton: true,
       closeOnClick: false,
       maxWidth: '310px',
+      anchor: 'top',
     })
 
     const onPopupRouteClick = (ev: Event) => {

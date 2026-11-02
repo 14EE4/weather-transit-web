@@ -3387,7 +3387,7 @@ async def _execute_multimodal_search(
     live_bus_arrs: list[dict] = []
     if DATA_GO_KR_BUS_KEY:
         try:
-            origin_st = multimodal_routing_engine.resolve_station(from_station)
+            origin_st = multimodal_routing_engine.resolve_station(from_station, extra_bike_stations=live_bikes)
             c = origin_st.get("coords", [126.9780, 37.5665]) if origin_st else [126.9780, 37.5665]
             nearby_buses = multimodal_routing_engine.find_nearby_bus_stops(
                 c[1], c[0], limit=2, station_name=from_station

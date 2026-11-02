@@ -8,6 +8,26 @@
 
 ## [2026-11-02]
 
+### 🛡️ 전체 코드베이스 로깅 정책(LOGGING_POLICY.md) 준수 전수 감사 및 무음 예외·민감정보 정비 (이슈 #81)
+- **배경/문제**:
+  - `LOGGING_POLICY.md`의 보안 규정(§7)에도 불구하고 외부 HTTP 에러(`httpx.HTTPError`) 출력 시 URL 쿼리스트링 내 공공 API 개인키(`serviceKey=...`)가 로그에 평문 노출되는 잠재적 보안 취약점 존재.
+  - `main.py`, `timeseries_cache.py`, `multimodal_router.py`, `TransitMap.tsx` 등 코드베이스 곳곳에 예외 이유가 기록되지 않고 무음으로 삼켜지던 빈 예외 블록(`except: pass`, `catch {}`) 존재.
+- **조치**:
+  1. **민감정보 마스킹 공통 모듈 신설 (`logging_utils.py`)**:
+     - `mask_sensitive_text(text)`: 공공데이터포털 `serviceKey`, `auth_key`, `api_key`, `token`, `Bearer` 토큰을 정규식으로 감지하여 식별용 앞 4자리만 보존하고 나머지를 `****`로 자동 치환.
+     - `sanitize_exception(exc)`: 예외 문자열 내 URL 쿼리 파라미터 API 키를 안전하게 마스킹하는 헬퍼 구현.
+  2. **인메모리 링 버퍼 로그 핸들러 전역 마스킹 적용 (`in_memory_log_handler.py`)**:
+     - `emit()` 단계에서 `mask_sensitive_text()`를 기본 적용하여, 백엔드 어떤 로거에서 출력된 문자열이라도 관리자 관제 대시보드(`/health/dashboard`) 및 메모리 버퍼에 저장되기 전 100% 자동 마스킹되도록 이중 방어선 구축.
+  3. **백엔드 무음 예외 전면 색출 및 표준 레벨 로깅 부여**:
+     - `main.py`: 기상청 단기예보 자동 조회 실패(`line 1426`, `line 3321`) 시 무음 디폴트 전환 대신 원인과 대체 적용 내역(`logger.warning`) 명시 기록. 버스/지하철/KMA 외부 통신 에러 출력 시 `sanitize_exception()` 적용.
+     - `timeseries_cache.py`: 백그라운드 SQLite 비동기 큐 포화(`queue.Full`) 시 무음 `pass` 대신 `logger.warning` 경고 로그 기록.
+     - `multimodal_router.py`: `dotenv` 로드 실패(`logger.debug`), LangGraph 미설치/로드 실패(`logger.info`), 실시간 따릉이 파싱 예외(`logger.debug`) 로깅 보강.
+  4. **프론트엔드 빈 `catch` 블록 정비 (`TransitMap.tsx`)**:
+     - 팝업 주변 버스 정류소 조회 및 지도 뷰 로컬스토리지 영속화 실패 시 무음 삼킴 대신 `console.debug`로 기록하여 브라우저 콘솔 관측성 확보.
+  5. **단위 테스트 스위트 확장 (`tests/test_observability_logging.py`)**:
+     - `test_sensitive_info_masking`: 공공 API 키 마스킹, Bearer 헤더 마스킹, 인메모리 핸들러 emit 시 자동 마스킹 3종 검증 케이스 추가 및 100% 통과.
+- **영향도**: 외부 API 장애 및 네트워크 에러 시 개인키 누출 위험을 원천 차단하고, 백엔드/프론트엔드 전반의 무음 결함을 해소하여 운영 안정성과 장애 원인 추적 속도를 극대화.
+
 ### 🎨 WeatherMove 서비스 전용 브랜드 로고(SVG) 제작 및 브라우저 파비콘(Favicon) 전면 탑재 (이슈 #78)
 - **배경/문제**:
   - 기존 웹 앱은 브라우저 탭에 전용 파비콘이 설정되어 있지 않아 기본 빈 문서 아이콘이 노출되었으며, 상단 헤더 로고가 단순 이모지(`🌦`)로 구성되어 있어 서비스의 시각적 완성도와 브랜드 아이덴티티가 미흡했음.

@@ -19,7 +19,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 애플리케이션 소스, AI 모델 파일, 데이터셋 복사
-#  - *.py: main.py, timeseries_cache.py, feature_schema.py 등 신규 파이썬 스크립트 일괄 복사
+#  - *.py: main.py, timeseries_cache.py, feature_schema.py, logging_utils.py 등 신규 파이썬 스크립트 일괄 복사
 COPY *.py ./
 COPY models/ ./models/
 COPY data/ ./data/

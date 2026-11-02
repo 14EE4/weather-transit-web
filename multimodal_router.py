@@ -34,8 +34,8 @@ import requests
 try:
     from dotenv import load_dotenv
     load_dotenv()
-except Exception:
-    pass
+except Exception as exc:
+    logging.getLogger("weather-transit-backend.multimodal").debug("dotenv load skipped or failed: %s", exc)
 
 logger = logging.getLogger("weather-transit-backend.multimodal")
 
@@ -44,8 +44,9 @@ try:
     from langgraph.graph import END, StateGraph
 
     LANGGRAPH_AVAILABLE = True
-except Exception:
+except Exception as exc:
     LANGGRAPH_AVAILABLE = False
+    logger.info("LangGraph 패키지 미설치 또는 로드 실패로 내부 Fallback StateGraph 엔진을 활성화합니다: %s", exc)
     END = "__end__"
 
     class _CompiledFallbackGraph:
@@ -974,7 +975,8 @@ class MultimodalRoutingEngine:
                                 "source": "SEOUL_LIVE_BIKE_API",
                             }
                         )
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Failed to parse live bike station item: %s", exc)
                     continue
 
         # 2. 마스터 대여소 데이터 보강 (반경 850m 이내만 허용하여 원거리 직선 점프 원천 차단)

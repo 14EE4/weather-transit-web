@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 import numpy as np
 import onnxruntime as ort
 import httpx
+from logging_utils import mask_sensitive_text, sanitize_exception
 
 from timeseries_cache import timeseries_cache
 from multimodal_router import multimodal_routing_engine
@@ -1423,7 +1424,8 @@ async def predict_recommendation(req: PredictionRequest):
                 humidity=75.0 if h_fcst.rain > 0 else 50.0,
                 wind=2.0
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("[ONNX 추론] 기상청 단기예보 자동 조회 실패로 기본값(맑음)을 적용합니다 (%s): %s", norm_district, sanitize_exception(exc))
             weather = WeatherInput()
 
     # 1. 32차원 피처 벡터 조립
@@ -2273,7 +2275,7 @@ async def get_current_weather(
             else:
                 kma_circuit_breaker.record_failure(f"HTTP {res.status_code}")
     except Exception as e:
-        logger.warning(f"KMA API call failed: {e}, activating circuit breaker & fallback.")
+        logger.warning(f"KMA API call failed: {sanitize_exception(e)}, activating circuit breaker & fallback.")
         kma_circuit_breaker.record_failure(str(e))
 
     # 실패 시: 1순위 직전 정상 스냅샷 반환, 2순위 지능형 폴백
@@ -2606,7 +2608,7 @@ async def search_bus_stations(q: str):
         }
 
     except httpx.HTTPError as exc:
-        logger.warning("Bus station search error: %s", exc)
+        logger.warning("Bus station search error: %s", sanitize_exception(exc))
         raise HTTPException(
             status_code=502,
             detail="서울시 버스정류장 API 연결 실패"
@@ -2741,7 +2743,7 @@ async def get_nearby_bus_stations(
         }
 
     except httpx.HTTPError as exc:
-        logger.warning("[서울 버스] Nearby bus station API 연결 실패/타임아웃 (%s) -> 200 빈 목록 Fallback", exc)
+        logger.warning("[서울 버스] Nearby bus station API 연결 실패/타임아웃 (%s) -> 200 빈 목록 Fallback", sanitize_exception(exc))
         return {
             "status": "fallback",
             "count": 0,
@@ -2851,7 +2853,7 @@ async def get_bus_route_stations(bus_route_id: str):
         }
 
     except httpx.HTTPError as exc:
-        logger.warning("Bus route stations API error: %s", exc)
+        logger.warning("Bus route stations API error: %s", sanitize_exception(exc))
         raise HTTPException(
             status_code=502,
             detail="서울시 버스 노선 API 연결 실패"
@@ -2952,7 +2954,7 @@ async def get_bus_route_positions(bus_route_id: str):
         }
 
     except httpx.HTTPError as exc:
-        logger.warning("Bus route positions API error: %s", exc)
+        logger.warning("Bus route positions API error: %s", sanitize_exception(exc))
         raise HTTPException(status_code=502, detail="서울시 버스 위치 API 연결 실패")
     except (ValueError, TypeError) as exc:
         logger.warning("Bus route positions response error: %s", exc)
@@ -3007,7 +3009,7 @@ async def get_approaching_bus_positions(bus_route_id: str, stId: str):
         if isinstance(arrival_items, dict):
             arrival_items = [arrival_items]
     except httpx.HTTPError as exc:
-        logger.warning("Approaching bus arrival API error: %s", exc)
+        logger.warning("Approaching bus arrival API error: %s", sanitize_exception(exc))
         raise HTTPException(status_code=502, detail="서울시 버스 도착 API 연결 실패")
     except (ValueError, TypeError, AttributeError) as exc:
         logger.warning("Approaching bus arrival response error: %s", exc)
@@ -3318,7 +3320,8 @@ async def _execute_multimodal_search(
                 "sky_desc": h_fcst.sky_desc,
                 "source": "KMA_SHORT_TERM_FORECAST",
             }
-        except Exception:
+        except Exception as exc:
+            logger.warning("[멀티모달 경로] 기상청 단기예보 조회 실패로 기본 기상(16.5°C 맑음)을 적용합니다 (%s): %s", req_district, sanitize_exception(exc))
             w_in = WeatherInput(temp=16.5, rain=0.0, humidity=55.0, wind=2.0)
             w_ctx = {
                 "temp": 16.5,

@@ -1,3 +1,4 @@
+from logging_utils import mask_sensitive_text
 """
 in_memory_log_handler.py - 서버 실시간 로그를 인메모리 링 버퍼에 안전하게 캡처하는 로깅 핸들러
 관리자 모니터링 대시보드(/health/dashboard)에서 실시간으로 스트리밍 조회할 수 있도록 지원합니다.
@@ -24,7 +25,7 @@ class InMemoryLogHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         try:
-            msg = self.format(record)
+            msg = mask_sensitive_text(self.format(record))
             now = datetime.fromtimestamp(record.created)
             time_str = now.strftime("%H:%M:%S")
             timestamp_str = now.strftime("%Y-%m-%d %H:%M:%S")

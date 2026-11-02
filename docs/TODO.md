@@ -13,8 +13,11 @@
   - 서울시 버스 서버 503 장애 시 주변 정류장 API(`GET /api/v1/transit/bus/stations/nearby`)가 502 에러 대신 200 OK 빈 목록(`stations: []`)을 반환하여 브라우저 콘솔 에러 폭주 원천 차단.
   - 지도 카메라 애니메이션(`easeTo`/`flyTo`) 중 `nearby` API 연타 방지 디바운스 및 `isMoving()` 체크 적용.
   - `in_memory_log_handler.py`의 시스템 명칭(`weather`)으로 인한 기상청 오분류 원천 교정.
-- [ ] **[LOG-03] 전체 코드베이스 로깅 정책(LOGGING_POLICY.md) 준수 여부 전수 감사 및 무음 예외 처리 일제 정비 (대기 · 이슈 #81)**:
-  - `main.py`, `multimodal_router.py`, `timeseries_cache.py`, `kma_forecast.py` 등 백엔드/프론트엔드 전반 무음 예외(`except: pass`) 전면 정비.
+- [x] **[LOG-03] 전체 코드베이스 로깅 정책(LOGGING_POLICY.md) 준수 여부 전수 감사 및 무음 예외 처리 일제 정비 (완료 · 2026-11-02 · 이슈 #81)**:
+  - `logging_utils.py` 신설: 공공 API 키(`serviceKey`) 및 Bearer 인증 토큰 자동 마스킹 헬퍼 구현.
+  - `in_memory_log_handler.py`: 인메모리 링 버퍼 `emit()` 시 민감정보 자동 마스킹 적용하여 대시보드 및 로그 누출 원천 차단.
+  - `main.py`, `multimodal_router.py`, `timeseries_cache.py`, `TransitMap.tsx` 내 무음 예외(`except: pass`, 빈 `catch {}`)를 전면 색출하여 표준 로그 레벨(INFO/WARN/DEBUG) 및 스택 정보 부여.
+  - `tests/test_observability_logging.py` 단위 테스트 확장 및 100% 검증 통과.
 
 ---
 

@@ -456,6 +456,7 @@ export default function AppM() {
     }
     return ''
   })
+  const [searchedRoute, setSearchedRoute] = useState<{ from: string; to: string } | null>(null)
   const [mapTransport, setMapTransport] = useState<'all' | 'subway' | 'bus' | 'bike'>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -541,12 +542,9 @@ export default function AppM() {
       localStorage.setItem('weather_transit_route_departure', stop.name)
     } catch {}
     if (destination && destination !== stop.name) {
-      showRouteToast(`🚩 출발지가 '${stop.name}'(으)로 설정되었습니다. 경로 추천 탭으로 이동합니다.`)
-      setTimeout(() => {
-        setPage('route')
-      }, 500)
+      showRouteToast(`🚩 출발지가 '${stop.name}'(으)로 설정되었습니다. (도착지: ${destination})`, '경로 추천 탭 이동')
     } else {
-      showRouteToast(`🚩 출발지가 '${stop.name}'(으)로 설정되었습니다. 지도에서 도착지를 선택하세요.`, '경로 추천 탭 이동')
+      showRouteToast(`🚩 출발지가 '${stop.name}'(으)로 설정되었습니다. 지도에서 도착지를 마저 선택하세요.`, '경로 추천 탭 이동')
     }
   }
 
@@ -556,12 +554,9 @@ export default function AppM() {
       localStorage.setItem('weather_transit_route_destination', stop.name)
     } catch {}
     if (departure && departure !== stop.name) {
-      showRouteToast(`🏁 도착지가 '${stop.name}'(으)로 설정되었습니다. 경로 추천 탭으로 이동합니다.`)
-      setTimeout(() => {
-        setPage('route')
-      }, 500)
+      showRouteToast(`🏁 도착지가 '${stop.name}'(으)로 설정되었습니다. (출발지: ${departure})`, '경로 추천 탭 이동')
     } else {
-      showRouteToast(`🏁 도착지가 '${stop.name}'(으)로 설정되었습니다. 지도에서 출발지를 선택하세요.`, '경로 추천 탭 이동')
+      showRouteToast(`🏁 도착지가 '${stop.name}'(으)로 설정되었습니다. 지도에서 출발지를 마저 선택하세요.`, '경로 추천 탭 이동')
     }
   }
   const [selectedHour, setSelectedHour] = useState<number>(nowHour)
@@ -604,11 +599,18 @@ export default function AppM() {
   // 경로 검색 실행 함수 (출발역-도착역 최단 경로 계산 및 실시간 열차 도착 정보 연동)
   const handleSearchRoute = async (from = departure, to = destination, navigateToMap = false) => {
     if (!from.trim() || !to.trim()) {
-      alert('출발역과 도착역을 입력해주세요.')
+      alert('출발지와 도착지를 입력해주세요.')
+      return
+    }
+    if (from.trim() === to.trim()) {
+      alert('출발지와 도착지가 동일합니다. 서로 다른 거점을 선택해주세요.')
       return
     }
     setShowDepartureList(false)
     setShowDestinationList(false)
+    setDeparture(from.trim())
+    setDestination(to.trim())
+    setSearchedRoute({ from: from.trim(), to: to.trim() })
     const route = findSubwayRoute(from, to)
     if (route) {
       setDeparture(route.from)
@@ -663,6 +665,7 @@ export default function AppM() {
   const handleResetRoute = () => {
     setDeparture('')
     setDestination('')
+    setSearchedRoute(null)
     setActiveRoute(null)
     setShowDepartureList(false)
     setShowDestinationList(false)
@@ -2123,6 +2126,7 @@ export default function AppM() {
                   }}
                   onClear={() => {
                     setDeparture('')
+                    setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
                 />
@@ -2170,6 +2174,7 @@ export default function AppM() {
                   }}
                   onClear={() => {
                     setDestination('')
+                    setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
                 />
@@ -2258,8 +2263,8 @@ export default function AppM() {
             <div>
               <MultimodalRoutePanel
                 apiBaseUrl={API_BASE_URL}
-                fromStation={departure}
-                toStation={destination}
+                fromStation={searchedRoute?.from || ''}
+                toStation={searchedRoute?.to || ''}
                 district={DISTRICTS[selectedDistrict] || '강남구'}
                 selectedHour={selectedHour}
                 temp={displayTemp}

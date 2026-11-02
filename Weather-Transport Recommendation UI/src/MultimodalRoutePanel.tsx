@@ -300,8 +300,8 @@ export default function MultimodalRoutePanel({
               LangGraph × FactChat LLM 멀티모달 통합 경로 탐색 대기 중
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--color-muted)' }}>
-              좌측에서 <b>출발지</b>와 <b>도착지</b>를 입력하면 현재 날씨({temp}°C · 강수 {rain}mm)에 맞춘{' '}
-              <b>지하철 + 버스 + 따릉이(First-Mile)</b> 복합 경로와 AI 브리핑이 표시됩니다.
+              출발지와 도착지를 설정한 뒤 <b>[🔍 최적 경로 검색]</b> 버튼을 누르면 현재 날씨({temp}°C · 강수 {rain}mm)에 맞춘{' '}
+              <b>지하철 + 버스 + 따릉이(First-Mile)</b> 복합 경로와 AI 브리핑이 탐색됩니다.
             </div>
           </div>
         </div>

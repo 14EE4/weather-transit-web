@@ -18,6 +18,12 @@
   - `in_memory_log_handler.py`: 인메모리 링 버퍼 `emit()` 시 민감정보 자동 마스킹 적용하여 대시보드 및 로그 누출 원천 차단.
   - `main.py`, `multimodal_router.py`, `timeseries_cache.py`, `TransitMap.tsx` 내 무음 예외(`except: pass`, 빈 `catch {}`)를 전면 색출하여 표준 로그 레벨(INFO/WARN/DEBUG) 및 스택 정보 부여.
   - `tests/test_observability_logging.py` 단위 테스트 확장 및 100% 검증 통과.
+- [x] **[CACHE-01] 전사 공공 API 및 AI 추론 데이터 캐싱 정책 명세서(CACHING_POLICY.md) 제정 (완료 · 2026-11-03 · 이슈 #94)**:
+  - `docs/CACHING_POLICY.md` 신설: 데이터 도메인별 캐시 생명주기(TTL) 표준화 (기상청 `30분`, 따릉이 `60초`, 지하철/버스 `15초`, 시계열 피처 `0.1ms` SQLite WAL 영속화, 브라우저 `12회` 캐시).
+  - 3계층 다중 캐시 파이프라인(Client LocalStorage ➔ Server RAM ➔ Host Disk SQLite WAL) 구조화 및 Mermaid 다이어그램화.
+  - Circuit Breaker(OPEN/HALF-OPEN), Last Known Good(직전 정상 스냅샷), Cold-Start 일주 곡선(`HOURLY_DIURNAL_FACTORS`) 폴백 방어선 명시.
+  - 캐시 진단(`GET /api/v1/cache/timeseries-status`) 및 관리자 캐시 플러시(`POST /api/v1/admin/cache/clear`) 명세화.
+  - `README.md` 공식 문서 표에 `docs/CACHING_POLICY.md` 반영.
 
 ---
 

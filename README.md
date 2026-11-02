@@ -129,6 +129,7 @@
 | **데이터검수** | 🔍 **목업·하드코딩·미검증 데이터 전수 조사** | 정적 상수, 근사 산식, 폴백 데이터 현황 및 실시간 API 전환 방안 | [`TODO_MOCK_AND_UNVERIFIED_DATA.md`](docs/TODO_MOCK_AND_UNVERIFIED_DATA.md) |
 | **아카이브** | 📦 **레거시 문서 보관소** | 구버전(v1/v2 단년도) 전처리 인수인계서 및 모델 성능 리포트 아카이브 | [`docs/archive/`](docs/archive/README.md) |
 | **로깅** | 📜 **전역 로깅 정책 및 정형화 가이드** | 백엔드 인메모리 관제(/health/dashboard) 및 프론트엔드 브라우저 콘솔 로깅 스키마 표준 | [`LOGGING_POLICY.md`](docs/LOGGING_POLICY.md) |
+| **캐싱** | ⚡ **전사 캐싱 정책 명세서** | 데이터별 TTL(기상 30분, 따릉이 60초, 교통 15초), 3계층 캐시 및 서킷 브레이커 연계 규격 | [`CACHING_POLICY.md`](docs/CACHING_POLICY.md) |
 | **이력** | 📋 **프로젝트 변경 이력 (CHANGELOG)** | 버전별·날짜별 주요 신규 기능 구현, 버그 수정 및 인프라 개선 기록 | [`CHANGELOG.md`](docs/CHANGELOG.md) |
 | **프론트** | 🖥️ **프론트엔드 대시보드 가이드** | React 18, MapLibre GL JS 인터랙티브 지도 컴포넌트 구조 및 개발 가이드 | [Frontend README](Weather-Transport%20Recommendation%20UI/README.md) |
 

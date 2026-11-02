@@ -828,7 +828,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                 targetStId = nearData.stations[0].stId || nearData.stations[0].station_id
               }
             }
-          } catch {}
+          } catch (err) {
+            console.debug('[TransitMap] Failed to fetch nearby bus stations for stop:', err)
+          }
         }
 
         const defaultRoutes = stop.lineInfo ? stop.lineInfo.split(/[·,]/).map(s => s.trim().replace(/등$/, '')).filter(Boolean) : []
@@ -1105,7 +1107,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           center: [Math.round(center.lng * 1000000) / 1000000, Math.round(center.lat * 1000000) / 1000000],
           zoom: Math.round(zoom * 100) / 100,
         }))
-      } catch {}
+      } catch (err) {
+        console.debug('[TransitMap] Failed to persist map view to storage:', err)
+      }
     }
 
     map.on('moveend', saveCurrentMapView)

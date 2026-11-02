@@ -255,7 +255,7 @@ class TimeseriesCacheManager:
         try:
             self._db_queue.put_nowait(("weather", (district, ts, temp, rain, humidity, wind)))
         except queue.Full:
-            pass
+            logger.warning("[TimeseriesCache] Background DB write queue is full; dropped weather snapshot for %s", district)
 
     def record_demand(
         self,
@@ -283,7 +283,7 @@ class TimeseriesCacheManager:
         try:
             self._db_queue.put_nowait(("transit", (district, ts, bike_vol, bus_vol, subway_vol)))
         except queue.Full:
-            pass
+            logger.warning("[TimeseriesCache] Background DB write queue is full; dropped transit snapshot for %s", district)
 
     # ==========================================================================
     # 2. 피처 추출 (Query API)

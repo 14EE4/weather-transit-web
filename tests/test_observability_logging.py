@@ -1,5 +1,7 @@
 import unittest
+import logging
 from in_memory_log_handler import InMemoryLogHandler
+from logging_utils import mask_sensitive_text, sanitize_exception
 from fastapi.testclient import TestClient
 import main
 from multimodal_router import multimodal_routing_engine
@@ -39,6 +41,29 @@ class TestObservabilityAndGracefulDegradation(unittest.TestCase):
             "기상청 API허브 초단기실황 조회 완료 (temp: 14.5°C)"
         )
         self.assertEqual(d4, "기상청")
+
+    def test_sensitive_info_masking(self):
+        """공공 API 키 및 인증 토큰 민감정보 마스킹 검증 (LOGGING_POLICY.md §7)"""
+        # 1. 공공데이터포털 serviceKey 마스킹
+        url_with_key = "http://ws.bus.go.kr/api/rest/stationinfo?serviceKey=184d553816a7f8e4356e4552548603dd2d51d356797890e549b515f518e8c2b9&tmX=126.97"
+        masked_url = mask_sensitive_text(url_with_key)
+        self.assertNotIn("184d553816a7f8e4356e4552548603dd2d51d356797890e549b515f518e8c2b9", masked_url)
+        self.assertIn("serviceKey=184d****", masked_url)
+
+        # 2. Authorization Bearer 마스킹
+        auth_header = "Authorization: Bearer sk-proj-1234567890abcdef"
+        masked_auth = mask_sensitive_text(auth_header)
+        self.assertNotIn("1234567890abcdef", masked_auth)
+        self.assertIn("Bearer sk-p****", masked_auth)
+
+        # 3. 인메모리 링버퍼 emit 시 자동 마스킹 검증
+        logger = logging.getLogger("test_masking_logger")
+        logger.addHandler(self.handler)
+        logger.warning("External API call to %s", url_with_key)
+        self.assertTrue(len(self.handler.buffer) > 0)
+        last_entry = self.handler.buffer[-1]
+        self.assertNotIn("184d553816a7f8e4356e4552548603dd2d51d356797890e549b515f518e8c2b9", last_entry["message"])
+        self.assertIn("serviceKey=184d****", last_entry["message"])
 
     def test_nearby_bus_stations_graceful_degradation(self):
         """서울시 버스 API 일시 장애/서킷 오픈 시 502 에러가 아닌 200 OK 빈 목록 Fallback 검증"""

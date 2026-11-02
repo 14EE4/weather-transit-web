@@ -23,6 +23,11 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (Next Sprint / 우선 착수) — **진행 중 (이슈 #78 등)**
+- [ ] **[UI-09] 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (Next Sprint · 이슈 #90)**:
+  - 브라우저 `navigator.geolocation` API를 연동하여 사용자의 현재 실제 위치(GPS 좌표) 획득.
+  - 지도 화면 내 `[📍 내 위치]` 플로팅 버튼 탑재 및 클릭 시 카메라 자동 이동(`flyTo({ center, zoom: 16.5 })`).
+  - 현재 위치 펄스(Pulse) 파란색 점 마커 및 오차 반경(`10~50m`) 서클 시각화.
+  - 출발지 설정 연계: 현재 위치를 기준으로 가장 인접한 정류소/역 매핑 및 경로 탐색 연동.
 - [x] **[ROUTE-03] 버스 정류소 및 따릉이 대여소 출발/도착 시 First/Last-Mile 도보 세그먼트 보존 및 자동 삽입 (완료 · 2026-11-03 · 이슈 #89)**:
   - `resolve_station()`에서 버스 정류소 및 따릉이 대여소 해석 시 명칭, 좌표, `station_type`을 보존하고 인접 지하철역을 `nearest_subway`로 연계.
   - `MultimodalRouteRequest`에 `from_coords`, `to_coords`, `from_type`, `to_type` 명시적 파라미터 지원 및 `search_bus_stations` 동적 정류소 등록.

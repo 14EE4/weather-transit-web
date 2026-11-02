@@ -2611,7 +2611,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
 
     // 따릉이(Bike) 세그먼트 대여소/반납소 마커 핀 (출발/환승/도착과 겹치지 않는 독립 구간만 생성)
     if (activeRoute.segments && activeRoute.segments.length > 0) {
-      activeRoute.segments.forEach(seg => {
+      activeRoute.segments.forEach((seg, sIdx) => {
         if (seg.mode === 'bike' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
           const pickupCoord = seg.coords[0]
           const isPickupNearStart = isNearbyCoord(pickupCoord, startCoord, 0.0015) ||
@@ -2722,6 +2722,184 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             `
             const bdMarker = new maplibregl.Marker({ element: busDropEl }).setLngLat(busDropCoord).addTo(map)
             routeMarkersRef.current.push(bdMarker)
+          }
+        }
+
+        // 도보(Walk) 세그먼트 연계 대중교통 하차역/탑승역 마커 핀 (Issue #89)
+        // 지하철/버스에서 내려 목적지로 걸어갈 때 하차역 이름과 잔여 도보 정보를 명확하게 표시
+        if (seg.mode === 'walk' && Array.isArray(seg.coords) && seg.coords.length >= 2) {
+          const walkStartCoord = seg.coords[0]
+          const walkEndCoord = seg.coords[seg.coords.length - 1]
+          const walkDistM = Math.round((seg.distance_km || 0.1) * 1000)
+          const prevSeg = sIdx > 0 ? activeRoute.segments![sIdx - 1] : null
+          const nextSeg = sIdx < activeRoute.segments!.length - 1 ? activeRoute.segments![sIdx + 1] : null
+
+          // A. 대중교통 하차역 핀 (Alight Station Pin):
+          // 이전 세그먼트가 지하철/버스이거나, 마지막 Last-Mile 도보이며 출발지/도착지 명칭과 다른 경우
+          const isAlight = (prevSeg?.mode === 'subway' || prevSeg?.mode === 'bus' || (sIdx > 0 && sIdx === activeRoute.segments!.length - 1)) &&
+            seg.from_name &&
+            seg.from_name !== activeRoute.to &&
+            seg.from_name !== activeRoute.from
+
+          if (isAlight) {
+            const isNearStart = isNearbyCoord(walkStartCoord, startCoord, 0.0015)
+            const isNearEnd = isNearbyCoord(walkStartCoord, endCoord, 0.0015)
+            const isAtTransfer = activeRoute.transferTrains?.some(tr => {
+              const trStep = activeRoute.path?.find(p => p.name === tr.station)
+              return tr.station === seg.from_name || (trStep && isNearbyCoord(walkStartCoord, trStep.coords, 0.0015))
+            })
+
+            if (!isNearStart && !isNearEnd && !isAtTransfer) {
+              const alightStop = TRANSIT_STOPS.find(s => s.name === seg.from_name || seg.from_name?.includes(s.name) || s.name.includes(seg.from_name || ''))
+              const alightCrowd = alightStop ? calculateCrowd(alightStop) : null
+              const isPrevBus = prevSeg?.mode === 'bus'
+
+              const alightEl = document.createElement('div')
+              alightEl.className = 'route-alight-pin'
+              alightEl.style.display = 'flex'
+              alightEl.style.flexDirection = 'column'
+              alightEl.style.alignItems = 'center'
+              alightEl.style.cursor = 'pointer'
+              alightEl.style.zIndex = '15'
+              alightEl.innerHTML = `
+                <div style="
+                  background: #1E293B;
+                  color: #F8FAFC;
+                  font-weight: 800;
+                  font-size: 11px;
+                  padding: 5px 12px;
+                  border-radius: 9999px;
+                  box-shadow: 0 4px 18px rgba(15,23,42,0.75);
+                  border: 2px solid #F43F5E;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  gap: 2px;
+                  white-space: nowrap;
+                ">
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="color: #FDA4AF; font-weight: 800;">${isPrevBus ? '🚌 버스 하차' : '🚇 지하철 하차'}</span>
+                    <span style="color: #FFFFFF; font-weight: 900; font-size: 12px;">${seg.from_name}</span>
+                    ${alightStop?.line ? `<span style="background: rgba(255,255,255,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${alightStop.line}</span>` : ''}
+                    ${alightCrowd ? `<span style="background: rgba(0,0,0,0.35); font-size: 9px; padding: 1px 5px; border-radius: 4px; color: #FCD34D;">${alightCrowd}%</span>` : ''}
+                  </div>
+                  <div style="font-size: 10px; color: #CBD5E1; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                    <span>🚶 하차 후 도보 ${seg.minutes || 2}분 이동 (${walkDistM}m)</span>
+                  </div>
+                </div>
+                <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
+              `
+              if (alightStop) {
+                alightEl.addEventListener('click', () => {
+                  if (activePopupRef.current) {
+                    activePopupRef.current.remove()
+                    activePopupRef.current = null
+                    popupOpenedZoomRef.current = null
+                  }
+                  setActiveStop(alightStop)
+                  if (onSelectStop) onSelectStop(alightStop)
+                  if (mapInstanceRef.current) {
+                    const currentZ = mapInstanceRef.current.getZoom()
+                    const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
+                    mapInstanceRef.current.flyTo({
+                      center: alightStop.coords,
+                      zoom: targetZoom,
+                      pitch: DEFAULT_MAP_PITCH,
+                      duration: 700,
+                      essential: true,
+                    })
+                  }
+                })
+              }
+              const alightMarker = new maplibregl.Marker({ element: alightEl })
+                .setLngLat(walkStartCoord)
+                .addTo(map)
+              routeMarkersRef.current.push(alightMarker)
+            }
+          }
+
+          // B. 대중교통 탑승역 핀 (Board Station Pin):
+          // 다음 세그먼트가 지하철/버스이거나, 출발 직후 First-Mile 도보이며 출발지/도착지 명칭과 다른 경우
+          const isBoard = (nextSeg?.mode === 'subway' || nextSeg?.mode === 'bus' || sIdx === 0) &&
+            seg.to_name &&
+            seg.to_name !== activeRoute.from &&
+            seg.to_name !== activeRoute.to
+
+          if (isBoard) {
+            const isNearStart = isNearbyCoord(walkEndCoord, startCoord, 0.0015)
+            const isNearEnd = isNearbyCoord(walkEndCoord, endCoord, 0.0015)
+            const isAtTransfer = activeRoute.transferTrains?.some(tr => {
+              const trStep = activeRoute.path?.find(p => p.name === tr.station)
+              return tr.station === seg.to_name || (trStep && isNearbyCoord(walkEndCoord, trStep.coords, 0.0015))
+            })
+
+            if (!isNearStart && !isNearEnd && !isAtTransfer) {
+              const boardStop = TRANSIT_STOPS.find(s => s.name === seg.to_name || seg.to_name?.includes(s.name) || s.name.includes(seg.to_name || ''))
+              const boardCrowd = boardStop ? calculateCrowd(boardStop) : null
+              const isNextBus = nextSeg?.mode === 'bus'
+
+              const boardEl = document.createElement('div')
+              boardEl.className = 'route-board-pin'
+              boardEl.style.display = 'flex'
+              boardEl.style.flexDirection = 'column'
+              boardEl.style.alignItems = 'center'
+              boardEl.style.cursor = 'pointer'
+              boardEl.style.zIndex = '15'
+              boardEl.innerHTML = `
+                <div style="
+                  background: #1E293B;
+                  color: #F8FAFC;
+                  font-weight: 800;
+                  font-size: 11px;
+                  padding: 5px 12px;
+                  border-radius: 9999px;
+                  box-shadow: 0 4px 18px rgba(15,23,42,0.75);
+                  border: 2px solid #0284C7;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  gap: 2px;
+                  white-space: nowrap;
+                ">
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="color: #38BDF8; font-weight: 800;">${isNextBus ? '🚌 버스 탑승' : '🚇 지하철 탑승'}</span>
+                    <span style="color: #FFFFFF; font-weight: 900; font-size: 12px;">${seg.to_name}</span>
+                    ${boardStop?.line ? `<span style="background: rgba(255,255,255,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${boardStop.line}</span>` : ''}
+                    ${boardCrowd ? `<span style="background: rgba(0,0,0,0.35); font-size: 9px; padding: 1px 5px; border-radius: 4px; color: #FCD34D;">${boardCrowd}%</span>` : ''}
+                  </div>
+                  <div style="font-size: 10px; color: #BAE6FD; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                    <span>🚶 도보 ${seg.minutes || 2}분 후 탑승 (${walkDistM}m)</span>
+                  </div>
+                </div>
+                <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #0284C7;"></div>
+              `
+              if (boardStop) {
+                boardEl.addEventListener('click', () => {
+                  if (activePopupRef.current) {
+                    activePopupRef.current.remove()
+                    activePopupRef.current = null
+                    popupOpenedZoomRef.current = null
+                  }
+                  setActiveStop(boardStop)
+                  if (onSelectStop) onSelectStop(boardStop)
+                  if (mapInstanceRef.current) {
+                    const currentZ = mapInstanceRef.current.getZoom()
+                    const targetZoom = currentZ < 15.5 ? 15.5 : Math.min(17.5, currentZ + 0.5)
+                    mapInstanceRef.current.flyTo({
+                      center: boardStop.coords,
+                      zoom: targetZoom,
+                      pitch: DEFAULT_MAP_PITCH,
+                      duration: 700,
+                      essential: true,
+                    })
+                  }
+                })
+              }
+              const boardMarker = new maplibregl.Marker({ element: boardEl })
+                .setLngLat(walkEndCoord)
+                .addTo(map)
+              routeMarkersRef.current.push(boardMarker)
+            }
           }
         }
       })

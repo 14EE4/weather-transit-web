@@ -2706,6 +2706,50 @@ export default function AppM() {
                     {selectedStop.lineInfo}
                   </div>
 
+                  {/* 출발 / 도착 설정 버튼 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+                    <button
+                      onClick={() => handleSetOriginFromMap(selectedStop)}
+                      style={{
+                        padding: '7px 0',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: 'var(--color-card2)',
+                        border: '1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border))',
+                        borderRadius: 8,
+                        color: 'var(--app-text)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      🚩 출발지로 설정
+                    </button>
+                    <button
+                      onClick={() => handleSetDestinationFromMap(selectedStop)}
+                      style={{
+                        padding: '7px 0',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: 'var(--color-card2)',
+                        border: '1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border))',
+                        borderRadius: 8,
+                        color: 'var(--app-text)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      🏁 도착지로 설정
+                    </button>
+                  </div>
+
                   {/* 1. 국지 기상 실황 카드 */}
                   {stopDataLoading && !stopWeatherData ? (
                     <div style={{ background: 'rgba(14, 165, 233, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
@@ -3054,6 +3098,7 @@ export default function AppM() {
               liveWeather={liveWeather}
               focusedCoords={focusedCoords}
               selectedBusStation={selectedBusStation}
+              selectedStop={selectedStop}
               onSelectStop={handleSelectStop}
               activeRoute={activeRoute}
               onClearRoute={() => {

@@ -2739,6 +2739,54 @@ export default function App() {
                     {selectedStop.lineInfo}
                   </div>
 
+                  {/* 출발 / 도착 설정 버튼 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+                    <button
+                      onClick={() => handleSetOriginFromMap(selectedStop)}
+                      style={{
+                        padding: '7px 0',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: 'var(--color-card2)',
+                        border: '1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border))',
+                        borderRadius: 8,
+                        color: 'var(--app-text)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--color-primary) 35%, var(--color-border))')}
+                    >
+                      🚩 출발지로 설정
+                    </button>
+                    <button
+                      onClick={() => handleSetDestinationFromMap(selectedStop)}
+                      style={{
+                        padding: '7px 0',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: 'var(--color-card2)',
+                        border: '1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border))',
+                        borderRadius: 8,
+                        color: 'var(--app-text)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--color-primary) 35%, var(--color-border))')}
+                    >
+                      🏁 도착지로 설정
+                    </button>
+                  </div>
+
                   {/* 1. 국지 기상 실황 카드 */}
                   {stopDataLoading && !stopWeatherData ? (
                     <div style={{ background: 'rgba(14, 165, 233, 0.08)', border: '1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
@@ -3086,6 +3134,7 @@ export default function App() {
               liveWeather={liveWeather}
               focusedCoords={focusedCoords}
               selectedBusStation={selectedBusStation}
+              selectedStop={selectedStop}
               onSelectStop={handleSelectStop}
               activeRoute={activeRoute}
               onClearRoute={() => {

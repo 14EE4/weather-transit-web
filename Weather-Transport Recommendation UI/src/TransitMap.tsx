@@ -157,6 +157,7 @@ interface TransitMapProps {
   arsId: string
   coords: [number, number]
 } | null
+  selectedStop?: TransitStop | null
   onSelectStop?: (stop: TransitStop | null, details?: StopDetailData) => void
   activeRoute?: TransitRouteResult | null
   onClearRoute?: () => void
@@ -200,7 +201,7 @@ type ApproachingBusVehicle = {
 
 // 버스 도착정보 표시
 
-export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation ,onSelectStop, activeRoute, onClearRoute, onSetOrigin, onSetDestination }: TransitMapProps) {
+export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation, selectedStop, onSelectStop, activeRoute, onClearRoute, onSetOrigin, onSetDestination }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
@@ -231,6 +232,24 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // ── 사이드바 또는 외부에서 거점 선택 해제(selectedStop === null) 시 지도 팝업 동기화 닫기 ──
+  useEffect(() => {
+    if (!selectedStop) {
+      if (activePopupRef.current) {
+        activePopupRef.current.remove()
+        activePopupRef.current = null
+        popupOpenedZoomRef.current = null
+      }
+      if (busStopPopupRef.current) {
+        try {
+          busStopPopupRef.current.remove()
+        } catch {}
+        busStopPopupRef.current = null
+      }
+      setActiveStop(null)
+    }
+  }, [selectedStop])
 
   const getMapThemeSurface = () => {
     if (typeof document === 'undefined') return '#111D35'

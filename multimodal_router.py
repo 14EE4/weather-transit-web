@@ -2065,10 +2065,21 @@ class MultimodalRoutingEngine:
                     },
                 ] + list(sub_rt.get("lineSegments") or [])
 
-                total_min = 2 + bike_mins + int(sub_rt["estimatedMinutes"])
-                total_km = round(0.15 + bike_km + float(sub_rt["distanceKm"]), 1)
+                if last_walk_seg:
+                    segments = segments + [dict(last_walk_seg)]
+
+                total_min = 2 + bike_mins + int(sub_rt["estimatedMinutes"]) + last_walk_min
+                total_km = round(0.15 + bike_km + float(sub_rt["distanceKm"]) + last_walk_km, 1)
                 total_fare = 1000 + int(sub_rt["fareKrw"])
                 avg_crowd = int(round(bike_crowd * 0.35 + sub_crowd * 0.65))
+
+                multimodal_highlights = [
+                    f"🚲 {bike_stop['name']} 실시간 {avail_cnt}대 거치 중",
+                    f"🚇 {target_st['name']} 직결 진입으로 초기 혼잡 구간 회피",
+                    f"☀️ 기상 양호({w_ctx.get('temp', 15)}°C) · 쾌적도 상위 경로",
+                ]
+                if last_walk_seg:
+                    multimodal_highlights.append(f"🚶 도착: {subway_dest['name']} ➔ {dest['name']} 도보 {last_walk_min}분 ({int(last_walk_km * 1000)}m)")
 
                 routes.append(
                     self._pack_route_candidate(
@@ -2082,15 +2093,11 @@ class MultimodalRoutingEngine:
                         total_fare_krw=total_fare,
                         total_distance_km=total_km,
                         transfer_count=int(sub_rt["transferCount"]) + 1,
-                        outdoor_walk_minutes=2,
+                        outdoor_walk_minutes=2 + last_walk_min,
                         crowd_percent=avg_crowd,
                         comfort_score=max(75, 96 - int(avg_crowd * 0.25)),
                         modes_used=["walk", "bike", "subway"],
-                        highlights=[
-                            f"🚲 {bike_stop['name']} 실시간 {avail_cnt}대 거치 중",
-                            f"🚇 {target_st['name']} 직결 진입으로 초기 혼잡 구간 회피",
-                            f"☀️ 기상 양호({w_ctx.get('temp', 15)}°C) · 쾌적도 상위 경로",
-                        ],
+                        highlights=multimodal_highlights,
                         segments=segments,
                         base_subway_route=sub_rt,
                         override_origin_coords=origin["coords"],
@@ -2535,8 +2542,11 @@ class MultimodalRoutingEngine:
                         },
                     ] + list(sub_after_hub.get("lineSegments") or [])
 
+                    if last_walk_seg:
+                        hybrid_segments = hybrid_segments + [dict(last_walk_seg)]
+
                     hybrid_min = sum(int(seg["minutes"]) for seg in hybrid_segments)
-                    hybrid_km = round(0.12 + bus_dist_km + float(sub_after_hub["distanceKm"]), 1)
+                    hybrid_km = round(0.12 + bus_dist_km + float(sub_after_hub["distanceKm"]) + last_walk_km, 1)
                     hybrid_fare, _ = calculate_subway_fare(hybrid_km)
                     hybrid_crowd = int(round(bus_crowd * 0.4 + sub_crowd * 0.6))
 
@@ -2571,6 +2581,19 @@ class MultimodalRoutingEngine:
                             "transferInfo": f"🚌 {bus_line_name} 하차 ➔ 🚇 {hub_step_sub.get('lineUsed', hub_sub_line)} 환승",
                         },
                     ] + [dict(p) for p in sub_steps[1:]]
+
+                    if last_walk_seg:
+                        if hybrid_compat_path:
+                            hybrid_compat_path[-1]["isTransfer"] = True
+                            hybrid_compat_path[-1]["transferInfo"] = f"🚇 하차 ➔ 🚶 {dest['name']} 도보 이동"
+                        hybrid_compat_path.append({
+                            "name": dest["name"],
+                            "coords": dest["coords"],
+                            "lines": ["도보"],
+                            "lineUsed": "🚶 도보",
+                            "isTransfer": False,
+                            "transferInfo": None,
+                        })
 
                     hub_dep_train = sub_after_hub.get("departureTrain")
                     if hub_dep_train:

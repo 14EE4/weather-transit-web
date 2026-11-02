@@ -450,6 +450,26 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         self.assertEqual(opt_rt["segments"][0]["mode"], "walk")
         self.assertEqual(opt_rt["segments"][0]["from_name"], "종로2가사거리")
 
+        # 5. 도착지가 버스 정류소 또는 따릉이 대여소일 때 Last-Mile 도보 세그먼트 자동 삽입 및 to 필드 보존 검증 (Issue #89)
+        payload_dest = {
+            "from_station": "강남역",
+            "to_station": "서울역버스환승센터",
+            "district": "강남구",
+            "hour": 14,
+            "weather": {"rain": 0.0, "temp": 18.0, "wind": 1.5, "humidity": 50.0},
+        }
+        resp_dest = self.client.post("/api/v1/routes/multimodal-search", json=payload_dest)
+        self.assertEqual(resp_dest.status_code, 200)
+        data_dest = resp_dest.json()
+        self.assertEqual(data_dest["status"], "success")
+        self.assertGreater(len(data_dest.get("routes", [])), 0)
+        for rt in data_dest["routes"]:
+            self.assertEqual(rt["to"], "서울역버스환승센터")
+            last_seg = rt["segments"][-1]
+            self.assertEqual(last_seg["mode"], "walk")
+            self.assertEqual(last_seg["to_name"], "서울역버스환승센터")
+            self.assertEqual(last_seg["from_name"], "서울역")
+
 
 if __name__ == "__main__":
     unittest.main()

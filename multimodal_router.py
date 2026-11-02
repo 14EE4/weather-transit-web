@@ -2599,34 +2599,69 @@ class MultimodalRoutingEngine:
             transfer_trains = [dict(t) for t in custom_transfer_trains] if custom_transfer_trains is not None else []
             departure_train = custom_departure_train
         else:
-            compat_path = [dict(p) for p in (base_subway_route.get("path") or [])]
-            transfer_stations = list(base_subway_route.get("transferStations") or [])
-            transfer_trains = [dict(t) for t in (base_subway_route.get("transferTrains") or [])]
-            departure_train = base_subway_route.get("departureTrain")
-
-            if override_origin_coords and compat_path:
-                actual_origin_name = segments[0].get("from_name", compat_path[0]["name"])
-                sub_boarding_station = compat_path[0]["name"]
-                # 따릉이 First-Mile 하차 후 지하철 탑승하는 역(예: 숙대입구역)을 환승역 핀으로 전환
-                if sub_boarding_station and sub_boarding_station != actual_origin_name:
-                    compat_path[0]["isTransfer"] = True
-                    compat_path[0]["transferInfo"] = f"🚲 따릉이 반납 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
-                    if sub_boarding_station not in transfer_stations:
-                        transfer_stations = [sub_boarding_station] + transfer_stations
-                    if departure_train:
-                        transfer_trains = [dict(departure_train)] + transfer_trains
-                    departure_train = None
-
-                compat_path = [
-                    {
-                        "name": actual_origin_name,
-                        "coords": override_origin_coords,
-                        "lines": ["따릉이 First-Mile"],
-                        "lineUsed": "🚲 따릉이",
+            # 지하철을 사용하지 않는 순수 따릉이/도보 직통 경로인 경우:
+            # base_subway_route의 지하철역 및 타 경로 환승 데이터가 지도에 잘못 표출되는 버그를 원천 차단
+            if "subway" not in modes_used:
+                compat_path = []
+                for seg in segments:
+                    seg_coords = seg.get("coords") or []
+                    c_pt = seg_coords[0] if seg_coords else [127.0, 37.5]
+                    compat_path.append({
+                        "name": seg.get("from_name", "출발"),
+                        "coords": c_pt,
+                        "lines": [seg.get("mode", "따릉이")],
+                        "lineUsed": seg.get("mode", "따릉이"),
                         "isTransfer": False,
                         "transferInfo": None,
-                    }
-                ] + compat_path
+                    })
+                if segments:
+                    last_coords = segments[-1].get("coords") or []
+                    c_end = last_coords[-1] if last_coords else [127.0, 37.5]
+                    compat_path.append({
+                        "name": segments[-1].get("to_name", "도착"),
+                        "coords": c_end,
+                        "lines": [segments[-1].get("mode", "따릉이")],
+                        "lineUsed": segments[-1].get("mode", "따릉이"),
+                        "isTransfer": False,
+                        "transferInfo": None,
+                    })
+                transfer_stations = []
+                transfer_trains = []
+                departure_train = None
+            else:
+                compat_path = [dict(p) for p in (base_subway_route.get("path") or [])]
+                transfer_stations = list(base_subway_route.get("transferStations") or [])
+                transfer_trains = [dict(t) for t in (base_subway_route.get("transferTrains") or [])]
+                departure_train = base_subway_route.get("departureTrain")
+
+                if override_origin_coords and compat_path:
+                    actual_origin_name = segments[0].get("from_name", compat_path[0]["name"])
+                    sub_boarding_station = compat_path[0]["name"]
+                    # 따릉이 First-Mile 하차 후 지하철 탑승하는 역(예: 숙대입구역)을 환승역 핀으로 전환
+                    if sub_boarding_station and sub_boarding_station != actual_origin_name:
+                        compat_path[0]["isTransfer"] = True
+                        compat_path[0]["transferInfo"] = f"🚲 따릉이 반납 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
+                        if sub_boarding_station not in transfer_stations:
+                            transfer_stations = [sub_boarding_station] + transfer_stations
+                        if departure_train:
+                            transfer_trains = [dict(departure_train)] + transfer_trains
+                        departure_train = None
+
+                    compat_path = [
+                        {
+                            "name": actual_origin_name,
+                            "coords": override_origin_coords,
+                            "lines": ["따릉이 First-Mile"],
+                            "lineUsed": "🚲 따릉이",
+                            "isTransfer": False,
+                            "transferInfo": None,
+                        }
+                    ] + compat_path
+
+        # 환승 횟수가 0인 직통 경로는 환승역/환승열차 메타데이터를 원천 비움
+        if transfer_count == 0:
+            transfer_stations = []
+            transfer_trains = []
 
         actual_from = compat_path[0]["name"] if compat_path else base_subway_route.get("from", "")
         actual_to = compat_path[-1]["name"] if compat_path else base_subway_route.get("to", "")

@@ -1311,8 +1311,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         const lastPathStep = currentRoute.path[currentRoute.path.length - 1]
         const nearStartPin = firstPathStep && Math.abs(lng - firstPathStep.coords[0]) < 0.0015 && Math.abs(lat - firstPathStep.coords[1]) < 0.0015
         const nearEndPin = lastPathStep && Math.abs(lng - lastPathStep.coords[0]) < 0.0015 && Math.abs(lat - lastPathStep.coords[1]) < 0.0015
-        const isTransferPin = (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name)) ||
-                              (currentRoute.transferTrains && currentRoute.transferTrains.some(t => t.station === item.stop.name))
+        const hasRouteTransfers = (currentRoute.transferCount ?? 0) > 0
+        const isTransferPin = hasRouteTransfers && (
+          (currentRoute.transferStations && currentRoute.transferStations.includes(item.stop.name)) ||
+          (currentRoute.transferTrains && currentRoute.transferTrains.some(t => t.station === item.stop.name))
+        )
         // 출발역, 도착역, 환승역(또는 출발/도착 핀 반경 150m 이내 역)은 전용 핀 마커가 배치되므로 일반 알약 마커를 완전히 숨겨서 겹침 원천 방지
         const isSpecialPinStation = item.stop.name === currentRoute.from || 
                                     item.stop.name === currentRoute.to || 
@@ -2676,8 +2679,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       })
     }
 
-    // 환승역 마커 핀 (앰버색 캡슐 + 환승 열차 잔여 시간 / 따릉이 연계 정보 표시)
-    if (activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {
+    // 환승역 마커 핀: 환승 횟수가 1회 이상이고 대중교통(지하철/버스)을 사용하는 경우에만 렌더링 (따릉이/도보 단독 경로 오염 방지)
+    const hasTransfers = (activeRoute.transferCount ?? 0) > 0 &&
+      (!activeRoute.modes_used || activeRoute.modes_used.some(m => m === 'subway' || m === 'bus'))
+    if (hasTransfers && activeRoute.transferTrains && activeRoute.transferTrains.length > 0) {
       activeRoute.transferTrains.forEach(tr => {
         const trStep = activeRoute.path.find(p => p.name === tr.station)
         if (!trStep) return
@@ -3172,7 +3177,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                     <span style={{ color: 'var(--color-muted)', fontSize: 10 }}>({activeRoute.departureTrain.destinationOrNext} 방면)</span>
                   </div>
                 )}
-                {activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
+                {(activeRoute.transferCount ?? 0) > 0 && activeRoute.transferTrains && activeRoute.transferTrains.map(tr => (
                   <div key={tr.station} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ color: 'var(--color-muted)' }}>•</span>
                     <span style={{ color: '#FBBF24', fontWeight: 700 }}>🔄 {tr.station} 환승</span>

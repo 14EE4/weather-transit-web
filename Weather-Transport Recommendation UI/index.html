@@ -1,14 +1,22 @@
 <!doctype html>
-<html lang="<!-- figma:lang -->">
+<html lang="ko">
   <head>
     <!-- figma:head-start -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>기상-교통 수요 예측 시스템</title>
+    <title>WeatherMove | 기상 맞춤형 대중교통 인텔리전스</title>
+    <meta name="description" content="실시간 기상청 관측 및 32차원 ONNX AI 모델 기반 멀티모달(지하철·버스·따릉이) 대중교통 이동 추천 시스템" />
+    <meta name="theme-color" content="#0F172A" />
+
+    <!-- WeatherMove 브랜드 파비콘 (SVG 벡터 및 ICO) -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/logo-symbol.svg" />
+
     <!-- MapLibre GL JS CSS & JS CDN -->
     <link href="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@^4.7.1/dist/maplibre-gl.js"></script>
-        <script>
+    <script>
       (function() {
         try {
           var saved = localStorage.getItem('weather-transit-theme');

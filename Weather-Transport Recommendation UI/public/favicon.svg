@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- 배경 딥 다크 그라데이션 (어떤 브라우저 탭 테마에서도 선명한 시인성 확보) -->
+    <linearGradient id="wm-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+
+    <!-- 모빌리티 쾌속 궤적선 (스카이블루 -> 네온 에메랄드) -->
+    <linearGradient id="wm-rail" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="60%" stop-color="#0EA5E9" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- 기상 햇살 그라데이션 -->
+    <linearGradient id="wm-sun" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+
+    <!-- 네온 발광 글로우 필터 -->
+    <filter id="wm-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0284C7" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- 1. 배경 스퀴클 (둥근 사각형 아이콘 베이스) -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#wm-bg)" stroke="#1E293B" stroke-width="1.5" />
+
+  <!-- 2. 기상 햇살 (우측 상단 맑은 날씨 포인트) -->
+  <circle cx="43" cy="20" r="6.5" fill="url(#wm-sun)" filter="url(#wm-glow)" />
+
+  <!-- 3. 은은한 기상 구름 아크 (점선 웨더 필드) -->
+  <path d="M17 35c-3.8 0-7-3.1-7-7 0-3.4 2.5-6.3 5.8-6.9C17 14.5 21.8 10 27.5 10c5.7 0 10.4 4.3 11 9.8.7-.1 1.3-.2 2-.2"
+        stroke="#64748B" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2 3" opacity="0.65" />
+
+  <!-- 4. 모빌리티 쾌속 이동 궤적선 (S-커브를 그리며 구름을 관통해 질주하는 노선) -->
+  <path d="M13 43 C 14 34, 21 29, 29 33 C 36 37, 42 32, 47 23"
+        stroke="url(#wm-rail)" stroke-width="4.5" stroke-linecap="round" filter="url(#wm-glow)" />
+
+  <!-- 5. 쾌속 질주 화살촉 -->
+  <path d="M40 22.5 L47.5 23 L46.5 30.5"
+        stroke="url(#wm-rail)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- 6. 궤적 상의 정류소/웨이포인트 핀 (출발 -> 경유/환승 -> 도착) -->
+  <circle cx="14" cy="42" r="3" fill="#38BDF8" stroke="#0F172A" stroke-width="1.5" />
+  <circle cx="29" cy="33" r="3.5" fill="#34D399" stroke="#0F172A" stroke-width="1.5" />
+  <circle cx="47.5" cy="23" r="2.5" fill="#FFFFFF" />
+</svg>

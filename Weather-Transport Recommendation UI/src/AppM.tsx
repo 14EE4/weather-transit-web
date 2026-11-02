@@ -15,6 +15,7 @@ import { resolveDistrict } from './districtResolver'
 import { type BusStationResult } from './BusStationSearch'
 import UnifiedStationSearch from './UnifiedStationSearch'
 import MultimodalRoutePanel from './MultimodalRoutePanel'
+import WeatherMoveLogo from './components/WeatherMoveLogo'
 import EnterpriseView from './EnterpriseView'
 
 type Page = 'main' | 'route' | 'map' | 'enterprise'
@@ -1204,45 +1205,7 @@ export default function AppM() {
             flexShrink: 0,
           }}>
             {/* Logo */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}>
-              <div style={{
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg,#38BDF8,#22D3EE)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 16,
-              }}>
-                🌦
-              </div>
-
-              {/* Logo Text */}
-              <div>
-                <div style={{
-                  fontSize: 15,
-                  fontWeight: 800,
-                  letterSpacing: '-0.3px',
-                  color: 'var(--app-text)',
-                }}>
-                  WeatherMove
-                </div>
-                <div style={{
-                  fontSize: 9,
-                  color: 'var(--color-muted)',
-                  fontFamily: 'JetBrains Mono',
-                  letterSpacing: '0.06em',
-                  marginTop: -1,
-                }}>
-                  SEOUL TRANSPORT AI
-                </div>
-              </div>
-            </div>
+            <WeatherMoveLogo size="sm" onClick={() => setPage('main')} style={{ cursor: 'pointer' }} />
 
 
           </div>

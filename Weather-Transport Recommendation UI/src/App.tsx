@@ -16,6 +16,7 @@ import { type BusStationResult } from './BusStationSearch'
 import UnifiedStationSearch from './UnifiedStationSearch'
 import EnterpriseView from './EnterpriseView'
 import MultimodalRoutePanel from './MultimodalRoutePanel'
+import WeatherMoveLogo from './components/WeatherMoveLogo'
 
 type Page = 'main' | 'route' | 'map' | 'enterprise'
 
@@ -1169,17 +1170,7 @@ export default function App() {
       <nav style={{ background: 'var(--app-nav)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 32px', display: 'flex', alignItems: 'center', height: 60, gap: 32 }}>
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,var(--color-primary),var(--color-accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-              🌦
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', color: 'var(--app-text)' }}>WeatherMove</div>
-              
-<div style={{ fontSize: 9, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em', marginTop: -1 }}>SEOUL TRANSPORT AI</div>
-
-            </div>
-          </div>
+          <WeatherMoveLogo onClick={() => setPage('main')} style={{ cursor: 'pointer' }} />
 
           {/* Nav tabs */}
           <div style={{ display: 'flex', gap: 4, flex: 1 }}>

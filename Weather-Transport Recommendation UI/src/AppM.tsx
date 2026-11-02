@@ -522,6 +522,48 @@ export default function AppM() {
   // ── 기상청 실시간 실황 데이터 연동 상태 (100% 진본 실시간) ──
   const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null)
   const nowHour = new Date().getHours()
+
+  // ── 지도 팝업에서 출발/도착 지정 시 피드백 토스트 상태 ──
+  const [routeToast, setRouteToast] = useState<{ message: string; actionLabel?: string } | null>(null)
+  const routeToastTimerRef = useRef<any>(null)
+
+  const showRouteToast = (message: string, actionLabel?: string) => {
+    if (routeToastTimerRef.current) clearTimeout(routeToastTimerRef.current)
+    setRouteToast({ message, actionLabel })
+    routeToastTimerRef.current = setTimeout(() => {
+      setRouteToast(null)
+    }, 4500)
+  }
+
+  const handleSetOriginFromMap = (stop: TransitStop) => {
+    setDeparture(stop.name)
+    try {
+      localStorage.setItem('weather_transit_route_departure', stop.name)
+    } catch {}
+    if (destination && destination !== stop.name) {
+      showRouteToast(`🚩 출발지가 '${stop.name}'(으)로 설정되었습니다. 경로 추천 탭으로 이동합니다.`)
+      setTimeout(() => {
+        setPage('route')
+      }, 500)
+    } else {
+      showRouteToast(`🚩 출발지가 '${stop.name}'(으)로 설정되었습니다. 지도에서 도착지를 선택하세요.`, '경로 추천 탭 이동')
+    }
+  }
+
+  const handleSetDestinationFromMap = (stop: TransitStop) => {
+    setDestination(stop.name)
+    try {
+      localStorage.setItem('weather_transit_route_destination', stop.name)
+    } catch {}
+    if (departure && departure !== stop.name) {
+      showRouteToast(`🏁 도착지가 '${stop.name}'(으)로 설정되었습니다. 경로 추천 탭으로 이동합니다.`)
+      setTimeout(() => {
+        setPage('route')
+      }, 500)
+    } else {
+      showRouteToast(`🏁 도착지가 '${stop.name}'(으)로 설정되었습니다. 지도에서 출발지를 선택하세요.`, '경로 추천 탭 이동')
+    }
+  }
   const [selectedHour, setSelectedHour] = useState<number>(nowHour)
   const [isConsoleLogging, setIsConsoleLogging] = useState(false)
 
@@ -3125,6 +3167,71 @@ export default function AppM() {
 
           {/* MapLibre GL JS + OpenStreetMap 실제 지도 컨테이너 (100% 기상청 실시간 API 연동) */}
           <div className="mobile-map-canvas" style={{ flex: 1, height: '100%', position: 'relative' }}>
+            {routeToast && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1200,
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-primary)',
+                  boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
+                  borderRadius: 12,
+                  padding: '8px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  fontSize: 11,
+                  color: 'var(--app-text)',
+                  backdropFilter: 'blur(12px)',
+                  animation: 'fadeIn 0.2s ease',
+                  maxWidth: '92%',
+                  width: 'max-content',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>{routeToast.message}</span>
+                {routeToast.actionLabel && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRouteToast(null)
+                      setPage('route')
+                    }}
+                    style={{
+                      background: 'var(--color-primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '3px 8px',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {routeToast.actionLabel} ➔
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setRouteToast(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--color-muted)',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    padding: '0 3px',
+                    lineHeight: 1,
+                  }}
+                  title="닫기"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <TransitMap
               filterType={mapTransport}
               rainMm={activeRain}
@@ -3139,6 +3246,8 @@ export default function AppM() {
                 setFocusedCoords(null)
                 setSelectedBusStation(null)
               }}
+              onSetOrigin={handleSetOriginFromMap}
+              onSetDestination={handleSetDestinationFromMap}
             />
           </div>
         </div>

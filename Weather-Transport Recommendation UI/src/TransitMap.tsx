@@ -160,6 +160,8 @@ interface TransitMapProps {
   onSelectStop?: (stop: TransitStop | null, details?: StopDetailData) => void
   activeRoute?: TransitRouteResult | null
   onClearRoute?: () => void
+  onSetOrigin?: (stop: TransitStop) => void
+  onSetDestination?: (stop: TransitStop) => void
 }
 
 interface MarkerItem {
@@ -198,7 +200,7 @@ type ApproachingBusVehicle = {
 
 // 버스 도착정보 표시
 
-export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation ,onSelectStop, activeRoute, onClearRoute }: TransitMapProps) {
+export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation ,onSelectStop, activeRoute, onClearRoute, onSetOrigin, onSetDestination }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
@@ -208,6 +210,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
   const busStopPopupRef = useRef<any>(null)
   const searchedBusMarkerRef = useRef<any>(null)
+  const onSetOriginRef = useRef<((stop: TransitStop) => void) | undefined>(onSetOrigin)
+  onSetOriginRef.current = onSetOrigin
+  const onSetDestinationRef = useRef<((stop: TransitStop) => void) | undefined>(onSetDestination)
+  onSetDestinationRef.current = onSetDestination
   const popupOpenedZoomRef = useRef<number | null>(null)
   const isFlyingRef = useRef<boolean>(false)
   const initialRestoreDoneRef = useRef<boolean>(false)
@@ -590,6 +596,28 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         ${weatherSection}
         ${aiSection}
         ${arrivalSection}
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--color-border);">
+          <button
+            type="button"
+            data-action="set-origin"
+            title="${stop.name}을(를) 출발지로 설정"
+            style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-card2); color: var(--app-text); font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
+            onmouseover="this.style.background='color-mix(in srgb, var(--color-primary) 15%, var(--color-card2))'; this.style.borderColor='var(--color-primary)';"
+            onmouseout="this.style.background='var(--color-card2)'; this.style.borderColor='var(--color-border)';"
+          >
+            <span>🚩</span> 출발지로 설정
+          </button>
+          <button
+            type="button"
+            data-action="set-destination"
+            title="${stop.name}을(를) 도착지로 설정"
+            style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-card2); color: var(--app-text); font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
+            onmouseover="this.style.background='color-mix(in srgb, var(--color-primary) 15%, var(--color-card2))'; this.style.borderColor='var(--color-primary)';"
+            onmouseout="this.style.background='var(--color-card2)'; this.style.borderColor='var(--color-border)';"
+          >
+            <span>🏁</span> 도착지로 설정
+          </button>
+        </div>
       </div>
     `
   }
@@ -657,10 +685,24 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       selectBusRouteRef.current(btn.dataset.busRouteId || '', btn.dataset.busRouteName || '', btn.dataset.busStId || '')
     }
 
+    const onPopupActionClick = (ev: Event) => {
+      const btn = (ev.target as HTMLElement | null)?.closest?.('[data-action]') as HTMLElement | null
+      if (!btn) return
+      ev.stopPropagation()
+      const action = btn.dataset.action
+      if (action === 'set-origin') {
+        onSetOriginRef.current?.(stop)
+      } else if (action === 'set-destination') {
+        onSetDestinationRef.current?.(stop)
+      }
+    }
+
     popup.on('open', () => {
       const popupEl = popup.getElement()
       popupEl?.removeEventListener('click', onPopupRouteClick)
       popupEl?.addEventListener('click', onPopupRouteClick)
+      popupEl?.removeEventListener('click', onPopupActionClick)
+      popupEl?.addEventListener('click', onPopupActionClick)
       activePopupRef.current = popup
       busStopPopupRef.current = popup
       if (mapInstanceRef.current) {
@@ -669,6 +711,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     })
 
     popup.on('close', () => {
+      const popupEl = popup.getElement()
+      popupEl?.removeEventListener('click', onPopupRouteClick)
+      popupEl?.removeEventListener('click', onPopupActionClick)
       if (activePopupRef.current === popup) {
         activePopupRef.current = null
         popupOpenedZoomRef.current = null

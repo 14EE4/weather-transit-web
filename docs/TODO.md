@@ -23,6 +23,25 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (Next Sprint / 우선 착수) — **진행 중 (이슈 #78 등)**
+- [ ] **[ROUTE-04] 경로 탐색 시 출발·도착지 및 교통수단 탑승 위치 기반 국지 날씨 자동 조회 및 구간별 기상 게이트 적용 (Next Sprint · 이슈 #91)**:
+  - **Phase 1 (출발·도착지 자치구 자동 해석 및 교차 검증)**:
+    - 출발지/도착지 거점의 `districtResolver` 기반 소속 자치구 자동 판별.
+    - 백엔드 `MultimodalRouteRequest`에 `from_district`, `to_district` 지원 및 어느 한 곳이라도 비/강풍 감지 시 보수적 `RAIN_SAFE_ONLY` 자동 전환.
+  - **Phase 2 (세그먼트 탑승 위치별 정밀 국지 날씨 및 구간별 Weather Gate)**:
+    - 각 세그먼트(도보, 따릉이, 버스, 지하철) 시작 좌표별 기상청 단기예보 국지 기상 수집.
+    - 비가 오지 않는 출발 권역은 따릉이 허용, 비가 오는 도착 권역은 실내 우회 세그먼트 적용 등 세그먼트 단위 분할 기상 게이트 탑재.
+    - FactChat XAI 구간별 맞춤형 기상 안내 브리핑 생성.
+- [ ] **[UI-09] 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (Next Sprint · 이슈 #90)**:
+  - 브라우저 `navigator.geolocation` API를 연동하여 사용자의 현재 실제 위치(GPS 좌표) 획득.
+  - 지도 화면 내 `[📍 내 위치]` 플로팅 버튼 탑재 및 클릭 시 카메라 자동 이동(`flyTo({ center, zoom: 16.5 })`).
+  - 현재 위치 펄스(Pulse) 파란색 점 마커 및 오차 반경(`10~50m`) 서클 시각화.
+  - 출발지 설정 연계: 현재 위치를 기준으로 가장 인접한 정류소/역 매핑 및 경로 탐색 연동.
+- [x] **[ROUTE-03] 버스 정류소 및 따릉이 대여소 출발/도착 시 First/Last-Mile 도보 세그먼트 보존 및 자동 삽입 (완료 · 2026-11-03 · 이슈 #89)**:
+  - `resolve_station()`에서 버스 정류소 및 따릉이 대여소 해석 시 명칭, 좌표, `station_type`을 보존하고 인접 지하철역을 `nearest_subway`로 연계.
+  - `MultimodalRouteRequest`에 `from_coords`, `to_coords`, `from_type`, `to_type` 명시적 파라미터 지원 및 `search_bus_stations` 동적 정류소 등록.
+  - 인접 지하철역 탑승/하차 시 First-Mile 및 Last-Mile 도보 세그먼트(`walk`) 자동 계산 및 `segments`, `modes_used`, `compat_path` 삽입.
+  - 프론트엔드 PC(`App.tsx`) 및 모바일(`AppM.tsx`) 양방향 좌표 연동 및 `TransitMap.tsx` 도보 도착 핀 뱃지 시각화.
+  - `tests/test_multimodal_routing.py` 단위 테스트 추가 및 검증 완료.
 - [x] **[UI-08] 경로 추천 탭 내 출발/도착지 검색을 통합 정류소(지하철·버스·따릉이) 검색으로 확장 및 전 수단 경로 탐색 호환 (완료 · 2026-11-02 · 이슈 #83)**:
   - 경로 추천 탭(`App.tsx`, `AppM.tsx`) 출발지·도착지 입력창에 `UnifiedStationSearch variant="route"` 탑재.
   - 지하철역(🚇)뿐 아니라 버스 정류소(🚌), 따릉이 대여소(🚲)를 실시간 통합 검색하여 원클릭 선택 지원.

@@ -1533,6 +1533,12 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         return
       }
 
+      // 카메라 애니메이션(easeTo, flyTo) 이동 중에는 완료될 때까지 조회 스킵
+      if (map.isMoving() || map.isRotating()) {
+        scheduleUpdate(250)
+        return
+      }
+
       const center = map.getCenter()
       const bounds = map.getBounds()
 
@@ -1603,20 +1609,21 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       } catch (error) {
         if (controller?.signal.aborted || disposed) return
 
-        console.error('주변 버스정류장 조회 실패:', error)
+        // 외부 API 지연/점검 시 과도한 에러 로그 대신 warning 수준으로 조용히 완충
+        console.warn('[서울 버스] 주변 버스정류장 조회 지연/Fallback (서버 점검/오프라인):', error)
         setStations([])
       }
     }
 
-    // 지도 이동 후 잠시 기다렸다가 조회
-    const scheduleUpdate = () => {
+    // 지도 이동 후 잠시 기다렸다가 조회 (카메라 안정화 후 1회 호출)
+    const scheduleUpdate = (delay = 500) => {
       if (timer) clearTimeout(timer)
 
       controller?.abort()
 
       timer = setTimeout(() => {
         loadNearbyStations()
-      }, 350)
+      }, delay)
     }
 
     // 정류장 원 클릭 시 풀 스펙 상세 팝업 표시 (기상 실황 + AI 추론 + 실시간 도착정보 + 노선 보기)
@@ -1720,6 +1727,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
 
       // 따릉이 필터에서만, 충분히 확대했을 때만 조회 (전체 모드에서는 기존 거점만 표시)
       if (filterType !== 'bike' || map.getZoom() < 14.5) return
+      if (map.isMoving() || map.isRotating()) return
 
       const center = map.getCenter()
       const bounds = map.getBounds()

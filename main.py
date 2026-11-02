@@ -2643,10 +2643,15 @@ async def get_nearby_bus_stations(
         )
 
     if not DATA_GO_KR_BUS_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="버스 API 인증키가 설정되지 않았습니다."
-        )
+        return {
+            "status": "fallback",
+            "count": 0,
+            "center": [lng, lat],
+            "radius": radius,
+            "stations": [],
+            "source": "NO_BUS_API_KEY",
+            "message": "버스 API 인증키가 설정되지 않았습니다."
+        }
 
     url = (
         "http://ws.bus.go.kr/api/rest/"
@@ -2662,7 +2667,7 @@ async def get_nearby_bus_stations(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
 
@@ -2670,10 +2675,16 @@ async def get_nearby_bus_stations(
         header = data.get("msgHeader") or {}
 
         if str(header.get("headerCd")) != "0":
-            raise HTTPException(
-                status_code=502,
-                detail=f"서울시 API 오류: {header.get('headerMsg')}"
-            )
+            logger.warning("[서울 버스] getStationByPos API 헤더 오류 (%s: %s) -> 빈 목록 Fallback", header.get("headerCd"), header.get("headerMsg"))
+            return {
+                "status": "fallback",
+                "count": 0,
+                "center": [lng, lat],
+                "radius": radius,
+                "stations": [],
+                "source": "SEOUL_BUS_HEADER_ERROR",
+                "message": f"서울시 API 응답 오류: {header.get('headerMsg')}"
+            }
 
         body = data.get("msgBody") or {}
         items = body.get("itemList") or []
@@ -2730,16 +2741,27 @@ async def get_nearby_bus_stations(
         }
 
     except httpx.HTTPError as exc:
-        logger.warning("Nearby bus station API error: %s", exc)
-        raise HTTPException(
-            status_code=502,
-            detail="서울시 주변 정류장 API 연결 실패"
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=502,
-            detail="서울시 API 응답 형식 오류"
-        )
+        logger.warning("[서울 버스] Nearby bus station API 연결 실패/타임아웃 (%s) -> 200 빈 목록 Fallback", exc)
+        return {
+            "status": "fallback",
+            "count": 0,
+            "center": [lng, lat],
+            "radius": radius,
+            "stations": [],
+            "source": "SEOUL_BUS_NETWORK_FALLBACK",
+            "message": f"서울시 버스 API 일시 지연 또는 서버 점검 ({type(exc).__name__})"
+        }
+    except ValueError as exc:
+        logger.warning("[서울 버스] Nearby bus station API 파싱 오류 (%s) -> 200 빈 목록 Fallback", exc)
+        return {
+            "status": "fallback",
+            "count": 0,
+            "center": [lng, lat],
+            "radius": radius,
+            "stations": [],
+            "source": "SEOUL_BUS_FORMAT_FALLBACK",
+            "message": "서울시 버스 API 응답 형식 오류"
+        }
 
 
 # ─────────────────────────────────────────────

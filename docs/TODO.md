@@ -6,6 +6,19 @@
 
 ## 📌 우선순위별 개발 백로그
 
+
+### 🛡️ 0-0. 관측성(Observability) 및 외부 API 장애 격리 (완료 · 2026-11-02 · 이슈 #80)
+- [x] **[LOG-02] FactChat LLM 연동 무음 Fallback 개선 및 외부 버스 API 장애 시 관측성·Graceful Degradation 강화 (완료 · 2026-11-02 · 이슈 #80)**:
+  - FactChat API 키 부재 및 HTTP 401/429/500 에러 시 명시적 `WARNING` 로그 출력 및 `langgraph_trace`에 `fallback_reason` 주입.
+  - 서울시 버스 서버 503 장애 시 주변 정류장 API(`GET /api/v1/transit/bus/stations/nearby`)가 502 에러 대신 200 OK 빈 목록(`stations: []`)을 반환하여 브라우저 콘솔 에러 폭주 원천 차단.
+  - 지도 카메라 애니메이션(`easeTo`/`flyTo`) 중 `nearby` API 연타 방지 디바운스 및 `isMoving()` 체크 적용.
+  - `in_memory_log_handler.py`의 시스템 명칭(`weather`)으로 인한 기상청 오분류 원천 교정.
+- [ ] **[LOG-03] 전체 코드베이스 로깅 정책(LOGGING_POLICY.md) 준수 여부 전수 감사 및 무음 예외 처리 일제 정비 (대기 · 이슈 #81)**:
+  - `main.py`, `multimodal_router.py`, `timeseries_cache.py`, `kma_forecast.py` 등 백엔드/프론트엔드 전반 무음 예외(`except: pass`) 전면 정비.
+
+---
+
+
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (Next Sprint / 우선 착수) — **진행 중 (이슈 #78 등)**
 - [ ] **[UI-06] WeatherMove 서비스 전용 브랜드 로고(SVG) 제작 및 브라우저 파비콘(Favicon) 탑재 (대기 · 이슈 #78)**:
   - 기상과 대중교통 모빌리티 네트워크를 융합한 전용 벡터 SVG 로고 디자인 및 `public/` 에셋 탑재.

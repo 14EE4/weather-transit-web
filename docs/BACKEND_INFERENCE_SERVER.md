@@ -322,7 +322,9 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
   "ai_briefing": {
     "headline": "🤖 FactChat LLM (gpt-6-luna) 멀티모달 경로 브리핑",
     "summary": "따릉이 혼잡도 예측이 22%로 지하철(52%)보다 낮고 현재 비가 없어 쾌적한 이동이 가능합니다.",
-    "model": "gpt-6-luna"
+    "model": "gpt-6-luna",
+    "source": "FACTCHAT_BAZE_GATEWAY",
+    "fallback_reason": null
   },
   "routes": [
     {
@@ -339,7 +341,7 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
     { "step": 1, "node": "parse_context_node", "status": "completed" },
     { "step": 2, "node": "clear_multimodal_tools_node", "status": "completed" },
     { "step": 3, "node": "candidate_fusion_node", "status": "completed" },
-    { "step": 4, "node": "factchat_llm_briefing_node", "status": "completed" }
+    { "step": 4, "node": "factchat_llm_briefing_node", "status": "completed", "fallback_reason": null }
   ]
 }
 ```

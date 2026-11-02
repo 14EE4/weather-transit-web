@@ -487,7 +487,18 @@ export default function App() {
     }
     return ''
   })
-  const [searchedRoute, setSearchedRoute] = useState<{ from: string; to: string } | null>(null)
+  const [departureCoords, setDepartureCoords] = useState<[number, number] | undefined>(undefined)
+  const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>(undefined)
+  const [departureType, setDepartureType] = useState<string | undefined>(undefined)
+  const [destinationType, setDestinationType] = useState<string | undefined>(undefined)
+  const [searchedRoute, setSearchedRoute] = useState<{
+    from: string
+    to: string
+    fromCoords?: [number, number]
+    toCoords?: [number, number]
+    fromType?: string
+    toType?: string
+  } | null>(null)
   const [mapTransport, setMapTransport] = useState<'all' | 'subway' | 'bus' | 'bike'>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -535,6 +546,8 @@ export default function App() {
 
   const handleSetOriginFromMap = (stop: TransitStop) => {
     setDeparture(stop.name)
+    setDepartureCoords(stop.coords)
+    setDepartureType(stop.type)
     try {
       localStorage.setItem('weather_transit_route_departure', stop.name)
     } catch {}
@@ -547,6 +560,8 @@ export default function App() {
 
   const handleSetDestinationFromMap = (stop: TransitStop) => {
     setDestination(stop.name)
+    setDestinationCoords(stop.coords)
+    setDestinationType(stop.type)
     try {
       localStorage.setItem('weather_transit_route_destination', stop.name)
     } catch {}
@@ -594,7 +609,15 @@ export default function App() {
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState(0)
 
   // 경로 검색 실행 함수 (출발역-도착역 최단 경로 계산 및 실시간 열차 도착 정보 연동)
-  const handleSearchRoute = async (from = departure, to = destination, navigateToMap = false) => {
+  const handleSearchRoute = async (
+    from = departure,
+    to = destination,
+    navigateToMap = false,
+    fromCoords = departureCoords,
+    toCoords = destinationCoords,
+    fromType = departureType,
+    toType = destinationType,
+  ) => {
     if (!from.trim() || !to.trim()) {
       alert('출발지와 도착지를 입력해주세요.')
       return
@@ -607,7 +630,14 @@ export default function App() {
     setShowDestinationList(false)
     setDeparture(from.trim())
     setDestination(to.trim())
-    setSearchedRoute({ from: from.trim(), to: to.trim() })
+    setSearchedRoute({
+      from: from.trim(),
+      to: to.trim(),
+      fromCoords,
+      toCoords,
+      fromType,
+      toType,
+    })
     const route = findSubwayRoute(from, to)
     if (route) {
       setDeparture(route.from)
@@ -663,6 +693,10 @@ export default function App() {
   const handleResetRoute = () => {
     setDeparture('')
     setDestination('')
+    setDepartureCoords(undefined)
+    setDestinationCoords(undefined)
+    setDepartureType(undefined)
+    setDestinationType(undefined)
     setSearchedRoute(null)
     setActiveRoute(null)
     setShowDepartureList(false)
@@ -679,12 +713,23 @@ export default function App() {
   const handleSwapRoute = () => {
     const prevDep = departure
     const prevDest = destination
+    const prevDepCoords = departureCoords
+    const prevDestCoords = destinationCoords
+    const prevDepType = departureType
+    const prevDestType = destinationType
+
     setDeparture(prevDest)
     setDestination(prevDep)
-    setShowDepartureList(false)
-    setShowDestinationList(false)
-    if (prevDest && prevDep) {
-      handleSearchRoute(prevDest, prevDep, false)
+    setDepartureCoords(prevDestCoords)
+    setDestinationCoords(prevDepCoords)
+    setDepartureType(prevDestType)
+    setDestinationType(prevDepType)
+    try {
+      localStorage.setItem('weather_transit_route_departure', prevDest)
+      localStorage.setItem('weather_transit_route_destination', prevDep)
+    } catch {}
+        if (prevDest && prevDep) {
+      handleSearchRoute(prevDest, prevDep, false, prevDestCoords, prevDepCoords, prevDestType, prevDepType)
     }
   }
 
@@ -2070,14 +2115,20 @@ export default function App() {
                   }}
                   onSelectSubway={st => {
                     setDeparture(st.name)
+                    setDepartureCoords(st.coords)
+                    setDepartureType('subway')
                     setFocusedCoords(st.coords)
                   }}
                   onSelectBus={st => {
                     setDeparture(st.name)
+                    setDepartureCoords(st.coords)
+                    setDepartureType('bus')
                     setFocusedCoords(st.coords)
                   }}
                   onSelectBike={st => {
                     setDeparture(st.name)
+                    setDepartureCoords(st.coords)
+                    setDepartureType('bike')
                     setFocusedCoords(st.coords)
                   }}
                   onClear={() => {
@@ -2118,14 +2169,20 @@ export default function App() {
                   }}
                   onSelectSubway={st => {
                     setDestination(st.name)
+                    setDestinationCoords(st.coords)
+                    setDestinationType('subway')
                     setFocusedCoords(st.coords)
                   }}
                   onSelectBus={st => {
                     setDestination(st.name)
+                    setDestinationCoords(st.coords)
+                    setDestinationType('bus')
                     setFocusedCoords(st.coords)
                   }}
                   onSelectBike={st => {
                     setDestination(st.name)
+                    setDestinationCoords(st.coords)
+                    setDestinationType('bike')
                     setFocusedCoords(st.coords)
                   }}
                   onClear={() => {
@@ -2221,6 +2278,10 @@ export default function App() {
                 apiBaseUrl={API_BASE_URL}
                 fromStation={searchedRoute?.from || ''}
                 toStation={searchedRoute?.to || ''}
+                fromCoords={searchedRoute?.fromCoords}
+                toCoords={searchedRoute?.toCoords}
+                fromType={searchedRoute?.fromType}
+                toType={searchedRoute?.toType}
                 district={DISTRICTS[selectedDistrict] || '강남구'}
                 selectedHour={selectedHour}
                 temp={displayTemp}

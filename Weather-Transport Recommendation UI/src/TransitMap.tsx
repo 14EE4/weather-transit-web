@@ -1487,9 +1487,10 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       }
 
       // [규칙 3] 중거리 뷰 (11.5 <= Zoom < 13.5)에서 버스와 따릉이는 거대한 알약 마커 금지!
-      // 오직 원형 점(Dot) 마커로만 단정하게 찍혀서 도로와 도시 가림을 원천 방지
-      // 전체 보기(all)에서는 지하철역만 알약 배지로 표출하고, 버스·따릉이는 혼잡도 점(Dot)으로 고정하여 겹침 방지
-      const forceDotForNonSubway = (filterType === 'all' || isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike')
+      // 전체 보기(all)에서는 모든 수단(지하철·버스·따릉이)을 혼잡도 원형 점(Dot) 마커로 표출하여 역/정류소 이름 텍스트로 인한 화면 복잡도를 원천 방지.
+      // 역/정류소 이름(알약 배지)은 사용자가 해당 교통수단 전용 보기(subway, bus, bike)를 선택했을 때만 표출!
+      // (단, 검색된 역, 클릭된 역, 활성 경로 경유역은 위 4번 규칙에 의해 항상 알약 배지로 우선 표시됨)
+      const forceDot = filterType === 'all' || ((isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike'))
 
       item.el.style.zIndex = '1'
 
@@ -1523,14 +1524,14 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       const pillView = item.el.querySelector('.marker-pill-view') as HTMLElement | null
       const dotView = item.el.querySelector('.marker-dot-view') as HTMLElement | null
 
-      // 겹치거나 forceDotForNonSubway(중거리 뷰의 버스/따릉이)인 경우 ➔ 혼잡도 색상의 원형 점(Dot) 마커로 표출!
-      if (overlaps || forceDotForNonSubway) {
+      // 겹치거나 forceDot(전체 보기 또는 중거리 뷰 버스/따릉이)인 경우 ➔ 혼잡도 색상의 원형 점(Dot) 마커로 표출!
+      if (overlaps || forceDot) {
         if (pillView) pillView.style.display = 'none'
         if (dotView) dotView.style.display = 'flex'
         item.el.style.display = 'flex'
         item.el.style.zIndex = '5'
       } else {
-        // 상세 배율(Zoom >= 13.5)에서 여유 공간 확보 시 온전한 알약 마커(이름 + 아이콘 + 혼잡도%)로 표시
+        // 전용 보기(subway, bus, bike)에서 여유 공간 확보 시 온전한 알약 마커(이름 + 아이콘 + 혼잡도%)로 표시
         if (pillView) pillView.style.display = 'flex'
         if (dotView) dotView.style.display = 'none'
         item.el.style.display = 'flex'

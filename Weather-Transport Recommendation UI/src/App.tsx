@@ -649,7 +649,10 @@ export default function App() {
         })
       }
     } else {
-      alert(`'${from}'에서 '${to}'까지의 지하철 경로를 찾을 수 없습니다. 역 이름을 정확히 입력해주세요.`)
+      // 버스·따릉이 등 지하철 비직결 경로: 하단 MultimodalRoutePanel에서 LangGraph 멀티모달 복합 경로(3종)가 자동 계산됨
+      if (navigateToMap) {
+        setPage('route')
+      }
     }
   }
 
@@ -2057,135 +2060,37 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 출발/도착 입력 (지하철역 실시간 자동완성 검색 연동) */}
+              {/* 출발/도착 입력 (지하철·버스·따릉이 통합 자동완성 검색 연동) */}
               <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', color: 'var(--app-text)', borderRadius: 20, marginBottom: 16 }}>
-                {/* 출발지 */}
-                <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--color-border)', position: 'relative' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ fontSize: 10, color: '#34D399', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
-                      🟢  출발지 (지하철역 검색)
-                    </div>
-                    {departure && (
-                      <button
-                        onClick={() => {
-                          setDeparture('')
-                          setShowDepartureList(false)
-                          setActiveRoute(null)
-                        }}
-                        title="출발지 지우기"
-                        style={{
-                          background: 'var(--color-card2)', border: 'none', borderRadius: 999,
-                          padding: '2px 8px', fontSize: 10, color: 'var(--color-muted)', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 3,
-                        }}
-                      >
-                        <span>✕</span> 지우기
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    value={departure}
-                    onChange={e => {
-                      setDeparture(e.target.value)
-                      setShowDepartureList(true)
-                      setSelectedDepartureIndex(0)
-                    }}
-                    onFocus={() => setShowDepartureList(true)}
-                    onKeyDown={e => {
-                      const results = searchSubwayStations(departure).slice(0, 10)
-                      if (!showDepartureList || results.length === 0) {
-                        if (e.key === 'Enter' && departure.trim() && results.length > 0) {
-                          e.preventDefault()
-                          setDeparture(results[0].name)
-                          setShowDepartureList(false)
-                          setFocusedCoords(results[0].coords)
-                        }
-                        return
-                      }
-                      if (e.key === 'ArrowDown') {
-                        e.preventDefault()
-                        setSelectedDepartureIndex(prev => (prev + 1) % results.length)
-                      } else if (e.key === 'ArrowUp') {
-                        e.preventDefault()
-                        setSelectedDepartureIndex(prev => (prev - 1 + results.length) % results.length)
-                      } else if (e.key === 'Tab') {
-                        e.preventDefault()
-                        if (e.shiftKey) {
-                          setSelectedDepartureIndex(prev => (prev - 1 + results.length) % results.length)
-                        } else {
-                          setSelectedDepartureIndex(prev => (prev + 1) % results.length)
-                        }
-                      } else if (e.key === 'Enter') {
-                        e.preventDefault()
-                        const target = results[selectedDepartureIndex >= 0 ? selectedDepartureIndex : 0]
-                        if (target) {
-                          setDeparture(target.name)
-                          setShowDepartureList(false)
-                          setFocusedCoords(target.coords)
-                        }
-                      } else if (e.key === 'Escape') {
-                        setShowDepartureList(false)
-                      }
-                    }}
-                    placeholder="출발역 이름 입력 (예: 구로역, 강남역, 시청역...)"
-                    style={{
-                      width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                      fontSize: 15, fontWeight: 500, color: 'var(--app-text)',
-                      fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
-                    }}
-                  />
-
-                  {/* 출발역 자동완성 드롭다운 */}
-                  {showDepartureList && departure.trim() && (() => {
-                    const results = searchSubwayStations(departure).slice(0, 10)
-                    if (results.length === 0) return null
-                    return (
-                      <div style={{
-                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                        background: 'var(--color-surface)', border: '1px solid rgba(52,211,153,0.4)', borderRadius: 12,
-                        boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 240, overflowY: 'auto',
-                      }}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>검색 결과 {results.length}건</span>
-                          <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
-                        </div>
-                        {results.map((st, idx) => (
-                          <div
-                            key={`dep-${st.id}`}
-                            ref={el => {
-                              if (idx === selectedDepartureIndex && el) el.scrollIntoView({ block: 'nearest' })
-                            }}
-                            onClick={() => {
-                              setDeparture(st.name)
-                              setShowDepartureList(false)
-                              setFocusedCoords(st.coords)
-                            }}
-                            style={{
-                              padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
-                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              background: idx === selectedDepartureIndex ? 'rgba(52,211,153,0.22)' : 'transparent',
-                              borderLeft: idx === selectedDepartureIndex ? '3px solid #34D399' : '3px solid transparent',
-                              transition: 'background 0.1s ease',
-                            }}
-                            onMouseEnter={() => setSelectedDepartureIndex(idx)}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: 14 }}>🚇</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
-                              <span style={{ fontSize: 10, color: '#34D399', background: 'rgba(52,211,153,0.15)', padding: '2px 6px', borderRadius: 4 }}>
-                                {st.lines.join(', ')}
-                              </span>
-                            </div>
-                            {idx === selectedDepartureIndex && (
-                              <span style={{ fontSize: 10, color: '#34D399', fontFamily: 'JetBrains Mono' }}>↵ Enter</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })()}
-                </div>
+                {/* 출발지 (통합 검색) */}
+                <UnifiedStationSearch
+                  variant="route"
+                  transport="all"
+                  title="🟢  출발지 (지하철·버스·따릉이 통합 검색)"
+                  headerColor="#34D399"
+                  placeholder="출발역·정류소·대여소 입력 (예: 강남역, 시청, 서초푸르지오...)"
+                  value={departure}
+                  onChange={val => {
+                    setDeparture(val)
+                    setActiveRoute(null)
+                  }}
+                  onSelectSubway={st => {
+                    setDeparture(st.name)
+                    setFocusedCoords(st.coords)
+                  }}
+                  onSelectBus={st => {
+                    setDeparture(st.name)
+                    setFocusedCoords(st.coords)
+                  }}
+                  onSelectBike={st => {
+                    setDeparture(st.name)
+                    setFocusedCoords(st.coords)
+                  }}
+                  onClear={() => {
+                    setDeparture('')
+                    setActiveRoute(null)
+                  }}
+                />
 
                 {/* 출발 ↔ 도착 맞바꾸기 구분선 */}
                 <div style={{ position: 'relative', height: 1, background: 'var(--color-border)' }}>
@@ -2204,130 +2109,35 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* 도착지 */}
-                <div style={{ padding: '12px 18px 16px', position: 'relative' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ fontSize: 10, color: 'var(--color-primary)', fontFamily: 'JetBrains Mono', letterSpacing: '0.07em' }}>
-                      🔵  도착지 (지하철역 검색)
-                    </div>
-                    {destination && (
-                      <button
-                        onClick={() => {
-                          setDestination('')
-                          setShowDestinationList(false)
-                          setActiveRoute(null)
-                        }}
-                        title="도착지 지우기"
-                        style={{
-                          background: 'var(--color-card2)', border: 'none', borderRadius: 999,
-                          padding: '2px 8px', fontSize: 10, color: 'var(--color-muted)', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 3,
-                        }}
-                      >
-                        <span>✕</span> 지우기
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    value={destination}
-                    onChange={e => {
-                      setDestination(e.target.value)
-                      setShowDestinationList(true)
-                      setSelectedDestinationIndex(0)
-                    }}
-                    onFocus={() => setShowDestinationList(true)}
-                    onKeyDown={e => {
-                      const results = searchSubwayStations(destination).slice(0, 10)
-                      if (!showDestinationList || results.length === 0) {
-                        if (e.key === 'Enter' && destination.trim() && results.length > 0) {
-                          e.preventDefault()
-                          setDestination(results[0].name)
-                          setShowDestinationList(false)
-                        }
-                        return
-                      }
-                      if (e.key === 'ArrowDown') {
-                        e.preventDefault()
-                        setSelectedDestinationIndex(prev => (prev + 1) % results.length)
-                      } else if (e.key === 'ArrowUp') {
-                        e.preventDefault()
-                        setSelectedDestinationIndex(prev => (prev - 1 + results.length) % results.length)
-                      } else if (e.key === 'Tab') {
-                        e.preventDefault()
-                        if (e.shiftKey) {
-                          setSelectedDestinationIndex(prev => (prev - 1 + results.length) % results.length)
-                        } else {
-                          setSelectedDestinationIndex(prev => (prev + 1) % results.length)
-                        }
-                      } else if (e.key === 'Enter') {
-                        e.preventDefault()
-                        const target = results[selectedDestinationIndex >= 0 ? selectedDestinationIndex : 0]
-                        if (target) {
-                          setDestination(target.name)
-                          setShowDestinationList(false)
-                        }
-                      } else if (e.key === 'Escape') {
-                        setShowDestinationList(false)
-                      }
-                    }}
-                    placeholder="도착역 이름 입력 (예: 강남역, 여의도역, 판교역...)"
-                    style={{
-                      width: '100%', background: 'transparent', border: 'none', outline: 'none',
-                      fontSize: 15, fontWeight: 500, color: 'var(--app-text)',
-                      fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
-                    }}
-                  />
-
-                  {/* 도착역 자동완성 드롭다운 */}
-                  {showDestinationList && destination.trim() && (() => {
-                    const results = searchSubwayStations(destination).slice(0, 10)
-                    if (results.length === 0) return null
-                    return (
-                      <div style={{
-                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                        background: 'var(--color-surface)', border: '1px solid color-mix(in srgb, var(--color-primary) 40%, transparent)', borderRadius: 12,
-                        boxShadow: '0 8px 30px rgba(0,0,0,0.7)', maxHeight: 240, overflowY: 'auto',
-                      }}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>검색 결과 {results.length}건</span>
-                          <span>⌨️ [Tab / ↑↓] 이동 · [Enter] 선택</span>
-                        </div>
-                        {results.map((st, idx) => (
-                          <div
-                            key={`dest-${st.id}`}
-                            ref={el => {
-                              if (idx === selectedDestinationIndex && el) el.scrollIntoView({ block: 'nearest' })
-                            }}
-                            onClick={() => {
-                              setDestination(st.name)
-                              setShowDestinationList(false)
-                            }}
-                            style={{
-                              padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
-                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              background: idx === selectedDestinationIndex ? 'color-mix(in srgb, var(--color-primary) 22%, transparent)' : 'transparent',
-                              borderLeft: idx === selectedDestinationIndex ? '3px solid var(--color-primary)' : '3px solid transparent',
-                              transition: 'background 0.1s ease',
-                            }}
-                            onMouseEnter={() => setSelectedDestinationIndex(idx)}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: 14 }}>🚇</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>{st.name}</span>
-                              <span style={{ fontSize: 10, color: 'var(--color-primary)', background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)', padding: '2px 6px', borderRadius: 4 }}>
-                                {st.lines.join(', ')}
-                              </span>
-                            </div>
-                            {idx === selectedDestinationIndex && (
-                              <span style={{ fontSize: 10, color: 'var(--color-primary)', fontFamily: 'JetBrains Mono' }}>↵ Enter</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })()}
-                </div>
+                {/* 도착지 (통합 검색) */}
+                <UnifiedStationSearch
+                  variant="route"
+                  transport="all"
+                  title="🔵  도착지 (지하철·버스·따릉이 통합 검색)"
+                  headerColor="var(--color-primary)"
+                  placeholder="도착역·정류소·대여소 입력 (예: 여의도역, 서울역, 광화문...)"
+                  value={destination}
+                  onChange={val => {
+                    setDestination(val)
+                    setActiveRoute(null)
+                  }}
+                  onSelectSubway={st => {
+                    setDestination(st.name)
+                    setFocusedCoords(st.coords)
+                  }}
+                  onSelectBus={st => {
+                    setDestination(st.name)
+                    setFocusedCoords(st.coords)
+                  }}
+                  onSelectBike={st => {
+                    setDestination(st.name)
+                    setFocusedCoords(st.coords)
+                  }}
+                  onClear={() => {
+                    setDestination('')
+                    setActiveRoute(null)
+                  }}
+                />
               </div>
 
               {/* 검색 및 초기화 버튼 바 */}

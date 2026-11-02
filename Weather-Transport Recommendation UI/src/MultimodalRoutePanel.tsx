@@ -1,10 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { SUBWAY_STATIONS } from './subwayData'
 import { MultimodalSegment, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 
-const VALID_STATION_NAMES = new Set(
-  SUBWAY_STATIONS.map(st => st.name)
-)
 
 const MULTIMODAL_MEMORY_CACHE = new Map<string, MultimodalSearchResponse>()
 const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v5'
@@ -166,9 +162,7 @@ export default function MultimodalRoutePanel({
   const hasValidRouteInput = Boolean(
     cleanFrom &&
       cleanTo &&
-      cleanFrom !== cleanTo &&
-      VALID_STATION_NAMES.has(cleanFrom) &&
-      VALID_STATION_NAMES.has(cleanTo)
+      cleanFrom !== cleanTo
   )
   const cacheKey = hasValidRouteInput
     ? `${cleanFrom}|${cleanTo}|${cleanDistrict}|${selectedHour}|${Math.round(temp)}|${Math.round(rain * 10) / 10}`

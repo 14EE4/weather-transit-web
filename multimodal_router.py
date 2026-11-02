@@ -712,7 +712,9 @@ class MultimodalRoutingEngine:
     # ─────────────────────────────────────────────────────────────
     # 역/정류장 해석 및 지하철/버스/따릉이 개별 탐색 유틸리티
     # ─────────────────────────────────────────────────────────────
-    def resolve_station(self, query: str) -> Optional[Dict[str, Any]]:
+    def resolve_station(
+        self, query: str, extra_bike_stations: Optional[List[Dict[str, Any]]] = None
+    ) -> Optional[Dict[str, Any]]:
         if not query:
             return None
         q = query.strip()
@@ -721,7 +723,7 @@ class MultimodalRoutingEngine:
         if not q.endswith("역") and f"{q}역" in self.station_by_name:
             return self.station_by_name[f"{q}역"]
 
-        # 공백 제거 후 부분 일치 검색
+        # 1. 지하철역 완전 및 부분 일치 검색
         q_norm = q.replace(" ", "").replace("역", "")
         for st in self.subway_stations:
             st_norm = st["name"].replace(" ", "").replace("역", "")
@@ -732,10 +734,43 @@ class MultimodalRoutingEngine:
             if q_norm in st_norm or st_norm in q_norm:
                 return st
 
-        # 버스 정류소 이름에서 가장 가까운 지하철역 매칭
+        # 2. 버스 정류소 이름/ARS-ID/stId 기반 인접 지하철 거점 매칭
         for bus in self.bus_stops:
-            if q_norm in bus["name"].replace(" ", ""):
-                return self.find_nearest_subway(bus["coords"][1], bus["coords"][0])
+            b_name = bus.get("name", "").replace(" ", "")
+            ars_id = str(bus.get("arsId", "")).strip()
+            st_id = str(bus.get("stId", "")).strip()
+            if (
+                (ars_id and ars_id == q)
+                or (st_id and st_id == q)
+                or (q_norm and len(q_norm) >= 2 and (q_norm in b_name or b_name in q_norm))
+            ):
+                coords = bus.get("coords", [127.0, 37.5])
+                nearest = self.find_nearest_subway(coords[1], coords[0])
+                if nearest:
+                    return nearest
+
+        # 3. 따릉이 대여소 이름/번호(stationNo) 기반 인접 지하철 거점 매칭
+        all_bikes = list(self.bike_stations)
+        if extra_bike_stations:
+            all_bikes.extend(extra_bike_stations)
+
+        q_clean = re.sub(r"^\d+\.\s*", "", q_norm)
+        for bike in all_bikes:
+            b_name = str(bike.get("name", "")).replace(" ", "")
+            b_clean = re.sub(r"^\d+\.\s*", "", b_name)
+            bike_id = str(bike.get("id", "")).strip()
+            station_no = str(bike.get("stationNo", "")).strip()
+            if (
+                (bike_id and bike_id == q)
+                or (station_no and station_no == q)
+                or (q_clean and len(q_clean) >= 2 and (q_clean in b_clean or b_clean in q_clean))
+                or (q_norm and len(q_norm) >= 2 and q_norm in b_name)
+            ):
+                coords = bike.get("coords") or [bike.get("lng", 127.0), bike.get("lat", 37.5)]
+                nearest = self.find_nearest_subway(coords[1], coords[0])
+                if nearest:
+                    return nearest
+
         return None
 
     def find_nearest_subway(self, lat: float, lng: float) -> Optional[Dict[str, Any]]:
@@ -1430,8 +1465,15 @@ class MultimodalRoutingEngine:
         t0 = time.perf_counter()
         trace = list(state.get("langgraph_trace") or [])
 
-        origin_st = self.resolve_station(state.get("from_query", "강남역")) or self.resolve_station("강남역")
-        dest_st = self.resolve_station(state.get("to_query", "서울역")) or self.resolve_station("서울역")
+        live_bikes = (state.get("bike_candidates") or {}).get("live_snapshot") or []
+        origin_st = (
+            self.resolve_station(state.get("from_query", "강남역"), extra_bike_stations=live_bikes)
+            or self.resolve_station("강남역")
+        )
+        dest_st = (
+            self.resolve_station(state.get("to_query", "서울역"), extra_bike_stations=live_bikes)
+            or self.resolve_station("서울역")
+        )
 
         origin_in_seoul = self.is_in_seoul(origin_st["coords"][1], origin_st["coords"][0], origin_st["name"])
         dest_in_seoul = self.is_in_seoul(dest_st["coords"][1], dest_st["coords"][0], dest_st["name"])

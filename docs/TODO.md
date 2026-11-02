@@ -33,10 +33,10 @@
   - 지도 내 모든 지하철역, 버스 정류소, 따릉이 대여소 팝업 하단에 `[🚩 출발지로 설정]` 및 `[🏁 도착지로 설정]` 액션 버튼 툴바 탑재.
   - PC(`App.tsx`)와 모바일(`AppM.tsx`) 양쪽 모두에서 출발지/도착지 상태(`departure`, `destination`)로 역 이름 원클릭 자동 주입 및 로컬스토리지 동기화.
   - 지도 화면 상단에 플로팅 가이드 토스트 배너 배치 및 출발/도착 완료 시 경로 추천 탭(`page === 'route'`) 자동 전환 지원.
-- [ ] **[UI-06] WeatherMove 서비스 전용 브랜드 로고(SVG) 제작 및 브라우저 파비콘(Favicon) 탑재 (대기 · 이슈 #78)**:
-  - 기상과 대중교통 모빌리티 네트워크를 융합한 전용 벡터 SVG 로고 디자인 및 `public/` 에셋 탑재.
-  - 브라우저 탭 파비콘(`favicon.ico`, `favicon.svg`) 및 웹 앱 메타 태그(`index.html`) 연동.
-  - PC(`App.tsx`), 모바일(`AppM.tsx`), 관리자 대시보드(`admin_dashboard.py`) 헤더 로고 영역 세련된 브랜드 UI로 고도화.
+- [x] **[UI-06] WeatherMove 서비스 전용 브랜드 로고(SVG) 제작 및 브라우저 파비콘(Favicon) 탑재 (완료 · 2026-11-02 · 이슈 #78)**:
+  - 기상과 대중교통 모빌리티 네트워크를 융합한 전용 벡터 SVG 로고(`favicon.svg`, `favicon.ico`, `logo.svg`, `logo-symbol.svg`) 디자인 및 `public/` 에셋 탑재.
+  - 브라우저 탭 파비콘(`favicon.svg`, `favicon.ico`) 및 웹 앱 메타 태그(`index.html`) 연동.
+  - PC(`App.tsx`), 모바일(`AppM.tsx`), 관리자 대시보드(`admin_dashboard.py`) 헤더 로고 영역 전용 브랜드 UI(`WeatherMoveLogo.tsx`)로 고도화.
 - [x] **[API-01] Docker 컨테이너 및 기상청 API KST(한국 표준시) 동기화 및 초단기실황 발표 시점 보정 (완료 · 2026-10-31 · 이슈 #75)**:
   - Docker 컨테이너가 기본 UTC(+0)로 동작하여 현재 시각이 17시임에도 초단기실황이 아침 8시(`0800`) 데이터로 조회되던 타임존 불일치 해결.
   - `Dockerfile.backend` 및 `docker-compose.yml`에 `TZ=Asia/Seoul`과 `tzdata` 패키지 구성.

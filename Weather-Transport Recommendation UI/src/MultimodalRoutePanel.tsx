@@ -119,6 +119,10 @@ interface MultimodalRoutePanelProps {
   apiBaseUrl: string
   fromStation: string
   toStation: string
+  fromCoords?: [number, number]
+  toCoords?: [number, number]
+  fromType?: string
+  toType?: string
   district: string
   selectedHour: number
   temp: number
@@ -147,6 +151,10 @@ export default function MultimodalRoutePanel({
   apiBaseUrl,
   fromStation,
   toStation,
+  fromCoords,
+  toCoords,
+  fromType,
+  toType,
   district,
   selectedHour,
   temp,
@@ -164,8 +172,9 @@ export default function MultimodalRoutePanel({
       cleanTo &&
       cleanFrom !== cleanTo
   )
+  const coordsKey = `${fromCoords ? fromCoords.join(',') : ''}_${toCoords ? toCoords.join(',') : ''}_${fromType || ''}_${toType || ''}`
   const cacheKey = hasValidRouteInput
-    ? `${cleanFrom}|${cleanTo}|${cleanDistrict}|${selectedHour}|${Math.round(temp)}|${Math.round(rain * 10) / 10}`
+    ? `${cleanFrom}|${cleanTo}|${coordsKey}|${cleanDistrict}|${selectedHour}|${Math.round(temp)}|${Math.round(rain * 10) / 10}`
     : ''
 
   const [data, setData] = useState<MultimodalSearchResponse | null>(() =>
@@ -195,6 +204,10 @@ export default function MultimodalRoutePanel({
       const requestPayload = {
         from_station: cleanFrom,
         to_station: cleanTo,
+        from_coords: fromCoords,
+        to_coords: toCoords,
+        from_type: fromType,
+        to_type: toType,
         district: cleanDistrict,
         hour: selectedHour,
         weather: {
@@ -260,7 +273,7 @@ export default function MultimodalRoutePanel({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [apiBaseUrl, cacheKey, cleanFrom, cleanTo, cleanDistrict, hasValidRouteInput, selectedHour, temp, rain, humidity, wind])
+  }, [apiBaseUrl, cacheKey, cleanFrom, cleanTo, fromCoords, toCoords, fromType, toType, cleanDistrict, hasValidRouteInput, selectedHour, temp, rain, humidity, wind])
 
   if (!hasValidRouteInput) {
     return (

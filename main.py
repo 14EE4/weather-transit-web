@@ -19,7 +19,7 @@ def get_kst_now() -> datetime:
     """대한민국 표준시(KST, UTC+9) 기준 datetime 반환"""
     return datetime.now(KST)
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, List, Dict
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -2599,6 +2599,9 @@ async def search_bus_stations(q: str):
                 "coords": [longitude, latitude]
             })
 
+        if stations:
+            multimodal_routing_engine.register_bus_stops(stations)
+
         return {
             "status": "success",
             "query": keyword,
@@ -2732,6 +2735,9 @@ async def get_nearby_bus_stations(
                 "coords": [longitude, latitude],
                 "distance": item.get("dist")
             })
+
+        if stations:
+            multimodal_routing_engine.register_bus_stops(stations)
 
         return {
             "status": "success",
@@ -3276,6 +3282,10 @@ async def get_bike_station(station_id: str):
 class MultimodalRouteRequest(BaseModel):
     from_station: str = Field("강남역", description="출발역 또는 출발 거점명")
     to_station: str = Field("서울역", description="도착역 또는 도착 거점명")
+    from_coords: Optional[List[float]] = Field(None, description="출발지 [lng, lat] 좌표 (선택)")
+    to_coords: Optional[List[float]] = Field(None, description="도착지 [lng, lat] 좌표 (선택)")
+    from_type: Optional[str] = Field(None, description="출발 거점 유형: subway | bus | bike")
+    to_type: Optional[str] = Field(None, description="도착 거점 유형: subway | bus | bike")
     district: str = Field("강남구", description="기준 자치구명")
     hour: Optional[int] = Field(None, ge=0, le=23, description="탐색 시간대 (0~23시)")
     weather: Optional[WeatherInput] = Field(None, description="기상 조건 오버라이드 (미지정 시 KMA 단기예보/실황 연동)")
@@ -3287,6 +3297,10 @@ async def _execute_multimodal_search(
     district: str = "강남구",
     hour: Optional[int] = None,
     weather_override: Optional[WeatherInput] = None,
+    from_coords: Optional[List[float]] = None,
+    to_coords: Optional[List[float]] = None,
+    from_type: Optional[str] = None,
+    to_type: Optional[str] = None,
 ) -> dict:
     norm_d = normalize_district_name(district)
     target_hour = hour if hour is not None else get_kst_now().hour
@@ -3317,11 +3331,11 @@ async def _execute_multimodal_search(
                 "humidity": w_in.humidity,
                 "wind": w_in.wind,
                 "pty_desc": h_fcst.pty_desc,
-                "sky_desc": h_fcst.sky_desc,
+                "sky_desc": {1: "맑음", 3: "구름많음", 4: "흐림"}.get(h_fcst.sky, "맑음"),
                 "source": "KMA_SHORT_TERM_FORECAST",
             }
         except Exception as exc:
-            logger.warning("[멀티모달 경로] 기상청 단기예보 조회 실패로 기본 기상(16.5°C 맑음)을 적용합니다 (%s): %s", req_district, sanitize_exception(exc))
+            logger.warning("[멀티모달 경로] 기상청 단기예보 조회 실패로 기본 기상(16.5°C 맑음)을 적용합니다 (%s): %s", norm_d, sanitize_exception(exc))
             w_in = WeatherInput(temp=16.5, rain=0.0, humidity=55.0, wind=2.0)
             w_ctx = {
                 "temp": 16.5,
@@ -3418,6 +3432,10 @@ async def _execute_multimodal_search(
         live_bike_snapshot=live_bikes,
         live_subway_arrivals=live_subway_arrs,
         live_bus_arrivals=live_bus_arrs,
+        from_coords=from_coords,
+        to_coords=to_coords,
+        from_type=from_type,
+        to_type=to_type,
     )
     result["district"] = norm_d
     result["hour"] = target_hour
@@ -3437,6 +3455,10 @@ async def post_multimodal_route_search(req: MultimodalRouteRequest):
         district=req.district,
         hour=req.hour,
         weather_override=req.weather,
+        from_coords=req.from_coords,
+        to_coords=req.to_coords,
+        from_type=req.from_type,
+        to_type=req.to_type,
     )
 
 
@@ -3448,6 +3470,12 @@ async def get_multimodal_route_search(
     hour: Optional[int] = None,
     rain: Optional[float] = None,
     temp: Optional[float] = None,
+    from_lng: Optional[float] = None,
+    from_lat: Optional[float] = None,
+    to_lng: Optional[float] = None,
+    to_lat: Optional[float] = None,
+    from_type: Optional[str] = None,
+    to_type: Optional[str] = None,
 ):
     """GET 방식 멀티모달 통합 경로 탐색 API (쿼리 파라미터 기반)"""
     w_override = None
@@ -3458,11 +3486,17 @@ async def get_multimodal_route_search(
             humidity=75.0 if (rain or 0.0) > 0 else 55.0,
             wind=2.2,
         )
+    f_coords = [from_lng, from_lat] if (from_lng is not None and from_lat is not None) else None
+    t_coords = [to_lng, to_lat] if (to_lng is not None and to_lat is not None) else None
     return await _execute_multimodal_search(
         from_station=from_station,
         to_station=to_station,
         district=district,
         hour=hour,
         weather_override=w_override,
+        from_coords=f_coords,
+        to_coords=t_coords,
+        from_type=from_type,
+        to_type=to_type,
     )
 

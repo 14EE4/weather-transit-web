@@ -306,13 +306,19 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 - **Request Body**:
 ```json
 {
-  "from_station": "서울역",
+  "from_station": "서울역버스환승센터",
   "to_station": "홍대입구역",
+  "from_coords": [126.9723, 37.5562],
+  "to_coords": null,
+  "from_type": "bus",
+  "to_type": "subway",
   "district": "중구",
   "hour": 14,
-  "weather_override": null
+  "weather": null
 }
 ```
+> [!NOTE]
+> `from_coords`, `to_coords`, `from_type`, `to_type`는 선택(Optional) 필드이며, 버스 정류소나 따릉이 대여소 출발/도착 시 좌표와 수단 유형을 주입하면 First-Mile / Last-Mile 도보 세그먼트(`walk`)가 경로 최전방/최후방에 자동으로 계산·삽입됩니다.
 - **Response Body**:
 ```json
 {

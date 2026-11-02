@@ -6,6 +6,32 @@
 
 ---
 
+## [2026-11-03]
+
+### 🚶🚏 버스 정류소 및 따릉이 대여소 출발/도착 시 First/Last-Mile 도보 세그먼트 보존 및 자동 삽입 (이슈 #89)
+- **배경/문제**:
+  - 버스 정류소나 따릉이 대여소를 출발지 또는 도착지로 지정하고 멀티모달 경로를 탐색할 때, `resolve_station()`이 버스/따릉이 정보를 가장 가까운 지하철역 객체로 강제 덮어쓰기(Snapping)하여 반환함으로써 추천 경로의 출발/도착지가 실제 버스 정류소나 따릉이 대여소가 아닌 인근 지하철역으로 둔갑하는 결함 발생.
+  - 이로 인해 실제 버스 정류소에서 인근 지하철역까지 이동하는 First-Mile 도보 구간이나, 도착 지하철역에서 목적지 따릉이 대여소/버스 정류소까지 이동하는 Last-Mile 도보 구간이 경로 및 지도 마커에 누락됨.
+- **조치**:
+  1. **백엔드 거점 정체성 보존 및 인접 지하철역 링크 구조 정비 (`multimodal_router.py`)**:
+     - `resolve_station()`에서 버스 정류소 및 따릉이 대여소 매칭 시 원래의 명칭, 좌표, `station_type`(`bus`/`bike`)을 온전히 유지하고 인접 지하철역을 `nearest_subway` 필드로 연결.
+     - `MultimodalRouteRequest` 및 `_execute_multimodal_search`에 `from_coords`, `to_coords`, `from_type`, `to_type` 선택 필드를 신설하여 프론트엔드에서 좌표가 주입된 경우 100% 오차 없는 직접 거점 해석 지원.
+     - 정류소 해석 시 `res["nearest_subway"] = res`로 인한 순환 참조(Circular Reference)와 FastAPI 직렬화 `RecursionError`를 원천 제거(`nearest_subway = None` 명시).
+     - 검색 쿼리 정규화 비교 시 `역` 제거 여부에 따른 불일치(`서울역버스환승센터` vs `서울버스환승센터`)를 해소하기 위해 키워드 힌트(`is_bus_hint`, `is_bike_hint`) 우선순위 및 이중 정규화(`b_clean`, `b_norm`) 비교 알고리즘 탑재.
+  2. **First-Mile / Last-Mile 도보 세그먼트 자동 계산 및 경로 결합 (`multimodal_router.py`)**:
+     - `_make_walk_segment(from_node, to_node)` 헬퍼 구현: 하버사인 거리 기반 도보 거리(`km`) 및 소요시간(`minutes`, 분속 `65m/min` 기준 최소 `1분` 보장) 산출.
+     - `_node_candidate_fusion()`에서 출발지가 버스/따릉이인 경우 인접 지하철 탑승역까지의 First-Mile 도보 세그먼트를 생성하여 `segments` 최전방에 삽입하고 총 소요시간/도보시간/이용 수단 목록(`modes_used`)에 `walk` 자동 반영.
+     - 도착지가 버스/따릉이인 경우 지하철 하차역부터 목적지까지의 Last-Mile 도보 세그먼트를 생성하여 `segments` 후미에 추가.
+     - `_pack_route_candidate()`에서 `compat_path`의 출발/도착 지점을 실제 출발지/도착지 명칭 및 좌표로 갱신하고 첫 탑승역과 최종 하차역에 환승 안내 정보 부여.
+  3. **프론트엔드 좌표 연동 및 UI 표출 일체화 (`MultimodalRoutePanel.tsx`, `App.tsx`, `AppM.tsx`, `TransitMap.tsx`)**:
+     - `App.tsx` (PC) 및 `AppM.tsx` (모바일): `departureCoords`, `destinationCoords`, `departureType`, `destinationType` 상태를 신설하여 지도 팝업 클릭 또는 `UnifiedStationSearch` 선택 시의 정확한 좌표와 거점 유형을 `searchedRoute` 및 `MultimodalRoutePanel`로 완벽히 포워딩.
+     - `TransitMap.tsx`: 도착지가 도보 세그먼트인 경우 도착 핀 뱃지에 `🚶 {출발거점}에서 도보 {N}분` 이동 뱃지 시각화.
+  4. **단위 테스트 추가 및 100% 통과 (`tests/test_multimodal_routing.py`)**:
+     - `test_bus_and_bike_first_last_mile_walk_segments`: 버스 정류소 출발 경로 탐색 시 첫 세그먼트가 `walk`(서울역버스환승센터 ➔ 서울역)로 자동 삽입되고 소요시간과 수단이 정상 결합되는지 E2E 검증.
+- **영향도**: 사용자가 버스 정류소나 따릉이 대여소에서 출발/도착하더라도 인근 지하철역으로 왜곡되지 않고, 실제 거점과 연결 도보 안내를 정확하게 제공받음으로써 멀티모달 길찾기의 신뢰성과 정밀도 극대화.
+
+---
+
 ## [2026-11-02]
 
 ### 🛡️ 전체 코드베이스 로깅 정책(LOGGING_POLICY.md) 준수 전수 감사 및 무음 예외·민감정보 정비 (이슈 #81)

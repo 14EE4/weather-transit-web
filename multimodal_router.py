@@ -464,6 +464,10 @@ def format_duration_kr(mins: int) -> str:
 class MultimodalRouteState(TypedDict, total=False):
     from_query: str
     to_query: str
+    from_coords: Optional[List[float]]
+    to_coords: Optional[List[float]]
+    from_type: Optional[str]
+    to_type: Optional[str]
     district: str
     hour: int
     weather_override: Optional[Dict[str, Any]]
@@ -713,64 +717,200 @@ class MultimodalRoutingEngine:
     # ─────────────────────────────────────────────────────────────
     # 역/정류장 해석 및 지하철/버스/따릉이 개별 탐색 유틸리티
     # ─────────────────────────────────────────────────────────────
+    def register_bus_stops(self, stops: List[Dict[str, Any]]) -> None:
+        """실시간 버스 API 검색 또는 주변 정류소 조회로 획득한 신규 정류소를 라우터 인메모리 테이블에 등록"""
+        if not stops:
+            return
+        existing_ids = {str(b.get("id") or b.get("stId") or "") for b in self.bus_stops}
+        for st in stops:
+            sid = str(st.get("id") or st.get("stId") or "").strip()
+            if sid and sid not in existing_ids:
+                item = dict(st)
+                item.setdefault("station_type", "bus")
+                self.bus_stops.append(item)
+                existing_ids.add(sid)
+
+    def _make_walk_segment(
+        self, from_node: Dict[str, Any], to_node: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], int, float]:
+        """두 거점(정류소, 대여소, 지하철역) 간 First/Last-Mile 도보 세그먼트 생성"""
+        f_coords = from_node.get("coords", [127.0, 37.5])
+        t_coords = to_node.get("coords", [127.0, 37.5])
+        dist_km = haversine_km(f_coords[1], f_coords[0], t_coords[1], t_coords[0])
+        walk_km = max(0.05, round(dist_km * 1.25, 2))
+        walk_m = int(walk_km * 1000)
+        walk_min = max(1, round(walk_m / 67))  # 보행 속도 분당 약 67m (4km/h)
+        seg = {
+            "mode": "walk",
+            "label": "🚶 도보 이동",
+            "from_name": from_node.get("name", "출발"),
+            "to_name": to_node.get("name", "도착"),
+            "detail": f"{from_node.get('name', '출발')} ➔ {to_node.get('name', '도착')} 도보 이동 ({walk_m}m)",
+            "minutes": walk_min,
+            "distance_km": walk_km,
+            "fare_krw": 0,
+            "color": "#94A3B8",
+            "coords": [f_coords, t_coords],
+            "live_badge": f"도보 {walk_min}분 ({walk_m}m)",
+        }
+        return seg, walk_min, walk_km
+
+    # ─────────────────────────────────────────────────────────────
+    # 거점/역 해석 및 지하철/버스/따릉이 연계 유틸리티
+    # ─────────────────────────────────────────────────────────────
     def resolve_station(
-        self, query: str, extra_bike_stations: Optional[List[Dict[str, Any]]] = None
+        self,
+        query: str,
+        extra_bike_stations: Optional[List[Dict[str, Any]]] = None,
+        coords: Optional[List[float]] = None,
+        station_type: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         if not query:
             return None
         q = query.strip()
-        if q in self.station_by_name:
-            return self.station_by_name[q]
-        if not q.endswith("역") and f"{q}역" in self.station_by_name:
-            return self.station_by_name[f"{q}역"]
 
-        # 1. 지하철역 완전 및 부분 일치 검색
-        q_norm = q.replace(" ", "").replace("역", "")
+        # 0. 호출 시 좌표 및 거점 타입이 명시적으로 주입된 경우 최우선 처리
+        if coords and len(coords) >= 2:
+            c_lng, c_lat = float(coords[0]), float(coords[1])
+            s_type = station_type or ("subway" if q.endswith("역") else "bus")
+            if s_type == "subway":
+                nearest = self.find_nearest_subway(c_lat, c_lng) or {"name": q, "coords": [c_lng, c_lat], "lines": ["지하철"]}
+                res = dict(nearest)
+                res["name"] = q
+                res["coords"] = [c_lng, c_lat]
+                res["station_type"] = "subway"
+                res["nearest_subway"] = None
+                return res
+            else:
+                nearest = self.find_nearest_subway(c_lat, c_lng)
+                return {
+                    "id": f"{s_type}-{q}",
+                    "name": q,
+                    "coords": [c_lng, c_lat],
+                    "station_type": s_type,
+                    "nearest_subway": nearest,
+                }
+
+        q_clean = q.replace(" ", "")
+        q_norm = q_clean.replace("역", "")
+        is_bus_hint = (station_type == "bus") or any(k in q for k in ["버스", "정류", "환승센터"])
+        is_bike_hint = (station_type == "bike") or any(k in q for k in ["따릉이", "대여소"])
+
+        # Helper: 버스 정류소 매칭
+        def match_bus():
+            for bus in self.bus_stops:
+                b_name = bus.get("name", "").replace(" ", "")
+                b_norm = b_name.replace("역", "")
+                ars_id = str(bus.get("arsId", "")).strip()
+                st_id = str(bus.get("stId", "")).strip()
+                if (
+                    (ars_id and ars_id == q)
+                    or (st_id and st_id == q)
+                    or (q_clean and len(q_clean) >= 2 and (q_clean in b_name or b_name in q_clean))
+                    or (q_norm and len(q_norm) >= 2 and (q_norm in b_norm or b_norm in q_norm))
+                ):
+                    b_coords = bus.get("coords", [127.0, 37.5])
+                    nearest = self.find_nearest_subway(b_coords[1], b_coords[0])
+                    return {
+                        "id": str(bus.get("id") or bus.get("stId") or f"bus-{bus.get('name', q)}"),
+                        "name": bus.get("name") or q,
+                        "coords": b_coords,
+                        "station_type": "bus",
+                        "arsId": bus.get("arsId"),
+                        "stId": bus.get("stId"),
+                        "nearest_subway": nearest,
+                    }
+            return None
+
+        # Helper: 따릉이 대여소 매칭
+        def match_bike():
+            all_bikes = list(self.bike_stations)
+            if extra_bike_stations:
+                all_bikes.extend(extra_bike_stations)
+            q_bike_clean = re.sub(r"^\d+\.\s*", "", q_clean)
+            q_bike_norm = re.sub(r"^\d+\.\s*", "", q_norm)
+            for bike in all_bikes:
+                b_name = str(bike.get("name", "")).replace(" ", "")
+                b_clean = re.sub(r"^\d+\.\s*", "", b_name)
+                b_norm = b_clean.replace("역", "")
+                bike_id = str(bike.get("id", "")).strip()
+                station_no = str(bike.get("stationNo", "")).strip()
+                if (
+                    (bike_id and bike_id == q)
+                    or (station_no and station_no == q)
+                    or (q_bike_clean and len(q_bike_clean) >= 2 and (q_bike_clean in b_clean or b_clean in q_bike_clean))
+                    or (q_bike_norm and len(q_bike_norm) >= 2 and (q_bike_norm in b_norm or b_norm in q_bike_norm))
+                ):
+                    bk_coords = bike.get("coords") or [bike.get("lng", 127.0), bike.get("lat", 37.5)]
+                    nearest = self.find_nearest_subway(bk_coords[1], bk_coords[0])
+                    return {
+                        "id": str(bike.get("id") or f"bike-{bike.get('name', q)}"),
+                        "name": bike.get("name") or q,
+                        "coords": bk_coords,
+                        "station_type": "bike",
+                        "stationNo": bike.get("stationNo"),
+                        "nearest_subway": nearest,
+                    }
+            return None
+
+        # 1. 버스/따릉이 힌트가 있는 경우 해당 모드 우선 탐색
+        if is_bus_hint:
+            res_bus = match_bus()
+            if res_bus:
+                return res_bus
+
+        if is_bike_hint:
+            res_bike = match_bike()
+            if res_bike:
+                return res_bike
+
+        # 2. 지하철역 완전 및 정규화 일치 검색
+        if q in self.station_by_name:
+            res = dict(self.station_by_name[q])
+            res["station_type"] = "subway"
+            res["nearest_subway"] = None
+            return res
+        if not q.endswith("역") and f"{q}역" in self.station_by_name:
+            res = dict(self.station_by_name[f"{q}역"])
+            res["station_type"] = "subway"
+            res["nearest_subway"] = None
+            return res
+
         for st in self.subway_stations:
             st_norm = st["name"].replace(" ", "").replace("역", "")
             if st_norm == q_norm:
-                return st
+                res = dict(st)
+                res["station_type"] = "subway"
+                res["nearest_subway"] = None
+                return res
+
+        # 3. 버스 / 따릉이 정류소 검색 (힌트 없는 경우 순차 탐색)
+        if not is_bus_hint:
+            res_bus = match_bus()
+            if res_bus:
+                return res_bus
+
+        if not is_bike_hint:
+            res_bike = match_bike()
+            if res_bike:
+                return res_bike
+
+        # 4. 지하철역 부분 일치 (사용자 입력이 역명의 부분집합인 경우 우선)
         for st in self.subway_stations:
             st_norm = st["name"].replace(" ", "").replace("역", "")
-            if q_norm in st_norm or st_norm in q_norm:
-                return st
+            if q_norm and len(q_norm) >= 2 and q_norm in st_norm:
+                res = dict(st)
+                res["station_type"] = "subway"
+                res["nearest_subway"] = None
+                return res
 
-        # 2. 버스 정류소 이름/ARS-ID/stId 기반 인접 지하철 거점 매칭
-        for bus in self.bus_stops:
-            b_name = bus.get("name", "").replace(" ", "")
-            ars_id = str(bus.get("arsId", "")).strip()
-            st_id = str(bus.get("stId", "")).strip()
-            if (
-                (ars_id and ars_id == q)
-                or (st_id and st_id == q)
-                or (q_norm and len(q_norm) >= 2 and (q_norm in b_name or b_name in q_norm))
-            ):
-                coords = bus.get("coords", [127.0, 37.5])
-                nearest = self.find_nearest_subway(coords[1], coords[0])
-                if nearest:
-                    return nearest
-
-        # 3. 따릉이 대여소 이름/번호(stationNo) 기반 인접 지하철 거점 매칭
-        all_bikes = list(self.bike_stations)
-        if extra_bike_stations:
-            all_bikes.extend(extra_bike_stations)
-
-        q_clean = re.sub(r"^\d+\.\s*", "", q_norm)
-        for bike in all_bikes:
-            b_name = str(bike.get("name", "")).replace(" ", "")
-            b_clean = re.sub(r"^\d+\.\s*", "", b_name)
-            bike_id = str(bike.get("id", "")).strip()
-            station_no = str(bike.get("stationNo", "")).strip()
-            if (
-                (bike_id and bike_id == q)
-                or (station_no and station_no == q)
-                or (q_clean and len(q_clean) >= 2 and (q_clean in b_clean or b_clean in q_clean))
-                or (q_norm and len(q_norm) >= 2 and q_norm in b_name)
-            ):
-                coords = bike.get("coords") or [bike.get("lng", 127.0), bike.get("lat", 37.5)]
-                nearest = self.find_nearest_subway(coords[1], coords[0])
-                if nearest:
-                    return nearest
+        for st in self.subway_stations:
+            st_norm = st["name"].replace(" ", "").replace("역", "")
+            if st_norm and len(st_norm) >= 2 and st_norm in q_norm:
+                res = dict(st)
+                res["station_type"] = "subway"
+                res["nearest_subway"] = None
+                return res
 
         return None
 
@@ -1032,8 +1172,11 @@ class MultimodalRoutingEngine:
         if not start_st or not end_st:
             return None
 
-        s_name = start_st["name"]
-        e_name = end_st["name"]
+        start_node = start_st.get("nearest_subway") or start_st
+        end_node = end_st.get("nearest_subway") or end_st
+
+        s_name = start_node["name"]
+        e_name = end_node["name"]
         if s_name == e_name:
             return None
 
@@ -1042,7 +1185,7 @@ class MultimodalRoutingEngine:
         counter = 0
         low_freq_lines = {"경의중앙선", "경춘선", "경강선", "서해선", "수인분당선"}
 
-        start_lines = start_st.get("lines") or ["지하철"]
+        start_lines = start_node.get("lines") or ["지하철"]
         for line in start_lines:
             counter += 1
             init_pen = 0.08 if line in low_freq_lines else 0.0
@@ -1469,11 +1612,21 @@ class MultimodalRoutingEngine:
 
         live_bikes = (state.get("bike_candidates") or {}).get("live_snapshot") or []
         origin_st = (
-            self.resolve_station(state.get("from_query", "강남역"), extra_bike_stations=live_bikes)
+            self.resolve_station(
+                state.get("from_query", "강남역"),
+                extra_bike_stations=live_bikes,
+                coords=state.get("from_coords"),
+                station_type=state.get("from_type"),
+            )
             or self.resolve_station("강남역")
         )
         dest_st = (
-            self.resolve_station(state.get("to_query", "서울역"), extra_bike_stations=live_bikes)
+            self.resolve_station(
+                state.get("to_query", "서울역"),
+                extra_bike_stations=live_bikes,
+                coords=state.get("to_coords"),
+                station_type=state.get("to_type"),
+            )
             or self.resolve_station("서울역")
         )
 
@@ -1550,12 +1703,15 @@ class MultimodalRoutingEngine:
         o_lng, o_lat = origin["coords"]
         d_lng, d_lat = dest["coords"]
 
-        # 1. Subway Tool (최소환승 & 최단시간, 시간대별 배차 및 실시간 도착정보 연동)
+        subway_origin = origin.get("nearest_subway") or origin
+        subway_dest = dest.get("nearest_subway") or dest
+
+        # 1. Subway Tool (지하철 그래프 탐색은 지하철 거점 간 수행)
         sub_min_tr = self.search_subway_route(
-            origin["name"], dest["name"], mode="min_transfer", hour=hour, live_arrivals=live_arrs
+            subway_origin["name"], subway_dest["name"], mode="min_transfer", hour=hour, live_arrivals=live_arrs
         )
         sub_min_tm = self.search_subway_route(
-            origin["name"], dest["name"], mode="min_time", hour=hour, live_arrivals=live_arrs
+            subway_origin["name"], subway_dest["name"], mode="min_time", hour=hour, live_arrivals=live_arrs
         )
 
         # 2. Bus Tool (출발/도착 인근 버스 환승 거점 탐색)
@@ -1704,11 +1860,14 @@ class MultimodalRoutingEngine:
         o_lng, o_lat = origin["coords"]
         d_lng, d_lat = dest["coords"]
 
+        subway_origin = origin.get("nearest_subway") or origin
+        subway_dest = dest.get("nearest_subway") or dest
+
         sub_min_tr = self.search_subway_route(
-            origin["name"], dest["name"], mode="min_transfer", hour=hour, live_arrivals=live_arrs
+            subway_origin["name"], subway_dest["name"], mode="min_transfer", hour=hour, live_arrivals=live_arrs
         )
         sub_min_tm = self.search_subway_route(
-            origin["name"], dest["name"], mode="min_time", hour=hour, live_arrivals=live_arrs
+            subway_origin["name"], subway_dest["name"], mode="min_time", hour=hour, live_arrivals=live_arrs
         )
         origin_buses = self.find_nearby_bus_stops(o_lat, o_lng, limit=2, station_name=origin["name"])
         dest_buses = self.find_nearby_bus_stops(d_lat, d_lng, limit=2, station_name=dest["name"])
@@ -1765,6 +1924,21 @@ class MultimodalRoutingEngine:
 
         base_sub = sub_cands.get("min_transfer")
         fast_sub = sub_cands.get("min_time") or base_sub
+
+        subway_origin = origin.get("nearest_subway") or origin
+        subway_dest = dest.get("nearest_subway") or dest
+
+        first_walk_seg = None
+        first_walk_min = 0
+        first_walk_km = 0.0
+        if origin.get("station_type") in ("bus", "bike") and origin.get("name") != subway_origin.get("name"):
+            first_walk_seg, first_walk_min, first_walk_km = self._make_walk_segment(origin, subway_origin)
+
+        last_walk_seg = None
+        last_walk_min = 0
+        last_walk_km = 0.0
+        if dest.get("station_type") in ("bus", "bike") and dest.get("name") != subway_dest.get("name"):
+            last_walk_seg, last_walk_min, last_walk_km = self._make_walk_segment(subway_dest, dest)
 
         sub_crowd = int(ai_cong.get("subway_crowd", 52))
         bus_crowd = int(ai_cong.get("bus_crowd", 58))
@@ -1927,8 +2101,33 @@ class MultimodalRoutingEngine:
         if base_sub:
             is_top_for_rain = not bike_enabled
             sub_segments = list(base_sub.get("lineSegments") or [])
+            if first_walk_seg:
+                sub_segments = [dict(first_walk_seg)] + sub_segments
+            if last_walk_seg:
+                sub_segments = sub_segments + [dict(last_walk_seg)]
+
             dep_train = base_sub.get("departureTrain")
             sub_total_min = sum(int(seg["minutes"]) for seg in sub_segments) or int(base_sub["estimatedMinutes"])
+            sub_total_km = round(float(base_sub["distanceKm"]) + first_walk_km + last_walk_km, 1)
+            sub_outdoor_walk = 2 + first_walk_min + last_walk_min
+            sub_modes = ["subway"]
+            if base_sub["transferCount"] > 0 or first_walk_seg or last_walk_seg:
+                sub_modes = ["walk", "subway"]
+
+            sub_highlights = []
+            if first_walk_seg:
+                sub_highlights.append(f"🚶 출발: {origin['name']} ➔ {subway_origin['name']} 도보 {first_walk_min}분 ({int(first_walk_km * 1000)}m)")
+            if rain > 0:
+                sub_highlights.append(f"🌧️ 강수({rain}mm) 영향 없는 100% 실내 철도망")
+            else:
+                sub_highlights.append(f"🚇 환승 {base_sub['transferCount']}회 · {base_sub['stationCount']}개 역 정시 운행")
+            if dep_train and dep_train.get("isLive") and not first_walk_seg:
+                sub_highlights.append(f"🟢 실시간 열차: {subway_origin['name']} {dep_train['arrivalMessage']} ({dep_train.get('headwayLabel', '')})")
+            elif dep_train and not first_walk_seg:
+                sub_highlights.append(f"⏱️ 출발역({subway_origin['name']}) {dep_train['arrivalMessage'] if dep_train else '배차 4~6분'}")
+            if last_walk_seg:
+                sub_highlights.append(f"🚶 도착: {subway_dest['name']} ➔ {dest['name']} 도보 {last_walk_min}분 ({int(last_walk_km * 1000)}m)")
+            sub_highlights.append(f"💳 수도권 거리비례 운임 {base_sub['fareKrw']:,}원 ({sub_total_km}km)")
 
             routes.append(
                 self._pack_route_candidate(
@@ -1948,25 +2147,13 @@ class MultimodalRoutingEngine:
                     is_ai_recommended=is_top_for_rain,
                     total_minutes=sub_total_min,
                     total_fare_krw=int(base_sub["fareKrw"]),
-                    total_distance_km=float(base_sub["distanceKm"]),
+                    total_distance_km=sub_total_km,
                     transfer_count=int(base_sub["transferCount"]),
-                    outdoor_walk_minutes=2,
+                    outdoor_walk_minutes=sub_outdoor_walk,
                     crowd_percent=sub_crowd,
                     comfort_score=max(68, 95 - int(sub_crowd * 0.3)),
-                    modes_used=["walk", "subway"] if base_sub["transferCount"] > 0 else ["subway"],
-                    highlights=[
-                        (
-                            f"🌧️ 강수({rain}mm) 영향 없는 100% 실내 철도망"
-                            if rain > 0
-                            else f"🚇 환승 {base_sub['transferCount']}회 · {base_sub['stationCount']}개 역 정시 운행"
-                        ),
-                        (
-                            f"🟢 실시간 열차: {origin['name']} {dep_train['arrivalMessage']} ({dep_train.get('headwayLabel', '')})"
-                            if dep_train and dep_train.get("isLive")
-                            else f"⏱️ 출발역({origin['name']}) {dep_train['arrivalMessage'] if dep_train else '배차 4~6분'}"
-                        ),
-                        f"💳 수도권 거리비례 운임 {base_sub['fareKrw']:,}원 ({base_sub['distanceKm']}km)",
-                    ],
+                    modes_used=sub_modes,
+                    highlights=sub_highlights,
                     segments=sub_segments,
                     base_subway_route=base_sub,
                 )
@@ -2439,7 +2626,22 @@ class MultimodalRoutingEngine:
         # ── 4) 우천/외곽 시 3번째 후보: 지하철 최단시간(또는 대안) 경로 보강 ──
         if len(routes) < 3 and fast_sub:
             fast_segments = list(fast_sub.get("lineSegments") or [])
+            if first_walk_seg:
+                fast_segments = [dict(first_walk_seg)] + fast_segments
+            if last_walk_seg:
+                fast_segments = fast_segments + [dict(last_walk_seg)]
             fast_total_min = sum(int(seg["minutes"]) for seg in fast_segments) or int(fast_sub["estimatedMinutes"])
+            fast_total_km = round(float(fast_sub["distanceKm"]) + first_walk_km + last_walk_km, 1)
+
+            fast_highlights = [
+                "⚡ 역 정차 수 최소화 경로 탐색",
+                "🌧️ 도로 정체와 무관한 철도 정시 운행 보장",
+            ]
+            if first_walk_seg:
+                fast_highlights.insert(0, f"🚶 출발: {origin['name']} ➔ {subway_origin['name']} 도보 {first_walk_min}분")
+            if last_walk_seg:
+                fast_highlights.append(f"🚶 도착: {subway_dest['name']} ➔ {dest['name']} 도보 {last_walk_min}분")
+
             routes.append(
                 self._pack_route_candidate(
                     route_id="route-subway-fast",
@@ -2450,17 +2652,14 @@ class MultimodalRoutingEngine:
                     is_ai_recommended=False,
                     total_minutes=fast_total_min,
                     total_fare_krw=int(fast_sub["fareKrw"]),
-                    total_distance_km=float(fast_sub["distanceKm"]),
+                    total_distance_km=fast_total_km,
                     transfer_count=int(fast_sub["transferCount"]),
-                    outdoor_walk_minutes=3,
+                    outdoor_walk_minutes=3 + first_walk_min + last_walk_min,
                     crowd_percent=min(95, sub_crowd + 5),
                     comfort_score=max(65, 88 - int(sub_crowd * 0.25)),
                     modes_used=["walk", "subway"],
-                    highlights=[
-                        "⚡ 역 정차 수 최소화 경로 탐색",
-                        "🌧️ 도로 정체와 무관한 철도 정시 운행 보장",
-                    ],
-                    segments=list(fast_sub.get("lineSegments") or []),
+                    highlights=fast_highlights,
+                    segments=fast_segments,
                     base_subway_route=fast_sub,
                 )
             )
@@ -2636,29 +2835,68 @@ class MultimodalRoutingEngine:
                 transfer_trains = [dict(t) for t in (base_subway_route.get("transferTrains") or [])]
                 departure_train = base_subway_route.get("departureTrain")
 
-                if override_origin_coords and compat_path:
-                    actual_origin_name = segments[0].get("from_name", compat_path[0]["name"])
-                    sub_boarding_station = compat_path[0]["name"]
-                    # 따릉이 First-Mile 하차 후 지하철 탑승하는 역(예: 숙대입구역)을 환승역 핀으로 전환
-                    if sub_boarding_station and sub_boarding_station != actual_origin_name:
-                        compat_path[0]["isTransfer"] = True
+                # 1) 출발지가 지하철역이 아닌 First-Mile 구간(도보 또는 따릉이)이 있는 경우:
+                actual_origin_name = segments[0].get("from_name") if segments else None
+                first_seg_mode = segments[0].get("mode") if segments else None
+                sub_boarding_station = compat_path[0]["name"] if compat_path else None
+                if actual_origin_name and sub_boarding_station and sub_boarding_station != actual_origin_name:
+                    compat_path[0]["isTransfer"] = True
+                    if first_seg_mode == "bike":
                         compat_path[0]["transferInfo"] = f"🚲 따릉이 반납 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
-                        if sub_boarding_station not in transfer_stations:
-                            transfer_stations = [sub_boarding_station] + transfer_stations
-                        if departure_train:
-                            transfer_trains = [dict(departure_train)] + transfer_trains
-                        departure_train = None
+                        mode_label = "🚲 따릉이"
+                    elif first_seg_mode == "bus":
+                        compat_path[0]["transferInfo"] = f"🚌 버스 하차 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
+                        mode_label = "🚌 버스"
+                    else:
+                        compat_path[0]["transferInfo"] = f"🚶 도보 이동 ➔ 🚇 {compat_path[0].get('lineUsed', '지하철')} 탑승"
+                        mode_label = "🚶 도보"
 
+                    if sub_boarding_station not in transfer_stations:
+                        transfer_stations = [sub_boarding_station] + transfer_stations
+                    if departure_train:
+                        transfer_trains = [dict(departure_train)] + transfer_trains
+                    departure_train = None
+
+                    c_start = (segments[0].get("coords") or [override_origin_coords])[0] or override_origin_coords or [127.0, 37.5]
                     compat_path = [
                         {
                             "name": actual_origin_name,
-                            "coords": override_origin_coords,
-                            "lines": ["따릉이 First-Mile"],
-                            "lineUsed": "🚲 따릉이",
+                            "coords": c_start,
+                            "lines": [mode_label],
+                            "lineUsed": mode_label,
                             "isTransfer": False,
                             "transferInfo": None,
                         }
                     ] + compat_path
+
+                # 2) 도착지가 지하철역이 아닌 Last-Mile 구간(도보 또는 따릉이)이 있는 경우:
+                actual_dest_name = segments[-1].get("to_name") if segments else None
+                last_seg_mode = segments[-1].get("mode") if segments else None
+                sub_alight_station = compat_path[-1]["name"] if compat_path else None
+                if actual_dest_name and sub_alight_station and sub_alight_station != actual_dest_name:
+                    compat_path[-1]["isTransfer"] = True
+                    if last_seg_mode == "bike":
+                        compat_path[-1]["transferInfo"] = f"🚇 {compat_path[-1].get('lineUsed', '지하철')} 하차 ➔ 🚲 따릉이 반납"
+                        mode_label = "🚲 따릉이"
+                    elif last_seg_mode == "bus":
+                        compat_path[-1]["transferInfo"] = f"🚇 {compat_path[-1].get('lineUsed', '지하철')} 하차 ➔ 🚌 버스 탑승"
+                        mode_label = "🚌 버스"
+                    else:
+                        compat_path[-1]["transferInfo"] = f"🚇 {compat_path[-1].get('lineUsed', '지하철')} 하차 ➔ 🚶 도보 이동"
+                        mode_label = "🚶 도보"
+
+                    if sub_alight_station not in transfer_stations:
+                        transfer_stations.append(sub_alight_station)
+
+                    c_end = (segments[-1].get("coords") or [[127.0, 37.5]])[-1]
+                    compat_path.append({
+                        "name": actual_dest_name,
+                        "coords": c_end,
+                        "lines": [mode_label],
+                        "lineUsed": mode_label,
+                        "isTransfer": False,
+                        "transferInfo": None,
+                    })
 
         # 환승 횟수가 0인 직통 경로는 환승역/환승열차 메타데이터를 원천 비움
         if transfer_count == 0:
@@ -2912,11 +3150,19 @@ class MultimodalRoutingEngine:
         live_bike_snapshot: Optional[List[Dict[str, Any]]] = None,
         live_subway_arrivals: Optional[List[Dict[str, Any]]] = None,
         live_bus_arrivals: Optional[List[Dict[str, Any]]] = None,
+        from_coords: Optional[List[float]] = None,
+        to_coords: Optional[List[float]] = None,
+        from_type: Optional[str] = None,
+        to_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         t_start = time.perf_counter()
         initial_state: MultimodalRouteState = {
             "from_query": from_query,
             "to_query": to_query,
+            "from_coords": from_coords,
+            "to_coords": to_coords,
+            "from_type": from_type,
+            "to_type": to_type,
             "district": district,
             "hour": hour,
             "weather_context": weather_context or {},

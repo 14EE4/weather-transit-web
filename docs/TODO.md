@@ -23,6 +23,12 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (Next Sprint / 우선 착수) — **진행 중 (이슈 #78 등)**
+- [x] **[ROUTE-03] 버스 정류소 및 따릉이 대여소 출발/도착 시 First/Last-Mile 도보 세그먼트 보존 및 자동 삽입 (완료 · 2026-11-03 · 이슈 #89)**:
+  - `resolve_station()`에서 버스 정류소 및 따릉이 대여소 해석 시 명칭, 좌표, `station_type`을 보존하고 인접 지하철역을 `nearest_subway`로 연계.
+  - `MultimodalRouteRequest`에 `from_coords`, `to_coords`, `from_type`, `to_type` 명시적 파라미터 지원 및 `search_bus_stations` 동적 정류소 등록.
+  - 인접 지하철역 탑승/하차 시 First-Mile 및 Last-Mile 도보 세그먼트(`walk`) 자동 계산 및 `segments`, `modes_used`, `compat_path` 삽입.
+  - 프론트엔드 PC(`App.tsx`) 및 모바일(`AppM.tsx`) 양방향 좌표 연동 및 `TransitMap.tsx` 도보 도착 핀 뱃지 시각화.
+  - `tests/test_multimodal_routing.py` 단위 테스트 추가 및 검증 완료.
 - [x] **[UI-08] 경로 추천 탭 내 출발/도착지 검색을 통합 정류소(지하철·버스·따릉이) 검색으로 확장 및 전 수단 경로 탐색 호환 (완료 · 2026-11-02 · 이슈 #83)**:
   - 경로 추천 탭(`App.tsx`, `AppM.tsx`) 출발지·도착지 입력창에 `UnifiedStationSearch variant="route"` 탑재.
   - 지하철역(🚇)뿐 아니라 버스 정류소(🚌), 따릉이 대여소(🚲)를 실시간 통합 검색하여 원클릭 선택 지원.

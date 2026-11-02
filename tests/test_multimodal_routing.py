@@ -397,6 +397,60 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         )
         self.assertEqual(err_resp.status_code, 400)
 
+    def test_bus_and_bike_first_last_mile_walk_segments(self):
+        """버스 정류소 및 따릉이 대여소 출발 시 First/Last-Mile 도보 세그먼트 보존 및 자동 삽입 검증 (Issue #89)"""
+        # 1. resolve_station 거점 해석 검증: 원본 명칭과 station_type 보존, nearest_subway 연계
+        st = multimodal_routing_engine.resolve_station("서울역버스환승센터")
+        self.assertIsNotNone(st)
+        self.assertEqual(st["name"], "서울역버스환승센터")
+        self.assertEqual(st["station_type"], "bus")
+        self.assertIsNotNone(st.get("nearest_subway"))
+        self.assertEqual(st["nearest_subway"]["name"], "서울역")
+
+        # 2. 버스 정류소 출발 멀티모달 탐색 API 요청
+        payload = {
+            "from_station": "서울역버스환승센터",
+            "to_station": "강남역",
+            "district": "중구",
+            "hour": 14,
+            "weather": {"rain": 5.0, "temp": 15.0, "wind": 2.0, "humidity": 80.0},
+        }
+        resp = self.client.post("/api/v1/routes/multimodal-search", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["status"], "success")
+        self.assertGreater(len(data.get("routes", [])), 0)
+
+        # 3. 경로의 출발지가 버스 정류소이고, 첫 번째 세그먼트가 지하철역까지의 도보인지 검증
+        first_rt = data["routes"][0]
+        self.assertEqual(first_rt["from"], "서울역버스환승센터")
+        self.assertIn("walk", first_rt["modes_used"])
+        segs = first_rt.get("segments", [])
+        self.assertGreaterEqual(len(segs), 2)
+        self.assertEqual(segs[0]["mode"], "walk")
+        self.assertEqual(segs[0]["from_name"], "서울역버스환승센터")
+        self.assertEqual(segs[0]["to_name"], "서울역")
+        self.assertGreaterEqual(segs[0]["minutes"], 1)
+
+        # 4. 좌표가 직접 주입된 임의 버스 정류소 탐색 검증
+        payload_coords = {
+            "from_station": "종로2가사거리",
+            "to_station": "강남역",
+            "from_coords": [126.987, 37.570],
+            "from_type": "bus",
+            "district": "종로구",
+            "hour": 14,
+        }
+        resp_coords = self.client.post("/api/v1/routes/multimodal-search", json=payload_coords)
+        self.assertEqual(resp_coords.status_code, 200)
+        data_coords = resp_coords.json()
+        self.assertEqual(data_coords["status"], "success")
+        opt_rt = data_coords["routes"][0]
+        self.assertEqual(opt_rt["from"], "종로2가사거리")
+        self.assertEqual(opt_rt["segments"][0]["mode"], "walk")
+        self.assertEqual(opt_rt["segments"][0]["from_name"], "종로2가사거리")
+
+
 if __name__ == "__main__":
     unittest.main()
 

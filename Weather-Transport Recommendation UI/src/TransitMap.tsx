@@ -2838,20 +2838,28 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           color: var(--app-text);
           font-weight: 800;
           font-size: 11px;
-          padding: 4px 10px;
+          padding: 5px 12px;
           border-radius: 9999px;
           box-shadow: 0 4px 18px rgba(244,63,94,0.6);
           border: 2px solid var(--color-surface);
           display: flex;
+          flex-direction: column;
           align-items: center;
-          gap: 5px;
+          gap: 2px;
           white-space: nowrap;
         ">
-          <span>🔴 도착</span>
-          <span>${activeRoute.to}</span>
-          <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <span>🔴 도착</span>
+            <span>${activeRoute.to}</span>
+            <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
+          </div>
+          ${lastSegment?.mode === 'walk' ? `
+            <div style="font-size: 10px; color: #FFE4E6; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
+              <span>🚶 ${lastSegment.from_name}에서 도보 ${lastSegment.minutes}분</span>
+            </div>
+          ` : ''}
         </div>
-        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
+                <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
       `
     }
     if (endStop) {

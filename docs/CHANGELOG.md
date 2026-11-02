@@ -7,6 +7,25 @@
 ---
 
 ## [2026-11-02]
+
+### 🗺️🚩 지도 거점(지하철역·정류소·따릉이) 상세 팝업 내 '출발/도착' 설정 버튼 탑재 및 경로 추천 탭 원클릭 연동 (이슈 #79)
+- **배경/문제**:
+  - 사용자가 지도 뷰에서 마커를 클릭하여 팝업창(기상, AI 혼잡도, 도착정보)을 확인한 뒤 길찾기를 하려면, 경로 추천 탭으로 이동해 역·정류소 이름을 검색창에 다시 수동 타이핑해야 하는 불편한 UX 단절 존재.
+- **조치**:
+  1. `TransitMap.tsx`:
+     - 거점 상세 팝업(`buildStationPopupHtml`) 하단에 `[🚩 출발지로 설정]` 및 `[🏁 도착지로 설정]` 액션 버튼 툴바 탑재.
+     - 라이트/다크 모드 공통 테마 스타일(`var(--color-card2)`, `var(--color-border)`, `var(--app-text)`, 프라이머리 호버 하이라이트) 적용.
+     - 팝업 열림/닫힘 시 이벤트 위임(`data-action="set-origin"`, `data-action="set-destination"`) 핸들러 및 최신 콜백 ref(`onSetOriginRef`, `onSetDestinationRef`) 연동.
+     - `TransitMapProps`에 `onSetOrigin`, `onSetDestination` 콜백 속성 추가.
+  2. `App.tsx` (PC) 및 `AppM.tsx` (모바일) 100% 동시 동기화:
+     - `handleSetOriginFromMap`: 출발지(`departure`)에 거점 이름 자동 주입 및 로컬 스토리지 동기화.
+     - `handleSetDestinationFromMap`: 도착지(`destination`)에 거점 이름 자동 주입 및 로컬 스토리지 동기화.
+     - **스마트 카카오맵 스타일 인터랙션**: 출발지 설정 시 "지도에서 도착지를 마저 선택하세요" 가이드 토스트를 띄워 지도 탐색을 유지하고, 도착지까지 양쪽 모두 설정되면 자동으로 경로 추천 탭(`setPage('route')`)으로 전환.
+     - 지도 상단에 슬릭한 글래스모피즘 피드백 토스트 배너 탑재 (원클릭 [경로 추천 탭 이동 ➔] 버튼 및 ✕ 닫기 지원).
+- **영향도**: 지도 뷰에서 원하는 대중교통 거점을 원클릭으로 길찾기 출발지·도착지에 즉시 바인딩하여 PC와 모바일 전반의 탐색 편의성과 사용자 경험 대폭 향상.
+
+---
+
 ### 🛡️🔍 FactChat LLM 연동 무음 Fallback 개선 및 외부 버스 API 장애 시 관측성·Graceful Degradation 강화 (이슈 #80)
 - **배경/문제**:
   1. `.env`에 `FACTCHAT_API_KEY`가 미설정되었거나 더미 상태인 경우, 또는 LLM 호출 시 HTTP 401/429/500 에러 발생 시 경고 로그 없이 조용히 자체 XAI 룰 엔진으로 Fallback되어 관리자가 원인을 인지하기 어려움 (Silent Degradation).

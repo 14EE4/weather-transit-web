@@ -6,6 +6,31 @@
 
 ---
 
+## [2026-11-02]
+### 🛡️🔍 FactChat LLM 연동 무음 Fallback 개선 및 외부 버스 API 장애 시 관측성·Graceful Degradation 강화 (이슈 #80)
+- **배경/문제**:
+  1. `.env`에 `FACTCHAT_API_KEY`가 미설정되었거나 더미 상태인 경우, 또는 LLM 호출 시 HTTP 401/429/500 에러 발생 시 경고 로그 없이 조용히 자체 XAI 룰 엔진으로 Fallback되어 관리자가 원인을 인지하기 어려움 (Silent Degradation).
+  2. 서울시 버스 서버(`ws.bus.go.kr`)가 503 점검/과부하 상태일 때, 백엔드 `GET /api/v1/transit/bus/stations/nearby`가 HTTP 502 Bad Gateway를 던져 클라이언트 콘솔에 다량의 빨간색 에러 발생.
+  3. 경로 탐색 후 지도 카메라가 출발지에서 도착지로 날아가는 동안(`easeTo`/`flyTo`), 렌더 프레임마다 주변 정류장 조회가 발생하여 1초에 수십 건의 `nearby` 요청 연타가 발생하고 서킷브레이커가 불필요하게 OPEN되는 현상.
+  4. 인메모리 로거(`in_memory_log_handler.py`)에서 시스템 명칭(`weather-transit-backend`)에 포함된 'weather' 키워드로 인해 버스 API 에러 로그가 `[기상청]` 도메인으로 잘못 라벨링되는 현상.
+- **조치**:
+  1. `multimodal_router.py`:
+     - 유효한 FactChat API 키 부재 시 명시적 `logger.warning("[FactChat] 유효한 FACTCHAT_API_KEY가 설정되지 않아 XAI 규칙 엔진으로 대체 브리핑을 생성합니다.")` 출력.
+     - HTTP 비정상 응답(401, 429 등) 및 네트워크 예외 시 상태 코드/사유를 담은 명시적 WARNING 로그 기록.
+     - `langgraph_trace` 및 `ai_briefing` 페이로드에 `fallback_reason` 필드를 추가하여 프론트엔드 모니터링 콘솔에서도 전환 원인을 즉시 확인 가능하도록 개선.
+  2. `main.py` (`get_nearby_bus_stations`):
+     - 서울시 버스 API 키 부재, 503 장애, 타임아웃, 서킷브레이커 오픈 시 HTTP 502를 던지지 않고 `HTTP 200` 정상 응답과 함께 `"stations": []` (빈 목록) 및 Fallback 사유를 반환하는 Graceful Degradation 전면 적용.
+  3. `TransitMap.tsx`:
+     - `map.isMoving()` 및 `map.isRotating()` 감지 로직을 추가하여 카메라 애니메이션 이동 중에는 주변 정류장 조회를 자동 유예하고, 카메라가 완전히 정지한 후 500ms 디바운스 뒤 1회만 호출하도록 방어.
+     - 외부 API 지연 시 `console.error` 대신 `console.warn`으로 완화.
+  4. `in_memory_log_handler.py`:
+     - 도메인 태그 판별 우선순위를 재설계하여, 서킷브레이커 ➔ LangGraph ➔ 버스 ➔ 지하철 ➔ 따릉이 순서로 정확히 매핑하고 시스템 명칭 `weather`로 인한 기상청 오분류 원천 제거.
+  5. `tests/test_observability_logging.py`:
+     - 도메인 정밀 판별, 502 없는 주변 정류장 200 OK Fallback, FactChat 트레이스 내 `fallback_reason` 주입 검증 단위 테스트 추가 (전원 통과).
+- **영향도**: 외부 API 점검 시 브라우저 콘솔 에러 폭주 원천 차단, 실시간 AI 브리핑 추론 상태의 완벽한 가시성 및 관측성(Observability) 확보.
+
+---
+
 ## [2026-10-31]
 ### 🌦️⏱️ Docker 컨테이너 및 기상청 API KST(한국 표준시) 동기화 및 초단기실황 발표 시점 보정 (이슈 #75)
 - **배경/문제**:

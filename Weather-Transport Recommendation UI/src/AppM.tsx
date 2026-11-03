@@ -536,6 +536,10 @@ export default function AppM() {
 
   // ── 기상청 실시간 실황 데이터 연동 상태 (100% 진본 실시간) ──
   const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null)
+  // [이슈 #98] 지도 뷰포트(중심 좌표) 기준 국지 기상 실황 — 지도 탭에서만 사용
+  const [viewportWeather, setViewportWeather] = useState<LiveWeatherData | null>(null)
+  const [viewportDistrict, setViewportDistrict] = useState<string | null>(null)
+  const viewportWeatherKeyRef = useRef<string>('')
   const nowHour = new Date().getHours()
 
   // ── 지도 팝업에서 출발/도착 지정 시 피드백 토스트 상태 ──
@@ -998,6 +1002,37 @@ export default function AppM() {
   const isRaining = displayRain > 0 || (isCurrentHour && isLive && liveWeather.pty !== '0' && liveWeather.pty !== '')
   const activePtyDesc = isLive ? liveWeather.pty_desc : (activeRain > 0 ? `비 · ${activeRain}mm/h` : '맑음')
   const displayPtyDesc = !isCurrentHour ? (displayRain > 0 ? `비 · ${displayRain}mm/h` : '맑음') : activePtyDesc
+
+  // ── [이슈 #98] 지도 카메라 중심 좌표 → 자치구 해석 → 좌표 기반 국지 기상 조회 ──
+  //  · 같은 자치구 + 좌표 이동이 미미(0.01° 미만)하면 재조회 생략하여 과호출 방지
+  const handleViewportChange = (center: { lat: number; lng: number }) => {
+    const resolved = resolveDistrict('', [center.lng, center.lat])
+    const key = `${resolved}|${center.lat.toFixed(2)}|${center.lng.toFixed(2)}`
+    if (viewportWeatherKeyRef.current === key) return
+    viewportWeatherKeyRef.current = key
+    setViewportDistrict(resolved)
+    const url = `${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(resolved)}&lat=${center.lat}&lng=${center.lng}`
+    fetch(url)
+      .then(res => res.json())
+      .then((data: LiveWeatherData) => {
+        if (data && data.status === 'success') setViewportWeather(data)
+      })
+      .catch(err => {
+        // 실패 시 키를 초기화해 다음 이동에서 재시도하고, 표출은 기존 자치구 기상으로 폴백한다.
+        viewportWeatherKeyRef.current = ''
+        console.warn('[지도 뷰포트 기상] 조회 실패 — 기존 자치구 기상 유지:', err)
+      })
+  }
+
+  // 지도 뷰포트 기준 표출값 (미수신 시 전역 자치구 기상으로 폴백)
+  const mapWeather = viewportWeather || liveWeather
+  const mapTemp = mapWeather ? mapWeather.temp : activeTemp
+  const mapRain = mapWeather ? mapWeather.rain : activeRain
+  const mapHumidity = mapWeather ? mapWeather.humidity : activeHumidity
+  const mapWind = mapWeather ? mapWeather.wind : activeWind
+  const mapPtyDesc = mapWeather ? (mapWeather.pty_desc || (mapWeather.rain > 0 ? '비' : '맑음')) : activePtyDesc
+  const mapDistrictLabel = viewportDistrict || DISTRICTS[selectedDistrict] || '서울특별시'
+  const isViewportWeather = Boolean(viewportWeather)
 
   // ── 브라우저 개발자 콘솔(F12)에 실시간 공공 API 데이터 일괄 출력 (사용자 요청 시 온디맨드 On-Demand 호출) ──
   const triggerApiConsoleLog = async () => {
@@ -2506,6 +2541,22 @@ export default function AppM() {
               ))}
             </div>
 
+            {/* [이슈 #98] 지도 뷰포트(중심 좌표) 기준 국지 기상 요약 */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 20px', borderBottom: '1px solid var(--color-border)', background: 'rgba(56,189,248,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{ fontSize: 16 }}>{mapRain > 0 ? '🌧' : '☀️'}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>{mapTemp}°C · 강수 {mapRain}mm</span>
+                  <span style={{ fontSize: 9, color: 'var(--color-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {mapDistrictLabel} · 습도 {mapHumidity}% · 풍속 {mapWind}m/s
+                  </span>
+                </div>
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 800, flexShrink: 0, color: isViewportWeather ? '#34D399' : 'var(--color-muted)', background: isViewportWeather ? 'rgba(52,211,153,0.15)' : 'var(--color-card2)', padding: '2px 6px', borderRadius: 6 }}>
+                {isViewportWeather ? '지도 중심 기준' : '선택 지역 기준'}
+              </span>
+            </div>
+
             {/* 경로 및 선택 정류장 상세 정보 */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
               {activeRoute ? (
@@ -3117,7 +3168,7 @@ export default function AppM() {
               filterType={mapTransport}
               rainMm={activeRain}
               selectedTime={liveWeather ? `${parseInt(liveWeather.base_time.slice(0, 2), 10)}시` : `${new Date().getHours()}시`}
-              liveWeather={liveWeather}
+              liveWeather={mapWeather}
               focusedCoords={focusedCoords}
               selectedBusStation={selectedBusStation}
               selectedStop={selectedStop}
@@ -3130,6 +3181,7 @@ export default function AppM() {
               }}
               onSetOrigin={handleSetOriginFromMap}
               onSetDestination={handleSetDestinationFromMap}
+              onViewportChange={handleViewportChange}
             />
           </div>
         </div>

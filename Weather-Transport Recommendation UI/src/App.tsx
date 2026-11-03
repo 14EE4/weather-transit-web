@@ -532,6 +532,10 @@ export default function App() {
 
   // ── 기상청 실시간 실황 데이터 연동 상태 (100% 진본 실시간) ──
   const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null)
+  // [이슈 #98] 지도 뷰포트(중심 좌표) 기준 국지 기상 실황 — 지도 탭에서만 사용
+  const [viewportWeather, setViewportWeather] = useState<LiveWeatherData | null>(null)
+  const [viewportDistrict, setViewportDistrict] = useState<string | null>(null)
+  const viewportWeatherKeyRef = useRef<string>('')
   const nowHour = new Date().getHours()
 
   // ── 지도 팝업에서 출발/도착 지정 시 피드백 토스트 상태 ──
@@ -995,6 +999,37 @@ export default function App() {
   const isRaining = displayRain > 0 || (isCurrentHour && isLive && liveWeather.pty !== '0' && liveWeather.pty !== '')
   const activePtyDesc = isLive ? liveWeather.pty_desc : (activeRain > 0 ? `비 · ${activeRain}mm/h` : '맑음')
   const displayPtyDesc = !isCurrentHour ? (displayRain > 0 ? `비 · ${displayRain}mm/h` : '맑음') : activePtyDesc
+
+  // ── [이슈 #98] 지도 카메라 중심 좌표 → 자치구 해석 → 좌표 기반 국지 기상 조회 ──
+  //  · 같은 자치구 + 좌표 이동이 미미(0.01° 미만)하면 재조회 생략하여 과호출 방지
+  const handleViewportChange = (center: { lat: number; lng: number }) => {
+    const resolved = resolveDistrict('', [center.lng, center.lat])
+    const key = `${resolved}|${center.lat.toFixed(2)}|${center.lng.toFixed(2)}`
+    if (viewportWeatherKeyRef.current === key) return
+    viewportWeatherKeyRef.current = key
+    setViewportDistrict(resolved)
+    const url = `${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(resolved)}&lat=${center.lat}&lng=${center.lng}`
+    fetch(url)
+      .then(res => res.json())
+      .then((data: LiveWeatherData) => {
+        if (data && data.status === 'success') setViewportWeather(data)
+      })
+      .catch(err => {
+        // 실패 시 키를 초기화해 다음 이동에서 재시도하고, 표출은 기존 자치구 기상으로 폴백한다.
+        viewportWeatherKeyRef.current = ''
+        console.warn('[지도 뷰포트 기상] 조회 실패 — 기존 자치구 기상 유지:', err)
+      })
+  }
+
+  // 지도 뷰포트 기준 표출값 (미수신 시 전역 자치구 기상으로 폴백)
+  const mapWeather = viewportWeather || liveWeather
+  const mapTemp = mapWeather ? mapWeather.temp : activeTemp
+  const mapRain = mapWeather ? mapWeather.rain : activeRain
+  const mapHumidity = mapWeather ? mapWeather.humidity : activeHumidity
+  const mapWind = mapWeather ? mapWeather.wind : activeWind
+  const mapPtyDesc = mapWeather ? (mapWeather.pty_desc || (mapWeather.rain > 0 ? '비' : '맑음')) : activePtyDesc
+  const mapDistrictLabel = viewportDistrict || DISTRICTS[selectedDistrict] || '서울특별시'
+  const isViewportWeather = Boolean(viewportWeather)
 
   // ── 브라우저 개발자 콘솔(F12)에 실시간 공공 API 데이터 일괄 출력 (사용자 요청 시 온디맨드 On-Demand 호출) ──
   const triggerApiConsoleLog = async () => {
@@ -2505,9 +2540,13 @@ export default function App() {
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34D399', boxShadow: '0 0 8px #34D399', display: 'inline-block' }}></span>
                   기상청 실시간 관측 실황
+                  {/* [이슈 #98] 지도 뷰포트(중심 좌표) 기준 조회 여부 표기 */}
+                  <span style={{ fontSize: 9, fontWeight: 800, color: isViewportWeather ? '#34D399' : 'var(--color-muted)', background: isViewportWeather ? 'rgba(52,211,153,0.15)' : 'var(--color-card2)', padding: '1px 5px', borderRadius: 4 }}>
+                    {isViewportWeather ? '지도 중심 기준' : '선택 지역 기준'}
+                  </span>
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
-                  {liveWeather ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : '실시간 실측'}
+                  {mapWeather ? `${mapWeather.base_time.slice(0, 2)}:${mapWeather.base_time.slice(2, 4)} 발표` : '실시간 실측'}
                 </span>
               </div>
 
@@ -2515,22 +2554,22 @@ export default function App() {
               <div style={{ background: 'var(--color-card2)', borderRadius: 12, padding: '10px 12px', border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 24 }}>{activeRain > 0 ? '🌧' : '☀️'}</span>
+                    <span style={{ fontSize: 24 }}>{mapRain > 0 ? '🌧' : '☀️'}</span>
                     <div>
                       <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-                        {activeTemp}°C
+                        {mapTemp}°C
                       </div>
-                      <div style={{ fontSize: 11, color: activeRain > 0 ? 'var(--color-primary)' : 'var(--color-muted)', fontWeight: 600 }}>
-                        {activePtyDesc}
+                      <div style={{ fontSize: 11, color: mapRain > 0 ? 'var(--color-primary)' : 'var(--color-muted)', fontWeight: 600 }}>
+                        {mapPtyDesc}
                       </div>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 11, color: 'var(--color-muted)', fontWeight: 600 }}>
-                      {DISTRICTS[selectedDistrict] || '서울특별시'}
+                      {mapDistrictLabel}
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--color-primary)', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
-                      {liveWeather ? `격자 (${liveWeather.nx}, ${liveWeather.ny})` : 'KMA API'}
+                      {mapWeather ? `격자 (${mapWeather.nx}, ${mapWeather.ny})` : 'KMA API'}
                     </div>
                   </div>
                 </div>
@@ -2538,20 +2577,20 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
                   <div style={{ background: 'var(--color-card)', borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: 9, color: 'var(--app-text)' }}>강수량</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: activeRain > 0 ? 'var(--color-primary)' : 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-                      {activeRain} mm
+                    <div style={{ fontSize: 11, fontWeight: 700, color: mapRain > 0 ? 'var(--color-primary)' : 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
+                      {mapRain} mm
                     </div>
                   </div>
                   <div style={{ background: 'var(--color-card)', borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: 9, color: 'var(--app-text)' }}>습도</div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-                      {activeHumidity}%
+                      {mapHumidity}%
                     </div>
                   </div>
                   <div style={{ background: 'var(--color-card)', borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
                     <div style={{ fontSize: 9, color: 'var(--app-text)' }}>풍속</div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-                      {activeWind} m/s
+                      {mapWind} m/s
                     </div>
                   </div>
                 </div>
@@ -2559,8 +2598,8 @@ export default function App() {
 
               {/* 실시간 기상 교통 영향 코멘트 */}
               <div style={{ fontSize: 11, color: 'var(--app-text)', lineHeight: 1.45, padding: '2px 2px' }}>
-                {activeRain > 0 ? (
-                  <span>🌧 기상청 실시간 강수로 인해 <b>지하철·버스 이용객 증가</b> 및 <b>따릉이 이용 주의</b>가 발효 중입니다.</span>
+                {mapRain > 0 ? (
+                  <span>🌧 지도 중심 지역에 기상청 실시간 강수({mapRain}mm)가 관측되어 <b>지하철·버스 이용객 증가</b> 및 <b>따릉이 이용 주의</b>가 발효 중입니다.</span>
                 ) : (
                   <span>☀️ 쾌적한 기상 상태로 지하철, 버스, 따릉이 등 전 대중교통이 원활하게 운행 중입니다.</span>
                 )}
@@ -3181,7 +3220,7 @@ export default function App() {
               filterType={mapTransport}
               rainMm={activeRain}
               selectedTime={liveWeather ? `${parseInt(liveWeather.base_time.slice(0, 2), 10)}시` : `${new Date().getHours()}시`}
-              liveWeather={liveWeather}
+              liveWeather={mapWeather}
               focusedCoords={focusedCoords}
               selectedBusStation={selectedBusStation}
               selectedStop={selectedStop}
@@ -3193,6 +3232,7 @@ export default function App() {
               }}
               onSetOrigin={handleSetOriginFromMap}
               onSetDestination={handleSetDestinationFromMap}
+              onViewportChange={handleViewportChange}
             />
           </div>
         </div>

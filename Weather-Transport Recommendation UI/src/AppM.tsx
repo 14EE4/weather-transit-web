@@ -612,7 +612,9 @@ export default function AppM() {
   const [selectedDepartureIndex, setSelectedDepartureIndex] = useState(0)
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState(0)
 
-  // 경로 검색 실행 함수 (출발역-도착역 최단 경로 계산 및 실시간 열차 도착 정보 연동)
+  // 경로 검색 실행 함수 (지하철 전용 빠른 조회 — 최단 경로 계산 및 실시간 열차 도착 정보 연동)
+  // ※ 레거시 직결 탐색: 경로 추천 탭의 지하철 조회 · 출발/도착 맞바꾸기에서만 사용한다.
+  //    지도 보기 탭 CTA는 LangGraph 멀티모달 UI로 단일화되었으므로 여기서 호출하지 않는다 (이슈 #96).
   const handleSearchRoute = async (
     from = departure,
     to = destination,
@@ -2990,27 +2992,25 @@ export default function AppM() {
               ) : (
                 <div style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--app-text)' }}>강남구청 → 잠실역</div>
-                      <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>
-                        {mapTransport === 'subway' ? '지하철 2호선' : mapTransport === 'bus' ? '버스 145' : '따릉이 대여'}
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--app-text)' }}>🧭 경로 안내</span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 28, fontWeight: 900, color: '#38BDF8', fontFamily: 'JetBrains Mono', lineHeight: 1 }}>
-                        {mapTransport === 'subway' ? '28' : mapTransport === 'bus' ? '42' : '55'}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>분</div>
-                    </div>
+                    <span style={{ fontSize: 9.5, fontWeight: 800, color: '#38BDF8', background: 'rgba(56,189,248,0.18)', padding: '2px 7px', borderRadius: 6, fontFamily: 'JetBrains Mono' }}>
+                      LangGraph 멀티모달
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)', lineHeight: 1.5, marginTop: 2 }}>
+                    선택된 마커가 없습니다. 경로는 <b>경로 추천</b> 탭에서 출발·도착지를 지정하면 기상 게이트 · 32차원 AI 혼잡도 · FactChat 브리핑과 함께 안내됩니다.
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                     {[
-                      ['💰', mapTransport === 'subway' ? '1,550원~ (거리비례)' : mapTransport === 'bus' ? '1,300원' : '1,000원/h'],
-                      ['👥', activeRain > 3 ? (mapTransport === 'bike' ? '운행중단' : '매우혼잡') : (mapTransport === 'bike' ? '여유' : '보통')],
+                      ['🌦️', `${DISTRICTS[selectedDistrict] || '서울'} ${displayTemp}°C`],
+                      ['💧', `강수 ${displayRain}mm`],
+                      ['💨', `풍속 ${displayWind}m/s`],
                     ].map(([icon, val]) => (
-                      <div key={val as string} style={{ flex: 1, background: 'var(--color-card2)', borderRadius: 10, padding: '7px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontSize: 13 }}>{icon}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--app-text)' }}>{val}</span>
+                      <div key={val as string} style={{ flex: 1, minWidth: 0, background: 'var(--color-card2)', borderRadius: 10, padding: '6px 7px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <span style={{ fontSize: 11 }}>{icon}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--app-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
                       </div>
                     ))}
                   </div>
@@ -3023,29 +3023,8 @@ export default function AppM() {
               </div>
             </div>
 
-            {/* 안내 시작 버튼 */}
-            <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)' }}>
-              <button
-                onClick={() => {
-                  if (!activeRoute) {
-                    handleSearchRoute('강남역', '서울역')
-                  } else {
-                    const coords = activeRoute.path.map(p => p.coords)
-                    if (coords.length > 0) {
-                      setFocusedCoords(coords[0])
-                    }
-                  }
-                }}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: 16, cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #38BDF8, #22D3EE)', color: 'var(--color-bg)',
-                  fontSize: 15, fontWeight: 800, border: 'none',
-                  boxShadow: '0 8px 24px rgba(56,189,248,0.35)',
-                }}
-              >
-                🧭  실시간 대중교통 경로 안내
-              </button>
-            </div>
+            {/* [이슈 #96] 지도 경로 진입 CTA 제거 — 경로 탐색은 '경로 추천' 탭으로 일원화하고,
+                비어 있던 하단 푸터 영역을 상세 정보 스크롤 영역(flex: 1)이 그대로 흡수하도록 한다. */}
           </div>
 
           {/* MapLibre GL JS + OpenStreetMap 실제 지도 컨테이너 (100% 기상청 실시간 API 연동) */}

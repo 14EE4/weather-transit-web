@@ -24,6 +24,10 @@
   - Circuit Breaker(OPEN/HALF-OPEN), Last Known Good(직전 정상 스냅샷), Cold-Start 일주 곡선(`HOURLY_DIURNAL_FACTORS`) 폴백 방어선 명시.
   - 캐시 진단(`GET /api/v1/cache/timeseries-status`) 및 관리자 캐시 플러시(`POST /api/v1/admin/cache/clear`) 명세화.
   - `README.md` 공식 문서 표에 `docs/CACHING_POLICY.md` 반영.
+- [x] **[DOC-05] 캡스톤 최종 발표 및 기술 면접용 트러블슈팅 가이드(CAPSTONE_TROUBLESHOOTING.md) 신설 (완료 · 2026-11-03)**:
+  - STAR 기법 기반 6대 핵심 기술적 난관(32차원 ONNX 스키마 불일치, 서울시 버스 5종 API 트래픽/타임아웃, 기상청 LCC 격자 실시간 투영, 기상 안전 게이트, 모바일 뷰포트 가림, Docker Nginx 경로 정규화) 해결 과정 문서화.
+  - 심사위원 예상 질의(3대 Q&A) 모범 답변 및 발표 슬라이드 스토리라인 정리 완료.
+  - `docs/CAPSTONE_TROUBLESHOOTING.md` 신설 및 `README.md`, `docs/CHANGELOG.md` 전수 동기화.
 
 ---
 

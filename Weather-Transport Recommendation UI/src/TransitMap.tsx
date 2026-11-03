@@ -163,6 +163,8 @@ interface TransitMapProps {
   onClearRoute?: () => void
   onSetOrigin?: (stop: TransitStop) => void
   onSetDestination?: (stop: TransitStop) => void
+  /** [이슈 #98] 지도 카메라 중심 좌표 변경 통지 (디바운스 500ms, 확대 zoom 10 이상) */
+  onViewportChange?: (center: { lat: number; lng: number }) => void
 }
 
 interface MarkerItem {
@@ -201,7 +203,7 @@ type ApproachingBusVehicle = {
 
 // 버스 도착정보 표시
 
-export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation, selectedStop, onSelectStop, activeRoute, onClearRoute, onSetOrigin, onSetDestination }: TransitMapProps) {
+export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation, selectedStop, onSelectStop, activeRoute, onClearRoute, onSetOrigin, onSetDestination, onViewportChange }: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
@@ -215,6 +217,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   onSetOriginRef.current = onSetOrigin
   const onSetDestinationRef = useRef<((stop: TransitStop) => void) | undefined>(onSetDestination)
   onSetDestinationRef.current = onSetDestination
+  // [이슈 #98] 지도 뷰포트(중심 좌표) 변경 콜백 — 최신 prop을 참조하기 위해 ref로 보관
+  const onViewportChangeRef = useRef<((center: { lat: number; lng: number }) => void) | undefined>(onViewportChange)
+  onViewportChangeRef.current = onViewportChange
   const popupOpenedZoomRef = useRef<number | null>(null)
   const isFlyingRef = useRef<boolean>(false)
   const initialRestoreDoneRef = useRef<boolean>(false)
@@ -1120,9 +1125,28 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     map.on('moveend', saveCurrentMapView)
     map.on('zoomend', saveCurrentMapView)
 
+    // [이슈 #98] 지도가 바라보는 중심 좌표를 상위로 통지 → 뷰포트 기준 국지 기상 조회
+    //  · 디바운스 500ms + 카메라 이동/회전 중 무시 + zoom 10 미만(수도권 전체 뷰)에서는 생략
+    let viewportTimer: ReturnType<typeof setTimeout> | null = null
+    const notifyViewportChange = () => {
+      if (!onViewportChangeRef.current) return
+      if (map.isMoving() || map.isRotating()) return
+      if (map.getZoom() < 10) return
+      if (viewportTimer) clearTimeout(viewportTimer)
+      viewportTimer = setTimeout(() => {
+        const c = map.getCenter()
+        onViewportChangeRef.current?.({ lat: c.lat, lng: c.lng })
+      }, 500)
+    }
+    map.on('moveend', notifyViewportChange)
+    // 최초 진입 시에도 현재 뷰포트 기준 기상을 즉시 반영
+    notifyViewportChange()
+
     mapInstanceRef.current = map
 
     return () => {
+      if (viewportTimer) clearTimeout(viewportTimer)
+      map.off('moveend', notifyViewportChange)
       saveCurrentMapView()
       map.off('moveend', saveCurrentMapView)
       map.off('zoomend', saveCurrentMapView)
@@ -3433,38 +3457,30 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         </div>
       )}
 
-      {/* 실시간 기상청 실황 관측치 오버레이 (모바일에서는 컴팩트 알약 배지화) */}
-      <div style={{
-        position: 'absolute',
-        top: isMobile ? 12 : 16,
-        right: isMobile ? 54 : 56, // 지도 컨트롤러 피해서 배치
-        zIndex: 10,
-        background: 'var(--app-glass)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(56, 189, 248, 0.35)',
-        borderRadius: isMobile ? 20 : 14,
-        padding: isMobile ? '4px 10px' : '10px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: isMobile ? 6 : 12,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-      }}>
-        <span style={{ fontSize: isMobile ? 14 : 24 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
-        <div>
-          <div style={{ fontSize: isMobile ? 11 : 12, fontWeight: 700, color: 'var(--app-text)', whiteSpace: 'nowrap' }}>
-            {isMobile
-              ? `${liveWeather ? `${liveWeather.temp}°C · ` : ''}${rainMm > 0 ? `${rainMm.toFixed(1)}mm/h` : '맑음'}`
-              : `🟢 기상청 실시간 관측 실황 | ${liveWeather ? `${liveWeather.temp}°C · ` : ''}${rainMm > 0 ? `강수량 ${rainMm.toFixed(1)}mm/h` : '강수 없음 (맑음)'}`}
-          </div>
-          {!isMobile && (
-            <div style={{ fontSize: 10, color: '#38BDF8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>{liveWeather ? `${liveWeather.district || '관측소'} (${liveWeather.base_time ? `${liveWeather.base_time.slice(0, 2)}:${liveWeather.base_time.slice(2, 4)} 발표` : selectedTime})` : '100% 공공데이터 실측 실황'}</span>
-              <span style={{ color: 'var(--app-text)' }}>·</span>
-              <span>OpenStreetMap + MapLibre GL</span>
-            </div>
-          )}
+      {/* [이슈 #98 후속] 지도 우측 상단 기상 오버레이 — PC는 사이드바 카드와 중복되어 제거하고,
+          지도가 화면 대부분을 차지하는 모바일에서만 컴팩트 알약으로 유지한다. (값은 뷰포트 기준 주입) */}
+      {isMobile && (
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          right: 54, // 지도 컨트롤러 피해서 배치
+          zIndex: 10,
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(56, 189, 248, 0.35)',
+          borderRadius: 20,
+          padding: '4px 10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        }}>
+          <span style={{ fontSize: 14 }}>{rainMm > 0 ? '🌧' : '☀️'}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--app-text)', whiteSpace: 'nowrap' }}>
+            {`${liveWeather ? `${liveWeather.temp}°C · ` : ''}${rainMm > 0 ? `${rainMm.toFixed(1)}mm/h` : '맑음'}`}
+          </span>
         </div>
-      </div>
+      )}
 
       {/* 줌 확대 안내 배지 / 경로 집중 모드 배지 (모바일에서는 지도를 가리지 않도록 숨김) */}
       {!isMobile && (
@@ -3539,6 +3555,9 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                   <span style={{ fontSize: 10, color: 'var(--app-text)' }}>혼잡 (&gt; 75%)</span>
                 </div>
               </div>
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--color-border)', fontSize: 9, color: 'var(--color-muted)' }}>
+                지도: OpenStreetMap + MapLibre GL
+              </div>
             </div>
           )}
           <button
@@ -3599,8 +3618,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
               <span style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
-                🚇 561역 · 🚌 55개소 · 🚲 52개소
+                🚌 {BUS_STOPS.length}개소 · 🚲 {BIKE_STATIONS.length}개소 (대표 거점)
               </span>
+            </div>
+            <div style={{ marginTop: 2, fontSize: 9, color: 'var(--color-muted)' }}>
+              지도: OpenStreetMap + MapLibre GL
             </div>
           </div>
         </div>

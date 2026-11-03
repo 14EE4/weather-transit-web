@@ -23,6 +23,9 @@ FORBIDDEN_PATTERNS = [
     # 데이터 부재 시 하드코딩으로 정상 운행을 단정하던 문구
     ("배차 간격 2~5분 정상 운행중", "하드코딩 운행 상태 표출 금지"),
     ("배차 간격 유지 정상 운행중", "하드코딩 운행 상태 표출 금지"),
+    # 데모·시연용으로 고정된 정류소/노선 ID (실제 선택 거점 기준 조회로 대체)
+    ("stId=111000299", "데모 정류소 ID 하드코딩 금지"),
+    ("'100100118'", "데모 버스 노선 ID 하드코딩 금지"),
 ]
 
 
@@ -89,6 +92,20 @@ class TestNoMockFallbacks(unittest.TestCase):
             read_source("TransitMap.tsx"),
             "TransitMap.tsx: 도착 정보 추정 배지 누락",
         )
+
+    def test_no_placeholder_route_values(self):
+        """[P2] 경로를 찾지 못했을 때 임의의 소요시간·요금 대체값을 표시하지 않아야 한다."""
+        for name in ("App.tsx", "AppM.tsx"):
+            text = read_source(name)
+            self.assertNotIn(": '25분'", text, f"{name}: 임의 소요시간('25분') 대체값이 남아 있습니다.")
+            self.assertNotIn(": '1,550원'", text, f"{name}: 임의 요금('1,550원') 대체값이 남아 있습니다.")
+
+    def test_seed_coverage_is_disclosed(self):
+        """[P2] 정적 시드 마커 커버리지(부분집합)를 UI에서 고지해야 한다."""
+        for name in ("App.tsx", "AppM.tsx"):
+            text = read_source(name)
+            self.assertIn("BUS_STOPS.length", text, f"{name}: 버스 시드 개수 고지 누락")
+            self.assertIn("BIKE_STATIONS.length", text, f"{name}: 따릉이 시드 개수 고지 누락")
 
     def test_fallback_module_is_documented(self):
         """폴백 상수 모듈은 폴백 전용임이 문서화되어 있어야 한다."""

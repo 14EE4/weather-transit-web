@@ -18,11 +18,34 @@
   - `in_memory_log_handler.py`: 인메모리 링 버퍼 `emit()` 시 민감정보 자동 마스킹 적용하여 대시보드 및 로그 누출 원천 차단.
   - `main.py`, `multimodal_router.py`, `timeseries_cache.py`, `TransitMap.tsx` 내 무음 예외(`except: pass`, 빈 `catch {}`)를 전면 색출하여 표준 로그 레벨(INFO/WARN/DEBUG) 및 스택 정보 부여.
   - `tests/test_observability_logging.py` 단위 테스트 확장 및 100% 검증 통과.
+- [x] **[CACHE-01] 전사 공공 API 및 AI 추론 데이터 캐싱 정책 명세서(CACHING_POLICY.md) 제정 (완료 · 2026-11-03 · 이슈 #94)**:
+  - `docs/CACHING_POLICY.md` 신설: 데이터 도메인별 캐시 생명주기(TTL) 표준화 (기상청 `30분`, 따릉이 `60초`, 지하철/버스 `15초`, 시계열 피처 `0.1ms` SQLite WAL 영속화, 브라우저 `12회` 캐시).
+  - 3계층 다중 캐시 파이프라인(Client LocalStorage ➔ Server RAM ➔ Host Disk SQLite WAL) 구조화 및 Mermaid 다이어그램화.
+  - Circuit Breaker(OPEN/HALF-OPEN), Last Known Good(직전 정상 스냅샷), Cold-Start 일주 곡선(`HOURLY_DIURNAL_FACTORS`) 폴백 방어선 명시.
+  - 캐시 진단(`GET /api/v1/cache/timeseries-status`) 및 관리자 캐시 플러시(`POST /api/v1/admin/cache/clear`) 명세화.
+  - `README.md` 공식 문서 표에 `docs/CACHING_POLICY.md` 반영.
+- [x] **[DOC-05] 캡스톤 최종 발표 및 기술 면접용 트러블슈팅 가이드(CAPSTONE_TROUBLESHOOTING.md) 신설 (완료 · 2026-11-03)**:
+  - STAR 기법 기반 6대 핵심 기술적 난관(32차원 ONNX 스키마 불일치, 서울시 버스 5종 API 트래픽/타임아웃, 기상청 LCC 격자 실시간 투영, 기상 안전 게이트, 모바일 뷰포트 가림, Docker Nginx 경로 정규화) 해결 과정 문서화.
+  - 심사위원 예상 질의(3대 Q&A) 모범 답변 및 발표 슬라이드 스토리라인 정리 완료.
+  - `docs/CAPSTONE_TROUBLESHOOTING.md` 신설 및 `README.md`, `docs/CHANGELOG.md` 전수 동기화.
 
 ---
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (Next Sprint / 우선 착수) — **진행 중 (이슈 #78 등)**
+- [x] **[UI-11] 지도 보기 기상 실황을 지도 뷰포트(중심 좌표) 기준 국지 날씨로 전환 (완료 · 2026-11-03 · 이슈 #98)**:
+  - `TransitMap.tsx`에 `onViewportChange` 콜백 신설 — `moveend` 디바운스 `500ms` + `isMoving/isRotating` 가드 + `zoom < 10` 생략, 최초 진입 1회 통지.
+  - `resolveDistrict('', [lng, lat])` 기반 자치구 해석 후 `GET /api/v1/weather/current?district=..&lat=..&lng=..`(좌표 → KMA 격자) 호출. 자치구 + 좌표 0.01° 캐시 키로 과호출 억제.
+  - 카드 우측에 해석된 자치구명 표기 + `지도 중심 기준`/`선택 지역 기준` 배지로 조회 기준 명시, 실패 시 기존 자치구 기상 폴백.
+  - 모바일(`AppM.tsx`) 지도 사이드바에 뷰포트 기상 요약 1줄(기온·강수·습도·풍속) 신설.
+  - **(후속)** 지도 우측 상단 기상 오버레이를 PC에서 제거(사이드바 카드와 중복 + 전역 자치구 값 사용으로 불일치)하고 모바일에서만 컴팩트 알약 유지, `OpenStreetMap + MapLibre GL` 출처 표기는 범례로 이동.
+  - 백엔드 변경 0건 (기존 좌표 기반 기상 API 재사용).
+- [ ] **[UI-10] 지도 보기 '실시간 대중교통 경로 안내' CTA 구버전 단일 지하철 경로 UI 정리 및 LangGraph 멀티모달 일원화 (진행 중 · 2026-11-03 · 이슈 #96)**:
+  - 지도 사이드바 CTA가 `handleSearchRoute('강남역', '서울역')`을 하드코딩 호출해 레거시 `findSubwayRoute()` 단일 지하철 경로 카드를 표출하던 결함 제거.
+  - 지도 경로 진입 CTA(`🧭 실시간 대중교통 경로 안내`)를 삭제하고 `경로 추천` 탭(LangGraph 멀티모달)으로 진입점 단일화. 버튼이 차지하던 하단 고정 푸터 영역을 상세 정보 스크롤 영역(`flex: 1`)이 흡수하여 사이드바 가용 영역 확대.
+  - 마커 미선택 시 표출되던 `강남구청 → 잠실역 / 28분 / 1,550원~` 하드코딩 목업 카드를 실시간 기상(기온 · 강수 · 풍속) 빈 상태(Empty State)로 교체.
+  - PC(`App.tsx`) · 모바일(`AppM.tsx`) 동일 로직 반영 및 `handleSearchRoute`를 '지하철 전용 빠른 조회'로 역할 명확화.
+  - 사용자 수동 검증(브라우저 CTA 클릭 · 우천 게이트 표출) 후 `[x]` 전환 예정.
 - [ ] **[ROUTE-04] 경로 탐색 시 출발·도착지 및 교통수단 탑승 위치 기반 국지 날씨 자동 조회 및 구간별 기상 게이트 적용 (Next Sprint · 이슈 #91)**:
   - **Phase 1 (출발·도착지 자치구 자동 해석 및 교차 검증)**:
     - 출발지/도착지 거점의 `districtResolver` 기반 소속 자치구 자동 판별.
@@ -115,6 +138,12 @@
 ---
 
 ### 📊 0-1. 데이터 엔지니어링 및 품질/신뢰도 고도화 5대 과제 (Backlog)
+- [x] **[DATA-06 · 신뢰도 · P1] 목업·폴백 데이터 전수 재감사 및 추정치 출처 표기 일원화 (완료 · 2026-11-03 · 이슈 #97)**:
+  - **P1 완료**: 지하철·버스 도착 조회 실패 시 `remaining_minutes: 2`·`'배차 간격 2~5분 정상 운행'` 허위 수치 생성 제거, `stId` 하드코딩(`111000299`) 및 가짜 노선 카드(`472`/`140`) 삭제, `CLIENT_NO_DATA` 출처 코드 도입.
+  - **P1 완료**: AI 추론 폴백 점수(`FALLBACK_TRANSPORT_SCORES`)·혼잡도 기본값(`FALLBACK_DISTRICT_DATA`)·24시간 시계열(`DEFAULT_24H_DATA`)에 `⚠️ 기본값(추정)` / `⚠️ 추정` / `⚠️ 시계열 기본값(추정)` 배지 표출.
+  - **P1 완료**: 재유입 방지 가드 테스트 `tests/test_no_mock_fallbacks.py` 신설 (P2 패턴 포함 **8건 통과**).
+  - **P2 완료**: `자주 찾는 경로` 미탐색 시 임의 대체값(`'25분'`/`'1,550원'`) 제거(`—` 표기), 정적 시드 정류소 커버리지(버스 `BUS_STOPS.length`개소·따릉이 `BIKE_STATIONS.length`개소)를 지도 사이드바에 고지, `triggerApiConsoleLog` 데모 정류소 ID(`111000299`)를 선택 정류소 `stId` 기반 조회로 교체.
+  - **문서 정합성**: `docs/TODO_MOCK_AND_UNVERIFIED_DATA.md` 배너를 "목업 전수 전환 100% 완료" → **"재감사 진행 중(P1·P2 조치 완료)"** 으로 정정.
 - [x] **[DATA-01 · 품질/신뢰도 · P0] 2025년 `11월 말 ~ 12월` 버스 승차 결측치 원천 재수집 (종결 · 2026-10-31 · 이슈 #52)**:
   - 3개년(`2023~2025`) 63만 건 다년도 대규모 데이터셋 구축 및 v2.1 32차원 ONNX AI 모델 학습·서빙이 완료됨에 따라 모델 일반화 성능(R² > 0.98)이 충분히 확보되어 종결 처리.
 - [ ] **[DATA-02 · 협업/재현성 · P1] 대용량 원천 데이터셋 무결성 메타데이터 및 체크섬 구축**:

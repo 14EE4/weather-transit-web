@@ -925,11 +925,10 @@ export default function AppM() {
           const arrivalData = await arrivalRes.json()
           if (!isMounted) return
 
-          const arrivals = (arrivalData.status === 'success' && arrivalData.arrivals && arrivalData.arrivals.length > 0)
+          // [이슈 #97] 실시간 도착 정보가 없을 때 임의의 도착 시간을 생성하지 않는다.
+          const arrivals = (arrivalData.status === 'success' && Array.isArray(arrivalData.arrivals) && arrivalData.arrivals.length > 0)
             ? arrivalData.arrivals
-            : [
-              { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
-            ]
+            : []
           setStopArrivalData({
             loading: false,
             subwayArrivals: arrivals,
@@ -937,22 +936,25 @@ export default function AppM() {
           })
           logSubwayApiCall(cleanName, arrivals, arrivalData)
         } else if (stop.type === 'bus') {
-          const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=111000299`)
-          const busData = await busRes.json()
-          if (!isMounted) return
+          // [이슈 #97] 정류소 고유 ID(stId)를 사용하며, 부재 시 가짜 도착 정보를 생성하지 않는다.
+          const targetStId = stop.stId || ''
+          if (!targetStId) {
+            setStopArrivalData({ loading: false, busArrivals: [] })
+          } else {
+            const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
+            const busData = await busRes.json()
+            if (!isMounted) return
 
-          const arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
-            ? busData.arrivals
-            : [
-              { route_name: '472', arrival_msg1: '곧 도착' },
-              { route_name: '140', arrival_msg1: '3분 후' }
-            ]
-          setStopArrivalData({
-            loading: false,
-            busArrivals: arrivals,
-            lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          })
-          logBusApiCall('100100118', '111000299', arrivals, busData)
+            const arrivals = (busData.status === 'success' && Array.isArray(busData.arrivals) && busData.arrivals.length > 0)
+              ? busData.arrivals
+              : []
+            setStopArrivalData({
+              loading: false,
+              busArrivals: arrivals,
+              lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            })
+            logBusApiCall(stop.lineInfo || targetStId, targetStId, arrivals, busData)
+          }
         } else {
           setStopArrivalData({ loading: false })
         }
@@ -961,9 +963,7 @@ export default function AppM() {
         if (isMounted) {
           setStopArrivalData({
             loading: false,
-            subwayArrivals: [
-              { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '정상 운행중', remaining_minutes: 2, updn_line: '상/하행' }
-            ],
+            subwayArrivals: [],
             lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
           })
         }
@@ -1661,6 +1661,12 @@ export default function AppM() {
                   }}>
                     {aiStatus === 'connected' ? `ONNX AI (${aiLatency}ms)` : aiStatus === 'loading' ? '추론 중...' : '오프라인'}
                   </span>
+                  {/* [이슈 #97] 실시간 추론 미연동 시 폴백 점수·소요시간을 추정치로 명시 */}
+                  {aiStatus !== 'connected' && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#F59E0B', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', padding: '1px 5px', borderRadius: 4 }}>
+                      ⚠️ 기본값(추정)
+                    </span>
+                  )}
                 </div>
               </div>
               {transportScores.map((t, i) => (
@@ -1724,7 +1730,7 @@ export default function AppM() {
                         boxShadow: hourlyLiveStatus === 'live' ? '0 0 6px #10B981' : 'none'
                       }} />
                       <span style={{ fontSize: 10, color: hourlyLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
-                        {hourlyLiveStatus === 'live' ? '24H ONNX AI 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '시계열 기본값'}
+                        {hourlyLiveStatus === 'live' ? '24H ONNX AI 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '⚠️ 시계열 기본값(추정)'}
                       </span>
                     </span>
                   </div>
@@ -1958,6 +1964,12 @@ export default function AppM() {
                   <span style={{ fontSize: 10, color: districtLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
                     {districtLiveStatus === 'live' ? 'ONNX 실시간 연동' : districtLiveStatus === 'loading' ? '추론 중...' : '기본값'}
                   </span>
+                  {/* [이슈 #97] 실시간 연동 전에는 혼잡도를 추정치로 명시 */}
+                  {districtLiveStatus !== 'live' && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#F59E0B', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', padding: '1px 5px', borderRadius: 4 }}>
+                      ⚠️ 추정
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2921,7 +2933,7 @@ export default function AppM() {
                         </div>
                       ) : (
                         <div style={{ fontSize: 11, color: 'var(--color-muted)', padding: '6px 0', textAlign: 'center' }}>
-                          배차 간격 2~5분 정상 운행중입니다.
+                          실시간 열차 도착 정보를 불러오지 못했습니다.
                         </div>
                       )}
                     </div>

@@ -490,8 +490,12 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               <span style="font-size: 11px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
                 <span>🚇</span> 실시간 열차 도착
               </span>
-              <span style="font-size: 9px; font-weight: 700; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px;">
-                실시간 API
+              <span style="font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; ${
+                apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') || apiSource.includes('NO_DATA')
+                  ? 'color: #F59E0B; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);'
+                  : 'color: #34D399; background: rgba(52,211,153,0.15);'
+              }">
+                ${apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') || apiSource.includes('NO_DATA') ? '⚠️ 시간표 추정' : '실시간 API'}
               </span>
             </div>
             <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
@@ -522,7 +526,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       } else {
         arrivalSection = `
           <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-            <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">배차 간격 2~5분 정상 운행중</div>
+            <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">실시간 열차 도착 정보를 불러오지 못했습니다</div>
           </div>
         `
       }
@@ -543,11 +547,11 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
                 <span>🚌</span> 실시간 버스 도착
               </span>
               <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; ${
-                apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT')
+                apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') || apiSource.includes('NO_DATA')
                   ? 'color: #F59E0B; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);'
                   : 'color: #34D399; background: rgba(52,211,153,0.15);'
               }">
-                ${apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') ? '⚠️ 시간표 추정' : '실시간 API'}
+                ${apiSource.includes('FALLBACK') || apiSource.includes('CIRCUIT') || apiSource.includes('NO_DATA') ? '⚠️ 시간표 추정' : '실시간 API'}
               </span>
             </div>
             <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
@@ -563,7 +567,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       } else {
         arrivalSection = `
           <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border);">
-            <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">배차 간격 유지 정상 운행중</div>
+            <div style="font-size: 10px; color: var(--color-muted); text-align: center; padding: 4px 0;">실시간 버스 도착 정보를 불러오지 못했습니다</div>
           </div>
         `
       }
@@ -803,18 +807,16 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
             `${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`
           )
           const arrivalData = await arrivalRes.json()
-          arrivals = (arrivalData.status === 'success' && arrivalData.arrivals && arrivalData.arrivals.length > 0)
-            ? arrivalData.arrivals
-            : [
-                { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '배차 간격 2~5분 정상 운행', remaining_minutes: 2, updn_line: '상/하행' }
-              ]
-          apiCallSource = String(arrivalData.source || '')
+          const hasLiveArrivals = arrivalData.status === 'success' && Array.isArray(arrivalData.arrivals) && arrivalData.arrivals.length > 0
+          // [이슈 #97] 실시간 도착 정보가 없을 때 임의의 도착 시간(remaining_minutes)을 생성하지 않는다.
+          arrivals = hasLiveArrivals ? arrivalData.arrivals : []
+          apiCallSource = hasLiveArrivals ? String(arrivalData.source || '') : 'CLIENT_NO_DATA'
           logSubwayApiCall(cleanName, arrivals, arrivalData)
-        } catch {
-          apiCallSource = 'CLIENT_FALLBACK'
-          arrivals = [
-            { line: stop.lineInfo.split(' · ')[0] || '지하철', destination: `${stop.name} 경유 방면`, message: '정상 운행중', remaining_minutes: 2, updn_line: '상/하행' }
-          ]
+        } catch (err) {
+          // [이슈 #97] 조회 실패 시 허위 도착정보를 만들지 않고 빈 상태로 표출한다.
+          console.debug('[TransitMap] 지하철 실시간 도착 조회 실패 (빈 상태 표출):', err)
+          apiCallSource = 'CLIENT_NO_DATA'
+          arrivals = []
           logSubwayApiCall(cleanName, arrivals)
         }
       } else if (stop.type === 'bus') {
@@ -840,19 +842,22 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           try {
             const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
             const busData = await busRes.json()
-            apiCallSource = String(busData.source || '')
-            arrivals = (busData.status === 'success' && busData.arrivals && busData.arrivals.length > 0)
-              ? busData.arrivals
-              : [{ route_name: r1, arrival_msg1: '배차간격 유지 운행중' }]
+            const hasLiveBusArrivals = busData.status === 'success' && Array.isArray(busData.arrivals) && busData.arrivals.length > 0
+            // [이슈 #97] 실시간 도착 정보 부재 시 가짜 도착 카드를 생성하지 않는다.
+            arrivals = hasLiveBusArrivals ? busData.arrivals : []
+            apiCallSource = hasLiveBusArrivals ? String(busData.source || '') : 'CLIENT_NO_DATA'
             logBusApiCall(r1, targetStId, arrivals, busData)
-          } catch {
-            apiCallSource = 'CLIENT_FALLBACK'
-            arrivals = [{ route_name: r1, arrival_msg1: '배차간격 유지 운행중' }]
+          } catch (err) {
+            // [이슈 #97] 조회 실패 시 허위 도착 카드를 만들지 않고 빈 상태로 표출한다.
+            console.debug('[TransitMap] 버스 실시간 도착 조회 실패 (빈 상태 표출):', err)
+            apiCallSource = 'CLIENT_NO_DATA'
+            arrivals = []
             logBusApiCall(r1, targetStId, arrivals)
           }
         } else {
-          apiCallSource = 'NO_STID_FALLBACK'
-          arrivals = [{ route_name: r1, arrival_msg1: '배차간격 유지 운행중' }]
+          // 정류소 ID(stId)가 없으면 실시간 조회가 불가능하므로 허위 도착 카드 없이 빈 상태로 표출한다.
+          apiCallSource = 'CLIENT_NO_DATA'
+          arrivals = []
         }
         if (targetStId) arrivals = arrivals.map((a: any) => ({ ...a, stId: targetStId }))
       } else if (stop.type === 'bike') {

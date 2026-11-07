@@ -67,9 +67,12 @@ export default function UnifiedStationSearch({
   }, [value])
 
   const keyword = query.trim()
-  const wantSubway = transport === 'all' || transport === 'subway'
-  const wantBus = transport === 'all' || transport === 'bus'
-  const wantBike = transport === 'all' || transport === 'bike'
+  const cleanKeyword = keyword.replace(/^(따릉이|버스|정류장|정류소|대여소|지하철):\s*/, '').trim()
+  const isBikeExplicit = keyword.startsWith('따릉이:')
+  const isBusExplicit = keyword.startsWith('버스:')
+  const wantSubway = (transport === 'all' || transport === 'subway') && !isBikeExplicit && !isBusExplicit
+  const wantBus = (transport === 'all' || transport === 'bus') && !isBikeExplicit
+  const wantBike = (transport === 'all' || transport === 'bike') && !isBusExplicit
   const limit = transport === 'all' ? PER_KIND_ALL : PER_KIND_SINGLE
 
   // 탭이 바뀌면 드롭다운 닫기 (입력값은 유지)
@@ -79,7 +82,8 @@ export default function UnifiedStationSearch({
 
   // 버스/따릉이: 백엔드 병렬 검색 (debounce 350ms, 요청 취소)
   useEffect(() => {
-    if (keyword.length < 2 || (!wantBus && !wantBike)) {
+    const searchTarget = cleanKeyword || keyword
+    if (searchTarget.length < 2 || (!wantBus && !wantBike)) {
       setBusResults([])
       setBikeResults([])
       setLoading(false)
@@ -91,7 +95,7 @@ export default function UnifiedStationSearch({
     const timer = setTimeout(async () => {
       setLoading(true)
       setError('')
-      const q = encodeURIComponent(keyword)
+      const q = encodeURIComponent(searchTarget)
       const call = async (path: string) => {
         const res = await fetch(`${API_BASE}/api/v1/transit/${path}/stations/search?q=${q}`, { signal: controller.signal })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -116,13 +120,14 @@ export default function UnifiedStationSearch({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [keyword, wantBus, wantBike])
+  }, [cleanKeyword, keyword, wantBus, wantBike])
 
   const items: Item[] = useMemo(() => {
-    if (!keyword) return []
+    const searchTarget = cleanKeyword || keyword
+    if (!searchTarget) return []
     const out: Item[] = []
     if (wantSubway) {
-      searchSubwayStations(keyword).slice(0, limit).forEach(s =>
+      searchSubwayStations(searchTarget).slice(0, limit).forEach(s =>
         out.push({ kind: 'subway', key: `s-${s.id}`, name: s.name, sub: `${s.lines[0] ?? ''} · ${s.zone}`, data: s }))
     }
     if (wantBus) {
@@ -134,7 +139,7 @@ export default function UnifiedStationSearch({
         out.push({ kind: 'bike', key: `k-${s.id}`, name: s.name, sub: `대여 ${s.availableBikes}대 / 거치대 ${s.rackTotal}개`, data: s }))
     }
     return out
-  }, [keyword, wantSubway, wantBus, wantBike, busResults, bikeResults, limit])
+  }, [cleanKeyword, keyword, wantSubway, wantBus, wantBike, busResults, bikeResults, limit])
 
   useEffect(() => { setActiveIdx(0) }, [items.length, keyword])
 

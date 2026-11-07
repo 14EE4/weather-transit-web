@@ -470,6 +470,138 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
             self.assertEqual(last_seg["to_name"], "서울역버스환승센터")
             self.assertEqual(last_seg["from_name"], "서울역")
 
+    def test_station_district_auto_resolution(self):
+        """역명 및 좌표 기반 자치구/시군구 자동 역지오코딩 검증 (Issue #91 Phase 1)"""
+        from multimodal_router import resolve_station_district
+
+        self.assertEqual(resolve_station_district("홍대입구역", [126.924, 37.557]), "마포구")
+        self.assertEqual(resolve_station_district("강남역", [127.028, 37.498]), "강남구")
+        self.assertEqual(resolve_station_district("잠실역", [127.100, 37.513]), "송파구")
+        self.assertEqual(resolve_station_district("서울역", [126.972, 37.555]), "중구")
+        self.assertEqual(resolve_station_district("여의도역", [126.924, 37.522]), "영등포구")
+        self.assertEqual(resolve_station_district("판교역", [127.111, 37.395]), "성남시")
+
+    def test_cross_district_weather_gate_phase1(self):
+        """출발지(맑음)·도착지(우천) 교차 기상 조건에서 구간별 기상 게이트 및 브리핑 검증 (Issue #91 Phase 1)"""
+        payload = {
+            "from_station": "홍대입구역",
+            "to_station": "잠실역",
+            "from_district": "마포구",
+            "to_district": "송파구",
+            "hour": 18,
+            "from_weather": {
+                "temp": 20.0,
+                "rain": 0.0,
+                "wind": 2.0,
+                "humidity": 50.0,
+                "pty_desc": "맑음",
+            },
+            "to_weather": {
+                "temp": 14.0,
+                "rain": 6.5,
+                "wind": 4.2,
+                "humidity": 88.0,
+                "pty_desc": "비",
+            },
+        }
+        resp = self.client.post("/api/v1/routes/multimodal-search", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["status"], "success")
+
+        w_ctx = data["weather_context"]
+        self.assertEqual(w_ctx["from_district"], "마포구")
+        self.assertEqual(w_ctx["to_district"], "송파구")
+        self.assertEqual(w_ctx["weather_gate"], "RAIN_SAFE_ONLY")
+        self.assertFalse(w_ctx["bike_enabled"])
+        self.assertTrue(w_ctx["first_mile_bike_enabled"])
+        self.assertFalse(w_ctx["last_mile_bike_enabled"])
+        self.assertTrue(w_ctx["weather_diff_detected"])
+        self.assertEqual(w_ctx["rain"], 6.5)
+
+        self.assertEqual(data["origin"]["district"], "마포구")
+        self.assertEqual(data["origin"]["weather"]["weather_gate"], "CLEAR_MULTIMODAL")
+        self.assertEqual(data["destination"]["district"], "송파구")
+        self.assertEqual(data["destination"]["weather"]["weather_gate"], "RAIN_SAFE_ONLY")
+
+        # 우천 게이트 발동으로 따릉이 경로가 배제되고 지하철 최소환승이 1순위인지 확인
+        for rt in data["routes"]:
+            self.assertNotIn("bike", rt["modes_used"])
+        self.assertEqual(data["routes"][0]["id"], "route-subway-optimal")
+        self.assertTrue(data["routes"][0]["is_ai_recommended"])
+
+        # AI 브리핑 및 기상 게이트 사유에 출발·도착 자치구 국지 기상 차이가 포함되는지 검증
+        combined_briefing = f"{data['ai_briefing'].get('summary', '')} {data['ai_briefing'].get('weather_advice', '')}"
+        self.assertIn("마포구", combined_briefing)
+        self.assertIn("송파구", combined_briefing)
+
+    def test_segment_level_local_weather_and_gate_phase2(self):
+        """세그먼트별 탑승·하차 거점 국지 날씨 매핑 및 구간별 기상 게이트 검증 (Issue #91 Phase 2)"""
+        payload = {
+            "from_station": "홍대입구역",
+            "to_station": "강남역",
+            "hour": 14,
+            "from_weather": {
+                "temp": 21.0,
+                "rain": 0.0,
+                "wind": 1.8,
+                "humidity": 45.0,
+                "pty_desc": "맑음",
+            },
+            "to_weather": {
+                "temp": 22.0,
+                "rain": 0.0,
+                "wind": 2.0,
+                "humidity": 48.0,
+                "pty_desc": "맑음",
+            },
+            "district_weather_map": {
+                "마포구": {"temp": 21.0, "rain": 0.0, "wind": 1.8, "humidity": 45.0, "pty_desc": "맑음"},
+                "강남구": {"temp": 22.0, "rain": 0.0, "wind": 2.0, "humidity": 48.0, "pty_desc": "맑음"},
+                "용산구": {"temp": 16.0, "rain": 4.5, "wind": 3.5, "humidity": 82.0, "pty_desc": "비"},
+            },
+        }
+        resp = self.client.post("/api/v1/routes/multimodal-search", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["status"], "success")
+        self.assertGreater(len(data["routes"]), 0)
+
+        # 모든 경로의 각 세그먼트에 승차(weather) 및 하차(to_weather) 국지 기상 객체가 매핑되었는지 검증
+        for rt in data["routes"]:
+            for seg in rt["segments"]:
+                self.assertIn("weather", seg)
+                self.assertIn("to_weather", seg)
+                seg_w = seg["weather"]
+                self.assertIn("district", seg_w)
+                self.assertIn("temp", seg_w)
+                self.assertIn("rain", seg_w)
+                self.assertIn("weather_gate", seg_w)
+                self.assertIn("pty_desc", seg_w)
+                self.assertIn("bike_enabled", seg_w)
+
+            # 첫 세그먼트의 승차 자치구는 홍대입구역(마포구), 마지막 세그먼트의 하차 자치구는 강남역(강남구)
+            self.assertEqual(rt["segments"][0]["weather"]["district"], "마포구")
+            self.assertEqual(rt["segments"][-1]["to_weather"]["district"], "강남구")
+
+    def test_bus_station_search_graceful_degradation(self):
+        """버스 정류소 검색 시 무결과/따릉이 접두사 유입 시 502 에러 대신 200 OK 빈 목록 완충 검증"""
+        # 1. 따릉이 대여소 명칭 유입 시 버스 API 불필요 호출 차단 및 200 OK 반환
+        resp_bike = self.client.get("/api/v1/transit/bus/stations/search?q=따릉이: DDP 동대문디자인플라자")
+        self.assertEqual(resp_bike.status_code, 200)
+        data_bike = resp_bike.json()
+        self.assertEqual(data_bike["status"], "success")
+        self.assertEqual(data_bike["count"], 0)
+        self.assertEqual(data_bike["stations"], [])
+
+        # 2. 결과 없는 임의 검색어 조회 시 502 에러 대신 200 OK 빈 목록 반환
+        resp_none = self.client.get("/api/v1/transit/bus/stations/search?q=가나다라마바사아자차카타파하9999")
+        self.assertEqual(resp_none.status_code, 200)
+        data_none = resp_none.json()
+        self.assertIn(data_none["status"], ("success", "fallback"))
+        self.assertEqual(data_none["count"], 0)
+        self.assertEqual(data_none["stations"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

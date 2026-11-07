@@ -8,6 +8,36 @@
 
 ## [2026-11-07]
 
+### 🛡️ 버스 정류소 검색 API 502 에러 격리 및 통합 검색창 수단별 접두사 정제
+- **배경/문제**:
+  - 지도 뷰에서 따릉이 대여소를 클릭하거나 출발/도착지로 지정할 때 `따릉이: DDP 동대문디자인플라자`와 같은 접두사가 포함된 명칭이 `UnifiedStationSearch`에 전달되어 백엔드 `/api/v1/transit/bus/stations/search`를 호출함.
+  - 서울시 버스 OpenAPI(`getStationByName`)는 해당 명칭에 대해 검색 결과 0건(`headerCd="4"`)을 반환했으나, 백엔드가 `headerCd != "0"` 조건을 502 Bad Gateway로 처리하여 브라우저 콘솔에 502 에러가 출력되는 결함 발생.
+- **조치 내역**:
+  1. **백엔드 장애 격리 (`main.py::search_bus_stations`)**:
+     - `따릉이:` 전용 접두사 명칭 유입 시 서울시 버스 API 호출을 즉시 차단하고 200 OK 빈 목록(`source: "FILTERED_NON_BUS"`) 반환.
+     - 서울시 API 무결과(`headerCd="4"`, `"7"`) 및 통신 오류 시 502 예외 대신 [LOG-02] 정책에 따라 200 OK 빈 목록으로 Graceful Degradation.
+  2. **프론트엔드 수단별 접두사 정제 (`UnifiedStationSearch.tsx`)**:
+     - `따릉이:`/`버스:` 등 접두사를 감지하여 다른 수단 API에 대한 불필요한 네트워크 호출을 방지하고, 본문 키워드(`cleanKeyword`)로 정제하여 검색어 매칭 품질 향상.
+- **검증**:
+  - `tests/test_multimodal_routing.py::test_bus_station_search_graceful_degradation` 단위 테스트 통과 (200 OK 빈 목록 확인).
+  - 프론트엔드 Vite 프로덕션 빌드 성공.
+
+### 🌦️ 경로 탐색 시 출발·도착지 및 세그먼트 탑승 위치 기반 국지 날씨 자동 조회·구간별 기상 게이트 적용 (이슈 #91 / `ROUTE-04`)
+- **배경/문제**:
+  - 기존 멀티모달 경로 탐색(`POST /api/v1/routes/multimodal-search`)은 상단 헤더에서 선택된 전역 단일 자치구(`selectedDistrict`)와 프론트엔드가 페이로드에 고정 주입한 `weather` 객체만 참조하여, 출발지(예: 마포구 홍대입구역, 맑음)와 도착지(예: 송파구 잠실역, 비)의 실제 국지 기상이 달라도 이를 인지하지 못하는 한계가 있었음.
+- **조치 내역**:
+  1. **Phase 1 — 출발·도착지 자치구 자동 역지오코딩 및 교차 기상 게이트 (`districtResolver.ts`, `multimodal_router.py`, `main.py`, `kma_forecast.py`)**:
+     - 역/정류소 명칭 키워드(긴 키워드 우선 매칭) 및 위경도 최근접 중심점(`DISTRICT_CENTERS`, 서울 25개 구 + 수도권 9개 도시, `남양주시` 격자 `(64, 128)` 추가) 기반 `resolve_station_district()` / `resolveDistrictNameFromPoint()` 구현.
+     - `MultimodalRoutePanel.tsx` 요청 페이로드에서 전역 `weather` 강제 오버라이드를 제거하고 `from_district`, `to_district`를 전달하도록 변경하여 백엔드가 출발·도착 자치구의 기상청 단기예보를 각각 독립 조회하도록 개선.
+     - 출발지 또는 도착지 중 어느 한 곳이라도 강수(`rain > 0mm`), 강풍(`wind >= 8.0m/s`), 혹한(`temp <= -5.0°C`) 감지 시 `weather_gate`를 `RAIN_SAFE_ONLY`로 전환하고, `first_mile_bike_enabled`, `last_mile_bike_enabled`, `weather_diff_detected` 및 권역 간 기상 차이를 설명하는 `weather_gate_reason` 생성.
+  2. **Phase 2 — 세그먼트(도보·따릉이·버스·지하철) 탑승 위치별 국지 기상 매핑 및 구간별 기상 게이트 (`multimodal_router.py`, `subwayGraph.ts`, `MultimodalRoutePanel.tsx`)**:
+     - `_annotate_segments_with_local_weather()`를 통해 모든 경로 세그먼트에 승차 거점(`seg.weather`) 및 하차 거점(`seg.to_weather`)의 국지 기상(`district`, `temp`, `rain`, `pty_desc`, `weather_gate`, `bike_enabled`) 자동 바인딩.
+     - First-Mile 따릉이 반납 후보 역의 국지 기상이 악천후일 경우 해당 반납 후보를 배제하고, 버스 세그먼트는 승차 정류소 권역의 국지 강수량에 따라 우천 지연 계수(`×1.15~1.18`)를 적용.
+     - FactChat LLM 프롬프트 및 XAI 규칙 브리핑에 출발·도착 자치구 국지 기상 비교를 주입하고, `MultimodalRoutePanel.tsx` 상단에 `출발지 ➔ 도착지 국지 기상 비교 배너`(기상 차이 감지 시 경고 강조)와 타임라인 세그먼트별 국지 기상 배지를 표출. 또한 `App.tsx`·`AppM.tsx` 경로 추천 입력 배너에 출발·도착 해석 자치구를 동기화 표출.
+- **검증**:
+  - `tests/test_multimodal_routing.py` 신규 단위 테스트 3종(`test_station_district_auto_resolution`, `test_cross_district_weather_gate_phase1`, `test_segment_level_local_weather_and_gate_phase2`) 포함 **전체 17개 멀티모달 테스트 100% 통과**.
+  - 프론트엔드 Vite 프로덕션 빌드(`npm run build`) 성공 (`✓ built in 313ms`).
+
 ### 🧩 AI 모델 사양서 내 '모델 선정 이유 및 시스템 해설 요약본' 집대성 (`docs/AI_MODEL_SPEC.md`)
 - **배경/목적**:
   - 발표 및 최종 보고서 작성 시 AI 모델 선정 배경, 딥러닝과의 비교 우위, 32개 피처의 의미, 실측 서빙 속도를 한눈에 파악할 수 있도록 공식 사양서 상단에 요약 섹션(Executive Summary) 신설.

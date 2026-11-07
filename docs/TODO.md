@@ -46,14 +46,15 @@
   - 마커 미선택 시 표출되던 `강남구청 → 잠실역 / 28분 / 1,550원~` 하드코딩 목업 카드를 실시간 기상(기온 · 강수 · 풍속) 빈 상태(Empty State)로 교체.
   - PC(`App.tsx`) · 모바일(`AppM.tsx`) 동일 로직 반영 및 `handleSearchRoute`를 '지하철 전용 빠른 조회'로 역할 명확화.
   - 사용자 수동 검증(브라우저 CTA 클릭 · 우천 게이트 표출) 후 `[x]` 전환 예정.
-- [ ] **[ROUTE-04] 경로 탐색 시 출발·도착지 및 교통수단 탑승 위치 기반 국지 날씨 자동 조회 및 구간별 기상 게이트 적용 (Next Sprint · 이슈 #91)**:
+- [x] **[ROUTE-04] 경로 탐색 시 출발·도착지 및 교통수단 탑승 위치 기반 국지 날씨 자동 조회 및 구간별 기상 게이트 적용 (완료 · 2026-11-07 · 이슈 #91)**:
   - **Phase 1 (출발·도착지 자치구 자동 해석 및 교차 검증)**:
-    - 출발지/도착지 거점의 `districtResolver` 기반 소속 자치구 자동 판별.
-    - 백엔드 `MultimodalRouteRequest`에 `from_district`, `to_district` 지원 및 어느 한 곳이라도 비/강풍 감지 시 보수적 `RAIN_SAFE_ONLY` 자동 전환.
+    - 프론트엔드(`districtResolver.ts::resolveDistrictNameFromPoint`) 및 백엔드(`multimodal_router.py::resolve_station_district`)에서 서울 25개 자치구 및 수도권 9개 관문 도시 거점의 소속 자치구를 자동 역지오코딩.
+    - `MultimodalRoutePanel.tsx`가 전역 헤더 자치구 날씨(`weather`)를 강제 오버라이드하던 동작을 제거하고 `from_district`, `to_district`를 전달하도록 개선하여 백엔드 기상청 단기예보(`kma_forecast_manager`) 국지 날씨 자동 조회 활성화.
+    - `MultimodalRouteRequest`에 `from_district`, `to_district`, `from_weather`, `to_weather`, `district_weather_map` 지원 및 출발·도착지 중 어느 한 곳이라도 강수(`rain > 0mm`)·강풍(`wind >= 8m/s`)·혹한(`temp <= -5°C`) 감지 시 보수적 `RAIN_SAFE_ONLY` 자동 전환(`first_mile_bike_enabled`, `last_mile_bike_enabled`, `weather_diff_detected` 산출).
   - **Phase 2 (세그먼트 탑승 위치별 정밀 국지 날씨 및 구간별 Weather Gate)**:
-    - 각 세그먼트(도보, 따릉이, 버스, 지하철) 시작 좌표별 기상청 단기예보 국지 기상 수집.
-    - 비가 오지 않는 출발 권역은 따릉이 허용, 비가 오는 도착 권역은 실내 우회 세그먼트 적용 등 세그먼트 단위 분할 기상 게이트 탑재.
-    - FactChat XAI 구간별 맞춤형 기상 안내 브리핑 생성.
+    - 모든 후보 경로의 개별 세그먼트(`walk`, `bike`, `bus`, `subway`)에 승차 거점(`weather`) 및 하차 거점(`to_weather`) 국지 기상 컨텍스트(`district`, `temp`, `rain`, `wind`, `pty_desc`, `bike_enabled`, `weather_gate`) 자동 매핑(`_annotate_segments_with_local_weather`).
+    - First-Mile 따릉이 반납 대상 역 권역이 악천후일 경우 후보에서 선제 배제하고, 버스 세그먼트는 승차 정류소 권역의 국지 강수량에 따라 우천 지연 계수(`×1.15~1.18`)를 개별 적용.
+    - FactChat LLM 프롬프트 및 XAI 규칙 엔진 브리핑에 출발·도착지 국지 기상 비교 요약 반영, `MultimodalRoutePanel.tsx`에 출발 ➔ 도착 국지 기상 비교 배너 및 세그먼트별 국지 기상 배지 표출.
 - [ ] **[UI-09] 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (Next Sprint · 이슈 #90)**:
   - 브라우저 `navigator.geolocation` API를 연동하여 사용자의 현재 실제 위치(GPS 좌표) 획득.
   - 지도 화면 내 `[📍 내 위치]` 플로팅 버튼 탑재 및 클릭 시 카메라 자동 이동(`flyTo({ center, zoom: 16.5 })`).

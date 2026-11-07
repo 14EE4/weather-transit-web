@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { MultimodalSegment, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
+import { MultimodalSegment, SegmentLocalWeather, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
+import { resolveDistrict } from './districtResolver'
 
 
 const MULTIMODAL_MEMORY_CACHE = new Map<string, MultimodalSearchResponse>()
-const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v5'
+const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v6'
 
 function getCachedMultimodalResult(key: string): MultimodalSearchResponse | null {
   if (!key) return null
@@ -89,6 +90,8 @@ export interface MultimodalSearchResponse {
   langgraph_native: boolean
   latency_ms: number
   district: string
+  from_district?: string
+  to_district?: string
   hour: number
   weather_gate: 'CLEAR_MULTIMODAL' | 'RAIN_SAFE_ONLY' | string
   weather_context: {
@@ -99,6 +102,14 @@ export interface MultimodalSearchResponse {
     pty_desc?: string
     sky_desc?: string
     bike_enabled: boolean
+    first_mile_bike_enabled?: boolean
+    last_mile_bike_enabled?: boolean
+    from_district?: string
+    to_district?: string
+    from_weather?: SegmentLocalWeather
+    to_weather?: SegmentLocalWeather
+    is_cross_district?: boolean
+    weather_diff_detected?: boolean
     weather_gate_reason: string
     source?: string
   }
@@ -167,6 +178,8 @@ export default function MultimodalRoutePanel({
   const cleanFrom = (fromStation || '').trim()
   const cleanTo = (toStation || '').trim()
   const cleanDistrict = (district || '').split(' ')[0] || '강남구'
+  const fromDistrict = cleanFrom ? resolveDistrict(cleanFrom, fromCoords) : cleanDistrict
+  const toDistrict = cleanTo ? resolveDistrict(cleanTo, toCoords) : cleanDistrict
   const hasValidRouteInput = Boolean(
     cleanFrom &&
       cleanTo &&
@@ -174,7 +187,7 @@ export default function MultimodalRoutePanel({
   )
   const coordsKey = `${fromCoords ? fromCoords.join(',') : ''}_${toCoords ? toCoords.join(',') : ''}_${fromType || ''}_${toType || ''}`
   const cacheKey = hasValidRouteInput
-    ? `${cleanFrom}|${cleanTo}|${coordsKey}|${cleanDistrict}|${selectedHour}|${Math.round(temp)}|${Math.round(rain * 10) / 10}`
+    ? `${cleanFrom}|${cleanTo}|${coordsKey}|${fromDistrict}->${toDistrict}|${selectedHour}`
     : ''
 
   const [data, setData] = useState<MultimodalSearchResponse | null>(() =>
@@ -209,13 +222,9 @@ export default function MultimodalRoutePanel({
         from_type: fromType,
         to_type: toType,
         district: cleanDistrict,
+        from_district: fromDistrict,
+        to_district: toDistrict,
         hour: selectedHour,
-        weather: {
-          temp,
-          rain,
-          humidity,
-          wind,
-        },
       }
       console.log(
         `%c[LangGraph × FactChat] 🚀 멀티모달 경로 탐색 시작: ${cleanFrom} ➔ ${cleanTo} (${selectedHour}:00, ${temp}°C, 강수 ${rain}mm)`,
@@ -273,7 +282,7 @@ export default function MultimodalRoutePanel({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [apiBaseUrl, cacheKey, cleanFrom, cleanTo, fromCoords, toCoords, fromType, toType, cleanDistrict, hasValidRouteInput, selectedHour, temp, rain, humidity, wind])
+  }, [apiBaseUrl, cacheKey, cleanFrom, cleanTo, fromCoords, toCoords, fromType, toType, cleanDistrict, fromDistrict, toDistrict, hasValidRouteInput, selectedHour])
 
   if (!hasValidRouteInput) {
     return (
@@ -514,9 +523,53 @@ export default function MultimodalRoutePanel({
 
         {/* 기상 게이트 판정 사유 */}
         {data?.weather_context?.weather_gate_reason && (
-          <div style={{ fontSize: 11, color: bikeEnabled ? '#6EE7B7' : '#7DD3FC', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 11, color: bikeEnabled ? '#6EE7B7' : '#7DD3FC', display: 'flex', alignItems: 'center', gap: 6, marginBottom: data?.weather_context?.from_weather ? 10 : 0 }}>
             <span>🛡️</span>
             <span>{data.weather_context.weather_gate_reason}</span>
+          </div>
+        )}
+
+        {/* [Issue #91] 출발지 ➔ 도착지 국지 기상 비교 배지 바 */}
+        {data?.weather_context?.from_weather && data?.weather_context?.to_weather && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
+              padding: '8px 12px',
+              borderRadius: 10,
+              background: 'var(--color-card2)',
+              border: '1px solid var(--color-border)',
+              fontSize: 11,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, color: '#34D399', fontFamily: 'JetBrains Mono' }}>
+                🟢 출발({data.weather_context.from_weather.district}): {data.weather_context.from_weather.temp}°C · 강수 {data.weather_context.from_weather.rain}mm ({data.weather_context.from_weather.pty_desc || '맑음'})
+              </span>
+              <span style={{ color: 'var(--color-muted)' }}>➔</span>
+              <span style={{ fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>
+                🔵 도착({data.weather_context.to_weather.district}): {data.weather_context.to_weather.temp}°C · 강수 {data.weather_context.to_weather.rain}mm ({data.weather_context.to_weather.pty_desc || '맑음'})
+              </span>
+            </div>
+            {data.weather_context.weather_diff_detected && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: 999,
+                  background: 'rgba(245, 158, 11, 0.18)',
+                  border: '1px solid rgba(245, 158, 11, 0.45)',
+                  color: '#FBBF24',
+                  fontFamily: 'JetBrains Mono',
+                }}
+              >
+                ⚠️ 출발·도착 국지 기상차 감지
+              </span>
+            )}
           </div>
         )}
 
@@ -574,7 +627,7 @@ export default function MultimodalRoutePanel({
               MULTIMODAL ROUTE CANDIDATES ({cleanFrom} ➔ {cleanTo})
             </div>
             <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>
-              ⏱️ {selectedHour}시 기상({temp}°C · 강수 {rain}mm) 기준
+              ⏱️ {selectedHour}시 국지 기상({data?.weather_context?.from_weather ? `${data.weather_context.from_weather.district} ${data.weather_context.from_weather.temp}°C ➔ ${data.weather_context.to_weather?.district} ${data.weather_context.to_weather?.temp}°C` : `${temp}°C · 강수 ${rain}mm`}) 기준
             </span>
           </div>
 
@@ -789,6 +842,25 @@ export default function MultimodalRoutePanel({
                               }}
                             >
                               {seg.live_badge}
+                            </span>
+                          )}
+                          {seg.weather && (
+                            <span
+                              style={{
+                                fontSize: 9.5,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: seg.weather.rain > 0 ? 'rgba(245, 158, 11, 0.16)' : 'rgba(16, 185, 129, 0.12)',
+                                border: `1px solid ${seg.weather.rain > 0 ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.28)'}`,
+                                color: seg.weather.rain > 0 ? '#FBBF24' : '#34D399',
+                                fontFamily: 'JetBrains Mono',
+                                fontWeight: 700,
+                              }}
+                              title={`탑승 위치(${seg.weather.district}) 국지 기상: ${seg.weather.temp}°C · 강수 ${seg.weather.rain}mm · 게이트 ${seg.weather.weather_gate}`}
+                            >
+                              {seg.weather.rain > 0
+                                ? `🌧️ ${seg.weather.district} ${seg.weather.temp}°C·${seg.weather.rain}mm`
+                                : `☀️ ${seg.weather.district} ${seg.weather.temp}°C`}
                             </span>
                           )}
                         </div>

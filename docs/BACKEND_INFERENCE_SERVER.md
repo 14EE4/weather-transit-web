@@ -313,12 +313,18 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
   "from_type": "bus",
   "to_type": "subway",
   "district": "중구",
+  "from_district": "중구",
+  "to_district": "마포구",
   "hour": 14,
-  "weather": null
+  "weather": null,
+  "from_weather": null,
+  "to_weather": null,
+  "district_weather_map": null
 }
 ```
 > [!NOTE]
-> `from_coords`, `to_coords`, `from_type`, `to_type`는 선택(Optional) 필드이며, 버스 정류소나 따릉이 대여소 출발/도착 시 좌표와 수단 유형을 주입하면 First-Mile / Last-Mile 도보 세그먼트(`walk`)가 경로 최전방/최후방에 자동으로 계산·삽입됩니다.
+> - `from_coords`, `to_coords`, `from_type`, `to_type`는 선택(Optional) 필드이며, 버스 정류소나 따릉이 대여소 출발/도착 시 좌표와 수단 유형을 주입하면 First-Mile / Last-Mile 도보 세그먼트(`walk`)가 경로 최전방/최후방에 자동으로 계산·삽입됩니다.
+> - `from_district`, `to_district`를 생략하더라도 백엔드(`resolve_station_district`)가 출발/도착 역명과 좌표로부터 소속 자치구를 자동 역지오코딩하여 각 권역의 기상청 단기예보를 독립 조회하며, 각 경로 세그먼트(`segments[].weather`, `segments[].to_weather`)에도 승하차 거점 국지 기상과 구간 기상 게이트(`weather_gate`)가 자동 매핑됩니다 (이슈 #91).
 - **Response Body**:
 ```json
 {

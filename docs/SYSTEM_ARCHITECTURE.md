@@ -283,10 +283,10 @@ flowchart TB
 ### 4.5 LangGraph 멀티모달 오케스트레이션 엔진 및 FactChat LLM 브리핑 (multimodal_router.py)
 - **모듈 책임**: 출발지/도착지 좌표, 시간대별 기상청 단기예보, 32차원 ONNX 실시간 혼잡도, 실시간 지하철 도착 정보를 종합하여 **도보 + 따릉이(First/Last-Mile) + 버스 + 지하철** 최적 복합 경로를 탐색하고 자연어 AI 브리핑을 생성.
 - **LangGraph 5단계 `StateGraph` 구조**:
-  1. `parse_context_node`: 출발/도착역 지리좌표 해석, 기상청 단기예보(`kma_forecast_manager`) 및 32차원 ONNX 혼잡도 주입.
-  2. `weather_gate_router` (조건부 엣지):
-     - `rain > 0mm` or `wind >= 8m/s` or `temp <= -5°C`: `rain_safe_tools_node`로 분기 (따릉이 차단, 지하철 최소환승 및 실내 버스).
-     - 맑은 날씨: `clear_multimodal_tools_node`로 분기 (따릉이 First/Last-Mile 결합 복합 탐색 활성화).
+  1. `parse_context_node`: 출발/도착역 지리좌표 및 소속 자치구 자동 역지오코딩(`resolve_station_district`), 출발·도착 권역별 기상청 단기예보(`kma_forecast_manager`) 독립 조회 및 교차 기상 검증(`from_weather`, `to_weather`, `weather_diff_detected`), 32차원 ONNX 혼잡도 주입.
+  2. `weather_gate_router` (조건부 엣지 & 세그먼트 기상 게이트):
+     - 출발지 또는 도착지 중 어느 한 곳이라도 `rain > 0mm` or `wind >= 8m/s` or `temp <= -5°C`: 보수적 안전 원칙에 따라 `rain_safe_tools_node`로 분기 (따릉이 차단, 지하철 최소환승 및 실내 버스).
+     - 양쪽 모두 맑은 날씨: `clear_multimodal_tools_node`로 분기하되, First-Mile 따릉이 반납역 권역의 국지 기상과 버스 승차 구역의 국지 강수량을 세그먼트 단위로 재검증(`_annotate_segments_with_local_weather`).
   3. 도구(Tools) 노드:
      - `지하철 다익스트라 도구`: 수도권 19개 노선 표정속도·정차시간(`LINE_OPERATING_SPECS`) 및 시간대별 배차간격(`get_line_headway`), 실시간 열차 대기시간(`get_subway_arrival`) 적용.
      - `환승역 실측 도보시간 가중치 (`models/station_transfer_times.json`)`: 서울교통공사 2025 최신 실측 데이터(공공데이터포털 `15044419`, 서울 열린데이터광장 `OA-13290`) 기반 119개 주요 환승역의 실제 환승거리(m)와 도보시간(`0.2~8.0분`)을 다익스트라 가중치(`tr_walk * 1.5`)에 반영하여 막장 환승역 자동 회피 및 개념 환승역 우선 선택.

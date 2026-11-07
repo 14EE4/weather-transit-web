@@ -38,6 +38,7 @@ from timeseries_cache import timeseries_cache
 from multimodal_router import multimodal_routing_engine
 from kma_forecast import (
     kma_forecast_manager,
+    DISTRICT_GRID_MAP,
     District24hForecast,
     HourlyForecastItem as KMAHourlyForecastItem,
 )
@@ -3287,8 +3288,26 @@ class MultimodalRouteRequest(BaseModel):
     from_type: Optional[str] = Field(None, description="출발 거점 유형: subway | bus | bike")
     to_type: Optional[str] = Field(None, description="도착 거점 유형: subway | bus | bike")
     district: str = Field("강남구", description="기준 자치구명")
+    from_district: Optional[str] = Field(None, description="출발지 소속 자치구명 (선택, 미지정 시 자동 판별)")
+    to_district: Optional[str] = Field(None, description="도착지 소속 자치구명 (선택, 미지정 시 자동 판별)")
     hour: Optional[int] = Field(None, ge=0, le=23, description="탐색 시간대 (0~23시)")
     weather: Optional[WeatherInput] = Field(None, description="기상 조건 오버라이드 (미지정 시 KMA 단기예보/실황 연동)")
+    from_weather: Optional[WeatherInput] = Field(None, description="출발지 국지 기상 오버라이드 (선택)")
+    to_weather: Optional[WeatherInput] = Field(None, description="도착지 국지 기상 오버라이드 (선택)")
+    district_weather_map: Optional[Dict[str, WeatherInput]] = Field(None, description="자치구별 국지 기상 오버라이드 맵 (선택)")
+
+
+def _weather_input_to_ctx_dict(w_in: WeatherInput, d_name: str, source: str = "USER_OVERRIDE") -> dict:
+    return {
+        "district": d_name,
+        "temp": round(float(w_in.temp), 1),
+        "rain": round(float(w_in.rain), 1),
+        "humidity": round(float(w_in.humidity), 1),
+        "wind": round(float(w_in.wind), 1),
+        "pty_desc": "비" if w_in.rain > 0 else "맑음",
+        "sky_desc": "흐림" if w_in.rain > 0 else "맑음",
+        "source": source,
+    }
 
 
 async def _execute_multimodal_search(
@@ -3301,50 +3320,115 @@ async def _execute_multimodal_search(
     to_coords: Optional[List[float]] = None,
     from_type: Optional[str] = None,
     to_type: Optional[str] = None,
+    from_district: Optional[str] = None,
+    to_district: Optional[str] = None,
+    from_weather_override: Optional[WeatherInput] = None,
+    to_weather_override: Optional[WeatherInput] = None,
+    district_weather_overrides: Optional[Dict[str, WeatherInput]] = None,
 ) -> dict:
-    norm_d = normalize_district_name(district)
     target_hour = hour if hour is not None else get_kst_now().hour
+    live_bikes = _bike_snapshot_cache[1] if _bike_snapshot_cache else (_bike_snapshot_last_good or [])
 
-    # 1. 기상 컨텍스트 결정 (명시적 오버라이드 우선 -> KMA 단기예보 시간대별 기상 연동)
-    if weather_override is not None:
-        w_in = weather_override
-        w_ctx = {
-            "temp": w_in.temp,
-            "rain": w_in.rain,
-            "humidity": w_in.humidity,
-            "wind": w_in.wind,
-            "pty_desc": "비" if w_in.rain > 0 else "맑음",
-            "source": "USER_OVERRIDE",
-        }
-    else:
+    # 0. 출발지·도착지 거점 좌표 및 소속 자치구 자동 판별 (Issue #91 Phase 1)
+    origin_st = multimodal_routing_engine.resolve_station(
+        from_station, extra_bike_stations=live_bikes, coords=from_coords, station_type=from_type
+    )
+    dest_st = multimodal_routing_engine.resolve_station(
+        to_station, extra_bike_stations=live_bikes, coords=to_coords, station_type=to_type
+    )
+    o_coords = origin_st.get("coords") if origin_st else from_coords
+    d_coords = dest_st.get("coords") if dest_st else to_coords
+
+    resolved_from_d = multimodal_routing_engine.resolve_station_district(
+        from_station, o_coords, explicit_district=from_district
+    )
+    resolved_to_d = multimodal_routing_engine.resolve_station_district(
+        to_station, d_coords, explicit_district=to_district
+    )
+    norm_d = normalize_district_name(resolved_from_d or district)
+
+    # 1. 자치구별 국지 기상 맵 및 출발·도착지 기상 컨텍스트 구성 (Issue #91 Phase 1 & 2)
+    district_w_map: dict[str, dict] = {}
+    if weather_override is None:
         try:
-            h_fcst = await kma_forecast_manager.get_hour_weather(norm_d, target_hour, auth_key=KMA_AUTH_KEY)
-            w_in = WeatherInput(
-                temp=h_fcst.temp,
-                rain=h_fcst.rain,
-                humidity=75.0 if h_fcst.rain > 0 else 55.0,
-                wind=2.2,
-            )
-            w_ctx = {
-                "temp": h_fcst.temp,
-                "rain": h_fcst.rain,
-                "humidity": w_in.humidity,
-                "wind": w_in.wind,
-                "pty_desc": h_fcst.pty_desc,
-                "sky_desc": {1: "맑음", 3: "구름많음", 4: "흐림"}.get(h_fcst.sky, "맑음"),
-                "source": "KMA_SHORT_TERM_FORECAST",
-            }
+            # 1차 호출로 149x253 격자 캐시 워밍업 보장 후 전 권역 국지 기상 매핑 (<1ms)
+            await kma_forecast_manager.get_hour_weather(resolved_from_d, target_hour, auth_key=KMA_AUTH_KEY)
+            for d_key in DISTRICT_GRID_MAP:
+                fcst = await kma_forecast_manager.get_hour_weather(d_key, target_hour, auth_key=KMA_AUTH_KEY)
+                district_w_map[d_key] = {
+                    "district": d_key,
+                    "temp": round(float(fcst.temp), 1),
+                    "rain": round(float(fcst.rain), 1),
+                    "humidity": 75.0 if fcst.rain > 0 else 55.0,
+                    "wind": 2.2,
+                    "pty_desc": fcst.pty_desc,
+                    "sky_desc": {1: "맑음", 3: "구름많음", 4: "흐림"}.get(fcst.sky, "맑음"),
+                    "source": "KMA_SHORT_TERM_FORECAST",
+                }
         except Exception as exc:
-            logger.warning("[멀티모달 경로] 기상청 단기예보 조회 실패로 기본 기상(16.5°C 맑음)을 적용합니다 (%s): %s", norm_d, sanitize_exception(exc))
-            w_in = WeatherInput(temp=16.5, rain=0.0, humidity=55.0, wind=2.0)
-            w_ctx = {
-                "temp": 16.5,
-                "rain": 0.0,
-                "humidity": 55.0,
-                "wind": 2.0,
-                "pty_desc": "맑음",
-                "source": "FALLBACK_WEATHER",
-            }
+            logger.warning(
+                "[멀티모달 경로] 기상청 단기예보 조회 실패로 기본 기상(16.5°C 맑음)을 적용합니다 (%s): %s",
+                norm_d,
+                sanitize_exception(exc),
+            )
+    else:
+        base_override = _weather_input_to_ctx_dict(weather_override, norm_d, source="USER_OVERRIDE")
+        for d_key in DISTRICT_GRID_MAP:
+            district_w_map[d_key] = dict(base_override, district=d_key)
+
+    if district_weather_overrides:
+        for d_key, w_val in district_weather_overrides.items():
+            district_w_map[d_key] = _weather_input_to_ctx_dict(w_val, d_key, source="DISTRICT_OVERRIDE")
+
+    fallback_ctx = {
+        "temp": 16.5,
+        "rain": 0.0,
+        "humidity": 55.0,
+        "wind": 2.0,
+        "pty_desc": "맑음",
+        "sky_desc": "맑음",
+        "source": "FALLBACK_WEATHER",
+    }
+
+    if from_weather_override is not None:
+        from_w_ctx = _weather_input_to_ctx_dict(from_weather_override, resolved_from_d, source="USER_OVERRIDE")
+        district_w_map[resolved_from_d] = from_w_ctx
+    elif weather_override is not None and resolved_from_d not in (district_weather_overrides or {}):
+        from_w_ctx = _weather_input_to_ctx_dict(weather_override, resolved_from_d, source="USER_OVERRIDE")
+    else:
+        from_w_ctx = dict(district_w_map.get(resolved_from_d) or fallback_ctx, district=resolved_from_d)
+
+    if to_weather_override is not None:
+        to_w_ctx = _weather_input_to_ctx_dict(to_weather_override, resolved_to_d, source="USER_OVERRIDE")
+        district_w_map[resolved_to_d] = to_w_ctx
+    elif weather_override is not None and resolved_to_d not in (district_weather_overrides or {}):
+        to_w_ctx = _weather_input_to_ctx_dict(weather_override, resolved_to_d, source="USER_OVERRIDE")
+    else:
+        to_w_ctx = dict(district_w_map.get(resolved_to_d) or fallback_ctx, district=resolved_to_d)
+
+    eff_rain = max(float(from_w_ctx["rain"]), float(to_w_ctx["rain"]))
+    eff_wind = max(float(from_w_ctx["wind"]), float(to_w_ctx["wind"]))
+    eff_temp = (
+        min(float(from_w_ctx["temp"]), float(to_w_ctx["temp"]))
+        if (float(from_w_ctx["temp"]) <= -5.0 or float(to_w_ctx["temp"]) <= -5.0)
+        else float(from_w_ctx["temp"])
+    )
+    eff_humidity = max(float(from_w_ctx["humidity"]), float(to_w_ctx["humidity"]))
+
+    w_in = WeatherInput(temp=eff_temp, rain=eff_rain, humidity=eff_humidity, wind=eff_wind)
+    w_ctx = {
+        "temp": eff_temp,
+        "rain": eff_rain,
+        "humidity": eff_humidity,
+        "wind": eff_wind,
+        "pty_desc": "비" if eff_rain > 0 else str(from_w_ctx.get("pty_desc", "맑음")),
+        "sky_desc": "흐림" if eff_rain > 0 else str(from_w_ctx.get("sky_desc", "맑음")),
+        "source": from_w_ctx.get("source", "KMA_SHORT_TERM_FORECAST"),
+        "from_district": resolved_from_d,
+        "to_district": resolved_to_d,
+        "from_weather": from_w_ctx,
+        "to_weather": to_w_ctx,
+    }
 
     # 2. 32차원 ONNX 모델 추론으로 수단별 혼잡도 및 MCDA 점수 산출
     ai_cong = {
@@ -3388,7 +3472,6 @@ async def _execute_multimodal_search(
             logger.warning(f"멀티모달 ONNX 추론 폴백: {exc}")
 
     # 3. 인메모리 캐시된 실시간 따릉이 스냅샷 및 실시간 지하철·버스 도착 정보 연동
-    live_bikes = _bike_snapshot_cache[1] if _bike_snapshot_cache else (_bike_snapshot_last_good or [])
     live_subway_arrs: list[dict] = []
     if SEOUL_SUBWAY_KEY:
         try:
@@ -3404,7 +3487,6 @@ async def _execute_multimodal_search(
     live_bus_arrs: list[dict] = []
     if DATA_GO_KR_BUS_KEY:
         try:
-            origin_st = multimodal_routing_engine.resolve_station(from_station, extra_bike_stations=live_bikes)
             c = origin_st.get("coords", [126.9780, 37.5665]) if origin_st else [126.9780, 37.5665]
             nearby_buses = multimodal_routing_engine.find_nearby_bus_stops(
                 c[1], c[0], limit=2, station_name=from_station
@@ -3436,8 +3518,13 @@ async def _execute_multimodal_search(
         to_coords=to_coords,
         from_type=from_type,
         to_type=to_type,
+        from_district=resolved_from_d,
+        to_district=resolved_to_d,
+        district_weather_map=district_w_map,
     )
     result["district"] = norm_d
+    result["from_district"] = resolved_from_d
+    result["to_district"] = resolved_to_d
     result["hour"] = target_hour
     return result
 
@@ -3446,6 +3533,7 @@ async def _execute_multimodal_search(
 async def post_multimodal_route_search(req: MultimodalRouteRequest):
     """
     LangGraph StateGraph 및 FactChat LLM 기반 멀티모달(지하철+버스+따릉이) 통합 경로 탐색 API
+    - 출발지·도착지 및 세그먼트 탑승 위치별 국지 날씨 자동 조회 및 교차/구간별 기상 게이트 적용 (Issue #91)
     - 강수/강풍 시 Weather Gate가 자동으로 따릉이(PM) First/Last-Mile 구간을 배제하고 안전 실내 환승 경로로 우회
     - 32차원 ONNX 실시간 혼잡도 예측 및 FactChat LLM (또는 XAI 엔진) 자연어 브리핑 제공
     """
@@ -3459,6 +3547,11 @@ async def post_multimodal_route_search(req: MultimodalRouteRequest):
         to_coords=req.to_coords,
         from_type=req.from_type,
         to_type=req.to_type,
+        from_district=req.from_district,
+        to_district=req.to_district,
+        from_weather_override=req.from_weather,
+        to_weather_override=req.to_weather,
+        district_weather_overrides=req.district_weather_map,
     )
 
 
@@ -3467,9 +3560,13 @@ async def get_multimodal_route_search(
     from_station: str = "강남역",
     to_station: str = "서울역",
     district: str = "강남구",
+    from_district: Optional[str] = None,
+    to_district: Optional[str] = None,
     hour: Optional[int] = None,
     rain: Optional[float] = None,
     temp: Optional[float] = None,
+    from_rain: Optional[float] = None,
+    to_rain: Optional[float] = None,
     from_lng: Optional[float] = None,
     from_lat: Optional[float] = None,
     to_lng: Optional[float] = None,
@@ -3486,6 +3583,22 @@ async def get_multimodal_route_search(
             humidity=75.0 if (rain or 0.0) > 0 else 55.0,
             wind=2.2,
         )
+    f_w_override = None
+    if from_rain is not None:
+        f_w_override = WeatherInput(
+            temp=temp if temp is not None else 16.5,
+            rain=max(0.0, from_rain),
+            humidity=75.0 if from_rain > 0 else 55.0,
+            wind=2.2,
+        )
+    t_w_override = None
+    if to_rain is not None:
+        t_w_override = WeatherInput(
+            temp=temp if temp is not None else 16.5,
+            rain=max(0.0, to_rain),
+            humidity=75.0 if to_rain > 0 else 55.0,
+            wind=2.2,
+        )
     f_coords = [from_lng, from_lat] if (from_lng is not None and from_lat is not None) else None
     t_coords = [to_lng, to_lat] if (to_lng is not None and to_lat is not None) else None
     return await _execute_multimodal_search(
@@ -3498,5 +3611,9 @@ async def get_multimodal_route_search(
         to_coords=t_coords,
         from_type=from_type,
         to_type=to_type,
+        from_district=from_district,
+        to_district=to_district,
+        from_weather_override=f_w_override,
+        to_weather_override=t_w_override,
     )
 

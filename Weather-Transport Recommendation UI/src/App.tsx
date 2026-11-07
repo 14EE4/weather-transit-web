@@ -11,7 +11,7 @@ import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logDistrictCongestionCall, logHourlyForecastCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
-import { resolveDistrict } from './districtResolver'
+import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
 import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
 import { type BusStationResult } from './BusStationSearch'
@@ -2106,7 +2106,9 @@ export default function App() {
                       {DISTRICTS[selectedDistrict]} · {String(selectedHour).padStart(2, '0')}:00 · {displayPtyDesc} · {displayTemp}°C · 강수 {displayRain}mm/h
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 1 }}>
-                      기상청 단기예보 및 32차원 ONNX 혼잡도 기반 멀티모달 경로 탐색
+                      {departure && destination
+                        ? `📍 출발(${resolveDistrictNameFromPoint(departure, departureCoords, DISTRICTS[selectedDistrict] || '강남구')}) ➔ 도착(${resolveDistrictNameFromPoint(destination, destinationCoords, DISTRICTS[selectedDistrict] || '강남구')}) 국지 기상 게이트 자동 적용`
+                        : '기상청 단기예보 및 32차원 ONNX 혼잡도 기반 멀티모달 경로 탐색'}
                     </div>
                   </div>
                 </div>

@@ -461,6 +461,91 @@ def format_duration_kr(mins: int) -> str:
     return f"{hours}시간 {rem}분"
 
 
+# ── 서울 25개 자치구 및 수도권 주요 관문 도시 중심 좌표 [lng, lat] (districtResolver.ts 동기화) ──
+DISTRICT_CENTERS: Dict[str, Tuple[float, float]] = {
+    "강남구": (127.0473, 37.5172),
+    "강동구": (127.1238, 37.5301),
+    "강북구": (127.0255, 37.6398),
+    "강서구": (126.8495, 37.5509),
+    "관악구": (126.9516, 37.4784),
+    "광진구": (127.0822, 37.5385),
+    "구로구": (126.8874, 37.4954),
+    "금천구": (126.9023, 37.4568),
+    "노원구": (127.0564, 37.6542),
+    "도봉구": (127.0471, 37.6688),
+    "동대문구": (127.0398, 37.5744),
+    "동작구": (126.9393, 37.5124),
+    "마포구": (126.9015, 37.5663),
+    "서대문구": (126.9368, 37.5791),
+    "서초구": (127.0324, 37.4837),
+    "성동구": (127.0368, 37.5634),
+    "성북구": (127.0167, 37.5894),
+    "송파구": (127.1058, 37.5145),
+    "양천구": (126.8665, 37.5169),
+    "영등포구": (126.8963, 37.5264),
+    "용산구": (126.9658, 37.5326),
+    "은평구": (126.9291, 37.6027),
+    "종로구": (126.9790, 37.5730),
+    "중구": (126.9979, 37.5638),
+    "중랑구": (127.0927, 37.6066),
+    # 수도권 직결 관문 도시
+    "성남시": (127.1378, 37.4200),
+    "수원시": (127.0286, 37.2636),
+    "안양시": (126.9568, 37.3943),
+    "고양시": (126.8320, 37.6584),
+    "부천시": (126.7660, 37.5034),
+    "광명시": (126.8644, 37.4786),
+    "남양주시": (127.2206, 37.6360),
+    "하남시": (127.2144, 37.5393),
+    "인천시": (126.7052, 37.4563),
+}
+
+# 주요 지하철역/동 명칭 기반 자치구 직접 매핑 테이블 (districtResolver.ts 동기화)
+STATION_DONG_MAP: Dict[str, str] = {
+    # 동남권 (강남·서초·송파·강동)
+    "강남구청": "강남구", "강남": "강남구", "역삼": "강남구", "삼성": "강남구", "선릉": "강남구", "논현": "강남구", "신논현": "강남구", "압구정": "강남구", "신사": "강남구", "청담": "강남구", "수서": "강남구", "대치": "강남구", "도곡": "강남구", "개포": "강남구", "일원": "강남구",
+    "양재": "서초구", "서초": "서초구", "교대": "서초구", "고속터미널": "서초구", "반포": "서초구", "방배": "서초구", "잠원": "서초구", "내곡": "서초구",
+    "잠실": "송파구", "잠실새내": "송파구", "종합운동장": "송파구", "가락시장": "송파구", "문정": "송파구", "올림픽공원": "송파구", "석촌": "송파구", "방이": "송파구", "오금": "송파구", "거여": "송파구", "마천": "송파구",
+    "강동구청": "강동구", "천호": "강동구", "강동": "강동구", "암사": "강동구", "고덕": "강동구", "명일": "강동구", "길동": "강동구", "둔촌": "강동구", "상일": "강동구",
+    # 서북권 (마포·서대문·은평)
+    "홍대입구": "마포구", "홍대": "마포구", "합정": "마포구", "망원": "마포구", "상암": "마포구", "공덕": "마포구", "마포": "마포구", "대흥": "마포구", "광흥창": "마포구", "애오개": "마포구",
+    "신촌": "서대문구", "이대": "서대문구", "아현": "서대문구", "충정로": "서대문구", "홍제": "서대문구", "무악재": "서대문구", "독립문": "서대문구", "가좌": "서대문구",
+    "연신내": "은평구", "불광": "은평구", "구파발": "은평구", "응암": "은평구", "새절": "은평구", "증산": "은평구", "녹번": "은평구", "역촌": "은평구",
+    # 도심권 (종로·중구·용산)
+    "동대문역사문화공원": "중구", "시청": "중구", "서울역": "중구", "명동": "중구", "을지로": "중구", "회현": "중구", "신당": "중구", "충무로": "중구", "약수": "중구",
+    "종로": "종로구", "광화문": "종로구", "혜화": "종로구", "안국": "종로구", "경복궁": "종로구", "동대문": "종로구", "동묘": "종로구", "종묘": "종로구",
+    "용산": "용산구", "이태원": "용산구", "삼각지": "용산구", "숙대입구": "용산구", "남영": "용산구", "효창공원": "용산구", "이촌": "용산구", "한남": "용산구",
+    # 서남권 (영등포·구로·금천·동작·관악·강서·양천)
+    "여의도": "영등포구", "여의나루": "영등포구", "국회의사당": "영등포구", "영등포": "영등포구", "당산": "영등포구", "문래": "영등포구", "신길": "영등포구", "대림": "영등포구",
+    "신도림": "구로구", "구로": "구로구", "개봉": "구로구", "오류동": "구로구", "온수": "구로구", "남구로": "구로구",
+    "가산디지털단지": "금천구", "독산": "금천구", "금천구청": "금천구",
+    "노량진": "동작구", "사당": "동작구", "상도": "동작구", "숭실대입구": "동작구", "총신대입구": "동작구", "흑석": "동작구", "보라매": "동작구",
+    "신림": "관악구", "서울대입구": "관악구", "낙성대": "관악구", "봉천": "관악구",
+    "목동": "양천구", "오목교": "양천구", "신정": "양천구", "신월": "양천구",
+    "화곡": "강서구", "마곡": "강서구", "김포공항": "강서구", "가양": "강서구", "발산": "강서구", "우장산": "강서구", "방화": "강서구",
+    # 동북권 (성동·광진·동대문·중랑·성북·강북·도봉·노원)
+    "왕십리": "성동구", "성수": "성동구", "뚝섬": "성동구", "한양대": "성동구", "옥수": "성동구", "금호": "성동구",
+    "건대입구": "광진구", "군자": "광진구", "구의": "광진구", "강변": "광진구", "아차산": "광진구", "광나루": "광진구",
+    "청량리": "동대문구", "회기": "동대문구", "외대앞": "동대문구", "신설동": "동대문구", "제기동": "동대문구", "장한평": "동대문구",
+    "상봉": "중랑구", "면목": "중랑구", "중화": "중랑구", "망우": "중랑구", "먹골": "중랑구",
+    "성신여대입구": "성북구", "한성대입구": "성북구", "길음": "성북구", "월곡": "성북구", "안암": "성북구", "고려대": "성북구",
+    "수유": "강북구", "미아": "강북구", "미아사거리": "강북구", "우이": "강북구",
+    "창동": "도봉구", "쌍문": "도봉구", "방학": "도봉구", "도봉산": "도봉구",
+    "노원": "노원구", "상계": "노원구", "중계": "노원구", "하계": "노원구", "공릉": "노원구", "태릉입구": "노원구", "마들": "노원구",
+    # 수도권 직결 관문 거점
+    "판교": "성남시", "분당": "성남시", "정자": "성남시", "미금": "성남시", "야탑": "성남시", "모란": "성남시", "서현": "성남시",
+    "부천": "부천시", "송내": "부천시", "중동": "부천시", "역곡": "부천시", "상동": "부천시",
+    "철산": "광명시", "광명": "광명시", "광명사거리": "광명시",
+    "수원": "수원시", "광교": "수원시", "화서": "수원시", "영통": "수원시",
+    "안양": "안양시", "범계": "안양시", "평촌": "안양시", "인덕원": "안양시",
+    "일산": "고양시", "대화": "고양시", "백석": "고양시", "삼송": "고양시", "화정": "고양시", "원흥": "고양시",
+    "부평": "인천시", "계양": "인천시", "송도": "인천시", "인천": "인천시", "주안": "인천시", "동암": "인천시",
+    "하남": "하남시", "미사": "하남시", "풍산": "하남시", "하남검단산": "하남시",
+    "남양주": "남양주시", "다산": "남양주시", "별내": "남양주시", "평내호평": "남양주시",
+}
+_SORTED_STATION_DONG_KEYS = sorted(STATION_DONG_MAP.keys(), key=len, reverse=True)
+
+
 class MultimodalRouteState(TypedDict, total=False):
     from_query: str
     to_query: str
@@ -469,6 +554,9 @@ class MultimodalRouteState(TypedDict, total=False):
     from_type: Optional[str]
     to_type: Optional[str]
     district: str
+    from_district: Optional[str]
+    to_district: Optional[str]
+    district_weather_map: Dict[str, Dict[str, Any]]
     hour: int
     weather_override: Optional[Dict[str, Any]]
     origin: Dict[str, Any]
@@ -1606,6 +1694,138 @@ class MultimodalRoutingEngine:
 
         return workflow.compile()
 
+    def resolve_station_district(
+        self,
+        station_name: str,
+        coords: Optional[List[float]] = None,
+        explicit_district: Optional[str] = None,
+    ) -> str:
+        """역/정류소/대여소 명칭 및 좌표를 바탕으로 소속 자치구/도시를 자동 판별 (Issue #91)"""
+        if explicit_district:
+            ed = explicit_district.strip().split()[0]
+            if ed in DISTRICT_CENTERS:
+                return ed
+            for d_key in DISTRICT_CENTERS:
+                if d_key in explicit_district:
+                    return d_key
+
+        raw_name = (station_name or "").strip()
+        clean = re.sub(r"역$", "", raw_name)
+        for key in _SORTED_STATION_DONG_KEYS:
+            if key in raw_name or key in clean:
+                return STATION_DONG_MAP[key]
+
+        if coords and len(coords) >= 2:
+            try:
+                lng, lat = float(coords[0]), float(coords[1])
+                min_dist = float("inf")
+                best_d = "강남구"
+                for dist_name, (c_lng, c_lat) in DISTRICT_CENTERS.items():
+                    d_sq = (lng - c_lng) ** 2 + (lat - c_lat) ** 2
+                    if d_sq < min_dist:
+                        min_dist = d_sq
+                        best_d = dist_name
+                return best_d
+            except Exception:
+                pass
+
+        return "강남구"
+
+    def _get_local_weather_for_station(
+        self,
+        station_name: str,
+        coords: Optional[List[float]],
+        state: MultimodalRouteState,
+        explicit_district: Optional[str] = None,
+        explicit_weather: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """거점(출발/도착/환승/세그먼트 탑승 위치)의 소속 자치구 및 국지 기상 컨텍스트 반환 (Issue #91)"""
+        d_name = self.resolve_station_district(station_name, coords, explicit_district=explicit_district)
+        w_ctx = state.get("weather_context") or {}
+        d_map = state.get("district_weather_map") or {}
+
+        raw_w: Dict[str, Any] = {}
+        if explicit_weather and isinstance(explicit_weather, dict):
+            raw_w = dict(explicit_weather)
+        elif d_name in d_map and isinstance(d_map[d_name], dict):
+            raw_w = dict(d_map[d_name])
+        elif d_name == w_ctx.get("from_district") and isinstance(w_ctx.get("from_weather"), dict):
+            raw_w = dict(w_ctx["from_weather"])
+        elif d_name == w_ctx.get("to_district") and isinstance(w_ctx.get("to_weather"), dict):
+            raw_w = dict(w_ctx["to_weather"])
+        else:
+            raw_w = dict(w_ctx)
+
+        rain = float(raw_w.get("rain", w_ctx.get("rain", 0.0)))
+        temp = float(raw_w.get("temp", w_ctx.get("temp", 15.0)))
+        wind = float(raw_w.get("wind", w_ctx.get("wind", 2.0)))
+        humidity = float(raw_w.get("humidity", w_ctx.get("humidity", 55.0)))
+        pty_desc = str(raw_w.get("pty_desc") or ("비" if rain > 0.0 else "맑음"))
+        sky_desc = str(raw_w.get("sky_desc") or ("흐림" if rain > 0.0 else "맑음"))
+
+        in_seoul = True
+        if coords and len(coords) >= 2:
+            in_seoul = self.is_in_seoul(float(coords[1]), float(coords[0]), station_name)
+        is_severe = rain > 0.0 or wind >= 8.0 or temp <= -5.0
+        bike_ok = (not is_severe) and in_seoul
+
+        return {
+            "district": d_name,
+            "temp": round(temp, 1),
+            "rain": round(rain, 1),
+            "humidity": round(humidity, 1),
+            "wind": round(wind, 1),
+            "pty_desc": pty_desc,
+            "sky_desc": sky_desc,
+            "is_severe": is_severe,
+            "bike_enabled": bike_ok,
+            "weather_gate": "CLEAR_MULTIMODAL" if bike_ok else "RAIN_SAFE_ONLY",
+        }
+
+    def _annotate_segments_with_local_weather(
+        self,
+        segments: List[Dict[str, Any]],
+        state: MultimodalRouteState,
+    ) -> None:
+        """경로를 구성하는 각 세그먼트(도보·따릉이·버스·지하철)의 승하차 위치별 국지 기상 및 구간 게이트 매핑 (Issue #91 Phase 2)"""
+        origin_name = (state.get("origin") or {}).get("name", "")
+        dest_name = (state.get("destination") or {}).get("name", "")
+        w_ctx = state.get("weather_context") or {}
+        from_w_cached = w_ctx.get("from_weather")
+        to_w_cached = w_ctx.get("to_weather")
+
+        for seg in segments:
+            from_nm = str(seg.get("from_name") or "")
+            to_nm = str(seg.get("to_name") or "")
+            seg_coords = seg.get("coords") or []
+            start_pt = (
+                seg_coords[0]
+                if (seg_coords and isinstance(seg_coords[0], (list, tuple)) and len(seg_coords[0]) >= 2)
+                else None
+            )
+            end_pt = (
+                seg_coords[-1]
+                if (seg_coords and isinstance(seg_coords[-1], (list, tuple)) and len(seg_coords[-1]) >= 2)
+                else None
+            )
+
+            if from_nm == origin_name and isinstance(from_w_cached, dict):
+                seg_from_w = dict(from_w_cached)
+            elif from_nm == dest_name and isinstance(to_w_cached, dict):
+                seg_from_w = dict(to_w_cached)
+            else:
+                seg_from_w = self._get_local_weather_for_station(from_nm, start_pt, state)
+
+            if to_nm == dest_name and isinstance(to_w_cached, dict):
+                seg_to_w = dict(to_w_cached)
+            elif to_nm == origin_name and isinstance(from_w_cached, dict):
+                seg_to_w = dict(from_w_cached)
+            else:
+                seg_to_w = self._get_local_weather_for_station(to_nm, end_pt, state)
+
+            seg["weather"] = seg_from_w
+            seg["to_weather"] = seg_to_w
+
     def _node_parse_context(self, state: MultimodalRouteState) -> Dict[str, Any]:
         t0 = time.perf_counter()
         trace = list(state.get("langgraph_trace") or [])
@@ -1634,27 +1854,94 @@ class MultimodalRoutingEngine:
         dest_in_seoul = self.is_in_seoul(dest_st["coords"][1], dest_st["coords"][0], dest_st["name"])
 
         w_ctx = dict(state.get("weather_context") or {})
-        rain = float(w_ctx.get("rain", 0.0))
-        temp = float(w_ctx.get("temp", 15.0))
-        wind = float(w_ctx.get("wind", 2.0))
-        humidity = float(w_ctx.get("humidity", 55.0))
+
+        # [Issue #91] 출발지 및 도착지 소속 자치구 자동 판별 및 국지 기상 교차 검증
+        from_weather = self._get_local_weather_for_station(
+            origin_st["name"],
+            origin_st["coords"],
+            state,
+            explicit_district=state.get("from_district") or w_ctx.get("from_district"),
+            explicit_weather=w_ctx.get("from_weather"),
+        )
+        to_weather = self._get_local_weather_for_station(
+            dest_st["name"],
+            dest_st["coords"],
+            state,
+            explicit_district=state.get("to_district") or w_ctx.get("to_district"),
+            explicit_weather=w_ctx.get("to_weather"),
+        )
+
+        from_d = from_weather["district"]
+        to_d = to_weather["district"]
+        origin_st["district"] = from_d
+        origin_st["weather"] = from_weather
+        dest_st["district"] = to_d
+        dest_st["weather"] = to_weather
+
+        from_rain = float(from_weather["rain"])
+        to_rain = float(to_weather["rain"])
+        from_wind = float(from_weather["wind"])
+        to_wind = float(to_weather["wind"])
+        from_temp = float(from_weather["temp"])
+        to_temp = float(to_weather["temp"])
+
+        # 보수적 안전 대표 기상값 산출 (출발지·도착지 중 악천후 우선 반영)
+        rain = max(from_rain, to_rain)
+        wind = max(from_wind, to_wind)
+        temp = min(from_temp, to_temp) if (from_temp <= -5.0 or to_temp <= -5.0) else from_temp
+        humidity = max(float(from_weather["humidity"]), float(to_weather["humidity"]))
+
+        is_cross_district = from_d != to_d
+        weather_diff_detected = (
+            (from_weather["is_severe"] != to_weather["is_severe"])
+            or (abs(from_rain - to_rain) >= 0.5)
+            or (abs(from_temp - to_temp) >= 2.0)
+        )
 
         # 기상 및 권역 게이트 판정:
         # 1) 따릉이(서울시 공공자전거)는 서울특별시 관내에서만 대여·반납 가능하므로 서울 외 지역(경기·인천) 출발 시 자동 배제
-        # 2) 강수량 > 0mm 또는 강풍(>= 8m/s) 또는 혹한(<= -5°C) 시 따릉이(PM) 차단
-        is_rainy_or_severe = rain > 0.0 or wind >= 8.0 or temp <= -5.0
+        # 2) 출발지 또는 도착지 중 어느 한 곳이라도 강수량 > 0mm 또는 강풍(>= 8m/s) 또는 혹한(<= -5°C) 시 RAIN_SAFE_ONLY 전환
+        is_rainy_or_severe = bool(from_weather["is_severe"] or to_weather["is_severe"])
         bike_enabled = (not is_rainy_or_severe) and origin_in_seoul
+        first_mile_bike_enabled = bool(from_weather["bike_enabled"] and origin_in_seoul)
+        last_mile_bike_enabled = bool(to_weather["bike_enabled"] and dest_in_seoul)
+
         if not origin_in_seoul:
-            gate_reason = f"출발지({origin_st['name']})가 서울특별시 외 지역(경기·인천)이므로 서울시 전용 공공자전거 따릉이 대여 대상에서 제외하고 광역 지하철·버스 경로를 탐색합니다."
+            gate_reason = f"출발지({origin_st['name']}, {from_d})가 서울특별시 외 지역(경기·인천)이므로 서울시 전용 공공자전거 따릉이 대여 대상에서 제외하고 광역 지하철·버스 경로를 탐색합니다."
+        elif from_rain <= 0.0 and to_rain > 0.0:
+            gate_reason = (
+                f"출발지({from_d} {origin_st['name']}: {from_temp:.1f}°C · 맑음)와 달리 "
+                f"도착지({to_d} {dest_st['name']}: {to_temp:.1f}°C · 강수 {to_rain:.1f}mm/h)에 비가 감지되어, "
+                f"하차 후 우천 이동 안전을 위해 따릉이(PM)를 배제하고 실내 환승·대중교통 안전 경로로 우회합니다."
+            )
+        elif from_rain > 0.0 and to_rain <= 0.0 and is_cross_district:
+            gate_reason = (
+                f"출발지({from_d} {origin_st['name']}: {from_temp:.1f}°C · 강수 {from_rain:.1f}mm/h)에 비가 감지되어"
+                f"(도착지 {to_d} {dest_st['name']}: {to_temp:.1f}°C · 맑음), "
+                f"출발 권역 노면 미끄럼 사고 예방을 위해 따릉이(PM) First-Mile을 차단하고 대중교통 안전 경로로 우회합니다."
+            )
         elif rain > 0.0:
-            gate_reason = f"강수 감지({rain:.1f}mm/h) — 노면 미끄럼 사고 예방을 위해 따릉이(PM) First/Last-Mile 경로를 자동 배제하고 실내 환승/지하철·버스 안전 경로로 우회합니다."
+            if is_cross_district:
+                gate_reason = (
+                    f"출발지({from_d} {from_rain:.1f}mm/h) 및 도착지({to_d} {to_rain:.1f}mm/h) 강수 감지 — "
+                    f"노면 미끄럼 사고 예방을 위해 따릉이(PM) First/Last-Mile 경로를 자동 배제하고 실내 환승/지하철·버스 안전 경로로 우회합니다."
+                )
+            else:
+                gate_reason = f"강수 감지({rain:.1f}mm/h) — 노면 미끄럼 사고 예방을 위해 따릉이(PM) First/Last-Mile 경로를 자동 배제하고 실내 환승/지하철·버스 안전 경로로 우회합니다."
         elif wind >= 8.0:
             gate_reason = f"강풍 주의({wind:.1f}m/s) — 주행 안전을 위해 따릉이(PM)를 제외하고 대중교통 경로를 우선 추천합니다."
         elif temp <= -5.0:
             gate_reason = f"한파 감지({temp:.1f}°C) — 동절기 안전을 위해 실내 대중교통 경로를 우선 탐색합니다."
         else:
-            gate_reason = f"양호한 기상({temp:.1f}°C · 강수 0.0mm) — 서울시 따릉이(First/Last-Mile) + 지하철 + 버스 멀티모달 복합 탐색이 활성화되었습니다."
+            if is_cross_district:
+                gate_reason = (
+                    f"출발지({from_d} {from_temp:.1f}°C) ➔ 도착지({to_d} {to_temp:.1f}°C) 전 구간 양호한 기상(강수 0.0mm) — "
+                    f"서울시 따릉이(First/Last-Mile) + 지하철 + 버스 멀티모달 복합 탐색이 활성화되었습니다."
+                )
+            else:
+                gate_reason = f"양호한 기상({temp:.1f}°C · 강수 0.0mm) — 서울시 따릉이(First/Last-Mile) + 지하철 + 버스 멀티모달 복합 탐색이 활성화되었습니다."
 
+        weather_gate = "CLEAR_MULTIMODAL" if bike_enabled else "RAIN_SAFE_ONLY"
         w_ctx.update(
             {
                 "temp": round(temp, 1),
@@ -1662,13 +1949,20 @@ class MultimodalRoutingEngine:
                 "humidity": round(humidity, 1),
                 "wind": round(wind, 1),
                 "bike_enabled": bike_enabled,
+                "first_mile_bike_enabled": first_mile_bike_enabled,
+                "last_mile_bike_enabled": last_mile_bike_enabled,
                 "origin_in_seoul": origin_in_seoul,
                 "dest_in_seoul": dest_in_seoul,
+                "from_district": from_d,
+                "to_district": to_d,
+                "from_weather": from_weather,
+                "to_weather": to_weather,
+                "is_cross_district": is_cross_district,
+                "weather_diff_detected": weather_diff_detected,
+                "weather_gate": weather_gate,
                 "weather_gate_reason": gate_reason,
             }
         )
-
-        weather_gate = "CLEAR_MULTIMODAL" if bike_enabled else "RAIN_SAFE_ONLY"
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         trace.append(
             {
@@ -1676,7 +1970,10 @@ class MultimodalRoutingEngine:
                 "node": "parse_context_node",
                 "status": "completed",
                 "decision": weather_gate,
-                "detail": f"출발({origin_st['name']}) ➔ 도착({dest_st['name']}) 좌표 해석 완료 · 기상 게이트={weather_gate}",
+                "detail": (
+                    f"출발({origin_st['name']}·{from_d} {from_temp:.1f}°C/{from_rain:.1f}mm) ➔ "
+                    f"도착({dest_st['name']}·{to_d} {to_temp:.1f}°C/{to_rain:.1f}mm) 국지 기상 교차 검증 완료 · 기상 게이트={weather_gate}"
+                ),
                 "latency_ms": elapsed_ms,
             }
         )
@@ -1743,8 +2040,11 @@ class MultimodalRoutingEngine:
             if cand_st["name"] == dest["name"]:
                 continue
             cand_lng, cand_lat = cand_st["coords"]
-            # 따릉이 반납 역도 반드시 서울특별시 관내여야 함
+            # 따릉이 반납 역도 반드시 서울특별시 관내여야 하며, 해당 역의 국지 기상이 양호해야 함 (Issue #91 Phase 2)
             if not self.is_in_seoul(cand_lat, cand_lng, cand_st["name"]):
+                continue
+            cand_w = self._get_local_weather_for_station(cand_st["name"], cand_st["coords"], state)
+            if not cand_w.get("bike_enabled", True):
                 continue
             cand_to_dest_km = haversine_km(cand_lat, cand_lng, d_lat, d_lng)
             # 목적지 방향 전진 여부 검증 (반대 방향 역 배제)
@@ -1793,6 +2093,9 @@ class MultimodalRoutingEngine:
                     continue
                 s_lng, s_lat = step_st["coords"]
                 if not self.is_in_seoul(s_lat, s_lng, step_st["name"]):
+                    continue
+                step_w = self._get_local_weather_for_station(step_st["name"], step_st["coords"], state)
+                if not step_w.get("bike_enabled", True):
                     continue
                 d_km = round(haversine_km(o_lat, o_lng, s_lat, s_lng), 2)
                 if 0.4 <= d_km <= 2.8:
@@ -2179,7 +2482,9 @@ class MultimodalRoutingEngine:
             # 서울시 실시간 대중교통환승경로 API 조회 (출발/도착 중 최소 1곳이 서울 권역인 경우 우선 적용)
             real_transfer_routes = []
             if origin_in_seoul or dest_in_seoul:
-                real_transfer_routes = self.fetch_public_transit_transfer_routes(o_lng, o_lat, d_lng, d_lat)
+                tf_o_lng, tf_o_lat = subway_origin["coords"] if first_walk_seg else (o_lng, o_lat)
+                tf_d_lng, tf_d_lat = subway_dest["coords"] if last_walk_seg else (d_lng, d_lat)
+                real_transfer_routes = self.fetch_public_transit_transfer_routes(tf_o_lng, tf_o_lat, tf_d_lng, tf_d_lat)
 
             hybrid_built = False
             if real_transfer_routes:
@@ -2196,22 +2501,25 @@ class MultimodalRoutingEngine:
                     segments = []
                     # 1) 출발역에서 첫 승차지까지 도보 이동
                     first_l = legs[0]
-                    w_start_dist = haversine_km(o_lat, o_lng, first_l["from_coords"][1], first_l["from_coords"][0])
-                    if w_start_dist > 0.04:
-                        w_mins = max(1, min(7, round(w_start_dist * 1000 / 65)))
-                        segments.append({
-                            "mode": "walk",
-                            "label": f"🚶 정류장 도보 이동",
-                            "from_name": origin["name"],
-                            "to_name": first_l["from_name"],
-                            "detail": f"{origin['name']} ➔ {first_l['from_name']} 도보 {w_mins}분 ({round(w_start_dist, 2)}km)",
-                            "minutes": w_mins,
-                            "distance_km": round(w_start_dist, 2),
-                            "fare_krw": 0,
-                            "color": "#94A3B8",
-                            "coords": [origin["coords"], first_l["from_coords"]],
-                            "live_badge": f"도보 {w_mins}분",
-                        })
+                    if first_walk_seg:
+                        segments.append(dict(first_walk_seg))
+                    else:
+                        w_start_dist = haversine_km(o_lat, o_lng, first_l["from_coords"][1], first_l["from_coords"][0])
+                        if w_start_dist > 0.04 and origin["name"] != first_l["from_name"]:
+                            w_mins = max(1, min(7, round(w_start_dist * 1000 / 65)))
+                            segments.append({
+                                "mode": "walk",
+                                "label": f"🚶 정류장 도보 이동",
+                                "from_name": origin["name"],
+                                "to_name": first_l["from_name"],
+                                "detail": f"{origin['name']} ➔ {first_l['from_name']} 도보 {w_mins}분 ({round(w_start_dist, 2)}km)",
+                                "minutes": w_mins,
+                                "distance_km": round(w_start_dist, 2),
+                                "fare_krw": 0,
+                                "color": "#94A3B8",
+                                "coords": [origin["coords"], first_l["from_coords"]],
+                                "live_badge": f"도보 {w_mins}분",
+                            })
 
                     bus_lines_used = []
                     transfer_step_names = []
@@ -2259,7 +2567,9 @@ class MultimodalRoutingEngine:
                                 first_bus_line = b_num
                                 first_bus_badge = bus_badge
 
-                            rain_factor = 1.15 if rain > 0 else 1.0
+                            bus_seg_w = self._get_local_weather_for_station(leg["from_name"], leg["from_coords"], state)
+                            seg_rain = max(rain, float(bus_seg_w.get("rain", 0.0)))
+                            rain_factor = 1.15 if seg_rain > 0 else 1.0
                             bus_mins = max(4, round((leg_dist_km / 0.35) * rain_factor))
                             corridor_coords = self.generate_bus_corridor_coords(
                                 leg["from_coords"], leg["to_coords"], bus_route_id=leg.get("route_id")
@@ -2327,22 +2637,25 @@ class MultimodalRoutingEngine:
 
                     # 마지막 하차지에서 최종 목적지까지 도보
                     last_l = legs[-1]
-                    w_end_dist = haversine_km(last_l["to_coords"][1], last_l["to_coords"][0], d_lat, d_lng)
-                    if w_end_dist > 0.04:
-                        w_end_mins = max(1, min(7, round(w_end_dist * 1000 / 65)))
-                        segments.append({
-                            "mode": "walk",
-                            "label": f"🚶 목적지 도보 이동",
-                            "from_name": last_l["to_name"],
-                            "to_name": dest["name"],
-                            "detail": f"{last_l['to_name']} ➔ {dest['name']} 도보 {w_end_mins}분 ({round(w_end_dist, 2)}km)",
-                            "minutes": w_end_mins,
-                            "distance_km": round(w_end_dist, 2),
-                            "fare_krw": 0,
-                            "color": "#94A3B8",
-                            "coords": [last_l["to_coords"], dest["coords"]],
-                            "live_badge": f"도보 {w_end_mins}분",
-                        })
+                    if last_walk_seg:
+                        segments.append(dict(last_walk_seg))
+                    else:
+                        w_end_dist = haversine_km(last_l["to_coords"][1], last_l["to_coords"][0], d_lat, d_lng)
+                        if w_end_dist > 0.04 and last_l["to_name"] != dest["name"]:
+                            w_end_mins = max(1, min(7, round(w_end_dist * 1000 / 65)))
+                            segments.append({
+                                "mode": "walk",
+                                "label": f"🚶 목적지 도보 이동",
+                                "from_name": last_l["to_name"],
+                                "to_name": dest["name"],
+                                "detail": f"{last_l['to_name']} ➔ {dest['name']} 도보 {w_end_mins}분 ({round(w_end_dist, 2)}km)",
+                                "minutes": w_end_mins,
+                                "distance_km": round(w_end_dist, 2),
+                                "fare_krw": 0,
+                                "color": "#94A3B8",
+                                "coords": [last_l["to_coords"], dest["coords"]],
+                                "live_badge": f"도보 {w_end_mins}분",
+                            })
 
                     total_min = sum(int(s["minutes"]) for s in segments)
                     total_km = round(sum(float(s["distance_km"]) for s in segments), 1)
@@ -2483,7 +2796,9 @@ class MultimodalRoutingEngine:
                     ),
                     1,
                 )
-                rain_delay_factor = 1.18 if rain > 0 else 1.0
+                bus_hub_w = self._get_local_weather_for_station(bus_stop["name"], bus_stop["coords"], state)
+                seg_bus_rain = max(rain, float(bus_hub_w.get("rain", 0.0)))
+                rain_delay_factor = 1.18 if seg_bus_rain > 0 else 1.0
                 bus_mins = max(5, round((bus_dist_km / 0.34) * rain_delay_factor))
 
                 sub_after_hub = self.search_subway_route(
@@ -2750,6 +3065,10 @@ class MultimodalRoutingEngine:
                         r["badge"] = "정시성 우수 · 철도 중심"
                         r["badge_color"] = "#38BDF8"
 
+        # [Issue #91 Phase 2] 모든 후보 경로의 개별 세그먼트에 승차/하차 거점 국지 날씨 및 구간 게이트 매핑
+        for r in routes:
+            self._annotate_segments_with_local_weather(r.get("segments") or [], state)
+
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         trace.append(
             {
@@ -2997,12 +3316,21 @@ class MultimodalRoutingEngine:
             and len(api_key) > 10
         )
 
+        from_w = w_ctx.get("from_weather") or {}
+        to_w = w_ctx.get("to_weather") or {}
+        from_d = str(w_ctx.get("from_district") or from_w.get("district") or state.get("district", "강남구"))
+        to_d = str(w_ctx.get("to_district") or to_w.get("district") or state.get("district", "강남구"))
+        from_rain = float(from_w.get("rain", w_ctx.get("rain", 0.0)))
+        to_rain = float(to_w.get("rain", w_ctx.get("rain", 0.0)))
+        from_temp = float(from_w.get("temp", w_ctx.get("temp", 15.0)))
+        to_temp = float(to_w.get("temp", w_ctx.get("temp", 15.0)))
+
         briefing: Optional[Dict[str, Any]] = None
         llm_status = "XAI_RULE_ENGINE"
         cache_key = (
             origin["name"],
             dest["name"],
-            round(float(w_ctx.get("rain", 0.0)), 1),
+            f"{from_d}:{round(from_rain, 1)}->{to_d}:{round(to_rain, 1)}",
             round(float(w_ctx.get("temp", 15.0)), 0),
             top_route.get("id", ""),
         )
@@ -3031,12 +3359,12 @@ class MultimodalRoutingEngine:
                         for idx, r in enumerate(routes[:3])
                     )
                     prompt_text = (
-                        f"출발지: {origin['name']}, 도착지: {dest['name']}\n"
-                        f"기상상태: 기온 {w_ctx.get('temp')}°C, 강수량 {w_ctx.get('rain')}mm/h, 풍속 {w_ctx.get('wind')}m/s, "
-                        f"따릉이 허용여부={w_ctx.get('bike_enabled')}\n"
+                        f"출발지: {origin['name']}({from_d}: {from_temp}°C, 강수 {from_rain}mm/h), "
+                        f"도착지: {dest['name']}({to_d}: {to_temp}°C, 강수 {to_rain}mm/h)\n"
+                        f"기상 게이트 판정: {w_ctx.get('weather_gate_reason')} (따릉이 허용여부={w_ctx.get('bike_enabled')})\n"
                         f"ONNX 혼잡도 예측: 지하철 {ai_cong.get('subway_crowd')}%, 버스 {ai_cong.get('bus_crowd')}%, 따릉이 {ai_cong.get('bike_crowd')}%\n"
                         f"후보 경로 비교:\n{cand_lines}\n"
-                        "위 후보들의 소요시간·환승횟수·요금·혼잡도·날씨를 비교하여 왜 1순위 경로가 가장 합리적인 선택인지(대안 경로 대비 장점 포함) 2~3문장으로 간결하고 친절하게 한국어로 브리핑해주세요."
+                        "출발지와 도착지의 국지 기상 차이 및 소요시간·환승횟수·요금·혼잡도를 비교하여 왜 1순위 경로가 가장 합리적인 선택인지(대안 경로 대비 장점 포함) 2~3문장으로 간결하고 친절하게 한국어로 브리핑해주세요."
                     )
                     endpoint = (
                         f"{base_url}/chat/completions"
@@ -3109,18 +3437,42 @@ class MultimodalRoutingEngine:
             temp = float(w_ctx.get("temp", 15.0))
             sub_crowd = int(ai_cong.get("subway_crowd", 52))
             bus_crowd = int(ai_cong.get("bus_crowd", 58))
-            if rain > 0.0:
+            is_cross = bool(w_ctx.get("is_cross_district", False))
+
+            if from_rain <= 0.0 and to_rain > 0.0:
                 summary_text = (
-                    f"현재 {state.get('district', '서울')} 권역에 시간당 {rain:.1f}mm의 강수가 감지되어 "
+                    f"출발지({from_d} {origin['name']})는 현재 {from_temp:.1f}°C로 맑으나, "
+                    f"도착지({to_d} {dest['name']}) 권역에 시간당 {to_rain:.1f}mm의 국지성 비가 예보되어 있어 "
+                    f"LangGraph 기상 게이트가 도착 후 우천 위험이 있는 따릉이(PM) 경로를 배제하고 안전 모드로 전환했습니다. "
+                    f"32차원 ONNX 예측 기준 우천으로 인한 버스 혼잡도({bus_crowd}%) 상승이 예상되므로, "
+                    f"정시성이 보장되는 '{top_route.get('title', '지하철 최소환승 경로')}'(약 {top_route.get('total_minutes', 20)}분 소요)를 1순위로 추천합니다."
+                )
+            elif from_rain > 0.0 and to_rain <= 0.0 and is_cross:
+                summary_text = (
+                    f"도착지({to_d} {dest['name']})는 {to_temp:.1f}°C로 맑으나, "
+                    f"출발지({from_d} {origin['name']}) 권역에 시간당 {from_rain:.1f}mm의 강수가 감지되어 "
+                    f"LangGraph 기상 게이트가 출발지 따릉이(PM) First-Mile 대여를 자동 차단했습니다. "
+                    f"32차원 ONNX 모델 예측 결과 도로 정체로 인한 버스 혼잡도({bus_crowd}%) 상승이 예상되므로, "
+                    f"우천 지연 영향이 없는 '{top_route.get('title', '지하철 최소환승 경로')}'(약 {top_route.get('total_minutes', 20)}분 소요)를 1순위로 추천합니다."
+                )
+            elif rain > 0.0:
+                region_label = f"{from_d} ➔ {to_d}" if is_cross else f"{from_d}"
+                summary_text = (
+                    f"현재 {region_label} 이동 권역에 시간당 {rain:.1f}mm의 강수가 감지되어 "
                     f"LangGraph 기상 게이트가 따릉이(PM) First/Last-Mile 구간을 자동 차단했습니다. "
                     f"32차원 ONNX 모델 예측 결과 도로 정체로 인한 버스 혼잡도({bus_crowd}%) 상승이 예상되므로, "
                     f"우천 지연 영향이 없는 '{top_route.get('title', '지하철 최소환승 경로')}'(약 {top_route.get('total_minutes', 20)}분 소요)를 1순위로 추천합니다."
                 )
             else:
+                weather_label = (
+                    f"출발지({from_d} {from_temp:.1f}°C) 및 도착지({to_d} {to_temp:.1f}°C) 모두 강수 0.0mm의 쾌적한 날씨"
+                    if is_cross
+                    else f"현재 기온 {temp:.1f}°C, 강수 0.0mm의 쾌적한 날씨"
+                )
                 summary_text = (
-                    f"현재 기온 {temp:.1f}°C, 강수 0.0mm의 쾌적한 날씨로 따릉이 First-Mile 연계가 활성화되었습니다. "
+                    f"{weather_label}로 따릉이 First-Mile 연계가 활성화되었습니다. "
                     f"ONNX 수요 예측 기준 지하철 혼잡도는 {sub_crowd}%, 버스 혼잡도는 {bus_crowd}% 수준이며, "
-                    f"출발지 인근 실시간 따릉이와 도시철도를 결합한 '{top_route.get('title', 'AI 멀티모달 최적 경로')}' 이용 시 "
+                    f"실시간 교통 여건을 반영한 '{top_route.get('title', 'AI 멀티모달 최적 경로')}' 이용 시 "
                     f"약 {top_route.get('total_minutes', 20)}분 만에 가장 쾌적하게 이동할 수 있습니다."
                 )
 
@@ -3177,6 +3529,9 @@ class MultimodalRoutingEngine:
         to_coords: Optional[List[float]] = None,
         from_type: Optional[str] = None,
         to_type: Optional[str] = None,
+        from_district: Optional[str] = None,
+        to_district: Optional[str] = None,
+        district_weather_map: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         t_start = time.perf_counter()
         initial_state: MultimodalRouteState = {
@@ -3187,6 +3542,9 @@ class MultimodalRoutingEngine:
             "from_type": from_type,
             "to_type": to_type,
             "district": district,
+            "from_district": from_district,
+            "to_district": to_district,
+            "district_weather_map": district_weather_map or {},
             "hour": hour,
             "weather_context": weather_context or {},
             "ai_congestion": ai_congestion or {},
@@ -3217,3 +3575,16 @@ class MultimodalRoutingEngine:
 
 # 싱글톤 인스턴스
 multimodal_routing_engine = MultimodalRoutingEngine()
+
+
+def resolve_station_district(
+    station_name: str,
+    coords: Optional[List[float]] = None,
+    explicit_district: Optional[str] = None,
+) -> str:
+    """모듈 레벨 역명·좌표 기반 자치구/시군구 자동 역지오코딩 헬퍼 (Issue #91)"""
+    return multimodal_routing_engine.resolve_station_district(
+        station_name=station_name,
+        coords=coords,
+        explicit_district=explicit_district,
+    )

@@ -8,6 +8,20 @@
 
 ## [2026-11-07]
 
+### 🛡️ 버스 정류소 검색 API 502 에러 격리 및 통합 검색창 수단별 접두사 정제
+- **배경/문제**:
+  - 지도 뷰에서 따릉이 대여소를 클릭하거나 출발/도착지로 지정할 때 `따릉이: DDP 동대문디자인플라자`와 같은 접두사가 포함된 명칭이 `UnifiedStationSearch`에 전달되어 백엔드 `/api/v1/transit/bus/stations/search`를 호출함.
+  - 서울시 버스 OpenAPI(`getStationByName`)는 해당 명칭에 대해 검색 결과 0건(`headerCd="4"`)을 반환했으나, 백엔드가 `headerCd != "0"` 조건을 502 Bad Gateway로 처리하여 브라우저 콘솔에 502 에러가 출력되는 결함 발생.
+- **조치 내역**:
+  1. **백엔드 장애 격리 (`main.py::search_bus_stations`)**:
+     - `따릉이:` 전용 접두사 명칭 유입 시 서울시 버스 API 호출을 즉시 차단하고 200 OK 빈 목록(`source: "FILTERED_NON_BUS"`) 반환.
+     - 서울시 API 무결과(`headerCd="4"`, `"7"`) 및 통신 오류 시 502 예외 대신 [LOG-02] 정책에 따라 200 OK 빈 목록으로 Graceful Degradation.
+  2. **프론트엔드 수단별 접두사 정제 (`UnifiedStationSearch.tsx`)**:
+     - `따릉이:`/`버스:` 등 접두사를 감지하여 다른 수단 API에 대한 불필요한 네트워크 호출을 방지하고, 본문 키워드(`cleanKeyword`)로 정제하여 검색어 매칭 품질 향상.
+- **검증**:
+  - `tests/test_multimodal_routing.py::test_bus_station_search_graceful_degradation` 단위 테스트 통과 (200 OK 빈 목록 확인).
+  - 프론트엔드 Vite 프로덕션 빌드 성공.
+
 ### 🌦️ 경로 탐색 시 출발·도착지 및 세그먼트 탑승 위치 기반 국지 날씨 자동 조회·구간별 기상 게이트 적용 (이슈 #91 / `ROUTE-04`)
 - **배경/문제**:
   - 기존 멀티모달 경로 탐색(`POST /api/v1/routes/multimodal-search`)은 상단 헤더에서 선택된 전역 단일 자치구(`selectedDistrict`)와 프론트엔드가 페이로드에 고정 주입한 `weather` 객체만 참조하여, 출발지(예: 마포구 홍대입구역, 맑음)와 도착지(예: 송파구 잠실역, 비)의 실제 국지 기상이 달라도 이를 인지하지 못하는 한계가 있었음.

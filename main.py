@@ -2533,19 +2533,37 @@ if __name__ == "__main__":
 async def search_bus_stations(q: str):
     from fastapi import HTTPException
 
-    keyword = q.strip()
+    raw_keyword = q.strip()
 
-    if not keyword:
+    if not raw_keyword:
         raise HTTPException(
             status_code=400,
             detail="검색어를 입력해 주세요."
         )
 
+    # 따릉이 전용 명칭이 유입된 경우 서울시 버스 API 불필요 호출 차단 및 200 OK 빈 목록 즉시 반환
+    if raw_keyword.startswith("따릉이:"):
+        return {
+            "status": "success",
+            "query": raw_keyword,
+            "count": 0,
+            "stations": [],
+            "source": "FILTERED_NON_BUS"
+        }
+
+    clean_keyword = re.sub(r"^(버스|정류장|정류소):\s*", "", raw_keyword).strip()
+    if not clean_keyword:
+        clean_keyword = raw_keyword
+
     if not DATA_GO_KR_BUS_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="버스 API 인증키가 설정되지 않았습니다."
-        )
+        logger.warning("[버스 검색] DATA_GO_KR_BUS_KEY 미설정 -> 빈 목록 Fallback")
+        return {
+            "status": "fallback",
+            "query": raw_keyword,
+            "count": 0,
+            "stations": [],
+            "source": "BUS_KEY_NOT_CONFIGURED"
+        }
 
     url = (
         "http://ws.bus.go.kr/api/rest/"
@@ -2554,23 +2572,31 @@ async def search_bus_stations(q: str):
 
     params = {
         "serviceKey": urllib.parse.unquote(DATA_GO_KR_BUS_KEY),
-        "stSrch": keyword,
+        "stSrch": clean_keyword,
         "resultType": "json"
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=6.0) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
 
         data = response.json()
         header = data.get("msgHeader") or {}
+        header_cd = str(header.get("headerCd", ""))
 
-        if str(header.get("headerCd")) != "0":
-            raise HTTPException(
-                status_code=502,
-                detail=f"서울시 API 오류: {header.get('headerMsg')}"
-            )
+        # 0: 정상, 4: 결과 없음, 7: 해당 데이터 없음 등
+        if header_cd != "0":
+            # 결과 없음(4, 7 등)은 정상적인 0건 검색 결과로 처리하고, 그 외 오류도 브라우저 502 에러 폭주 방지를 위해 200 OK 빈 목록으로 Graceful Degradation
+            logger.info("[버스 검색] getStationByName 안내 응답 (%s: %s) -> 빈 목록 반환", header_cd, header.get("headerMsg"))
+            return {
+                "status": "success",
+                "query": raw_keyword,
+                "count": 0,
+                "stations": [],
+                "source": "SEOUL_BUS_NO_DATA" if header_cd in ("4", "7") else "SEOUL_BUS_HEADER_ERROR",
+                "message": str(header.get("headerMsg", ""))
+            }
 
         body = data.get("msgBody") or {}
         items = body.get("itemList") or []
@@ -2605,23 +2631,30 @@ async def search_bus_stations(q: str):
 
         return {
             "status": "success",
-            "query": keyword,
+            "query": raw_keyword,
             "count": len(stations),
             "stations": stations,
             "source": "SEOUL_BUS_LIVE"
         }
 
     except httpx.HTTPError as exc:
-        logger.warning("Bus station search error: %s", sanitize_exception(exc))
-        raise HTTPException(
-            status_code=502,
-            detail="서울시 버스정류장 API 연결 실패"
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=502,
-            detail="서울시 API 응답 형식 오류"
-        )
+        logger.warning("[버스 검색] 서울시 버스정류장 API 통신 장애 -> 빈 목록 안전 Fallback: %s", sanitize_exception(exc))
+        return {
+            "status": "fallback",
+            "query": raw_keyword,
+            "count": 0,
+            "stations": [],
+            "source": "SEOUL_BUS_HTTP_ERROR"
+        }
+    except Exception as exc:
+        logger.warning("[버스 검색] 서울시 API 응답 처리 중 예외 -> 빈 목록 안전 Fallback: %s", sanitize_exception(exc))
+        return {
+            "status": "fallback",
+            "query": raw_keyword,
+            "count": 0,
+            "stations": [],
+            "source": "SEOUL_BUS_PARSE_ERROR"
+        }
 
 
 # ─────────────────────────────────────────────

@@ -584,6 +584,24 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
             self.assertEqual(rt["segments"][0]["weather"]["district"], "마포구")
             self.assertEqual(rt["segments"][-1]["to_weather"]["district"], "강남구")
 
+    def test_bus_station_search_graceful_degradation(self):
+        """버스 정류소 검색 시 무결과/따릉이 접두사 유입 시 502 에러 대신 200 OK 빈 목록 완충 검증"""
+        # 1. 따릉이 대여소 명칭 유입 시 버스 API 불필요 호출 차단 및 200 OK 반환
+        resp_bike = self.client.get("/api/v1/transit/bus/stations/search?q=따릉이: DDP 동대문디자인플라자")
+        self.assertEqual(resp_bike.status_code, 200)
+        data_bike = resp_bike.json()
+        self.assertEqual(data_bike["status"], "success")
+        self.assertEqual(data_bike["count"], 0)
+        self.assertEqual(data_bike["stations"], [])
+
+        # 2. 결과 없는 임의 검색어 조회 시 502 에러 대신 200 OK 빈 목록 반환
+        resp_none = self.client.get("/api/v1/transit/bus/stations/search?q=가나다라마바사아자차카타파하9999")
+        self.assertEqual(resp_none.status_code, 200)
+        data_none = resp_none.json()
+        self.assertIn(data_none["status"], ("success", "fallback"))
+        self.assertEqual(data_none["count"], 0)
+        self.assertEqual(data_none["stations"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

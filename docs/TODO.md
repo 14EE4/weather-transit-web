@@ -46,6 +46,17 @@
   - 마커 미선택 시 표출되던 `강남구청 → 잠실역 / 28분 / 1,550원~` 하드코딩 목업 카드를 실시간 기상(기온 · 강수 · 풍속) 빈 상태(Empty State)로 교체.
   - PC(`App.tsx`) · 모바일(`AppM.tsx`) 동일 로직 반영 및 `handleSearchRoute`를 '지하철 전용 빠른 조회'로 역할 명확화.
   - 사용자 수동 검증(브라우저 CTA 클릭 · 우천 게이트 표출) 후 `[x]` 전환 예정.
+- [x] **[ROUTE-05] 경로 탐색 시 자전거(First-Mile 따릉이) 제외/포함 사용자 옵션 추가 (완료 · 2026-11-08 · 이슈 #105)**:
+  - 맑은 날씨에도 자전거를 이용하지 않고 대중교통(지하철·버스·도보)만 이용하려는 사용자를 위해 First-Mile 따릉이 추천을 On/Off 할 수 있는 옵션 지원.
+  - **백엔드 (`multimodal_router.py`, `main.py`)**:
+    - `MultimodalRouteRequest` 및 `run_multimodal_search()`에 `allow_bike: bool = True` 파라미터 추가.
+    - `allow_bike=False` 설정 시 `bike_enabled = False` 강제 적용, 따릉이 후보(`route-ai-bike-first-mile`, `route-ai-bike-direct`) 전면 배제.
+    - `weather_gate`를 `RAIN_SAFE_ONLY`로 설정하고 사유에 `"사용자 선호 설정(자전거 제외)에 따라 자전거(따릉이) 이용을 제한하고 대중교통 위주로 안내합니다."` 명시.
+  - **프론트엔드 (`MultimodalRoutePanel.tsx`)**:
+    - `🚲 따릉이 포함 (ON)` ↔ `🚶 자전거 제외 (OFF)` 원클릭 토글 버튼 제공 (헤더 바 및 빈 상태 카드).
+    - `localStorage('weather_transit_allow_bike')` 영속화 및 `cacheKey`에 `bike:${allowBike}` 반영.
+    - 제외 모드 활성화 시 `🚶 USER_TRANSIT_ONLY · 자전거 제외 모드` 배지 표출.
+  - **검증**: `tests/test_multimodal_routing.py::test_allow_bike_user_toggle_disabled` 단위 테스트 통과 (전체 19개 100% PASS), Docker 컨테이너 재빌드 검증 완료.
 - [x] **[ROUTE-04] 경로 탐색 시 출발·도착지 및 교통수단 탑승 위치 기반 국지 날씨 자동 조회 및 구간별 기상 게이트 적용 (완료 · 2026-11-07 · 이슈 #91)**:
   - **Phase 1 (출발·도착지 자치구 자동 해석 및 교차 검증)**:
     - 프론트엔드(`districtResolver.ts::resolveDistrictNameFromPoint`) 및 백엔드(`multimodal_router.py::resolve_station_district`)에서 서울 25개 자치구 및 수도권 9개 관문 도시 거점의 소속 자치구를 자동 역지오코딩.

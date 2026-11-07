@@ -602,6 +602,59 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         self.assertEqual(data_none["count"], 0)
         self.assertEqual(data_none["stations"], [])
 
+    def test_allow_bike_user_toggle_disabled(self):
+        """사용자가 따릉이 제외(allow_bike=False) 설정 시 맑은 날씨에도 따릉이(First-Mile) 후보가 완전히 배제되고 게이트 사유가 명시되는지 검증"""
+        # 1. Python 엔진 직접 호출 검증
+        engine_res = multimodal_routing_engine.run_multimodal_search(
+            from_query="홍대입구역",
+            to_query="강남역",
+            district="마포구",
+            hour=14,
+            weather_context={"temp": 21.0, "rain": 0.0, "humidity": 45.0, "wind": 1.5},
+            allow_bike=False,
+        )
+        self.assertEqual(engine_res["status"], "success")
+        self.assertFalse(engine_res["weather_context"]["allow_bike"])
+        self.assertFalse(engine_res["weather_context"]["bike_enabled"])
+        self.assertFalse(engine_res["weather_context"]["first_mile_bike_enabled"])
+        self.assertEqual(engine_res["weather_gate"], "RAIN_SAFE_ONLY")
+        self.assertIn("사용자 선호 설정(따릉이 제외)", engine_res["weather_context"]["weather_gate_reason"])
+        for r in engine_res["routes"]:
+            self.assertNotIn("bike", r["modes_used"])
+
+        # 2. FastAPI POST /api/v1/routes/multimodal-search 검증
+        post_resp = self.client.post(
+            "/api/v1/routes/multimodal-search",
+            json={
+                "from_station": "홍대입구역",
+                "to_station": "강남역",
+                "district": "마포구",
+                "hour": 14,
+                "allow_bike": False,
+                "weather": {"temp": 21.0, "rain": 0.0, "humidity": 45.0, "wind": 1.5},
+            },
+        )
+        self.assertEqual(post_resp.status_code, 200)
+        post_data = post_resp.json()
+        self.assertEqual(post_data["status"], "success")
+        self.assertEqual(post_data["weather_gate"], "RAIN_SAFE_ONLY")
+        self.assertFalse(post_data["weather_context"]["allow_bike"])
+        self.assertFalse(post_data["weather_context"]["bike_enabled"])
+        for r in post_data["routes"]:
+            self.assertNotIn("bike", r["modes_used"])
+
+        # 3. FastAPI GET /api/v1/routes/multimodal-search?allow_bike=false 검증
+        get_resp = self.client.get(
+            "/api/v1/routes/multimodal-search?from_station=홍대입구역&to_station=강남역&district=마포구&hour=14&rain=0.0&temp=21.0&allow_bike=false"
+        )
+        self.assertEqual(get_resp.status_code, 200)
+        get_data = get_resp.json()
+        self.assertEqual(get_data["weather_gate"], "RAIN_SAFE_ONLY")
+        self.assertFalse(get_data["weather_context"]["allow_bike"])
+        self.assertFalse(get_data["weather_context"]["bike_enabled"])
+        for r in get_data["routes"]:
+            self.assertNotIn("bike", r["modes_used"])
+
 
 if __name__ == "__main__":
     unittest.main()

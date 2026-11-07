@@ -558,6 +558,7 @@ class MultimodalRouteState(TypedDict, total=False):
     to_district: Optional[str]
     district_weather_map: Dict[str, Dict[str, Any]]
     hour: int
+    allow_bike: bool
     weather_override: Optional[Dict[str, Any]]
     origin: Dict[str, Any]
     destination: Dict[str, Any]
@@ -1898,15 +1899,21 @@ class MultimodalRoutingEngine:
             or (abs(from_temp - to_temp) >= 2.0)
         )
 
-        # 기상 및 권역 게이트 판정:
+        # 사용자 선호(자전거 허용 여부) 및 기상·권역 게이트 판정:
+        # 0) 사용자가 명시적으로 자전거(First/Last-Mile 따릉이) 제외를 선택한 경우 (Issue #105)
         # 1) 따릉이(서울시 공공자전거)는 서울특별시 관내에서만 대여·반납 가능하므로 서울 외 지역(경기·인천) 출발 시 자동 배제
         # 2) 출발지 또는 도착지 중 어느 한 곳이라도 강수량 > 0mm 또는 강풍(>= 8m/s) 또는 혹한(<= -5°C) 시 RAIN_SAFE_ONLY 전환
-        is_rainy_or_severe = bool(from_weather["is_severe"] or to_weather["is_severe"])
-        bike_enabled = (not is_rainy_or_severe) and origin_in_seoul
-        first_mile_bike_enabled = bool(from_weather["bike_enabled"] and origin_in_seoul)
-        last_mile_bike_enabled = bool(to_weather["bike_enabled"] and dest_in_seoul)
+        allow_bike_opt = state.get("allow_bike")
+        allow_bike = True if allow_bike_opt is None else bool(allow_bike_opt)
 
-        if not origin_in_seoul:
+        is_rainy_or_severe = bool(from_weather["is_severe"] or to_weather["is_severe"])
+        bike_enabled = (not is_rainy_or_severe) and origin_in_seoul and allow_bike
+        first_mile_bike_enabled = bool(from_weather["bike_enabled"] and origin_in_seoul and allow_bike)
+        last_mile_bike_enabled = bool(to_weather["bike_enabled"] and dest_in_seoul and allow_bike)
+
+        if not allow_bike:
+            gate_reason = "사용자 선호 설정(따릉이 제외)에 따라 따릉이(First/Last-Mile) 경로를 배제하고 지하철·버스 중심 대중교통 안전 경로를 추천합니다."
+        elif not origin_in_seoul:
             gate_reason = f"출발지({origin_st['name']}, {from_d})가 서울특별시 외 지역(경기·인천)이므로 서울시 전용 공공자전거 따릉이 대여 대상에서 제외하고 광역 지하철·버스 경로를 탐색합니다."
         elif from_rain <= 0.0 and to_rain > 0.0:
             gate_reason = (
@@ -1961,6 +1968,7 @@ class MultimodalRoutingEngine:
                 "weather_diff_detected": weather_diff_detected,
                 "weather_gate": weather_gate,
                 "weather_gate_reason": gate_reason,
+                "allow_bike": allow_bike,
             }
         )
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
@@ -3532,6 +3540,7 @@ class MultimodalRoutingEngine:
         from_district: Optional[str] = None,
         to_district: Optional[str] = None,
         district_weather_map: Optional[Dict[str, Dict[str, Any]]] = None,
+        allow_bike: bool = True,
     ) -> Dict[str, Any]:
         t_start = time.perf_counter()
         initial_state: MultimodalRouteState = {
@@ -3546,6 +3555,7 @@ class MultimodalRoutingEngine:
             "to_district": to_district,
             "district_weather_map": district_weather_map or {},
             "hour": hour,
+            "allow_bike": allow_bike,
             "weather_context": weather_context or {},
             "ai_congestion": ai_congestion or {},
             "bike_candidates": {"live_snapshot": live_bike_snapshot or []},

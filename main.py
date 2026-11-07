@@ -3328,6 +3328,7 @@ class MultimodalRouteRequest(BaseModel):
     from_weather: Optional[WeatherInput] = Field(None, description="출발지 국지 기상 오버라이드 (선택)")
     to_weather: Optional[WeatherInput] = Field(None, description="도착지 국지 기상 오버라이드 (선택)")
     district_weather_map: Optional[Dict[str, WeatherInput]] = Field(None, description="자치구별 국지 기상 오버라이드 맵 (선택)")
+    allow_bike: Optional[bool] = Field(True, description="따릉이(First-Mile) 경로 포함 여부 (기본값 True, False 시 따릉이 제외)")
 
 
 def _weather_input_to_ctx_dict(w_in: WeatherInput, d_name: str, source: str = "USER_OVERRIDE") -> dict:
@@ -3358,6 +3359,7 @@ async def _execute_multimodal_search(
     from_weather_override: Optional[WeatherInput] = None,
     to_weather_override: Optional[WeatherInput] = None,
     district_weather_overrides: Optional[Dict[str, WeatherInput]] = None,
+    allow_bike: bool = True,
 ) -> dict:
     target_hour = hour if hour is not None else get_kst_now().hour
     live_bikes = _bike_snapshot_cache[1] if _bike_snapshot_cache else (_bike_snapshot_last_good or [])
@@ -3554,6 +3556,7 @@ async def _execute_multimodal_search(
         from_district=resolved_from_d,
         to_district=resolved_to_d,
         district_weather_map=district_w_map,
+        allow_bike=allow_bike,
     )
     result["district"] = norm_d
     result["from_district"] = resolved_from_d
@@ -3585,6 +3588,7 @@ async def post_multimodal_route_search(req: MultimodalRouteRequest):
         from_weather_override=req.from_weather,
         to_weather_override=req.to_weather,
         district_weather_overrides=req.district_weather_map,
+        allow_bike=req.allow_bike if req.allow_bike is not None else True,
     )
 
 
@@ -3606,6 +3610,7 @@ async def get_multimodal_route_search(
     to_lat: Optional[float] = None,
     from_type: Optional[str] = None,
     to_type: Optional[str] = None,
+    allow_bike: bool = True,
 ):
     """GET 방식 멀티모달 통합 경로 탐색 API (쿼리 파라미터 기반)"""
     w_override = None
@@ -3648,5 +3653,6 @@ async def get_multimodal_route_search(
         to_district=to_district,
         from_weather_override=f_w_override,
         to_weather_override=t_w_override,
+        allow_bike=allow_bike,
     )
 

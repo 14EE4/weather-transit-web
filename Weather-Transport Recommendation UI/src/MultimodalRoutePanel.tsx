@@ -175,6 +175,27 @@ export default function MultimodalRoutePanel({
   onSelectRouteForMap,
   compact = false,
 }: MultimodalRoutePanelProps) {
+  const [allowBike, setAllowBike] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('weather_transit_allow_bike')
+      return saved !== null ? saved === 'true' : true
+    } catch {
+      return true
+    }
+  })
+
+  const toggleAllowBike = () => {
+    setAllowBike(prev => {
+      const next = !prev
+      try {
+        localStorage.setItem('weather_transit_allow_bike', String(next))
+      } catch {
+        // ignore storage errors
+      }
+      return next
+    })
+  }
+
   const cleanFrom = (fromStation || '').trim()
   const cleanTo = (toStation || '').trim()
   const cleanDistrict = (district || '').split(' ')[0] || '강남구'
@@ -187,7 +208,7 @@ export default function MultimodalRoutePanel({
   )
   const coordsKey = `${fromCoords ? fromCoords.join(',') : ''}_${toCoords ? toCoords.join(',') : ''}_${fromType || ''}_${toType || ''}`
   const cacheKey = hasValidRouteInput
-    ? `${cleanFrom}|${cleanTo}|${coordsKey}|${fromDistrict}->${toDistrict}|${selectedHour}`
+    ? `${cleanFrom}|${cleanTo}|${coordsKey}|${fromDistrict}->${toDistrict}|${selectedHour}|bike:${allowBike}`
     : ''
 
   const [data, setData] = useState<MultimodalSearchResponse | null>(() =>
@@ -225,6 +246,7 @@ export default function MultimodalRoutePanel({
         from_district: fromDistrict,
         to_district: toDistrict,
         hour: selectedHour,
+        allow_bike: allowBike,
       }
       console.log(
         `%c[LangGraph × FactChat] 🚀 멀티모달 경로 탐색 시작: ${cleanFrom} ➔ ${cleanTo} (${selectedHour}:00, ${temp}°C, 강수 ${rain}mm)`,
@@ -282,7 +304,7 @@ export default function MultimodalRoutePanel({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [apiBaseUrl, cacheKey, cleanFrom, cleanTo, fromCoords, toCoords, fromType, toType, cleanDistrict, fromDistrict, toDistrict, hasValidRouteInput, selectedHour])
+  }, [apiBaseUrl, cacheKey, cleanFrom, cleanTo, fromCoords, toCoords, fromType, toType, cleanDistrict, fromDistrict, toDistrict, hasValidRouteInput, selectedHour, allowBike])
 
   if (!hasValidRouteInput) {
     return (
@@ -327,19 +349,38 @@ export default function MultimodalRoutePanel({
             </div>
           </div>
         </div>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: '4px 10px',
-            borderRadius: 999,
-            background: rain > 0 ? 'rgba(245, 158, 11, 0.16)' : 'rgba(16, 185, 129, 0.16)',
-            color: rain > 0 ? '#FBBF24' : '#34D399',
-            fontFamily: 'JetBrains Mono',
-          }}
-        >
-          {rain > 0 ? '🌧️ 우천 안전 게이트 작동 중' : '☀️ 따릉이 First-Mile 활성'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={toggleAllowBike}
+            title={allowBike ? '따릉이 제외하기' : '따릉이 포함하기'}
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: allowBike ? 'rgba(16, 185, 129, 0.16)' : 'rgba(148, 163, 184, 0.16)',
+              border: `1px solid ${allowBike ? 'rgba(16, 185, 129, 0.45)' : 'rgba(148, 163, 184, 0.35)'}`,
+              color: allowBike ? '#34D399' : '#94A3B8',
+              cursor: 'pointer',
+              fontFamily: 'JetBrains Mono, system-ui',
+            }}
+          >
+            {allowBike ? '🚲 따릉이 포함 (ON)' : '🚫 따릉이 제외 (OFF)'}
+          </button>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: rain > 0 ? 'rgba(245, 158, 11, 0.16)' : (!allowBike ? 'rgba(148, 163, 184, 0.16)' : 'rgba(16, 185, 129, 0.16)'),
+              color: rain > 0 ? '#FBBF24' : (!allowBike ? '#94A3B8' : '#34D399'),
+              fontFamily: 'JetBrains Mono',
+            }}
+          >
+            {rain > 0 ? '🌧️ 우천 안전 게이트 작동 중' : (!allowBike ? '🚫 따릉이 제외 설정됨' : '☀️ 따릉이 First-Mile 활성')}
+          </span>
+        </div>
       </div>
     )
   }
@@ -434,35 +475,44 @@ export default function MultimodalRoutePanel({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span
+            <button
+              onClick={toggleAllowBike}
+              title={allowBike ? '클릭 시 따릉이를 경로 후보에서 제외합니다' : '클릭 시 맑은 날씨에 따릉이를 경로 후보에 포함합니다'}
               style={{
                 fontSize: 10,
                 fontWeight: 800,
-                padding: '3px 9px',
+                padding: '3px 10px',
                 borderRadius: 999,
-                background: 'rgba(168, 85, 247, 0.18)',
-                border: '1px solid rgba(168, 85, 247, 0.4)',
-                color: '#C084FC',
-                fontFamily: 'JetBrains Mono',
+                background: allowBike ? 'rgba(16, 185, 129, 0.16)' : 'rgba(148, 163, 184, 0.16)',
+                border: `1px solid ${allowBike ? 'rgba(16, 185, 129, 0.45)' : 'rgba(148, 163, 184, 0.35)'}`,
+                color: allowBike ? '#34D399' : '#94A3B8',
+                cursor: 'pointer',
+                fontFamily: 'JetBrains Mono, system-ui',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                transition: 'all 0.2s ease',
               }}
             >
-              ⚡ LangGraph StateGraph
-            </span>
+              <span>{allowBike ? '🚲 따릉이 포함 (ON)' : '🚫 따릉이 제외 (OFF)'}</span>
+            </button>
             <span
               style={{
                 fontSize: 10,
                 fontWeight: 800,
                 padding: '3px 9px',
                 borderRadius: 999,
-                background: bikeEnabled ? 'rgba(16, 185, 129, 0.16)' : 'rgba(245, 158, 11, 0.18)',
-                border: `1px solid ${bikeEnabled ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.45)'}`,
-                color: bikeEnabled ? '#34D399' : '#FBBF24',
+                background: bikeEnabled ? 'rgba(16, 185, 129, 0.16)' : (!allowBike ? 'rgba(148, 163, 184, 0.16)' : 'rgba(245, 158, 11, 0.18)'),
+                border: `1px solid ${bikeEnabled ? 'rgba(16, 185, 129, 0.4)' : (!allowBike ? 'rgba(148, 163, 184, 0.35)' : 'rgba(245, 158, 11, 0.45)')}`,
+                color: bikeEnabled ? '#34D399' : (!allowBike ? '#94A3B8' : '#FBBF24'),
                 fontFamily: 'JetBrains Mono',
               }}
             >
               {bikeEnabled
                 ? '☀️ CLEAR_MULTIMODAL · 따릉이 First-Mile 활성'
-                : '🌧️ RAIN_SAFE_ONLY · 따릉이 자동 차단'}
+                : (!allowBike
+                  ? '🚫 USER_TRANSIT_ONLY · 따릉이 제외 모드'
+                  : '🌧️ RAIN_SAFE_ONLY · 따릉이 자동 차단')}
             </span>
           </div>
 

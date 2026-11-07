@@ -1912,7 +1912,7 @@ class MultimodalRoutingEngine:
         last_mile_bike_enabled = bool(to_weather["bike_enabled"] and dest_in_seoul and allow_bike)
 
         if not allow_bike:
-            gate_reason = "사용자 선호 설정(자전거 제외)에 따라 따릉이(First/Last-Mile) 경로를 배제하고 지하철·버스 중심 대중교통 안전 경로를 추천합니다."
+            gate_reason = "사용자 선호 설정(따릉이 제외)에 따라 따릉이(First/Last-Mile) 경로를 배제하고 지하철·버스 중심 대중교통 안전 경로를 추천합니다."
         elif not origin_in_seoul:
             gate_reason = f"출발지({origin_st['name']}, {from_d})가 서울특별시 외 지역(경기·인천)이므로 서울시 전용 공공자전거 따릉이 대여 대상에서 제외하고 광역 지하철·버스 경로를 탐색합니다."
         elif from_rain <= 0.0 and to_rain > 0.0:

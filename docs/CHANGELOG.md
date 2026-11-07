@@ -8,10 +8,10 @@
 
 ## [2026-11-08]
 
-### 🚲 경로 탐색 시 자전거(First-Mile 따릉이) 제외/포함 사용자 옵션 추가 (이슈 #105 / `ROUTE-05`)
+### 🚲 경로 탐색 시 따릉이(First-Mile) 제외/포함 사용자 옵션 추가 (이슈 #105 / `ROUTE-05`)
 - **배경/문제**:
   - 기존 멀티모달 경로 추천(`POST /api/v1/routes/multimodal-search`)은 맑은 날씨(`rain <= 0mm`)일 경우 자동으로 따릉이 First-Mile(`따릉이 ➔ 지하철 ➔ 도보`) 및 직통 자전거 경로를 최우선 순위로 추천함.
-  - 정장 착용, 짐 소지, 자전거 미탑승 선호 등 개인 사정으로 자전거를 타고 싶지 않은 사용자의 경우에도 강제로 따릉이가 포함된 경로가 안내되어 대중교통 전용 경로 조회가 불편했던 문제 해결.
+  - 정장 착용, 짐 소지, 자전거 미탑승 선호 등 개인 사정으로 따릉이를 타고 싶지 않은 사용자의 경우에도 강제로 따릉이가 포함된 경로가 안내되어 대중교통 전용 경로 조회가 불편했던 문제 해결.
 - **조치 내역**:
   1. **백엔드 API 및 LangGraph 파이프라인 확장 (`main.py`, `multimodal_router.py`)**:
      - `MultimodalRouteRequest` 모델에 `allow_bike: bool = True` 필드 추가.
@@ -21,8 +21,8 @@
      - `_node_generate_candidates()`에서 따릉이 복합 경로 및 직통 자전거 경로 생성을 완전히 배제하여 순수 대중교통(지하철·버스·도보) 경로만 조합.
   2. **프론트엔드 원클릭 토글 버튼 및 상태 영속화 (`MultimodalRoutePanel.tsx`)**:
      - `allowBike` React 상태 구현 및 브라우저 `localStorage('weather_transit_allow_bike')` 자동 동기화.
-     - 대기 상태 배너 및 브리핑 상단 카드에 `🚲 따릉이 포함 (ON)` ↔ `🚶 자전거 제외 (OFF)` 인터랙티브 토글 버튼 탑재.
-     - 자전거 제외 활성화 시 `🚶 USER_TRANSIT_ONLY · 자전거 제외 모드` 명시적 상태 배지 표출.
+     - 대기 상태 배너 및 브리핑 상단 카드에 `🚲 따릉이 포함 (ON)` ↔ `🚫 따릉이 제외 (OFF)` 인터랙티브 토글 버튼 탑재.
+     - 따릉이 제외 활성화 시 `🚫 USER_TRANSIT_ONLY · 따릉이 제외 모드` 명시적 상태 배지 표출.
      - `cacheKey`에 `bike:${allowBike}`를 포함하여 모드 변경 시 즉시 새 경로가 탐색되도록 캐시 정합성 확보.
 - **검증**:
   - `tests/test_multimodal_routing.py::test_allow_bike_user_toggle_disabled` 단위 테스트(엔진 직접 호출, POST API, GET API 3종) 완비. 전체 19개 테스트 100% 통과.

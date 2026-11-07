@@ -352,7 +352,7 @@ export default function MultimodalRoutePanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <button
             onClick={toggleAllowBike}
-            title={allowBike ? '자전거(따릉이) 제외하기' : '자전거(따릉이) 포함하기'}
+            title={allowBike ? '따릉이 제외하기' : '따릉이 포함하기'}
             style={{
               fontSize: 10,
               fontWeight: 800,
@@ -365,7 +365,7 @@ export default function MultimodalRoutePanel({
               fontFamily: 'JetBrains Mono, system-ui',
             }}
           >
-            {allowBike ? '🚲 따릉이 포함 (ON)' : '🚶 자전거 제외 (OFF)'}
+            {allowBike ? '🚲 따릉이 포함 (ON)' : '🚫 따릉이 제외 (OFF)'}
           </button>
           <span
             style={{
@@ -378,7 +378,7 @@ export default function MultimodalRoutePanel({
               fontFamily: 'JetBrains Mono',
             }}
           >
-            {rain > 0 ? '🌧️ 우천 안전 게이트 작동 중' : (!allowBike ? '🚶 자전거 제외 설정됨' : '☀️ 따릉이 First-Mile 활성')}
+            {rain > 0 ? '🌧️ 우천 안전 게이트 작동 중' : (!allowBike ? '🚫 따릉이 제외 설정됨' : '☀️ 따릉이 First-Mile 활성')}
           </span>
         </div>
       </div>
@@ -477,7 +477,7 @@ export default function MultimodalRoutePanel({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button
               onClick={toggleAllowBike}
-              title={allowBike ? '클릭 시 자전거(따릉이)를 경로 후보에서 제외합니다' : '클릭 시 맑은 날씨에 자전거(따릉이)를 경로 후보에 포함합니다'}
+              title={allowBike ? '클릭 시 따릉이를 경로 후보에서 제외합니다' : '클릭 시 맑은 날씨에 따릉이를 경로 후보에 포함합니다'}
               style={{
                 fontSize: 10,
                 fontWeight: 800,
@@ -494,7 +494,7 @@ export default function MultimodalRoutePanel({
                 transition: 'all 0.2s ease',
               }}
             >
-              <span>{allowBike ? '🚲 따릉이 포함 (ON)' : '🚶 자전거 제외 (OFF)'}</span>
+              <span>{allowBike ? '🚲 따릉이 포함 (ON)' : '🚫 따릉이 제외 (OFF)'}</span>
             </button>
             <span
               style={{
@@ -511,7 +511,7 @@ export default function MultimodalRoutePanel({
               {bikeEnabled
                 ? '☀️ CLEAR_MULTIMODAL · 따릉이 First-Mile 활성'
                 : (!allowBike
-                  ? '🚶 USER_TRANSIT_ONLY · 자전거 제외 모드'
+                  ? '🚫 USER_TRANSIT_ONLY · 따릉이 제외 모드'
                   : '🌧️ RAIN_SAFE_ONLY · 따릉이 자동 차단')}
             </span>
           </div>

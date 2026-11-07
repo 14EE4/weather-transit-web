@@ -3328,7 +3328,7 @@ class MultimodalRouteRequest(BaseModel):
     from_weather: Optional[WeatherInput] = Field(None, description="출발지 국지 기상 오버라이드 (선택)")
     to_weather: Optional[WeatherInput] = Field(None, description="도착지 국지 기상 오버라이드 (선택)")
     district_weather_map: Optional[Dict[str, WeatherInput]] = Field(None, description="자치구별 국지 기상 오버라이드 맵 (선택)")
-    allow_bike: Optional[bool] = Field(True, description="자전거(따릉이/First-Mile) 경로 포함 여부 (기본값 True, False 시 자전거 제외)")
+    allow_bike: Optional[bool] = Field(True, description="따릉이(First-Mile) 경로 포함 여부 (기본값 True, False 시 따릉이 제외)")
 
 
 def _weather_input_to_ctx_dict(w_in: WeatherInput, d_name: str, source: str = "USER_OVERRIDE") -> dict:

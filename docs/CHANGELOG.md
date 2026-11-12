@@ -8,6 +8,22 @@
 
 ## [2026-11-12]
 
+### 🐛 버스·따릉이 모드에서 베이스맵 전환 시 지하철 케이싱 선 검게 변하는 현상 수정 (이슈 #113)
+- **배경/문제**:
+  - 버스 또는 따릉이 필터 모드(`filterType !== 'all' && filterType !== 'subway'`)에서 우상단 `[🗺️ 일반 | 🛰️ 위성]` 베이스맵 토글 시, 지하철 노선망이 굵고 짙은 검은색 선으로 변해 지도 전체를 덮어버리는 결함 발생.
+  - 베이스맵 전환 `useEffect`가 `filterType`을 무시하고 `subway-network-casing`의 `line-opacity`를 무조건 `0.8`의 검정색(`#0B1120`)으로 덮어써서 발생한 상태 충돌.
+- **조치 내역**:
+  1. `TransitMap.tsx`:
+     - 베이스맵 전환과 노선망 가시성 제어를 단일 통합 `useEffect([currentBaseMap, filterType, mapLoaded])`로 일원화.
+     - `isSubwayFocused`(`filterType === 'all' || filterType === 'subway'`) 여부에 따라 케이싱 불투명도 분기:
+       - 지하철 포커스 모드: `isSat ? 0.4 : 0.8` (선명한 외곽선)
+       - 버스/따릉이 모드: `isSat ? 0.15 : 0.1` (은은한 배경 톤다운 유지)
+     - 라인 2780 부근의 중복 `useEffect`를 제거하여 상태 충돌 원천 차단.
+- **검증**:
+  - Vite 번들 빌드 통과 및 Docker `weather-transit-frontend` 컨테이너 재빌드 완료.
+
+---
+
 ### 🏷️ 메인 화면 및 UI 전반 AI 모델 표기 정규화 (ONNX 레이턴시 제거 ➔ LightGBM AI 통일)
 - **배경/문제**:
   - 화면 상단 상태 배지 및 추천 카드에 모델 알고리즘 본체 대신 파일 포맷인 `ONNX`와 소수점 추론 지연시간(`0.05ms`)이 노출되어, 일반 사용자 관점에서 불필요한 혼란을 초래하고 모델의 실체(LightGBM GBDT)가 드러나지 않던 문제 해결.

@@ -336,8 +336,8 @@ flowchart TD
         ECS_BE["ECS Fargate: Backend Task<br>(CPU 0.5 / RAM 1.0GB - 오토스케일링)"]
         EFS["AWS EFS (탄력적 파일 시스템)<br>timeseries_cache.db 영속 공유"]
 
-        ALB -->|/ (루트 경로)| ECS_FE
-        ALB -->|/api/* (API 경로)| ECS_BE
+        ALB -->|"루트 경로: /"| ECS_FE
+        ALB -->|"API 경로: /api/*"| ECS_BE
         ECS_BE --- EFS
     end
 

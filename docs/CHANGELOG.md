@@ -13,8 +13,10 @@
   - 기존 대중교통 및 복합 경로 안내 지도는 기본 OpenStreetMap(OSM) 일반 래스터 타일만 지원하여, 도보 및 따릉이(First/Last-Mile) 이동, 버스 정류소 및 지하철 환승 출구 탐색 시 실제 건물 외형, 현장 지형지물, 도로 구조를 파악하기 어려웠음.
 - **조치 내역**:
   1. **고해상도 위성 영상 및 하이브리드 라벨 타일 소스 연동 (`TransitMap.tsx`)**:
-     - MapLibre GL 스타일에 `satellite-tiles`(Esri World Imagery) 및 `satellite-labels`(World Boundaries & Places) 소스/레이어 등록.
-     - 환경변수화 지원: `VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL` 지원 및 기본 고성능 CDN 연동.
+     - **위성 영상 출처**: **Esri (에스리) World Imagery** 연동 — Maxar Technologies(WorldView-2/3, GeoEye-1 초고해상도 30~50cm 상용 광학 위성), Earthstar Geographics, CNES/Airbus DS(SPOT, Pléiades), USGS 디지털 항공사진 데이터 집약체.
+     - **하이브리드 라벨 출처**: **Esri World Boundaries and Places** 연동 — 위성 사진 위 행정 경계, 주요 지명, 도로명 식별 오버레이.
+     - **타일 소스 등록**: MapLibre GL 스타일에 `satellite-tiles` 및 `satellite-labels` 소스/레이어로 등록하고 `osm-tiles`(OpenStreetMap)와 가시성 즉각 상호 전환.
+     - **환경변수화 지원**: `VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL` 지원 및 기본 고성능 CDN 연동.
   2. **원클릭 베이스맵 전환 UI 및 상태 영속화 (`TransitMap.tsx`)**:
      - `baseMapMode`('standard' | 'satellite') 상태 구현 및 브라우저 `localStorage('weather_transit_basemap_mode')` 자동 동기화.
      - 지도 우상단 내비게이션 컨트롤 옆에 직관적인 듀얼 토글 버튼(`[🗺️ 일반 | 🛰️ 위성]`) 배치.

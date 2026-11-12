@@ -470,6 +470,23 @@ git push origin <작업-브랜치명>
    - **특징**: 성인 보행속도 `1.2 m/s` 기준 수도권 119개 주요 환승역 최단 환승거리 및 도보시간 실측 데이터셋.
    - **연동 현황**: 시스템 내부(`models/station_transfer_times.json`, 프론트엔드 `src/data/stationTransferTimes.json`)에 최신 실측치가 사전 정규화 탑재되어 있어, 별도 API 키 발급 없이 즉시 다익스트라 최적 경로 탐색 및 세그먼트 타임라인에 반영됩니다. (상세 규격: [`docs/CURRENT_DATA_SPEC.md`](docs/CURRENT_DATA_SPEC.md) §7)
 
+7. **지도 베이스맵 타일 출처 및 라이선스 (OpenStreetMap & Esri World Imagery)**
+   - **일반 지도 타일 (Standard Map)**:
+     - **제공처**: [OpenStreetMap (OSM)](https://www.openstreetmap.org/)
+     - **라이선스/출처**: `© OpenStreetMap contributors` (ODbL 1.0)
+     - **특징**: 전 세계 자원봉사자 기반의 오픈소스 도로망·철도망 래스터 타일
+   - **고해상도 위성 지도 타일 (Satellite View)**:
+     - **제공처**: [Esri (에스리) ArcGIS World Imagery](https://www.esri.com/en-us/arcgis/products/arcgis-platform/services/basemaps)
+     - **원천 데이터 파트너 / 위성 센서 출처**:
+       - **Maxar Technologies** (구 DigitalGlobe: WorldView-2, WorldView-3, GeoEye-1 등 서브미터급 30~50cm 초고해상도 상용 광학 위성 영상)
+       - **Earthstar Geographics**
+       - **CNES/Airbus DS** (SPOT, Pléiades 정밀 지구관측 위성)
+       - **USGS** (미국 지질조사국), AeroGRID, IGN 등 국가별 정밀 디지털 항공사진 집약체
+     - **특징**: 수도권 및 전 세계 전역에 대해 줌 레벨 19(수십 cm 분해능)까지 제공되는 글로벌 GIS 업계 표준 위성 레이어
+   - **하이브리드 라벨 타일 (Boundaries & Places)**:
+     - **제공처**: [Esri ArcGIS World Boundaries and Places](https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer)
+     - **특징**: 위성 지도 위에 행정 경계구역, 주요 랜드마크 지명, 도로명을 선명하게 오버레이하여 시인성 보장
+
 ---
 
 ## 📁 디렉토리 구조

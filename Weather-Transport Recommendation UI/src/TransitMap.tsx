@@ -1478,7 +1478,7 @@ export default function TransitMap({
             tiles: [SATELLITE_TILE_URL],
             tileSize: 256,
             maxzoom: 19,
-            attribution: '&copy; <a href="https://www.esri.com/" target="_blank">Esri</a>, Maxar, Earthstar Geographics',
+            attribution: '&copy; <a href="https://www.esri.com/" target="_blank">Esri</a>, Maxar, Earthstar Geographics, CNES/Airbus DS, USGS',
           },
           'satellite-labels': {
             type: 'raster',
@@ -4370,7 +4370,7 @@ export default function TransitMap({
                 </div>
               </div>
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--color-border)', fontSize: 9, color: 'var(--color-muted)' }}>
-                지도: OpenStreetMap + MapLibre GL
+                지도: {currentBaseMap === 'satellite' ? 'Esri World Imagery (Maxar)' : 'OpenStreetMap'} + MapLibre GL
               </div>
             </div>
           )}
@@ -4654,7 +4654,7 @@ export default function TransitMap({
               </span>
             </div>
             <div style={{ marginTop: 2, fontSize: 9, color: 'var(--color-muted)' }}>
-              지도: OpenStreetMap + MapLibre GL
+              지도: {currentBaseMap === 'satellite' ? 'Esri World Imagery (Maxar)' : 'OpenStreetMap'} + MapLibre GL
             </div>
           </div>
         </div>

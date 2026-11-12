@@ -6,6 +6,213 @@
 
 ---
 
+## [2026-11-12]
+
+### 🏷️ 메인 화면 및 UI 전반 AI 모델 표기 정규화 (ONNX 레이턴시 제거 ➔ LightGBM AI 통일)
+- **배경/문제**:
+  - 화면 상단 상태 배지 및 추천 카드에 모델 알고리즘 본체 대신 파일 포맷인 `ONNX`와 소수점 추론 지연시간(`0.05ms`)이 노출되어, 일반 사용자 관점에서 불필요한 혼란을 초래하고 모델의 실체(LightGBM GBDT)가 드러나지 않던 문제 해결.
+- **조치 내역**:
+  1. `App.tsx` 및 `AppM.tsx`:
+     - `ONNX AI (${aiLatency}ms)` ➔ **`LightGBM AI`**로 정돈하여 기술적 정체성 부각 및 TMI 수치 제거.
+     - `⚡ ONNX AI 추론 ({aiLatency}ms)` ➔ **`⚡ LightGBM AI 추천`**으로 변경.
+     - `24H ONNX AI 시계열 예측` ➔ **`24H LightGBM 시계열 예측`**으로 변경.
+     - `ONNX 실시간 연동` ➔ **`LightGBM 실시간 연동`**으로 변경.
+     - `32차원 ONNX 혼잡도` ➔ **`32차원 LightGBM 혼잡도`**로 변경.
+  2. `TransitMap.tsx` 및 `MultimodalRoutePanel.tsx`:
+     - 마커 팝업 및 경로 탐색 배너 내 `⚡ ONNX ${latency}ms` 표기를 **`⚡ LightGBM AI`** 및 **`32차원 LightGBM 혼잡도`**로 통일.
+- **검증**:
+  - Vite 프로덕션 빌드 통과 및 Docker 프론트엔드 컨테이너 반영 완료.
+
+---
+
+### 📍 메인 화면 초기 진입 시 브라우저 GPS 기반 현재 위치 자치구 자동 설정 (이슈 #110 / `UI-13`)
+- **배경/문제**:
+  - 기존에는 메인 화면("날씨 기반 교통 현황") 최초 진입 시 지역 선택 드롭다운이 기본값(강남구) 또는 로컬스토리지에 저장된 이전 지역으로 고정되어 있어, 타 자치구 사용자가 매번 드롭다운을 스크롤하여 수동으로 지역을 변경해야 하는 불편이 있었음.
+- **조치 내역**:
+  1. **앱 마운트 시 1회 백그라운드 GPS 자동 감지 (`App.tsx`, `AppM.tsx`)**:
+     - `navigator.geolocation.getCurrentPosition`을 통해 사용자의 실제 위경도 좌표 및 오차 반경(`accuracy`)을 획득 (`enableHighAccuracy: true`, `timeout: 8000`).
+     - `resolveDistrictNameFromPoint('내 위치 (GPS)', coords)`로 좌표 기반 최단거리 소속 자치구(예: 마포구, 송파구 등) 자동 역지오코딩.
+     - `DISTRICTS` 내 매칭 자치구 인덱스를 도출하여 `selectedDistrict` 및 `myLocation` 상태를 자동 동기화하고, `📍 현재 위치({자치구}) 기준으로 메인 지역 날씨가 자동 설정되었습니다.` 토스트 안내 표출.
+     - 사용자가 권한을 거부하거나 미지원 환경인 경우, 사용자 경험을 방해하지 않도록 무음 폴백(Silent Fallback) 적용.
+     - 사용자가 드롭다운을 수동으로 직접 변경한 경우(`userManuallyChangedDistrictRef`) 이후 자동 위치 덮어쓰기 방지.
+  2. **지역 선택 드롭다운 옆 원클릭 [📍 내 위치] 복귀 버튼 탑재 (`App.tsx`, `AppM.tsx`)**:
+     - 메인 화면의 지역 선택 드롭다운 바로 우측에 `[📍 내 위치]` 버튼 탑재 (로딩 시 `⏳ 감지 중...` 피드백).
+     - 다른 자치구의 현황을 둘러보다가도 언제든 원클릭으로 현재 물리적 위치 기준 자치구로 즉시 복귀 가능.
+  3. **PC 및 모바일 1:1 대칭 완비**:
+     - `App.tsx`와 `AppM.tsx` 양쪽에 동일 로직 및 반응형 스타일 동시 적용 완료.
+- **검증**:
+  - Vite 프로덕션 빌드 통과 (`dist/` 번들 생성 완료).
+  - Docker `weather-transit-frontend` 컨테이너 재빌드 및 HTTP 200 정상 서빙 검증 완료.
+
+---
+
+### 📚 AI 모델 사양서(LightGBM) 심층 보강 및 AWS 클라우드 확장 가이드 신설
+- **조치 내역**:
+  1. **AI 모델 사양서 내 LightGBM 앙상블 알고리즘 및 타 모델 대비 기술적 우위 보강 (`docs/AI_MODEL_SPEC.md` §2-1)**:
+     - 마이크로소프트(MS Research) 2017년 발표 배경, GBDT 순차 잔차 경사하강 부스팅 원리 명시.
+     - 전통적 Level-wise 대비 Leaf-wise(리프 중심 수직 분할)의 오차 극소화 원리 Mermaid 다이어그램 추가.
+     - 4대 혁신 기술(Leaf-wise, GOSS 샘플링, EFB 희소 번들링, Histogram 버킷 분할) 기술적 설명 명시.
+     - 선형회귀 vs 랜덤포레스트 vs XGBoost vs LightGBM vs 딥러닝(LSTM/MLP) 8개 축 종합 비교 평가표 반영.
+  2. **서버 배포 가이드 내 대규모 트래픽 대비 AWS 클라우드 배포 로드맵 신설 (`docs/SERVER_DEPLOYMENT_GUIDE.md` §8)**:
+     - Docker Hub / AWS ECR 기반 이미지 레지스트리 원클릭 배포 파이프라인 정립.
+     - AWS 3단계 확장 로드맵(EC2 단일 인스턴스 ➔ ECS Fargate 서버리스 오토스케일링 ➔ CloudFront/EKS/ElastiCache) 아키텍처 다이어그램 및 비용/특성 비교표 수립.
+     - 클라우드 실무 보안(Secrets Manager), 캐시 영속성(EFS), 관측성(CloudWatch) 가이드라인 추가.
+     - `README.md` 공식 인덱스 표 동기화.
+
+---
+
+### 🛰️ 지도 위성 사진(Satellite View) 보기 및 베이스맵 전환 기능 구현 (이슈 #107 / `UI-12`)
+- **배경/문제**:
+  - 기존 대중교통 및 복합 경로 안내 지도는 기본 OpenStreetMap(OSM) 일반 래스터 타일만 지원하여, 도보 및 따릉이(First/Last-Mile) 이동, 버스 정류소 및 지하철 환승 출구 탐색 시 실제 건물 외형, 현장 지형지물, 도로 구조를 파악하기 어려웠음.
+- **조치 내역**:
+  1. **고해상도 위성 영상 및 하이브리드 라벨 타일 소스 연동 (`TransitMap.tsx`)**:
+     - **위성 영상 출처**: **Esri (에스리) World Imagery** 연동 — Maxar Technologies(WorldView-2/3, GeoEye-1 초고해상도 30~50cm 상용 광학 위성), Earthstar Geographics, CNES/Airbus DS(SPOT, Pléiades), USGS 디지털 항공사진 데이터 집약체.
+     - **하이브리드 라벨 출처**: **Esri World Boundaries and Places** 연동 — 위성 사진 위 행정 경계, 주요 지명, 도로명 식별 오버레이.
+     - **타일 소스 등록**: MapLibre GL 스타일에 `satellite-tiles` 및 `satellite-labels` 소스/레이어로 등록하고 `osm-tiles`(OpenStreetMap)와 가시성 즉각 상호 전환.
+     - **환경변수화 지원**: `VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL` 지원 및 기본 고성능 CDN 연동.
+  2. **원클릭 베이스맵 전환 UI 및 상태 영속화 (`TransitMap.tsx`)**:
+     - `baseMapMode`('standard' | 'satellite') 상태 구현 및 브라우저 `localStorage('weather_transit_basemap_mode')` 자동 동기화.
+     - 지도 우상단 내비게이션 컨트롤 옆에 직관적인 듀얼 토글 버튼(`[🗺️ 일반 | 🛰️ 위성]`) 배치.
+     - 모바일(화면 폭 768px 이하) 환경에서는 텍스트 없이 컴팩트 아이콘(`🗺️` / `🛰️`)으로 슬림화하여 지도 뷰포트 시야를 온전히 보존.
+  3. **위성 지도 배경 상의 경로·노선망 시인성 최적화 (`TransitMap.tsx`)**:
+     - 위성 지도 모드 활성화 시 수도권 전철 노선망 케이싱(`subway-network-casing`) 색상을 다크 톤(`#0B1120`)에서 화이트 반투명 글로우(`#FFFFFF`, `opacity: 0.4`)로 동적 전환하여 어두운 항공사진 위에서도 호선별 고유 컬러가 뚜렷하게 부각되도록 시인성 확보.
+- **검증**:
+  - Vite 프로덕션 빌드 통과 (`dist/` 생성).
+  - Docker `weather-transit-frontend` 컨테이너 재빌드 및 정상 배포 완료.
+
+---
+
+### 🎯 경로 탐색 시 출발지·도착지 지도 직접 클릭 선택 (Pick on Map) 및 GPS 라우팅 확장 (이슈 #90)
+- **배경/문제**:
+  - 기존에는 출발지 또는 도착지를 지정하려면 텍스트 검색을 통해서만 입력할 수 있었으며, 지도 상에서 직관적으로 원하는 위치(골목, 한강변, 대형 건물 등)를 콕 찍어 출발지나 도착지로 설정할 수 없었음.
+  - 또한 지도에서 출발지를 GPS 위치로 설정한 뒤 내비게이션 전환 시 화면이 크래시되거나(`ReferenceError: resolveDistrictNameFromPoint is not defined`), 도착지를 좌표 기반으로 설정했을 때 Last-Mile 도보 세그먼트가 누락되던 한계가 있었음.
+- **조치 내역**:
+  1. **통합 검색창 원클릭 [🎯 지도에서 찍기] 버튼 탑재 (`UnifiedStationSearch.tsx`)**:
+     - 출발지 및 도착지 입력창 우측 액션 영역과 드롭다운 최상단 빠른 선택 목록에 `[🎯 지도에서 찍기]` 버튼 추가 (`allowMapPick={true}`, `onPickOnMap`).
+  2. **지도 인터랙티브 직접 찍기 모드 (`TransitMap.tsx`)**:
+     - `mapPickingTarget`('origin' | 'destination') 모드 진입 시 맵 캔버스 커서를 크로스헤어(`crosshair`)로 전환.
+     - 상단 안내 배너 단일 표출 및 중복 알림창 정리:
+       - 출발지 지정 시: `🚩 지도에서 출발지로 설정할 위치나 역을 클릭해 주세요` (에메랄드 그린 배지)
+       - 도착지 지정 시: `🏁 지도에서 도착지로 설정할 위치나 역을 클릭해 주세요` (레드 배지)
+       - `취소 (ESC)` 버튼 및 키보드 `ESC` 핫키 지원.
+       - 모드 진입 시 상단 플로팅 배너와 하단/상단 토스트가 동시에 중복 표출되던 '찍어 주세요' 알림 중복을 완전히 제거하여 단일 안내 배너로 정돈.
+     - **지도 클릭 좌표 자동 해석 및 지능형 네이밍**:
+       - 빈 지도 클릭 시: 좌표 역지오코딩 기반 자치구 판별 및 1.2km 이내 수도권 전철역 연동 (`{자치구} 지정 위치 ({역명}역 도보 {거리}m)` 명칭 자동 생성).
+       - 특정 지하철/버스/따릉이 마커 클릭 시: 해당 역/정류소를 즉시 출발/도착지로 확정.
+       - 선택 완료 즉시 원래 보던 경로 추천(`page === 'route'`) 탭으로 자동 복귀 및 확인 토스트 안내.
+  3. **PC·모바일 1:1 대칭 완비 (`App.tsx`, `AppM.tsx`) 및 임시 테스트 GPS 모듈 완전 제거**:
+     - `mapPickingTarget` 상태 선언 및 `handleStartPickOnMap`, `handleConfirmMapPick`, `handleCancelMapPick` 핸들러 동기화.
+     - 출발지 및 도착지 통합 검색창 모두에 `allowMapPick={true}` 및 `allowCurrentLocation={true}` 동시 지원.
+     - 데스크톱 위치 보정 및 검증용 임시 모의 GPS(`mockGps.ts`) 및 관련 프리셋 UI를 코드베이스에서 전면 삭제하고 브라우저 표준 `navigator.geolocation` 순수 파이프라인으로 일원화.
+  4. **백엔드 멀티모달 라우터 Last-Mile 도보 세그먼트 생성 및 예외 방어 (`multimodal_router.py`, `districtResolver.ts`)**:
+     - `resolve_station()` 및 `resolve_station_district()`: `station_type in ("gps", "current_location", "map_point")` 및 키워드(`"지정 위치"`, `"지도 지정"`, `"부근"`) 추가하여 좌표 기반 GPS 매핑 지원.
+     - `districtResolver.ts`: GPS 지정 키워드 무한 재귀 호출 방어 및 좌표 기반 최단 자치구 매핑.
+     - `TransitMap.tsx`: `resolveDistrictNameFromPoint` 누락 import 추가 및 `mergedBikePickup` 변수 선언 보정.
+- **검증**:
+  - `tests/test_geolocation_routing.py` 단위 테스트 4종 100% PASS 검증 완료.
+  - 프론트엔드 Vite 프로덕션 빌드 통과 (`dist/` 번들 생성 완료).
+  - Docker `weather-transit-frontend`, `weather-transit-backend` 컨테이너 재빌드 및 배포 완료 (`GET /health` verified, `http://localhost:3100` 200 OK).
+
+---
+
+### 📍 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (이슈 #90 / `UI-09`)
+- **배경/문제**:
+  - 기존 지도 탐색 및 경로 추천 서비스는 사용자가 출발지나 관심 거점을 찾기 위해 역명/정류소명을 검색하거나 지도를 직접 드래그/스크롤해야만 했음.
+  - 특히 이동 중인 모바일 브라우저 사용자가 "내 현재 위치에서 목적지까지" 경로를 즉시 안내받거나 주변 대중교통 거점을 탐색하고자 할 때 GPS 기반 현 위치 자동 감지 편의성이 부족했던 한계를 해소.
+- **조치 내역**:
+  1. **지도 내 위치 시각화, 상세 정보 카드 및 GPS 컨트롤 (`TransitMap.tsx`)**:
+     - 브라우저 표준 `navigator.geolocation` API를 연동하여 실시간 GPS 위도·경도 및 오차 반경(`accuracy`) 획득 (`enableHighAccuracy: true`, `timeout: 10000`, `maximumAge: 30000`).
+     - PC 상단 권역 퀵 이동 바 및 PC/모바일 우하단 플로팅 컨트롤에 원클릭 `[📍 내 위치]` 버튼 탑재 (위치 수신 중 로딩 스피너 애니메이션 제공).
+     - 위치 획득 시 카메라 부드러운 이동 (`flyTo({ center, zoom: 15.5, essential: true })`) 및 MapLibre 상에 푸른색 펄스(Pulsing Dot: CSS `@keyframes myLocationPulse`) 애니메이션 마커와 오차 반경(`15~1,500m`) 원형 서클 GeoJSON 레이어(`my-location-accuracy`) 동적 렌더링.
+     - **내 위치 상세 정보 플로팅 카드 (`showLocationInfoCard`) 및 마커 팝업 대폭 강화**:
+       - 감지된 자치구, 위도·경도 정밀 좌표, 오차 반경(±Xm) 실시간 표출.
+       - **데스크톱 환경 안내 배지**: GPS 위성 칩이 없는 PC 환경 특성상 통신사 IP/Wi-Fi 기반 삼각측량으로 실제 위치와 오차가 발생할 수 있음을 명확히 안내 (`🖥️ 데스크톱 IP/Wi-Fi` vs `🛰️ 모바일 GPS`).
+       - **인근 지하철역 자동 탐색**: 수도권 전철 마스터 데이터 연동 기반 최단거리 지하철역명, 호선 정보 및 도보 거리(m) 실시간 계산 표출.
+       - **`[🎯 지도에서 직접 클릭하여 보정]` 모드 탑재**: 데스크톱 IP 오차 발생 시 지도 상에서 사용자가 실제 위치를 클릭하면 즉시 해당 좌표로 내 위치 마커와 출발지가 정확히 보정되는 인터랙티브 기능 지원 (상단 안내 배너 및 ESC 취소 지원).
+       - 원클릭 `[🚩 이 위치를 출발지로 설정]` 버튼 탑재.
+     - 권한 거부(PERMISSION_DENIED), 위치 수신 불가(POSITION_UNAVAILABLE), 타임아웃(TIMEOUT) 및 비-HTTPS 환경에 대한 친절한 토스트 안내 방어 처리.
+  2. **통합 검색창 및 PC·모바일 경로 추천 연동 (`UnifiedStationSearch.tsx`, `App.tsx`, `AppM.tsx`)**:
+     - `UnifiedStationSearch.tsx`: `variant="route"` 출발지 검색창 우측 및 드롭다운 최상단에 `[📍 내 위치]` 빠른 선택 버튼/행 제공.
+     - `App.tsx` 및 `AppM.tsx`: `myLocation` 상태 공유 및 출발지 선택 시 `departure="내 위치 (GPS)"`, `departureCoords=[lng, lat]`, `departureType="gps"` 자동 주입.
+  3. **백엔드 멀티모달 라우터 및 API 확장 (`multimodal_router.py`, `main.py`)**:
+     - `resolve_station()`: `coords`가 주어지고 `station_type="gps"` 또는 내 위치 키워드 쿼리 시 `station_type="gps"` 보존 및 최근접 지하철역 `nearest_subway` 자동 매핑.
+     - `resolve_station_district()`: GPS 내 위치 키워드 입력 시 좌표 기반 최단거리 자치구 우선 역지오코딩.
+     - `_node_synthesize_routes()`: `origin.get("station_type") in ("bus", "bike", "gps", "current_location")` 시 출발 좌표에서 최근접 지하철역/정류소까지의 First-Mile 도보 세그먼트(`walk`) 자동 조립.
+     - `main.py`: `MultimodalRouteRequest`에 `gps` 거점 유형 명세 반영.
+- **검증**:
+  - **[버그 수정]** 출발지가 `내 위치 (GPS)`인 상태에서 도착지를 입력하면 화면이 하얗게 사라지는 문제 수정: `districtResolver.ts`의 `resolveDistrict()`가 GPS 키워드 감지 시 자기 자신을 무한 재귀 호출(`Maximum call stack size exceeded`)하여 React 렌더가 크래시하던 결함. GPS 명칭은 역명 키워드 매칭을 건너뛰고 좌표 기반 최근접 자치구로 직접 판별하도록 교정.
+  - `tests/test_geolocation_routing.py` 단위 테스트 신설 (GPS 거점 해석, 역지오코딩, First-Mile 도보 세그먼트 생성, 멀티모달 API 호출 등 4종 전수 통과).
+  - 전체 단위 테스트 40개 100% PASS 검증 완료 (`Ran 40 tests, OK`).
+  - 프론트엔드 Vite 프로덕션 빌드 성공 (`npm run build`).
+
+---
+
+### 🚲 경로 탐색 시 따릉이(First-Mile) 제외/포함 사용자 옵션 추가 (이슈 #105 / `ROUTE-05`)
+- **배경/문제**:
+  - 기존 멀티모달 경로 추천(`POST /api/v1/routes/multimodal-search`)은 맑은 날씨(`rain <= 0mm`)일 경우 자동으로 따릉이 First-Mile(`따릉이 ➔ 지하철 ➔ 도보`) 및 직통 자전거 경로를 최우선 순위로 추천함.
+  - 정장 착용, 짐 소지, 자전거 미탑승 선호 등 개인 사정으로 따릉이를 타고 싶지 않은 사용자의 경우에도 강제로 따릉이가 포함된 경로가 안내되어 대중교통 전용 경로 조회가 불편했던 문제 해결.
+- **조치 내역**:
+  1. **백엔드 API 및 LangGraph 파이프라인 확장 (`main.py`, `multimodal_router.py`)**:
+     - `MultimodalRouteRequest` 모델에 `allow_bike: bool = True` 필드 추가.
+     - `_execute_multimodal_search()`, `get_multimodal_route_search()`(GET 쿼리 스트링)에 `allow_bike` 파라미터 연동.
+     - `MultimodalRouteState` 및 `_node_parse_context()`에서 `allow_bike=False` 감지 시 `bike_enabled = False`, `first_mile_bike_enabled = False`로 강제 차단.
+     - 기상 게이트를 `RAIN_SAFE_ONLY`로 강제 전환하고 `weather_gate_reason`에 사용자 선호 설정 사유 명시.
+     - `_node_generate_candidates()`에서 따릉이 복합 경로 및 직통 자전거 경로 생성을 완전히 배제하여 순수 대중교통(지하철·버스·도보) 경로만 조합.
+  2. **프론트엔드 원클릭 토글 버튼 및 상태 영속화 (`MultimodalRoutePanel.tsx`)**:
+     - `allowBike` React 상태 구현 및 브라우저 `localStorage('weather_transit_allow_bike')` 자동 동기화.
+     - 대기 상태 배너 및 브리핑 상단 카드에 `🚲 따릉이 포함 (ON)` ↔ `🚫 따릉이 제외 (OFF)` 인터랙티브 토글 버튼 탑재.
+     - 따릉이 제외 활성화 시 `🚫 USER_TRANSIT_ONLY · 따릉이 제외 모드` 명시적 상태 배지 표출.
+     - `cacheKey`에 `bike:${allowBike}`를 포함하여 모드 변경 시 즉시 새 경로가 탐색되도록 캐시 정합성 확보.
+- **검증**:
+  - `tests/test_multimodal_routing.py::test_allow_bike_user_toggle_disabled` 단위 테스트(엔진 직접 호출, POST API, GET API 3종) 완비. 전체 19개 테스트 100% 통과.
+  - Docker `weather-transit-backend`, `weather-transit-frontend` 컨테이너 재빌드 후 Nginx 프록시 연동 동작 확인 (`modes_used` 내 `bike` 0건 검증 완료).
+
+---
+
+## [2026-11-07]
+
+### 🛡️ 버스 정류소 검색 API 502 에러 격리 및 통합 검색창 수단별 접두사 정제
+- **배경/문제**:
+  - 지도 뷰에서 따릉이 대여소를 클릭하거나 출발/도착지로 지정할 때 `따릉이: DDP 동대문디자인플라자`와 같은 접두사가 포함된 명칭이 `UnifiedStationSearch`에 전달되어 백엔드 `/api/v1/transit/bus/stations/search`를 호출함.
+  - 서울시 버스 OpenAPI(`getStationByName`)는 해당 명칭에 대해 검색 결과 0건(`headerCd="4"`)을 반환했으나, 백엔드가 `headerCd != "0"` 조건을 502 Bad Gateway로 처리하여 브라우저 콘솔에 502 에러가 출력되는 결함 발생.
+- **조치 내역**:
+  1. **백엔드 장애 격리 (`main.py::search_bus_stations`)**:
+     - `따릉이:` 전용 접두사 명칭 유입 시 서울시 버스 API 호출을 즉시 차단하고 200 OK 빈 목록(`source: "FILTERED_NON_BUS"`) 반환.
+     - 서울시 API 무결과(`headerCd="4"`, `"7"`) 및 통신 오류 시 502 예외 대신 [LOG-02] 정책에 따라 200 OK 빈 목록으로 Graceful Degradation.
+  2. **프론트엔드 수단별 접두사 정제 (`UnifiedStationSearch.tsx`)**:
+     - `따릉이:`/`버스:` 등 접두사를 감지하여 다른 수단 API에 대한 불필요한 네트워크 호출을 방지하고, 본문 키워드(`cleanKeyword`)로 정제하여 검색어 매칭 품질 향상.
+- **검증**:
+  - `tests/test_multimodal_routing.py::test_bus_station_search_graceful_degradation` 단위 테스트 통과 (200 OK 빈 목록 확인).
+  - 프론트엔드 Vite 프로덕션 빌드 성공.
+
+### 🌦️ 경로 탐색 시 출발·도착지 및 세그먼트 탑승 위치 기반 국지 날씨 자동 조회·구간별 기상 게이트 적용 (이슈 #91 / `ROUTE-04`)
+- **배경/문제**:
+  - 기존 멀티모달 경로 탐색(`POST /api/v1/routes/multimodal-search`)은 상단 헤더에서 선택된 전역 단일 자치구(`selectedDistrict`)와 프론트엔드가 페이로드에 고정 주입한 `weather` 객체만 참조하여, 출발지(예: 마포구 홍대입구역, 맑음)와 도착지(예: 송파구 잠실역, 비)의 실제 국지 기상이 달라도 이를 인지하지 못하는 한계가 있었음.
+- **조치 내역**:
+  1. **Phase 1 — 출발·도착지 자치구 자동 역지오코딩 및 교차 기상 게이트 (`districtResolver.ts`, `multimodal_router.py`, `main.py`, `kma_forecast.py`)**:
+     - 역/정류소 명칭 키워드(긴 키워드 우선 매칭) 및 위경도 최근접 중심점(`DISTRICT_CENTERS`, 서울 25개 구 + 수도권 9개 도시, `남양주시` 격자 `(64, 128)` 추가) 기반 `resolve_station_district()` / `resolveDistrictNameFromPoint()` 구현.
+     - `MultimodalRoutePanel.tsx` 요청 페이로드에서 전역 `weather` 강제 오버라이드를 제거하고 `from_district`, `to_district`를 전달하도록 변경하여 백엔드가 출발·도착 자치구의 기상청 단기예보를 각각 독립 조회하도록 개선.
+     - 출발지 또는 도착지 중 어느 한 곳이라도 강수(`rain > 0mm`), 강풍(`wind >= 8.0m/s`), 혹한(`temp <= -5.0°C`) 감지 시 `weather_gate`를 `RAIN_SAFE_ONLY`로 전환하고, `first_mile_bike_enabled`, `last_mile_bike_enabled`, `weather_diff_detected` 및 권역 간 기상 차이를 설명하는 `weather_gate_reason` 생성.
+  2. **Phase 2 — 세그먼트(도보·따릉이·버스·지하철) 탑승 위치별 국지 기상 매핑 및 구간별 기상 게이트 (`multimodal_router.py`, `subwayGraph.ts`, `MultimodalRoutePanel.tsx`)**:
+     - `_annotate_segments_with_local_weather()`를 통해 모든 경로 세그먼트에 승차 거점(`seg.weather`) 및 하차 거점(`seg.to_weather`)의 국지 기상(`district`, `temp`, `rain`, `pty_desc`, `weather_gate`, `bike_enabled`) 자동 바인딩.
+     - First-Mile 따릉이 반납 후보 역의 국지 기상이 악천후일 경우 해당 반납 후보를 배제하고, 버스 세그먼트는 승차 정류소 권역의 국지 강수량에 따라 우천 지연 계수(`×1.15~1.18`)를 적용.
+     - FactChat LLM 프롬프트 및 XAI 규칙 브리핑에 출발·도착 자치구 국지 기상 비교를 주입하고, `MultimodalRoutePanel.tsx` 상단에 `출발지 ➔ 도착지 국지 기상 비교 배너`(기상 차이 감지 시 경고 강조)와 타임라인 세그먼트별 국지 기상 배지를 표출. 또한 `App.tsx`·`AppM.tsx` 경로 추천 입력 배너에 출발·도착 해석 자치구를 동기화 표출.
+- **검증**:
+  - `tests/test_multimodal_routing.py` 신규 단위 테스트 3종(`test_station_district_auto_resolution`, `test_cross_district_weather_gate_phase1`, `test_segment_level_local_weather_and_gate_phase2`) 포함 **전체 17개 멀티모달 테스트 100% 통과**.
+  - 프론트엔드 Vite 프로덕션 빌드(`npm run build`) 성공 (`✓ built in 313ms`).
+
+### 🧩 AI 모델 사양서 내 '모델 선정 이유 및 시스템 해설 요약본' 집대성 (`docs/AI_MODEL_SPEC.md`)
+- **배경/목적**:
+  - 발표 및 최종 보고서 작성 시 AI 모델 선정 배경, 딥러닝과의 비교 우위, 32개 피처의 의미, 실측 서빙 속도를 한눈에 파악할 수 있도록 공식 사양서 상단에 요약 섹션(Executive Summary) 신설.
+- **주요 반영 내용**:
+  1. **30초 핵심 요약 (Elevator Pitch)**: 3개 수단 LightGBM ONNX 서빙 및 실시간 혼잡도 지수화 파이프라인.
+  2. **딥러닝 대신 LightGBM을 선정한 4대 핵심 사유**: 정형 시계열 적합성($R^2 \ge 0.989$), 초저지연(`0.05ms`), CPU 컨테이너 초경량 서빙(`7~13MB`), 비선형 기상 임계점(Threshold) 학습 우위.
+  3. **엔드투엔드 파이프라인 다이어그램**: 32차원 피처(시간, 기상, 인프라, 래그) ➔ ONNX 추론 ➔ 혼잡도 및 최적 경로 추천.
+  4. **실측 성능 집약**: 3개년 62.9만 행 기반 검증 결과 및 3수단 합산 `0.17ms` 레이턴시 표.
+  5. **발표용 1분 스피치 대본**: 심사위원 질의 시 막힘없이 답변할 수 있는 표준 구술 대본 수록.
+
+---
+
 ## [2026-11-03]
 
 ### 🛠️ 캡스톤 최종 발표 및 기술 면접용 트러블슈팅 가이드 신설 및 실전 이슈 10선 구축 (`docs/CAPSTONE_TROUBLESHOOTING.md`)

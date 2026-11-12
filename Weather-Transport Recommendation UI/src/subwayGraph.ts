@@ -2683,6 +2683,19 @@ export interface TrainArrivalInfo {
   trainLineNm: string
 }
 
+export interface SegmentLocalWeather {
+  district: string
+  temp: number
+  rain: number
+  humidity: number
+  wind: number
+  pty_desc?: string
+  sky_desc?: string
+  is_severe?: boolean
+  bike_enabled: boolean
+  weather_gate: 'CLEAR_MULTIMODAL' | 'RAIN_SAFE_ONLY' | string
+}
+
 export interface MultimodalSegment {
   mode: 'walk' | 'bike' | 'bus' | 'subway'
   label: string
@@ -2697,6 +2710,8 @@ export interface MultimodalSegment {
   stops_count?: number
   coords: [number, number][]
   live_badge?: string
+  weather?: SegmentLocalWeather
+  to_weather?: SegmentLocalWeather
 }
 
 export interface TransitRouteResult {

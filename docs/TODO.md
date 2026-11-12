@@ -1,6 +1,11 @@
 # 📋 Weather & Transit Web 프로젝트 TODO 및 백로그 (Backlog)
 
-본 문서는 Weather & Transit Web 서비스의 향후 개발 및 개선 과제를 관리하는 공식 TODO 리스트입니다.
+본 문서는 Weather & Transit Web 서비스의 개발 현황 및 향후 과제를 관리하는 공식 TODO 리스트입니다.
+
+> ❄️ **[Feature Freeze 안내 · 캡스톤 최종 발표 대비 기능 동결]**:  
+> 캡스톤 디자인 최종 발표 및 실시간 시연의 절대적인 안정성 확보를 위해 **현재 상태에서 신규 기능 개발을 동결(Feature Freeze)**합니다.  
+> 32차원 ONNX AI 혼잡도 예측, LangGraph 멀티모달(지하철+버스+따릉이) 오케스트레이션, 실시간 국지 기상청 단기예보 및 안전 게이트, 브라우저 Geolocation GPS 및 지도 직접 클릭(Pick on Map), 위성/일반 하이브리드 베이스맵 전환 등 핵심 기능 일체가 구현·검증 완료되었습니다.  
+> **아래 남아 있는 과제들은 캡스톤 최종 발표 이후 진행할 '차기 고도화 과제(Post-Capstone Backlog)'로 안전하게 보류·유지합니다.**
 
 ---
 
@@ -32,7 +37,7 @@
 ---
 
 
-### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (Next Sprint / 우선 착수) — **진행 중 (이슈 #78 등)**
+### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (핵심 기능 개발 완료)
 - [x] **[UI-11] 지도 보기 기상 실황을 지도 뷰포트(중심 좌표) 기준 국지 날씨로 전환 (완료 · 2026-11-03 · 이슈 #98)**:
   - `TransitMap.tsx`에 `onViewportChange` 콜백 신설 — `moveend` 디바운스 `500ms` + `isMoving/isRotating` 가드 + `zoom < 10` 생략, 최초 진입 1회 통지.
   - `resolveDistrict('', [lng, lat])` 기반 자치구 해석 후 `GET /api/v1/weather/current?district=..&lat=..&lng=..`(좌표 → KMA 격자) 호출. 자치구 + 좌표 0.01° 캐시 키로 과호출 억제.
@@ -40,25 +45,60 @@
   - 모바일(`AppM.tsx`) 지도 사이드바에 뷰포트 기상 요약 1줄(기온·강수·습도·풍속) 신설.
   - **(후속)** 지도 우측 상단 기상 오버레이를 PC에서 제거(사이드바 카드와 중복 + 전역 자치구 값 사용으로 불일치)하고 모바일에서만 컴팩트 알약 유지, `OpenStreetMap + MapLibre GL` 출처 표기는 범례로 이동.
   - 백엔드 변경 0건 (기존 좌표 기반 기상 API 재사용).
-- [ ] **[UI-10] 지도 보기 '실시간 대중교통 경로 안내' CTA 구버전 단일 지하철 경로 UI 정리 및 LangGraph 멀티모달 일원화 (진행 중 · 2026-11-03 · 이슈 #96)**:
+- [x] **[UI-12] 지도 위성 사진(Satellite View) 보기 및 베이스맵 전환 기능 (완료 · 2026-11-12 · 이슈 #107)**:
+  - 기본 OpenStreetMap(OSM) 일반 타일 외에 고해상도 위성/항공 사진(Satellite/Aerial Imagery) 베이스맵 전환 토글 지원.
+  - PC 및 모바일 지도 뷰포트 내 직관적인 원클릭 베이스맵 전환 버튼 UI 배치 (`🗺️ 일반` ↔ `🛰️ 위성`, 모바일 컴팩트 아이콘 반응형).
+  - 사용자 선택 베이스맵 모드(`standard` | `satellite`) `localStorage` 영속화.
+  - 타일 소스 환경변수화(`VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL`) 및 Esri 고성능 CDN 연동.
+  - 위성 모드 시 수도권 전철 노선망 케이싱 대비 최적화(화이트 반투명 글로우)를 통한 시인성 확보.
+- [x] **[UI-13] 메인 화면 초기 진입 시 브라우저 GPS 기반 현재 위치 자치구 자동 설정 (완료 · 2026-11-12 · 이슈 #110)**:
+  - 메인 화면("날씨 기반 교통 현황") 최초 로드 시 `navigator.geolocation`을 통해 사용자의 실제 GPS 좌표 획득.
+  - `resolveDistrictNameFromPoint('내 위치 (GPS)', coords)`로 자치구 역지오코딩 후 `selectedDistrict` 및 `myLocation` 자동 동기화.
+  - 지역 선택 드롭다운 우측에 `[📍 내 위치]` 원클릭 버튼을 탑재하여 타 지역 탐색 후에도 즉시 현재 물리적 위치 자치구로 복귀 지원.
+  - 위치 거부/오류 시 무음 폴백(Silent Fallback) 및 수동 선택 시 덮어쓰기 방지 적용, PC/모바일 1:1 대칭 완비.
+- [x] **[UI-10] 지도 보기 '실시간 대중교통 경로 안내' CTA 구버전 단일 지하철 경로 UI 정리 및 LangGraph 멀티모달 일원화 (완료 · 2026-11-03 · 이슈 #96)**:
   - 지도 사이드바 CTA가 `handleSearchRoute('강남역', '서울역')`을 하드코딩 호출해 레거시 `findSubwayRoute()` 단일 지하철 경로 카드를 표출하던 결함 제거.
   - 지도 경로 진입 CTA(`🧭 실시간 대중교통 경로 안내`)를 삭제하고 `경로 추천` 탭(LangGraph 멀티모달)으로 진입점 단일화. 버튼이 차지하던 하단 고정 푸터 영역을 상세 정보 스크롤 영역(`flex: 1`)이 흡수하여 사이드바 가용 영역 확대.
   - 마커 미선택 시 표출되던 `강남구청 → 잠실역 / 28분 / 1,550원~` 하드코딩 목업 카드를 실시간 기상(기온 · 강수 · 풍속) 빈 상태(Empty State)로 교체.
-  - PC(`App.tsx`) · 모바일(`AppM.tsx`) 동일 로직 반영 및 `handleSearchRoute`를 '지하철 전용 빠른 조회'로 역할 명확화.
-  - 사용자 수동 검증(브라우저 CTA 클릭 · 우천 게이트 표출) 후 `[x]` 전환 예정.
-- [ ] **[ROUTE-04] 경로 탐색 시 출발·도착지 및 교통수단 탑승 위치 기반 국지 날씨 자동 조회 및 구간별 기상 게이트 적용 (Next Sprint · 이슈 #91)**:
+  - PC(`App.tsx`) · 모바일(`AppM.tsx`) 동일 로직 반영 및 `handleSearchRoute`를 '지하철 전용 빠른 조회'로 역할 명확화 완료.
+- [x] **[ROUTE-05] 경로 탐색 시 따릉이(First-Mile) 제외/포함 사용자 옵션 추가 (완료 · 2026-11-08 · 이슈 #105)**:
+  - 맑은 날씨에도 자전거를 이용하지 않고 대중교통(지하철·버스·도보)만 이용하려는 사용자를 위해 First-Mile 따릉이 추천을 On/Off 할 수 있는 옵션 지원.
+  - **백엔드 (`multimodal_router.py`, `main.py`)**:
+    - `MultimodalRouteRequest` 및 `run_multimodal_search()`에 `allow_bike: bool = True` 파라미터 추가.
+    - `allow_bike=False` 설정 시 `bike_enabled = False` 강제 적용, 따릉이 후보(`route-ai-bike-first-mile`, `route-ai-bike-direct`) 전면 배제.
+    - `weather_gate`를 `RAIN_SAFE_ONLY`로 설정하고 사유에 `"사용자 선호 설정(따릉이 제외)에 따라 자전거(따릉이) 이용을 제한하고 대중교통 위주로 안내합니다."` 명시.
+  - **프론트엔드 (`MultimodalRoutePanel.tsx`)**:
+    - `🚲 따릉이 포함 (ON)` ↔ `🚫 따릉이 제외 (OFF)` 원클릭 토글 버튼 제공 (헤더 바 및 빈 상태 카드).
+    - `localStorage('weather_transit_allow_bike')` 영속화 및 `cacheKey`에 `bike:${allowBike}` 반영.
+    - 제외 모드 활성화 시 `🚫 USER_TRANSIT_ONLY · 따릉이 제외 모드` 배지 표출.
+  - **검증**: `tests/test_multimodal_routing.py::test_allow_bike_user_toggle_disabled` 단위 테스트 통과 (전체 19개 100% PASS), Docker 컨테이너 재빌드 검증 완료.
+- [x] **[ROUTE-04] 경로 탐색 시 출발·도착지 및 교통수단 탑승 위치 기반 국지 날씨 자동 조회 및 구간별 기상 게이트 적용 (완료 · 2026-11-07 · 이슈 #91)**:
   - **Phase 1 (출발·도착지 자치구 자동 해석 및 교차 검증)**:
-    - 출발지/도착지 거점의 `districtResolver` 기반 소속 자치구 자동 판별.
-    - 백엔드 `MultimodalRouteRequest`에 `from_district`, `to_district` 지원 및 어느 한 곳이라도 비/강풍 감지 시 보수적 `RAIN_SAFE_ONLY` 자동 전환.
+    - 프론트엔드(`districtResolver.ts::resolveDistrictNameFromPoint`) 및 백엔드(`multimodal_router.py::resolve_station_district`)에서 서울 25개 자치구 및 수도권 9개 관문 도시 거점의 소속 자치구를 자동 역지오코딩.
+    - `MultimodalRoutePanel.tsx`가 전역 헤더 자치구 날씨(`weather`)를 강제 오버라이드하던 동작을 제거하고 `from_district`, `to_district`를 전달하도록 개선하여 백엔드 기상청 단기예보(`kma_forecast_manager`) 국지 날씨 자동 조회 활성화.
+    - `MultimodalRouteRequest`에 `from_district`, `to_district`, `from_weather`, `to_weather`, `district_weather_map` 지원 및 출발·도착지 중 어느 한 곳이라도 강수(`rain > 0mm`)·강풍(`wind >= 8m/s`)·혹한(`temp <= -5°C`) 감지 시 보수적 `RAIN_SAFE_ONLY` 자동 전환(`first_mile_bike_enabled`, `last_mile_bike_enabled`, `weather_diff_detected` 산출).
   - **Phase 2 (세그먼트 탑승 위치별 정밀 국지 날씨 및 구간별 Weather Gate)**:
-    - 각 세그먼트(도보, 따릉이, 버스, 지하철) 시작 좌표별 기상청 단기예보 국지 기상 수집.
-    - 비가 오지 않는 출발 권역은 따릉이 허용, 비가 오는 도착 권역은 실내 우회 세그먼트 적용 등 세그먼트 단위 분할 기상 게이트 탑재.
-    - FactChat XAI 구간별 맞춤형 기상 안내 브리핑 생성.
-- [ ] **[UI-09] 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (Next Sprint · 이슈 #90)**:
-  - 브라우저 `navigator.geolocation` API를 연동하여 사용자의 현재 실제 위치(GPS 좌표) 획득.
-  - 지도 화면 내 `[📍 내 위치]` 플로팅 버튼 탑재 및 클릭 시 카메라 자동 이동(`flyTo({ center, zoom: 16.5 })`).
-  - 현재 위치 펄스(Pulse) 파란색 점 마커 및 오차 반경(`10~50m`) 서클 시각화.
-  - 출발지 설정 연계: 현재 위치를 기준으로 가장 인접한 정류소/역 매핑 및 경로 탐색 연동.
+    - 모든 후보 경로의 개별 세그먼트(`walk`, `bike`, `bus`, `subway`)에 승차 거점(`weather`) 및 하차 거점(`to_weather`) 국지 기상 컨텍스트(`district`, `temp`, `rain`, `wind`, `pty_desc`, `bike_enabled`, `weather_gate`) 자동 매핑(`_annotate_segments_with_local_weather`).
+    - First-Mile 따릉이 반납 대상 역 권역이 악천후일 경우 후보에서 선제 배제하고, 버스 세그먼트는 승차 정류소 권역의 국지 강수량에 따라 우천 지연 계수(`×1.15~1.18`)를 개별 적용.
+    - FactChat LLM 프롬프트 및 XAI 규칙 엔진 브리핑에 출발·도착지 국지 기상 비교 요약 반영, `MultimodalRoutePanel.tsx`에 출발 ➔ 도착 국지 기상 비교 배너 및 세그먼트별 국지 기상 배지 표출.
+- [x] **[UI-09] 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 직접 클릭(Pick on Map) 출발/도착지 지정 기능 (완료 · 2026-11-12 · 이슈 #90)**:
+  - **지도 내 위치 시각화, 상세 정보 카드 및 GPS 컨트롤 (`TransitMap.tsx`)**:
+    - 브라우저 표준 `navigator.geolocation` API를 연동하여 실시간 GPS 위도·경도 및 오차 반경(`accuracy`) 획득 (`enableHighAccuracy: true`, `timeout: 10000`, `maximumAge: 30000`).
+    - PC 상단 권역 퀵 이동 바 및 PC/모바일 우하단 플로팅 컨트롤에 원클릭 `[📍 내 위치]` 버튼 탑재 (로딩 스피너 및 반응형 보호).
+    - 위치 획득 시 카메라 부드러운 이동 (`flyTo({ center, zoom: 16, essential: true })`) 및 MapLibre 상에 푸른색 펄스(Pulsing Dot: CSS `@keyframes myLocationPulse`) 애니메이션 마커와 오차 반경 원형 서클 GeoJSON 레이어(`my-location-accuracy`) 동적 렌더링.
+    - 내 위치 상세 정보 플로팅 카드(`showLocationInfoCard`) 및 마커 팝업 탑재 (소속 자치구 자동 해석, 위도/경도, 오차 반경, 데스크톱 IP/Wi-Fi 환경 안내 배지, 인근 지하철역 도보 거리 계산, `[🎯 지도에서 직접 클릭하여 보정]` 모드).
+  - **경로 탐색 시 출발지·도착지 지도 직접 찍기 (Pick on Map) 모드 (`TransitMap.tsx`, `UnifiedStationSearch.tsx`)**:
+    - 출발지 및 도착지 통합 검색창 우측 액션 영역과 드롭다운 상단 빠른 선택 목록에 `[🎯 지도에서 찍기]` 버튼 탑재 (`allowMapPick={true}`, `onPickOnMap`).
+    - 지도 진입 시 상단 안내 배너 표출 (`🚩 출발지` / `🏁 도착지` 클릭 안내 + ESC 취소 지원) 및 크로스헤어(`crosshair`) 커서 전환.
+    - 지도 빈 곳 클릭 시 좌표 역지오코딩 기반 지능형 명칭 생성(`{자치구} 지정 위치 ({역명}역 도보 {거리}m)`), 특정 거점 마커 클릭 시 해당 정류장 즉시 출발/도착 확정 후 경로 추천 탭 자동 복귀.
+  - **통합 검색 및 경로 탐색 연동 (`UnifiedStationSearch.tsx`, `App.tsx`, `AppM.tsx`)**:
+    - `UnifiedStationSearch.tsx`: `variant="route"` 출발지/도착지 검색창에 `[📍 내 위치]` 및 `[🎯 지도에서 찍기]` 빠른 선택 제공.
+    - `App.tsx` 및 `AppM.tsx`: `myLocation` 상태 연동 및 `departure="내 위치 (GPS)"` 또는 좌표 기반 지정 위치 자동 주입.
+  - **백엔드 멀티모달 라우터 확장 (`multimodal_router.py`, `main.py`)**:
+    - `resolve_station()`: `coords`가 주어지고 `station_type in ("gps", "current_location", "map_point")` 시 `station_type="gps"` 보존 및 최근접 지하철역 `nearest_subway` 자동 매핑.
+    - `resolve_station_district()`: GPS 내 위치 및 지정 위치 키워드 입력 시 좌표 기반 최단거리 자치구 우선 역지오코딩.
+    - `_node_synthesize_routes()`: 출발 또는 도착 좌표에 대한 First-Mile / Last-Mile 도보 세그먼트(`walk`) 자동 조립.
+    - `tests/test_geolocation_routing.py` 단위 테스트 4종 100% 검증 통과.
 - [x] **[ROUTE-03] 버스 정류소 및 따릉이 대여소 출발/도착 시 First/Last-Mile 도보 세그먼트 보존 및 자동 삽입 (완료 · 2026-11-03 · 이슈 #89)**:
   - `resolve_station()`에서 버스 정류소 및 따릉이 대여소 해석 시 명칭, 좌표, `station_type`을 보존하고 인접 지하철역을 `nearest_subway`로 연계.
   - `MultimodalRouteRequest`에 `from_coords`, `to_coords`, `from_type`, `to_type` 명시적 파라미터 지원 및 `search_bus_stations` 동적 정류소 등록.
@@ -157,9 +197,9 @@
 
 ---
 
-### 🧭 0-2. 멀티모달 경로 탐색 물리/실시간 정밀화 4대 과제 (Backlog · 2차 고도화)
+### 🧭 0-2. 멀티모달 경로 탐색 물리/실시간 정밀화 4대 과제 (캡스톤 발표 후 2차 고도화 과제 · Backlog)
 
-> **문서 일원화 안내**: 기존 `docs/TODO_MOCK_AND_UNVERIFIED_DATA.md`에 기록되었던 잔여 경로 탐색 정밀화 과제를 본 섹션으로 공식 이관·통합하였습니다. 경로 탐색의 정확도 및 체감 품질을 극대화하기 위한 4대 과제와 가성비(Impact vs Effort)는 아래와 같습니다.
+> **문서 일원화 안내**: 기존 `docs/TODO_MOCK_AND_UNVERIFIED_DATA.md`에 기록되었던 잔여 경로 탐색 정밀화 과제를 본 섹션으로 공식 이관·통합하였습니다. 현재 기본 직선×1.25 및 정적 배차 기반으로도 충분히 안정적이고 정확한 시연이 가능하므로, 아래 미완료 2개 과제([ROUTING-03], [ROUTING-04])는 **캡스톤 발표 이후 진행할 2차 고도화 과제**로 보류합니다.
 
 - [x] **[ROUTING-01 · P1 · Quick Win · 가성비 1위] 환승역별 실제 환승통로 도보 거리 및 소요시간 반영 (완료 · 2026-10-29 · 이슈 #47)**:
   - **현황**: `multimodal_router.py`, `subwayGraph.ts`에서 모든 환승역의 도보 환승시간을 일괄 `2.0분`으로 고정하여, 김포공항·복정 등 개념환승(`0.5~1.0분`)과 고속터미널·노원·종로3가 등 장거리 환승(`5.0~8.0분`) 간의 큰 편차가 무시됨.
@@ -171,12 +211,12 @@
   - **개선 방안**: 서울시 대중교통환승경로 조회 서비스(`getBusSubwayPathList`, 공공데이터포털)를 연동하여, 출발지-중간역 간 실제 운행 버스 노선 번호(`routeNm`), 승하차 정류소 ID(`fid`, `tid`), 실측 소요시간 및 실시간 버스 도착 대기시간(`arrmsg1`)을 세그먼트에 바인딩하고, 신규 엔드포인트 `GET /api/v1/transit/bus/transfer-path` 개설 및 지도 승하차 핀(`route-bus-pickup-pin`, `route-bus-drop-pin`) 시각화 완료. API 실패 또는 비서울 이동 시 인근 버스 정류소 복도(Corridor) 기반 Heuristic Fallback 유지.
   - **기대 효과**: 복합 환승 경로 추천에서 '가짜 버스 노선' 문제를 완전히 해소하고 실시간 버스 도착시간을 결합한 신뢰도 100% 경로 제공.
 
-- [ ] **[ROUTING-03 · P2 · High Impact · 체감 효과] 지하철 급행(Express) 열차 운행 다이어 및 정차역 스킵 분리**:
+- [ ] **[ROUTING-03 · P2 · High Impact · 체감 효과] 지하철 급행(Express) 열차 운행 다이어 및 정차역 스킵 분리 (이슈 #51 · 발표 후 2차 과제)**:
   - **현황**: 9호선 급행, 1호선 경인/경부선 급행, 공항철도 직통 등이 완행 노선과 분리되지 않아 모든 중간역 정차로 계산됨 (예: 김포공항➔신논현 9호선 급행 탑승 시 실제보다 12~15분 과대 산출).
   - **개선 방안**: 급행 정차역 목록 및 급행 전용 스킵 간선(Skip Edge)을 구축하고, 급행 배차간격(`10~15분`)을 반영하여 다익스트라 탐색 시 일반열차와 급행열차의 효용을 비교 평가해 `🚇 9호선(급행)`으로 분기 추천.
   - **기대 효과**: 9호선·1호선 통근 이용자에게 최대 15분 이상 단축되는 현실적인 최적 급행 경로 추천.
 
-- [ ] **[ROUTING-04 · P2 · Visual Polish · 후순위] 도보 및 따릉이 구간 실도로망(Pedestrian/Bike Street Network) 연동**:
+- [ ] **[ROUTING-04 · P2 · Visual Polish · 후순위] 도보 및 따릉이 구간 실도로망(Pedestrian/Bike Street Network) 연동 (이슈 #28 · 발표 후 2차 과제)**:
   - **현황**: 도보 및 따릉이 구간을 `Haversine 직선거리 × 1.25`로 산출하고 지도 폴리라인도 단순 직선 선분으로 연결함 (한강 도하, 철도/하천 단절, 오르막 감속 미반영).
   - **개선 방안**: 오픈소스 OSRM(보행자/자전거 프로필) 엔진 또는 외부 보행자 경로 API를 연동하여 실제 자전거길/보행로 GeoJSON 및 실도로 거리·소요시간 반영.
   - **기대 효과**: First/Last-Mile 지도 폴리라인이 실제 도로망을 따라 유려하게 표시되며 단절 지형 우회 반영.
@@ -216,8 +256,10 @@
   - 일반 사용자 화면과 완전 격리된 단독 웹 대시보드(`http://localhost:3100/health/dashboard`) 제공.
   - 외부 공공 API 4종(기상청, 버스, 지하철, 따릉이) 헬스 및 서킷 브레이커 실시간 관제.
   - 최근 `2,000건`의 실시간 서버 로그를 비차단 스레드 안전(`RLock`) 순환 버퍼에 캡처하여 1.5초 주기 실시간 터미널 스트리밍, 다차원 필터링 및 원클릭 캐시 비우기 지원.
-- [ ] 공공 API 서버 장애 시 자동 Fallback 서킷 브레이커 고도화
-- [ ] Redis 기반 분산 캐시 레이어 도입 (대규모 트래픽 대비)
+- [ ] **[INFRA-01] 대규모 트래픽 대비 OSM 지도 타일 자체 서버 호스팅 구축 및 타일 캐싱 (이슈 #102 · 발표 후 과제)**:
+  - 1단계 타일 URL 환경변수화(`VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL`)는 완료되었으며, 향후 일 트래픽 50만 건 이상 또는 대규모 상용화 시 Nginx 캐시 프록시 및 PMTiles/Martin 기반 자체 타일 호스팅 인프라 구축.
+- [ ] 공공 API 서버 장애 시 자동 Fallback 서킷 브레이커 고도화 (Backlog)
+- [ ] Redis 기반 분산 캐시 레이어 도입 (대규모 트래픽 대비 · Backlog)
 
 ---
 

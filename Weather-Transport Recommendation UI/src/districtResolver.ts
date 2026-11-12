@@ -94,13 +94,19 @@ const STATION_DONG_MAP: Record<string, string> = {
 /**
  * 역명 및 지리적 좌표를 바탕으로 최적의 행정구역(자치구/도시)을 판별
  */
+const SORTED_STATION_KEYS = Object.keys(STATION_DONG_MAP).sort((a, b) => b.length - a.length)
+
 export function resolveDistrict(stationName: string, coords?: [number, number]): string {
-  const clean = stationName.replace(/역$/, '').trim()
-  
-  // 1. 역명 키워드 매칭
-  for (const [key, dist] of Object.entries(STATION_DONG_MAP)) {
-    if (clean.includes(key)) {
-      return dist
+  const rawName = (stationName || '').trim()
+  const isGpsKeyword = /내\s*위치|현재\s*위치|gps|지정\s*위치|지도\s*지정/i.test(rawName)
+  const clean = rawName.replace(/역$/, '').trim()
+
+  // 1. 역명 키워드 매칭 (긴 키워드 우선) — 내 위치(GPS) 명칭은 건너뛰고 좌표로 판별 (무한 재귀 방지)
+  if (!isGpsKeyword) {
+    for (const key of SORTED_STATION_KEYS) {
+      if (rawName.includes(key) || clean.includes(key)) {
+        return STATION_DONG_MAP[key]
+      }
     }
   }
 
@@ -120,4 +126,36 @@ export function resolveDistrict(stationName: string, coords?: [number, number]):
   }
 
   return '강남구'
+}
+
+/**
+ * 출발지/도착지 거점 명칭 및 선택 좌표를 바탕으로 기상청 단기예보 조회용 자치구/시군구 명칭 반환 (Issue #91)
+ */
+export function resolveDistrictNameFromPoint(
+  stationName: string,
+  coords?: [number, number] | null,
+  fallbackDistrict = '강남구',
+): string {
+  const rawName = (stationName || '').trim()
+  const isGpsKeyword = /내\s*위치|현재\s*위치|gps|지정\s*위치|지도\s*지정/i.test(rawName)
+  if (isGpsKeyword && coords && coords.length === 2) {
+    return resolveDistrict(rawName, coords)
+  }
+
+  const clean = rawName.replace(/역$/, '').trim()
+
+  if (rawName && !isGpsKeyword) {
+    for (const key of SORTED_STATION_KEYS) {
+      if (rawName.includes(key) || clean.includes(key)) {
+        return STATION_DONG_MAP[key]
+      }
+    }
+  }
+
+  if (coords && coords.length === 2) {
+    return resolveDistrict(rawName, coords)
+  }
+
+  const fb = (fallbackDistrict || '강남구').trim().split(/\s+/)[0]
+  return fb || '강남구'
 }

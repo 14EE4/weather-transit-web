@@ -1417,7 +1417,7 @@ export default function TransitMap({
     )
   }
 
-  // [이슈 #107] 베이스맵 모드(일반 vs 위성) 실시간 동적 전환
+  // [이슈 #107, #113] 베이스맵 모드(일반 vs 위성) 및 교통수단 필터(all, subway, bus, bike)에 따른 레이어 가시성 동적 동기화
   useEffect(() => {
     const map = mapInstanceRef.current
     if (!map || !mapLoaded) return
@@ -1432,15 +1432,20 @@ export default function TransitMap({
       if (map.getLayer('satellite-labels-layer')) {
         map.setLayoutProperty('satellite-labels-layer', 'visibility', isSat ? 'visible' : 'none')
       }
-      // 위성 모드 시 수도권 전철 노선망 케이싱(외곽선) 대비 최적화 (어두운 배경 위 선명한 식별)
+
+      // [이슈 #113] 지하철 노선망 레이어 가시성 및 케이싱 색상/투명도 동기화 (버스/따릉이 모드 시 은은하게 톤다운)
+      const isSubwayFocused = filterType === 'all' || filterType === 'subway'
+      if (map.getLayer('subway-network-line')) {
+        map.setPaintProperty('subway-network-line', 'line-opacity', isSubwayFocused ? 0.85 : 0.15)
+      }
       if (map.getLayer('subway-network-casing')) {
         map.setPaintProperty('subway-network-casing', 'line-color', isSat ? '#FFFFFF' : '#0B1120')
-        map.setPaintProperty('subway-network-casing', 'line-opacity', isSat ? 0.4 : 0.8)
+        map.setPaintProperty('subway-network-casing', 'line-opacity', isSubwayFocused ? (isSat ? 0.4 : 0.8) : (isSat ? 0.15 : 0.1))
       }
     } catch (e) {
-      console.warn('[TransitMap] 베이스맵 전환 오류:', e)
+      console.warn('[TransitMap] 베이스맵/노선망 레이어 동기화 오류:', e)
     }
-  }, [currentBaseMap, mapLoaded])
+  }, [currentBaseMap, filterType, mapLoaded])
 
   // 1. MapLibre GL 지도 초기화
   useEffect(() => {
@@ -2776,18 +2781,7 @@ export default function TransitMap({
     return () => { markers.forEach(marker => marker.remove()) }
   }, [mapLoaded, selectedBusRoute?.id, approachingBusVehicles, busRouteStations])
 
-  // 1-3. 필터 모드에 따른 지하철 노선망 배경 레이어 가시성 제어 (버스/따릉이 모드 시 은은하게 톤다운)
-  useEffect(() => {
-    if (!mapLoaded || !mapInstanceRef.current) return
-    const map = mapInstanceRef.current
-    if (map && map.getLayer && map.getLayer('subway-network-line')) {
-      const isSubwayFocused = filterType === 'all' || filterType === 'subway'
-      map.setPaintProperty('subway-network-line', 'line-opacity', isSubwayFocused ? 0.85 : 0.15)
-      if (map.getLayer('subway-network-casing')) {
-        map.setPaintProperty('subway-network-casing', 'line-opacity', isSubwayFocused ? 0.8 : 0.1)
-      }
-    }
-  }, [filterType, mapLoaded])
+  // (노선망 가시성 제어는 상단 [이슈 #113] 통합 effect로 일원화됨)
 
   // 2. 필터링 및 날씨에 따른 마커 동적 갱신
   useEffect(() => {

@@ -13,11 +13,16 @@
   - 기존 지도 탐색 및 경로 추천 서비스는 사용자가 출발지나 관심 거점을 찾기 위해 역명/정류소명을 검색하거나 지도를 직접 드래그/스크롤해야만 했음.
   - 특히 이동 중인 모바일 브라우저 사용자가 "내 현재 위치에서 목적지까지" 경로를 즉시 안내받거나 주변 대중교통 거점을 탐색하고자 할 때 GPS 기반 현 위치 자동 감지 편의성이 부족했던 한계를 해소.
 - **조치 내역**:
-  1. **지도 내 위치 시각화 및 GPS 컨트롤 (`TransitMap.tsx`)**:
+  1. **지도 내 위치 시각화, 상세 정보 카드 및 GPS 컨트롤 (`TransitMap.tsx`)**:
      - 브라우저 표준 `navigator.geolocation` API를 연동하여 실시간 GPS 위도·경도 및 오차 반경(`accuracy`) 획득 (`enableHighAccuracy: true`, `timeout: 10000`, `maximumAge: 30000`).
      - PC 상단 권역 퀵 이동 바 및 PC/모바일 우하단 플로팅 컨트롤에 원클릭 `[📍 내 위치]` 버튼 탑재 (위치 수신 중 로딩 스피너 애니메이션 제공).
-     - 위치 획득 시 카메라 부드러운 이동 (`flyTo({ center, zoom: 16, essential: true })`) 및 MapLibre 상에 푸른색 펄스(Pulsing Dot: CSS `@keyframes myLocationPulse`) 애니메이션 마커와 오차 반경(`10~50m`) 원형 서클 GeoJSON 레이어(`my-location-accuracy`) 동적 렌더링.
-     - 내 위치 마커 클릭 시 소속 자치구 자동 해석, 오차 반경(±Xm) 표출 및 원클릭 `[🚩 현재 위치를 출발지로 설정]` 팝업 탑재.
+     - 위치 획득 시 카메라 부드러운 이동 (`flyTo({ center, zoom: 15.5, essential: true })`) 및 MapLibre 상에 푸른색 펄스(Pulsing Dot: CSS `@keyframes myLocationPulse`) 애니메이션 마커와 오차 반경(`15~1,500m`) 원형 서클 GeoJSON 레이어(`my-location-accuracy`) 동적 렌더링.
+     - **내 위치 상세 정보 플로팅 카드 (`showLocationInfoCard`) 및 마커 팝업 대폭 강화**:
+       - 감지된 자치구, 위도·경도 정밀 좌표, 오차 반경(±Xm) 실시간 표출.
+       - **데스크톱 환경 안내 배지**: GPS 위성 칩이 없는 PC 환경 특성상 통신사 IP/Wi-Fi 기반 삼각측량으로 실제 위치와 오차가 발생할 수 있음을 명확히 안내 (`🖥️ 데스크톱 IP/Wi-Fi` vs `🛰️ 모바일 GPS`).
+       - **인근 지하철역 자동 탐색**: 수도권 전철 마스터 데이터 연동 기반 최단거리 지하철역명, 호선 정보 및 도보 거리(m) 실시간 계산 표출.
+       - **`[🎯 지도에서 직접 클릭하여 보정]` 모드 탑재**: 데스크톱 IP 오차 발생 시 지도 상에서 사용자가 실제 위치를 클릭하면 즉시 해당 좌표로 내 위치 마커와 출발지가 정확히 보정되는 인터랙티브 기능 지원 (상단 안내 배너 및 ESC 취소 지원).
+       - 원클릭 `[🚩 이 위치를 출발지로 설정]` 버튼 탑재.
      - 권한 거부(PERMISSION_DENIED), 위치 수신 불가(POSITION_UNAVAILABLE), 타임아웃(TIMEOUT) 및 비-HTTPS 환경에 대한 친절한 토스트 안내 방어 처리.
   2. **통합 검색창 및 PC·모바일 경로 추천 연동 (`UnifiedStationSearch.tsx`, `App.tsx`, `AppM.tsx`)**:
      - `UnifiedStationSearch.tsx`: `variant="route"` 출발지 검색창 우측 및 드롭다운 최상단에 `[📍 내 위치]` 빠른 선택 버튼/행 제공.

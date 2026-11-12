@@ -493,7 +493,7 @@ export default function App() {
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>(undefined)
   const [departureType, setDepartureType] = useState<string | undefined>(undefined)
   const [destinationType, setDestinationType] = useState<string | undefined>(undefined)
-  const [myLocation, setMyLocation] = useState<{ coords: [number, number]; accuracy: number; district?: string } | null>(null)
+  const [myLocation, setMyLocation] = useState<{ coords: [number, number]; accuracy: number; district?: string; isManual?: boolean } | null>(null)
   const [searchedRoute, setSearchedRoute] = useState<{
     from: string
     to: string

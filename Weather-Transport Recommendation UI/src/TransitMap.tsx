@@ -44,6 +44,45 @@ const KOREA_BOUNDS: [[number, number], [number, number]] = [
   [132.0, 39.2], // 동북단 (동해 독도 동단/휴전선 북방)
 ]
 
+/** [이슈 #90] 두 위경도 좌표 간 Haversine 거리 계산 (미터 단위) */
+function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3
+  const phi1 = (lat1 * Math.PI) / 180
+  const phi2 = (lat2 * Math.PI) / 180
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return Math.round(R * c)
+}
+
+/** [이슈 #90] 좌표 기준 가장 가까운 수도권 지하철역 검색 */
+function getNearestSubwayStation(coords: [number, number]): { name: string; distanceMeters: number; lines: string[] } | null {
+  if (!coords || !SUBWAY_STATIONS || SUBWAY_STATIONS.length === 0) return null
+  let nearest: { name: string; distanceMeters: number; lines: string[] } | null = null
+  let minDistance = Infinity
+
+  for (const s of SUBWAY_STATIONS) {
+    const dist = getDistanceFromLatLonInMeters(coords[1], coords[0], s.coords[1], s.coords[0])
+    if (dist < minDistance) {
+      minDistance = dist
+      nearest = { name: s.name, distanceMeters: dist, lines: s.lines || [] }
+    }
+  }
+  return nearest
+}
+
+/** [이슈 #90] 데스크톱(PC) 브라우저 환경 판별 (터치/모바일 UA 배제) */
+const isDesktopDevice = () => {
+  if (typeof window === 'undefined') return true
+  const isTouch = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0)
+  const isMobileUa = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  return !isTouch && !isMobileUa
+}
+
 /** [이슈 #90] GPS 오차 반경 원형 GeoJSON 폴리곤 생성 헬퍼 */
 function createGeoJsonCircle(center: [number, number], radiusInMeters: number, points = 64) {
   const [lng, lat] = center
@@ -192,8 +231,8 @@ interface TransitMapProps {
   /** [이슈 #98] 지도 카메라 중심 좌표 변경 통지 (디바운스 500ms, 확대 zoom 10 이상) */
   onViewportChange?: (center: { lat: number; lng: number }) => void
   /** [이슈 #90] 브라우저 GPS 실시간 내 위치 연동 */
-  myLocation?: { coords: [number, number]; accuracy: number; district?: string } | null
-  onUpdateMyLocation?: (loc: { coords: [number, number]; accuracy: number; district: string }) => void
+  myLocation?: { coords: [number, number]; accuracy: number; district?: string; isManual?: boolean } | null
+  onUpdateMyLocation?: (loc: { coords: [number, number]; accuracy: number; district: string; isManual?: boolean }) => void
   onLocationError?: (msg: string) => void
   onToast?: (msg: string, actionLabel?: string) => void
 }
@@ -280,6 +319,37 @@ export default function TransitMap({
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
   const [showLegend, setShowLegend] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
+  const [showLocationInfoCard, setShowLocationInfoCard] = useState(true)
+  const [isPickingLocationMode, setIsPickingLocationMode] = useState(false)
+  const isPickingLocationModeRef = useRef(false)
+  isPickingLocationModeRef.current = isPickingLocationMode
+  const onUpdateMyLocationRef = useRef(onUpdateMyLocation)
+  onUpdateMyLocationRef.current = onUpdateMyLocation
+  const onToastRef = useRef(onToast)
+  onToastRef.current = onToast
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isPickingLocationModeRef.current) {
+        setIsPickingLocationMode(false)
+        isPickingLocationModeRef.current = false
+        if (onToastRef.current) onToastRef.current('위치 직접 지정이 취소되었습니다.')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map) return
+    try {
+      const canvas = map.getCanvas()
+      if (canvas) {
+        canvas.style.cursor = isPickingLocationMode ? 'crosshair' : ''
+      }
+    } catch {}
+  }, [isPickingLocationMode])
 
   useEffect(() => {
     const handleResize = () => {
@@ -1032,7 +1102,7 @@ export default function TransitMap({
     return el
   }
 
-  const openMyLocationPopup = (coords: [number, number], accuracy: number, district: string) => {
+  const openMyLocationPopup = (coords: [number, number], accuracy: number, district: string, isManual = false) => {
     const map = mapInstanceRef.current
     if (!map) return
     if (activePopupRef.current) {
@@ -1040,38 +1110,63 @@ export default function TransitMap({
     }
     const stop: TransitStop = {
       id: `gps-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`,
-      name: '내 위치 (GPS)',
+      name: isManual ? '내 위치 (수동 지정)' : '내 위치 (GPS)',
       type: 'gps',
       coords,
-      lineInfo: `GPS 실시간 위치 (오차 ±${Math.round(accuracy)}m)`,
+      lineInfo: isManual ? '지도에서 직접 지정한 위치' : `실시간 감지 위치 (오차 ±${Math.round(accuracy)}m)`,
       baseCrowd: 30,
       rainSensitivity: 0.1,
       district,
     }
 
+    const nearestSubway = getNearestSubwayStation(coords)
+    const isDesktop = isDesktopDevice()
+    const isLowAccuracy = accuracy >= 100
+
+    const sourceBadge = isManual
+      ? '<span style="font-size: 9.5px; font-weight: 800; color: #10B981; background: rgba(16,185,129,0.15); padding: 2px 6px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;">🎯 지도 직접 지정</span>'
+      : isDesktop || isLowAccuracy
+      ? '<span style="font-size: 9.5px; font-weight: 800; color: #F59E0B; background: rgba(245,158,11,0.15); padding: 2px 6px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;">🖥️ 데스크톱 IP/Wi-Fi</span>'
+      : '<span style="font-size: 9.5px; font-weight: 800; color: #38BDF8; background: rgba(56,189,248,0.15); padding: 2px 6px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;">🛰️ 모바일 GPS</span>'
+
+    const desktopNotice = (isDesktop || isLowAccuracy) && !isManual
+      ? `
+        <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 7px 9px; margin-bottom: 8px;">
+          <div style="font-size: 10.5px; color: #F59E0B; font-weight: 700; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+            <span>ℹ️</span> 데스크톱 위치 정확도 안내
+          </div>
+          <div style="font-size: 9.5px; color: var(--color-muted); line-height: 1.45;">
+            GPS 수신기가 없는 PC는 <strong>통신사 IP/공유기 망</strong>을 기준으로 위치가 추정되어 실제 계신 곳과 수백m~수km 차이가 날 수 있습니다.
+          </div>
+        </div>
+      `
+      : ''
+
+    const nearestHtml = nearestSubway
+      ? `
+        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 6px 9px; margin-bottom: 8px; font-size: 10.5px; color: var(--app-text);">
+          <div style="color: #38BDF8; font-weight: 700; font-size: 10px; margin-bottom: 2px;">🚇 가장 가까운 지하철역</div>
+          <div><strong>${nearestSubway.name}</strong> <span style="font-size: 9.5px; color: var(--color-muted);">(${nearestSubway.lines.join(', ')})</span> · 약 ${nearestSubway.distanceMeters.toLocaleString()}m</div>
+        </div>
+      `
+      : ''
+
     const html = `
-      <div style="min-width: 250px; max-width: 310px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
+      <div style="min-width: 260px; max-width: 320px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 32px;">
           <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
             <span style="font-size: 16px; flex-shrink: 0;">📍</span>
-            <strong style="font-size: 14px; color: var(--app-text); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">현재 내 위치</strong>
+            <strong style="font-size: 13.5px; color: var(--app-text); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${isManual ? '지정된 내 위치' : '현재 내 위치'}</strong>
             <span style="font-size: 9px; color: #38BDF8; background: rgba(56,189,248,0.15); padding: 1px 5px; border-radius: 4px; flex-shrink: 0;">${district}</span>
           </div>
-          <span style="font-size: 10px; font-weight: 800; color: #38BDF8; background: rgba(56,189,248,0.12); padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;">
-            GPS 수신
-          </span>
+          ${sourceBadge}
         </div>
-        <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 8px; font-family: monospace;">
-          정확도: ±${Math.round(accuracy)}m · [${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}]
+        <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 8px; font-family: monospace; line-height: 1.4;">
+          위도 ${coords[1].toFixed(5)}°, 경도 ${coords[0].toFixed(5)}°<br/>
+          정확도: ±${Math.round(accuracy)}m ${isManual ? '(직접 지정)' : ''}
         </div>
-        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;">
-          <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
-            🧭 스마트 길찾기 출발지 연동
-          </div>
-          <div style="font-size: 10px; color: var(--color-muted); line-height: 1.4;">
-            내 위치를 출발지로 설정하면 인근 지하철역·버스 정류소까지의 도보(First-Mile)가 자동으로 계산됩니다.
-          </div>
-        </div>
+        ${desktopNotice}
+        ${nearestHtml}
         <div style="display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--color-border);">
           <button
             type="button"
@@ -1079,7 +1174,15 @@ export default function TransitMap({
             title="현재 위치를 출발지로 설정"
             style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--color-primary); background: rgba(56, 189, 248, 0.18); color: var(--app-text); font-size: 11px; font-weight: 800; cursor: pointer; transition: all 0.15s ease;"
           >
-            <span>🚩</span> 현재 위치를 출발지로 설정
+            <span>🚩</span> 이 위치를 출발지로 설정
+          </button>
+          <button
+            type="button"
+            data-action="pick-location"
+            title="지도에서 실제 계신 위치를 직접 클릭하여 보정"
+            style="display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 10px; border-radius: 8px; border: 1px dashed rgba(56, 189, 248, 0.6); background: rgba(255, 255, 255, 0.04); color: var(--color-muted); font-size: 10.5px; font-weight: 700; cursor: pointer;"
+          >
+            <span>🎯</span> 지도에서 직접 클릭하여 보정
           </button>
         </div>
       </div>
@@ -1089,7 +1192,7 @@ export default function TransitMap({
       offset: 16,
       closeButton: true,
       closeOnClick: false,
-      maxWidth: '320px',
+      maxWidth: '330px',
       anchor: 'top',
     }).setLngLat(coords).setHTML(html)
 
@@ -1101,6 +1204,11 @@ export default function TransitMap({
       if (action === 'set-origin') {
         onSetOriginRef.current?.(stop)
         popup.remove()
+      } else if (action === 'pick-location') {
+        popup.remove()
+        setIsPickingLocationMode(true)
+        isPickingLocationModeRef.current = true
+        if (onToastRef.current) onToastRef.current('🎯 지도에서 실제 계신 위치를 직접 클릭해 주세요.')
       }
     }
 
@@ -1118,12 +1226,13 @@ export default function TransitMap({
     accuracy: number,
     district: string,
     showPopup = true,
+    isManual = false,
   ) => {
     const map = mapInstanceRef.current
     if (!map) return
 
-    // 1. 오차 반경 원형 GeoJSON 소스 및 레이어 갱신
-    const circleGeoJson = createGeoJsonCircle(coords, Math.max(15, Math.min(accuracy, 300)))
+    // 1. 오차 반경 원형 GeoJSON 소스 및 레이어 갱신 (데스크톱 오차 범위 최대 1,500m까지 반영)
+    const circleGeoJson = createGeoJsonCircle(coords, Math.max(15, Math.min(accuracy, 1500)))
     const src = map.getSource('my-location-accuracy-source') as any
     if (src && typeof src.setData === 'function') {
       src.setData(circleGeoJson)
@@ -1166,7 +1275,8 @@ export default function TransitMap({
     } else {
       const el = createMyLocationMarkerElement()
       el.addEventListener('click', () => {
-        openMyLocationPopup(coords, accuracy, district)
+        openMyLocationPopup(coords, accuracy, district, isManual)
+        setShowLocationInfoCard(true)
       })
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat(coords)
@@ -1176,14 +1286,14 @@ export default function TransitMap({
 
     // 3. 팝업 오픈 (요청 시)
     if (showPopup) {
-      openMyLocationPopup(coords, accuracy, district)
+      openMyLocationPopup(coords, accuracy, district, isManual)
     }
   }
 
   const handleLocateUser = (showPopup = true) => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
       const msg = '현재 브라우저 환경에서는 Geolocation 위치 서비스를 지원하지 않습니다.'
-      if (onToast) onToast(`❌ ${msg}`)
+      if (onToastRef.current) onToastRef.current(`❌ ${msg}`)
       onLocationError?.(msg)
       return
     }
@@ -1199,22 +1309,26 @@ export default function TransitMap({
         const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
         const district = resolveDistrictNameFromPoint('내 위치 (GPS)', coords)
 
-        onUpdateMyLocation?.({ coords, accuracy, district })
+        onUpdateMyLocationRef.current?.({ coords, accuracy, district, isManual: false })
+        setShowLocationInfoCard(true)
 
         if (mapInstanceRef.current) {
           mapInstanceRef.current.flyTo({
             center: coords,
-            zoom: Math.max(mapInstanceRef.current.getZoom(), 16),
+            zoom: Math.max(mapInstanceRef.current.getZoom(), 15.5),
             pitch: DEFAULT_MAP_PITCH,
             essential: true,
           })
-          updateMyLocationVisuals(coords, accuracy, district, showPopup)
+          updateMyLocationVisuals(coords, accuracy, district, showPopup, false)
         }
 
+        const isDesktop = isDesktopDevice()
         if (!isInsideKorea) {
-          if (onToast) onToast('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다. 기본 수도권 중심 지도로 안내합니다.')
+          if (onToastRef.current) onToastRef.current('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다. 기본 수도권 중심 지도로 안내합니다.')
+        } else if (isDesktop || accuracy >= 100) {
+          if (onToastRef.current) onToastRef.current(`📍 내 위치 감지: ${district} (데스크톱 네트워크 추정 ±${accuracy}m)`)
         } else {
-          if (onToast) onToast(`📍 현재 내 위치 획득: ${district} (오차 ±${accuracy}m)`)
+          if (onToastRef.current) onToastRef.current(`📍 내 위치 감지: ${district} (정확도 ±${accuracy}m)`)
         }
       },
       (err) => {
@@ -1227,7 +1341,7 @@ export default function TransitMap({
         } else if (err.code === err.TIMEOUT) {
           msg = '위치 확인 요청 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
         }
-        if (onToast) onToast(`❌ ${msg}`)
+        if (onToastRef.current) onToastRef.current(`❌ ${msg}`)
         onLocationError?.(msg)
       },
       {
@@ -1292,6 +1406,20 @@ export default function TransitMap({
     // 컨트롤 추가
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left')
+
+    // [이슈 #90] 위치 직접 지정 모드(isPickingLocationMode)일 때 지도 클릭 좌표를 내 위치로 보정
+    map.on('click', (e) => {
+      if (isPickingLocationModeRef.current) {
+        const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+        const district = resolveDistrictNameFromPoint('내 위치 (수동 지정)', coords)
+        setIsPickingLocationMode(false)
+        isPickingLocationModeRef.current = false
+        onUpdateMyLocationRef.current?.({ coords, accuracy: 15, district, isManual: true })
+        updateMyLocationVisuals(coords, 15, district, true, true)
+        setShowLocationInfoCard(true)
+        if (onToastRef.current) onToastRef.current(`📍 클릭하신 위치(${district})로 내 위치가 보정되었습니다.`)
+      }
+    })
 
     map.on('load', () => {
       // 0. 수도권 전철 전체 노선망 배경 벡터 레이어 (공식 호선별 고유 컬러)
@@ -3468,6 +3596,49 @@ export default function TransitMap({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      {/* [이슈 #90] 위치 직접 지정(보정) 모드 상단 알림 배너 */}
+      {isPickingLocationMode && (
+        <div style={{
+          position: 'absolute',
+          top: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 99,
+          background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
+          color: '#FFFFFF',
+          padding: '9px 18px',
+          borderRadius: 24,
+          boxShadow: '0 8px 24px rgba(2, 132, 199, 0.45)',
+          fontSize: 12.5,
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          border: '1.5px solid rgba(255, 255, 255, 0.35)',
+        }}>
+          <span>🎯 지도에서 실제 계신 위치를 클릭해 주세요</span>
+          <button
+            type="button"
+            onClick={() => {
+              setIsPickingLocationMode(false)
+              isPickingLocationModeRef.current = false
+              if (onToastRef.current) onToastRef.current('위치 직접 지정이 취소되었습니다.')
+            }}
+            style={{
+              background: 'rgba(255, 255, 255, 0.22)',
+              border: '1px solid rgba(255, 255, 255, 0.4)',
+              borderRadius: 12,
+              color: '#FFFFFF',
+              padding: '3px 9px',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            취소 (ESC)
+          </button>
+        </div>
+      )}
       {/* 지도 컨테이너 */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 
@@ -3512,7 +3683,7 @@ export default function TransitMap({
         }}>
           <button
             type="button"
-            onClick={() => handleLocateUser(true)}
+            onClick={() => { handleLocateUser(true); setShowLocationInfoCard(true); }}
             disabled={isLocating}
             title="GPS 내 현재 위치로 지도 이동"
             style={{
@@ -3966,10 +4137,188 @@ export default function TransitMap({
           alignItems: 'flex-end',
           gap: 10,
         }}>
+          {/* [이슈 #90] 내 위치 상세 정보 플로팅 카드 (데스크톱 IP/Wi-Fi 감지 안내 & 수동 보정) */}
+          {myLocation && showLocationInfoCard && (
+            <div style={{
+              width: isMobile ? 'calc(100vw - 32px)' : '320px',
+              maxWidth: isMobile ? 'calc(100vw - 32px)' : '320px',
+              background: 'var(--app-glass)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(56, 189, 248, 0.45)',
+              borderRadius: 14,
+              padding: '12px 14px',
+              boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
+              fontFamily: "'Outfit', 'Noto Sans KR', sans-serif",
+              textAlign: 'left',
+              marginBottom: 4,
+            }}>
+              {/* 카드 헤더 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 16 }}>📍</span>
+                  <strong style={{ fontSize: 13, color: 'var(--app-text)', fontWeight: 800 }}>
+                    {myLocation.isManual ? '지정된 내 위치' : '감지된 내 위치'}
+                  </strong>
+                  <span style={{
+                    fontSize: 10,
+                    color: '#38BDF8',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}>
+                    {myLocation.district || '서울시 권역'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    color: myLocation.isManual ? '#10B981' : (isDesktopDevice() || myLocation.accuracy >= 100) ? '#F59E0B' : '#38BDF8',
+                    background: myLocation.isManual ? 'rgba(16, 185, 129, 0.15)' : (isDesktopDevice() || myLocation.accuracy >= 100) ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {myLocation.isManual ? '🎯 지도 직접 지정' : (isDesktopDevice() || myLocation.accuracy >= 100) ? '🖥️ 데스크톱 IP/Wi-Fi' : '🛰️ GPS'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationInfoCard(false)}
+                    title="카드 접기"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--color-muted)',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      padding: '2px 4px',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* 본문: 좌표 및 오차 */}
+              <div style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'monospace', marginBottom: 8, lineHeight: 1.45 }}>
+                위도 {myLocation.coords[1].toFixed(5)}°, 경도 {myLocation.coords[0].toFixed(5)}°<br />
+                정확도: ±{Math.round(myLocation.accuracy)}m {myLocation.isManual ? '(직접 지정)' : ''}
+              </div>
+
+              {/* 데스크톱 안내 박스 */}
+              {(isDesktopDevice() || myLocation.accuracy >= 100) && !myLocation.isManual && (
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: 8,
+                  padding: '7px 9px',
+                  marginBottom: 8,
+                  fontSize: 10,
+                  color: 'var(--color-muted)',
+                  lineHeight: 1.4,
+                }}>
+                  <strong style={{ color: '#F59E0B', display: 'block', marginBottom: 2 }}>💡 데스크톱 위치 정확도 안내</strong>
+                  PC는 GPS 칩이 없어 통신사 유선 인터넷(IP) 및 공유기 신호로 추정되어 실제 계신 곳과 수백m~수km 차이가 날 수 있습니다.
+                </div>
+              )}
+
+              {/* 가장 가까운 역 */}
+              {(() => {
+                const nearest = getNearestSubwayStation(myLocation.coords)
+                if (!nearest) return null
+                return (
+                  <div style={{
+                    background: 'rgba(56, 189, 248, 0.08)',
+                    border: '1px solid rgba(56, 189, 248, 0.2)',
+                    borderRadius: 8,
+                    padding: '7px 9px',
+                    marginBottom: 8,
+                    fontSize: 10.5,
+                    color: 'var(--app-text)',
+                  }}>
+                    <div style={{ color: '#38BDF8', fontWeight: 700, fontSize: 10, marginBottom: 2 }}>🚇 가장 가까운 지하철역</div>
+                    <div>
+                      <strong>{nearest.name}</strong> <span style={{ fontSize: 9.5, color: 'var(--color-muted)' }}>({nearest.lines.join(', ')})</span>
+                      {' '}· 도보 {nearest.distanceMeters.toLocaleString()}m
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* 액션 버튼들 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const stop: TransitStop = {
+                      id: `gps-${myLocation.coords[0].toFixed(4)}-${myLocation.coords[1].toFixed(4)}`,
+                      name: myLocation.isManual ? '내 위치 (수동 지정)' : '내 위치 (GPS)',
+                      type: 'gps',
+                      coords: myLocation.coords,
+                      lineInfo: myLocation.isManual ? '지도에서 직접 지정한 위치' : `실시간 감지 위치 (오차 ±${Math.round(myLocation.accuracy)}m)`,
+                      baseCrowd: 30,
+                      rainSensitivity: 0.1,
+                      district: myLocation.district || '서울시 권역',
+                    }
+                    onSetOriginRef.current?.(stop)
+                    if (onToastRef.current) onToastRef.current('🚩 현재 내 위치가 출발지로 설정되었습니다.')
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    padding: '7px 8px',
+                    borderRadius: 8,
+                    border: '1px solid var(--color-primary)',
+                    background: 'rgba(56, 189, 248, 0.2)',
+                    color: 'var(--app-text)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>🚩</span> 출발지 설정
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPickingLocationMode(true)
+                    isPickingLocationModeRef.current = true
+                    if (onToastRef.current) onToastRef.current('🎯 지도에서 실제 계신 위치를 직접 클릭해 주세요.')
+                  }}
+                  title="지도에서 실제 계신 위치를 직접 클릭하여 보정"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    padding: '7px 8px',
+                    borderRadius: 8,
+                    border: '1px dashed rgba(56, 189, 248, 0.6)',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: '#38BDF8',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>🎯</span> 위치 직접 찍기
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* [이슈 #90] PC 데스크탑 우하단 원클릭 내 위치 플로팅 버튼 */}
           <button
             type="button"
-            onClick={() => handleLocateUser(true)}
+            onClick={() => {
+              handleLocateUser(true)
+              setShowLocationInfoCard(true)
+            }}
             disabled={isLocating}
             title="GPS 내 현재 위치로 지도 이동 및 출발지 지정"
             style={{

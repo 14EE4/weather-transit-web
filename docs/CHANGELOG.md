@@ -33,6 +33,7 @@
      - `_node_synthesize_routes()`: `origin.get("station_type") in ("bus", "bike", "gps", "current_location")` 시 출발 좌표에서 최근접 지하철역/정류소까지의 First-Mile 도보 세그먼트(`walk`) 자동 조립.
      - `main.py`: `MultimodalRouteRequest`에 `gps` 거점 유형 명세 반영.
 - **검증**:
+  - **[버그 수정]** 출발지가 `내 위치 (GPS)`인 상태에서 도착지를 입력하면 화면이 하얗게 사라지는 문제 수정: `districtResolver.ts`의 `resolveDistrict()`가 GPS 키워드 감지 시 자기 자신을 무한 재귀 호출(`Maximum call stack size exceeded`)하여 React 렌더가 크래시하던 결함. GPS 명칭은 역명 키워드 매칭을 건너뛰고 좌표 기반 최근접 자치구로 직접 판별하도록 교정.
   - `tests/test_geolocation_routing.py` 단위 테스트 신설 (GPS 거점 해석, 역지오코딩, First-Mile 도보 세그먼트 생성, 멀티모달 API 호출 등 4종 전수 통과).
   - 전체 단위 테스트 40개 100% PASS 검증 완료 (`Ran 40 tests, OK`).
   - 프론트엔드 Vite 프로덕션 빌드 성공 (`npm run build`).

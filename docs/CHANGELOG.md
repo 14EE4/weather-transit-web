@@ -8,6 +8,25 @@
 
 ## [2026-11-12]
 
+### 🛰️ 지도 위성 사진(Satellite View) 보기 및 베이스맵 전환 기능 구현 (이슈 #107 / `UI-12`)
+- **배경/문제**:
+  - 기존 대중교통 및 복합 경로 안내 지도는 기본 OpenStreetMap(OSM) 일반 래스터 타일만 지원하여, 도보 및 따릉이(First/Last-Mile) 이동, 버스 정류소 및 지하철 환승 출구 탐색 시 실제 건물 외형, 현장 지형지물, 도로 구조를 파악하기 어려웠음.
+- **조치 내역**:
+  1. **고해상도 위성 영상 및 하이브리드 라벨 타일 소스 연동 (`TransitMap.tsx`)**:
+     - MapLibre GL 스타일에 `satellite-tiles`(Esri World Imagery) 및 `satellite-labels`(World Boundaries & Places) 소스/레이어 등록.
+     - 환경변수화 지원: `VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL` 지원 및 기본 고성능 CDN 연동.
+  2. **원클릭 베이스맵 전환 UI 및 상태 영속화 (`TransitMap.tsx`)**:
+     - `baseMapMode`('standard' | 'satellite') 상태 구현 및 브라우저 `localStorage('weather_transit_basemap_mode')` 자동 동기화.
+     - 지도 우상단 내비게이션 컨트롤 옆에 직관적인 듀얼 토글 버튼(`[🗺️ 일반 | 🛰️ 위성]`) 배치.
+     - 모바일(화면 폭 768px 이하) 환경에서는 텍스트 없이 컴팩트 아이콘(`🗺️` / `🛰️`)으로 슬림화하여 지도 뷰포트 시야를 온전히 보존.
+  3. **위성 지도 배경 상의 경로·노선망 시인성 최적화 (`TransitMap.tsx`)**:
+     - 위성 지도 모드 활성화 시 수도권 전철 노선망 케이싱(`subway-network-casing`) 색상을 다크 톤(`#0B1120`)에서 화이트 반투명 글로우(`#FFFFFF`, `opacity: 0.4`)로 동적 전환하여 어두운 항공사진 위에서도 호선별 고유 컬러가 뚜렷하게 부각되도록 시인성 확보.
+- **검증**:
+  - Vite 프로덕션 빌드 통과 (`dist/` 생성).
+  - Docker `weather-transit-frontend` 컨테이너 재빌드 및 정상 배포 완료.
+
+---
+
 ### 🎯 경로 탐색 시 출발지·도착지 지도 직접 클릭 선택 (Pick on Map) 및 GPS 라우팅 확장 (이슈 #90)
 - **배경/문제**:
   - 기존에는 출발지 또는 도착지를 지정하려면 텍스트 검색을 통해서만 입력할 수 있었으며, 지도 상에서 직관적으로 원하는 위치(골목, 한강변, 대형 건물 등)를 콕 찍어 출발지나 도착지로 설정할 수 없었음.

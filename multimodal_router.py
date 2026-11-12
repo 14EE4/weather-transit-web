@@ -861,7 +861,7 @@ class MultimodalRoutingEngine:
         # 0. 호출 시 좌표 및 거점 타입이 명시적으로 주입된 경우 최우선 처리
         if coords and len(coords) >= 2:
             c_lng, c_lat = float(coords[0]), float(coords[1])
-            is_gps = (station_type in ("gps", "current_location")) or any(k in q for k in ["내 위치", "현재 위치", "내위치", "현재위치", "GPS", "gps"])
+            is_gps = (station_type in ("gps", "current_location", "map_point")) or any(k in q for k in ["내 위치", "현재 위치", "내위치", "현재위치", "GPS", "gps", "지정 위치", "지도 지정", "부근"])
             s_type = station_type or ("gps" if is_gps else ("subway" if q.endswith("역") else "bus"))
             if s_type == "subway":
                 nearest = self.find_nearest_subway(c_lat, c_lng) or {"name": q, "coords": [c_lng, c_lat], "lines": ["지하철"]}
@@ -1712,7 +1712,7 @@ class MultimodalRoutingEngine:
                     return d_key
 
         raw_name = (station_name or "").strip()
-        is_gps_name = any(loc_kw in raw_name for loc_kw in ["내 위치", "내위치", "현재 위치", "현재위치", "GPS", "gps"])
+        is_gps_name = any(loc_kw in raw_name for loc_kw in ["내 위치", "내위치", "현재 위치", "현재위치", "GPS", "gps", "지정 위치", "지도 지정", "부근"])
         if not is_gps_name:
             clean = re.sub(r"역$", "", raw_name)
             for key in _SORTED_STATION_DONG_KEYS:

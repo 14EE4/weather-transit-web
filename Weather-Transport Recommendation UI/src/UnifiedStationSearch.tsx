@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { searchSubwayStations, type SubwayStation } from './subwayData'
 import type { BusStationResult } from './BusStationSearch'
 import type { BikeStationResult } from './BikeStationSearch'
+import { MOCK_GPS_PRESETS, getActiveMockGps, setActiveMockGps, getPositionWithMock, type MockGpsPreset } from './mockGps'
 
 export type SearchTransport = 'all' | 'subway' | 'bus' | 'bike'
 
@@ -16,6 +17,9 @@ export interface UnifiedStationSearchProps {
   onSelectLocation?: (loc: { name: string; coords: [number, number]; type: string }) => void
   /** [이슈 #90] 출발지 검색창 등에서 '내 위치' 사용 버튼 활성화 */
   allowCurrentLocation?: boolean
+  /** [이슈 #90] 지도에서 위치 직접 찍기 활성화 */
+  allowMapPick?: boolean
+  onPickOnMap?: () => void
   placeholder?: string
   title?: string
   headerColor?: string
@@ -55,6 +59,8 @@ export default function UnifiedStationSearch({
   onClear,
   onSelectLocation,
   allowCurrentLocation = false,
+  allowMapPick = false,
+  onPickOnMap,
 }: UnifiedStationSearchProps) {
   const [query, setQuery] = useState(value ?? '')
   const [open, setOpen] = useState(false)
@@ -63,16 +69,29 @@ export default function UnifiedStationSearch({
   const [bikeResults, setBikeResults] = useState<BikeStationResult[]>([])
   const [loading, setLoading] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
+  const [activeMock, setActiveMock] = useState<MockGpsPreset | null>(() => getActiveMockGps())
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    const onMockChange = () => setActiveMock(getActiveMockGps())
+    window.addEventListener('mock-gps-changed', onMockChange)
+    return () => window.removeEventListener('mock-gps-changed', onMockChange)
+  }, [])
+
+  const applyMockPreset = (preset: MockGpsPreset) => {
+    setActiveMockGps(preset)
+    setActiveMock(preset)
+    const locName = '내 위치 (GPS)'
+    setQuery(locName)
+    onChange?.(locName)
+    setOpen(false)
+    onSelectLocation?.({ name: locName, coords: preset.coords, type: 'gps' })
+  }
+
   const handleUseCurrentLocation = () => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      alert('현재 브라우저 환경에서는 위치 서비스를 지원하지 않습니다.')
-      return
-    }
     setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
+    getPositionWithMock(
       (pos) => {
         setIsLocating(false)
         const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
@@ -82,14 +101,14 @@ export default function UnifiedStationSearch({
         setOpen(false)
         onSelectLocation?.({ name: locName, coords, type: 'gps' })
       },
-      (err) => {
+      (err: any) => {
         setIsLocating(false)
         let msg = '현재 위치를 확인할 수 없습니다.'
-        if (err.code === err.PERMISSION_DENIED) {
+        if (err.code === 1) {
           msg = '위치 정보 접근 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해 주세요.'
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
+        } else if (err.code === 2) {
           msg = '현재 위치 정보를 수신할 수 없습니다.'
-        } else if (err.code === err.TIMEOUT) {
+        } else if (err.code === 3) {
           msg = '위치 확인 요청 시간이 초과되었습니다.'
         }
         alert(msg)
@@ -318,6 +337,31 @@ export default function UnifiedStationSearch({
             <span>{isLocating ? '확인 중' : '내 위치'}</span>
           </button>
         )}
+        {allowMapPick && onPickOnMap && (
+          <button
+            type="button"
+            onClick={onPickOnMap}
+            title="지도에서 위치 직접 찍기"
+            style={{
+              background: 'rgba(52, 211, 153, 0.15)',
+              border: '1px solid rgba(52, 211, 153, 0.35)',
+              borderRadius: 6,
+              padding: '3px 8px',
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#34D399',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            <span>🎯</span>
+            <span>지도에서 찍기</span>
+          </button>
+        )}
         {query && (
           <button
             type="button"
@@ -328,6 +372,80 @@ export default function UnifiedStationSearch({
           </button>
         )}
       </div>
+
+      {/* [임시 테스트용 GPS 설정 — 추후 삭제] */}
+      {allowCurrentLocation && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: '8px 10px',
+            borderRadius: 10,
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px dashed rgba(245, 158, 11, 0.45)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: '#F59E0B' }}>
+              🧪 임시 GPS 테스트 위치 (클릭 시 출발지에 모의 GPS 즉시 적용)
+            </span>
+            {activeMock && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMockGps(null)
+                  setActiveMock(null)
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 6,
+                  padding: '2px 6px',
+                  fontSize: 9.5,
+                  color: 'var(--color-muted)',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                🔄 실제 브라우저 위치로 복원
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {MOCK_GPS_PRESETS.map(p => {
+              const isSelected = activeMock?.id === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyMockPreset(p)}
+                  title={`${p.desc} [${p.coords[1].toFixed(4)}, ${p.coords[0].toFixed(4)}]`}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: isSelected ? '1px solid #F59E0B' : '1px solid var(--color-border)',
+                    background: isSelected ? 'rgba(245, 158, 11, 0.24)' : 'var(--color-card)',
+                    color: isSelected ? '#FBBF24' : 'var(--app-text)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  📍 {p.label}
+                </button>
+              )
+            })}
+          </div>
+          {activeMock && (
+            <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
+              적용 중: <strong style={{ color: '#FBBF24' }}>{activeMock.desc}</strong> ({activeMock.coords[1].toFixed(4)}°N, {activeMock.coords[0].toFixed(4)}°E · 오차 ±{activeMock.accuracy}m)
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 드롭다운 자동완성 리스트 */}
       {showDropdown && (
@@ -361,6 +479,36 @@ export default function UnifiedStationSearch({
               </div>
               <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.18)' }}>
                 GPS
+              </span>
+            </div>
+          )}
+          {allowMapPick && onPickOnMap && (
+            <div
+              onClick={() => {
+                setOpen(false)
+                onPickOnMap()
+              }}
+              style={{
+                padding: '9px 14px',
+                borderBottom: '1px solid var(--color-border)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(52, 211, 153, 0.08)',
+                color: '#34D399',
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(52, 211, 153, 0.18)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(52, 211, 153, 0.08)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🎯</span>
+                <span>지도에서 위치 직접 찍기</span>
+              </div>
+              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(52, 211, 153, 0.18)' }}>
+                지도 선택
               </span>
             </div>
           )}

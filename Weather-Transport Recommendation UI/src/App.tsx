@@ -551,6 +551,26 @@ export default function App() {
     }, 4500)
   }
 
+  const [mapPickingTarget, setMapPickingTarget] = useState<'origin' | 'destination' | null>(null)
+
+  const handleStartPickOnMap = (target: 'origin' | 'destination') => {
+    setMapPickingTarget(target)
+    setPage('map')
+    showRouteToast(`🎯 지도에서 ${target === 'origin' ? '출발지' : '도착지'}로 설정할 위치나 역을 클릭해 주세요.`)
+  }
+
+  const handleConfirmMapPick = (target: 'origin' | 'destination', stop: TransitStop) => {
+    setMapPickingTarget(null)
+    setPage('route')
+    showRouteToast(`${target === 'origin' ? '🚩 출발지' : '🏁 도착지'}가 '${stop.name}'(으)로 설정되었습니다.`)
+  }
+
+  const handleCancelMapPick = () => {
+    setMapPickingTarget(null)
+    setPage('route')
+    showRouteToast('위치 직접 지정이 취소되었습니다.')
+  }
+
   const handleSetOriginFromMap = (stop: TransitStop) => {
     setDeparture(stop.name)
     setDepartureCoords(stop.coords)
@@ -2165,6 +2185,8 @@ export default function App() {
                   placeholder="출발역·정류소·대여소 입력 (예: 강남역, 시청, 서초푸르지오...)"
                   value={departure}
                   allowCurrentLocation={true}
+                  allowMapPick={true}
+                  onPickOnMap={() => handleStartPickOnMap('origin')}
                   onSelectLocation={loc => {
                     setDeparture(loc.name)
                     setDepartureCoords(loc.coords)
@@ -2227,6 +2249,16 @@ export default function App() {
                   headerColor="var(--color-primary)"
                   placeholder="도착역·정류소·대여소 입력 (예: 여의도역, 서울역, 광화문...)"
                   value={destination}
+                  allowCurrentLocation={true}
+                  allowMapPick={true}
+                  onPickOnMap={() => handleStartPickOnMap('destination')}
+                  onSelectLocation={loc => {
+                    setDestination(loc.name)
+                    setDestinationCoords(loc.coords)
+                    setDestinationType('gps')
+                    setFocusedCoords(loc.coords)
+                    showRouteToast(`🏁 도착지가 '${loc.name}'(으)로 설정되었습니다.`)
+                  }}
                   onChange={val => {
                     setDestination(val)
                     setActiveRoute(null)
@@ -3245,6 +3277,9 @@ export default function App() {
               onSetOrigin={handleSetOriginFromMap}
               onSetDestination={handleSetDestinationFromMap}
               onViewportChange={handleViewportChange}
+              mapPickingTarget={mapPickingTarget}
+              onCancelMapPick={handleCancelMapPick}
+              onConfirmMapPick={handleConfirmMapPick}
               myLocation={myLocation}
               onUpdateMyLocation={setMyLocation}
               onToast={showRouteToast}

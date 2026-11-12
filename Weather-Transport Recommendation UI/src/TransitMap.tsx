@@ -6,6 +6,7 @@ import { BIKE_STATIONS } from './bikeStopData'
 import { TransitRouteResult } from './subwayGraph'
 import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
 import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
+import { MOCK_GPS_PRESETS, setActiveMockGps, getPositionWithMock, type MockGpsPreset } from './mockGps'
 
 const getApiBaseUrl = (): string => {
   const envVal = (import.meta as any).env?.VITE_API_BASE_URL
@@ -230,6 +231,10 @@ interface TransitMapProps {
   onSetDestination?: (stop: TransitStop) => void
   /** [이슈 #98] 지도 카메라 중심 좌표 변경 통지 (디바운스 500ms, 확대 zoom 10 이상) */
   onViewportChange?: (center: { lat: number; lng: number }) => void
+  /** [이슈 #90] 경로 탐색 출발/도착지 지도 직접 찍기 모드 */
+  mapPickingTarget?: 'origin' | 'destination' | null
+  onCancelMapPick?: () => void
+  onConfirmMapPick?: (target: 'origin' | 'destination', stop: TransitStop) => void
   /** [이슈 #90] 브라우저 GPS 실시간 내 위치 연동 */
   myLocation?: { coords: [number, number]; accuracy: number; district?: string; isManual?: boolean } | null
   onUpdateMyLocation?: (loc: { coords: [number, number]; accuracy: number; district: string; isManual?: boolean }) => void
@@ -287,6 +292,9 @@ export default function TransitMap({
   onSetOrigin,
   onSetDestination,
   onViewportChange,
+  mapPickingTarget,
+  onCancelMapPick,
+  onConfirmMapPick,
   myLocation,
   onUpdateMyLocation,
   onLocationError,
@@ -306,6 +314,12 @@ export default function TransitMap({
   onSetOriginRef.current = onSetOrigin
   const onSetDestinationRef = useRef<((stop: TransitStop) => void) | undefined>(onSetDestination)
   onSetDestinationRef.current = onSetDestination
+  const mapPickingTargetRef = useRef<'origin' | 'destination' | null | undefined>(mapPickingTarget)
+  mapPickingTargetRef.current = mapPickingTarget
+  const onCancelMapPickRef = useRef<(() => void) | undefined>(onCancelMapPick)
+  onCancelMapPickRef.current = onCancelMapPick
+  const onConfirmMapPickRef = useRef<((target: 'origin' | 'destination', stop: TransitStop) => void) | undefined>(onConfirmMapPick)
+  onConfirmMapPickRef.current = onConfirmMapPick
   // [이슈 #98] 지도 뷰포트(중심 좌표) 변경 콜백 — 최신 prop을 참조하기 위해 ref로 보관
   const onViewportChangeRef = useRef<((center: { lat: number; lng: number }) => void) | undefined>(onViewportChange)
   onViewportChangeRef.current = onViewportChange
@@ -330,10 +344,16 @@ export default function TransitMap({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isPickingLocationModeRef.current) {
-        setIsPickingLocationMode(false)
-        isPickingLocationModeRef.current = false
-        if (onToastRef.current) onToastRef.current('위치 직접 지정이 취소되었습니다.')
+      if (e.key === 'Escape') {
+        if (mapPickingTargetRef.current) {
+          onCancelMapPickRef.current?.()
+          return
+        }
+        if (isPickingLocationModeRef.current) {
+          setIsPickingLocationMode(false)
+          isPickingLocationModeRef.current = false
+          if (onToastRef.current) onToastRef.current('위치 직접 지정이 취소되었습니다.')
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -346,10 +366,10 @@ export default function TransitMap({
     try {
       const canvas = map.getCanvas()
       if (canvas) {
-        canvas.style.cursor = isPickingLocationMode ? 'crosshair' : ''
+        canvas.style.cursor = (isPickingLocationMode || mapPickingTarget) ? 'crosshair' : ''
       }
     } catch {}
-  }, [isPickingLocationMode])
+  }, [isPickingLocationMode, mapPickingTarget])
 
   useEffect(() => {
     const handleResize = () => {
@@ -784,6 +804,18 @@ export default function TransitMap({
   ) => {
     if (!mapLoaded || !mapInstanceRef.current) return
     const map = mapInstanceRef.current
+
+    // [이슈 #90] 경로 탐색 출발/도착지 직접 선택 모드일 때는 마커 클릭 시 즉시 출발/도착지로 확정
+    if (mapPickingTargetRef.current) {
+      const target = mapPickingTargetRef.current
+      if (target === 'origin') {
+        onSetOriginRef.current?.(stop)
+      } else {
+        onSetDestinationRef.current?.(stop)
+      }
+      onConfirmMapPickRef.current?.(target, stop)
+      return
+    }
 
     try {
       localStorage.setItem(STORAGE_SELECTED_STOP_KEY, stop.id)
@@ -1290,15 +1322,30 @@ export default function TransitMap({
     }
   }
 
-  const handleLocateUser = (showPopup = true) => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      const msg = '현재 브라우저 환경에서는 Geolocation 위치 서비스를 지원하지 않습니다.'
-      if (onToastRef.current) onToastRef.current(`❌ ${msg}`)
-      onLocationError?.(msg)
-      return
+  const applyMapMockPreset = (preset: MockGpsPreset) => {
+    setActiveMockGps(preset)
+    const coords = preset.coords
+    const accuracy = preset.accuracy
+    const district = resolveDistrictNameFromPoint('내 위치 (GPS)', coords)
+    onUpdateMyLocationRef.current?.({ coords, accuracy, district, isManual: false })
+    setShowLocationInfoCard(true)
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo({
+        center: coords,
+        zoom: Math.max(mapInstanceRef.current.getZoom(), 15.5),
+        pitch: DEFAULT_MAP_PITCH,
+        essential: true,
+      })
+      updateMyLocationVisuals(coords, accuracy, district, true, false)
     }
+    if (onToastRef.current) {
+      onToastRef.current(`🧪 테스트 GPS 적용: ${preset.label} (${district} · ±${accuracy}m)`)
+    }
+  }
+
+  const handleLocateUser = (showPopup = true) => {
     setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
+    getPositionWithMock(
       (pos) => {
         setIsLocating(false)
         const lng = pos.coords.longitude
@@ -1323,7 +1370,9 @@ export default function TransitMap({
         }
 
         const isDesktop = isDesktopDevice()
-        if (!isInsideKorea) {
+        if (pos.isMock) {
+          if (onToastRef.current) onToastRef.current(`🧪 테스트 GPS 수신: ${pos.mockLabel} (${district} · ±${accuracy}m)`)
+        } else if (!isInsideKorea) {
           if (onToastRef.current) onToastRef.current('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다. 기본 수도권 중심 지도로 안내합니다.')
         } else if (isDesktop || accuracy >= 100) {
           if (onToastRef.current) onToastRef.current(`📍 내 위치 감지: ${district} (데스크톱 네트워크 추정 ±${accuracy}m)`)
@@ -1331,14 +1380,14 @@ export default function TransitMap({
           if (onToastRef.current) onToastRef.current(`📍 내 위치 감지: ${district} (정확도 ±${accuracy}m)`)
         }
       },
-      (err) => {
+      (err: any) => {
         setIsLocating(false)
         let msg = '현재 위치를 확인할 수 없습니다.'
-        if (err.code === err.PERMISSION_DENIED) {
+        if (err.code === 1) {
           msg = '위치 정보 접근 권한이 거부되었습니다. 브라우저 주소창에서 위치 접근을 허용해 주세요.'
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
+        } else if (err.code === 2) {
           msg = '현재 위치 정보를 수신할 수 없습니다. GPS 신호 수신 상태를 확인해 주세요.'
-        } else if (err.code === err.TIMEOUT) {
+        } else if (err.code === 3) {
           msg = '위치 확인 요청 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
         }
         if (onToastRef.current) onToastRef.current(`❌ ${msg}`)
@@ -1407,8 +1456,40 @@ export default function TransitMap({
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left')
 
-    // [이슈 #90] 위치 직접 지정 모드(isPickingLocationMode)일 때 지도 클릭 좌표를 내 위치로 보정
+    // [이슈 #90] 경로 탐색 출발/도착지 직접 선택 모드 또는 내 위치 직접 지정 모드일 때 지도 클릭 처리
     map.on('click', (e) => {
+      // 1. 경로 탐색 출발/도착지 지도 직접 클릭 선택
+      if (mapPickingTargetRef.current) {
+        const target = mapPickingTargetRef.current
+        const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+        const district = resolveDistrictNameFromPoint(target === 'origin' ? '지정 출발지' : '지정 도착지', coords)
+        const nearestSubway = getNearestSubwayStation(coords)
+
+        const stopName = nearestSubway && nearestSubway.distanceMeters < 1200
+          ? `${district} 지정 위치 (${nearestSubway.name}역 도보 ${Math.round(nearestSubway.distanceMeters)}m)`
+          : `${district} 지정 위치`
+
+        const customStop: TransitStop = {
+          id: `custom_${target}_${Date.now()}`,
+          name: stopName,
+          type: 'gps',
+          coords,
+          lineInfo: `좌표 기반 ${target === 'origin' ? '출발지' : '도착지'} (${district})`,
+          baseCrowd: 30,
+          rainSensitivity: 1.0,
+          district,
+        }
+
+        if (target === 'origin') {
+          onSetOriginRef.current?.(customStop)
+        } else {
+          onSetDestinationRef.current?.(customStop)
+        }
+        onConfirmMapPickRef.current?.(target, customStop)
+        return
+      }
+
+      // 2. 위치 직접 지정 모드(isPickingLocationMode)일 때 지도 클릭 좌표를 내 위치로 보정
       if (isPickingLocationModeRef.current) {
         const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat]
         const district = resolveDistrictNameFromPoint('내 위치 (수동 지정)', coords)
@@ -3598,6 +3679,53 @@ export default function TransitMap({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      {/* [이슈 #90] 경로 탐색 출발/도착지 지도 직접 찍기 모드 상단 알림 배너 */}
+      {mapPickingTarget && (
+        <div style={{
+          position: 'absolute',
+          top: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 99,
+          background: mapPickingTarget === 'origin'
+            ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+            : 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+          color: '#FFFFFF',
+          padding: '9px 18px',
+          borderRadius: 24,
+          boxShadow: mapPickingTarget === 'origin'
+            ? '0 8px 24px rgba(16, 185, 129, 0.45)'
+            : '0 8px 24px rgba(239, 68, 68, 0.45)',
+          fontSize: 12.5,
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          border: '1.5px solid rgba(255, 255, 255, 0.35)',
+        }}>
+          <span>{mapPickingTarget === 'origin' ? '🚩 지도에서 출발지로 설정할 위치나 역을 클릭해 주세요' : '🏁 지도에서 도착지로 설정할 위치나 역을 클릭해 주세요'}</span>
+          <button
+            type="button"
+            onClick={() => {
+              if (onCancelMapPickRef.current) {
+                onCancelMapPickRef.current()
+              }
+            }}
+            style={{
+              background: 'rgba(255, 255, 255, 0.22)',
+              border: '1px solid rgba(255, 255, 255, 0.4)',
+              borderRadius: 12,
+              color: '#FFFFFF',
+              padding: '3px 9px',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            취소 (ESC)
+          </button>
+        </div>
+      )}
       {/* [이슈 #90] 위치 직접 지정(보정) 모드 상단 알림 배너 */}
       {isPickingLocationMode && (
         <div style={{
@@ -4313,6 +4441,64 @@ export default function TransitMap({
               </div>
             </div>
           )}
+
+          {/* [임시 테스트용 GPS 설정 — 추후 삭제] 지도에서 바로 모의 GPS 적용 */}
+          <div style={{
+            width: isMobile ? 'calc(100vw - 32px)' : '320px',
+            background: 'var(--app-glass)',
+            backdropFilter: 'blur(12px)',
+            border: '1px dashed rgba(245, 158, 11, 0.5)',
+            borderRadius: 12,
+            padding: '8px 10px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 800, color: '#F59E0B' }}>
+                🧪 임시 GPS 테스트 위치 (추후 삭제)
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMockGps(null)
+                  if (onToastRef.current) onToastRef.current('🔄 모의 GPS가 해제되었습니다 (실제 브라우저 위치 사용).')
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 5,
+                  padding: '1px 6px',
+                  fontSize: 9.5,
+                  color: 'var(--color-muted)',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                실제 위치 복원
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {MOCK_GPS_PRESETS.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyMapMockPreset(p)}
+                  title={p.desc}
+                  style={{
+                    padding: '3px 7px',
+                    borderRadius: 6,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: '1px solid rgba(245, 158, 11, 0.45)',
+                    background: 'rgba(245, 158, 11, 0.14)',
+                    color: '#FBBF24',
+                  }}
+                >
+                  📍 {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* [이슈 #90] PC 데스크탑 우하단 원클릭 내 위치 플로팅 버튼 */}
           <button

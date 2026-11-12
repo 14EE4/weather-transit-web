@@ -463,6 +463,7 @@ export default function AppM() {
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>(undefined)
   const [departureType, setDepartureType] = useState<string | undefined>(undefined)
   const [destinationType, setDestinationType] = useState<string | undefined>(undefined)
+  const [myLocation, setMyLocation] = useState<{ coords: [number, number]; accuracy: number; district?: string } | null>(null)
   const [searchedRoute, setSearchedRoute] = useState<{
     from: string
     to: string
@@ -2170,6 +2171,15 @@ export default function AppM() {
                   headerColor="#34D399"
                   placeholder="출발역·정류소·대여소 입력 (예: 강남역, 시청, 서초푸르지오...)"
                   value={departure}
+                  allowCurrentLocation={true}
+                  onSelectLocation={loc => {
+                    setDeparture(loc.name)
+                    setDepartureCoords(loc.coords)
+                    setDepartureType('gps')
+                    setFocusedCoords(loc.coords)
+                    setMyLocation({ coords: loc.coords, accuracy: 25 })
+                    showRouteToast(`🚩 출발지가 '${loc.name}'(으)로 설정되었습니다.`)
+                  }}
                   onChange={val => {
                     setDeparture(val)
                     setActiveRoute(null)
@@ -3184,6 +3194,9 @@ export default function AppM() {
               onSetOrigin={handleSetOriginFromMap}
               onSetDestination={handleSetDestinationFromMap}
               onViewportChange={handleViewportChange}
+              myLocation={myLocation}
+              onUpdateMyLocation={setMyLocation}
+              onToast={showRouteToast}
             />
           </div>
         </div>

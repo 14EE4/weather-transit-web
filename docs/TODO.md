@@ -72,11 +72,20 @@
     - 모든 후보 경로의 개별 세그먼트(`walk`, `bike`, `bus`, `subway`)에 승차 거점(`weather`) 및 하차 거점(`to_weather`) 국지 기상 컨텍스트(`district`, `temp`, `rain`, `wind`, `pty_desc`, `bike_enabled`, `weather_gate`) 자동 매핑(`_annotate_segments_with_local_weather`).
     - First-Mile 따릉이 반납 대상 역 권역이 악천후일 경우 후보에서 선제 배제하고, 버스 세그먼트는 승차 정류소 권역의 국지 강수량에 따라 우천 지연 계수(`×1.15~1.18`)를 개별 적용.
     - FactChat LLM 프롬프트 및 XAI 규칙 엔진 브리핑에 출발·도착지 국지 기상 비교 요약 반영, `MultimodalRoutePanel.tsx`에 출발 ➔ 도착 국지 기상 비교 배너 및 세그먼트별 국지 기상 배지 표출.
-- [ ] **[UI-09] 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (Next Sprint · 이슈 #90)**:
-  - 브라우저 `navigator.geolocation` API를 연동하여 사용자의 현재 실제 위치(GPS 좌표) 획득.
-  - 지도 화면 내 `[📍 내 위치]` 플로팅 버튼 탑재 및 클릭 시 카메라 자동 이동(`flyTo({ center, zoom: 16.5 })`).
-  - 현재 위치 펄스(Pulse) 파란색 점 마커 및 오차 반경(`10~50m`) 서클 시각화.
-  - 출발지 설정 연계: 현재 위치를 기준으로 가장 인접한 정류소/역 매핑 및 경로 탐색 연동.
+- [x] **[UI-09] 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (완료 · 2026-11-12 · 이슈 #90)**:
+  - **지도 내 위치 시각화 및 GPS 컨트롤 (`TransitMap.tsx`)**:
+    - 브라우저 표준 `navigator.geolocation` API를 연동하여 실시간 GPS 위도·경도 및 오차 반경(`accuracy`) 획득 (`enableHighAccuracy: true`, `timeout: 10000`, `maximumAge: 30000`).
+    - PC 상단 권역 퀵 이동 바 및 PC/모바일 우하단 플로팅 컨트롤에 원클릭 `[📍 내 위치]` 버튼 탑재 (로딩 스피너 및 반응형 보호).
+    - 위치 획득 시 카메라 부드러운 이동 (`flyTo({ center, zoom: 16, essential: true })`) 및 MapLibre 상에 푸른색 펄스(Pulsing Dot: CSS `@keyframes myLocationPulse`) 애니메이션 마커와 오차 반경 원형 서클 GeoJSON 레이어(`my-location-accuracy`) 동적 렌더링.
+    - 내 위치 마커 클릭 시 소속 자치구 자동 해석, 오차 반경(±Xm) 표출 및 원클릭 `[🚩 현재 위치를 출발지로 설정]` 팝업 탑재.
+  - **통합 검색 및 경로 탐색 연동 (`UnifiedStationSearch.tsx`, `App.tsx`, `AppM.tsx`)**:
+    - `UnifiedStationSearch.tsx`: `variant="route"` 출발지 검색창 우측 및 드롭다운 최상단에 `[📍 내 위치]` 빠른 선택 버튼/행 제공.
+    - `App.tsx` 및 `AppM.tsx`: `myLocation` 상태 연동 및 출발지 선택 시 `departure="내 위치 (GPS)"`, `departureCoords=[lng, lat]`, `departureType="gps"` 자동 주입.
+  - **백엔드 멀티모달 라우터 확장 (`multimodal_router.py`, `main.py`)**:
+    - `resolve_station()`: `coords`가 주어지고 `station_type="gps"` 또는 내 위치 키워드 쿼리 시 `station_type="gps"` 보존 및 최근접 지하철역 `nearest_subway` 자동 매핑.
+    - `resolve_station_district()`: GPS 내 위치 키워드 입력 시 좌표 기반 최단거리 자치구 우선 역지오코딩.
+    - `_node_synthesize_routes()`: `origin.get("station_type") == "gps"` 시 출발 좌표에서 최근접 지하철역/정류소까지의 First-Mile 도보 세그먼트(`walk`) 자동 조립.
+    - `tests/test_geolocation_routing.py` 단위 테스트 신설 및 100% 검증 통과.
 - [x] **[ROUTE-03] 버스 정류소 및 따릉이 대여소 출발/도착 시 First/Last-Mile 도보 세그먼트 보존 및 자동 삽입 (완료 · 2026-11-03 · 이슈 #89)**:
   - `resolve_station()`에서 버스 정류소 및 따릉이 대여소 해석 시 명칭, 좌표, `station_type`을 보존하고 인접 지하철역을 `nearest_subway`로 연계.
   - `MultimodalRouteRequest`에 `from_coords`, `to_coords`, `from_type`, `to_type` 명시적 파라미터 지원 및 `search_bus_stations` 동적 정류소 등록.

@@ -98,6 +98,11 @@ const SORTED_STATION_KEYS = Object.keys(STATION_DONG_MAP).sort((a, b) => b.lengt
 
 export function resolveDistrict(stationName: string, coords?: [number, number]): string {
   const rawName = (stationName || '').trim()
+  const isGpsKeyword = /내\s*위치|현재\s*위치|gps/i.test(rawName)
+  if (isGpsKeyword && coords && coords.length === 2) {
+    return resolveDistrict(rawName, coords)
+  }
+
   const clean = rawName.replace(/역$/, '').trim()
 
   // 1. 역명 키워드 매칭 (긴 키워드 우선)
@@ -134,6 +139,11 @@ export function resolveDistrictNameFromPoint(
   fallbackDistrict = '강남구',
 ): string {
   const rawName = (stationName || '').trim()
+  const isGpsKeyword = /내\s*위치|현재\s*위치|gps/i.test(rawName)
+  if (isGpsKeyword && coords && coords.length === 2) {
+    return resolveDistrict(rawName, coords)
+  }
+
   const clean = rawName.replace(/역$/, '').trim()
 
   if (rawName) {

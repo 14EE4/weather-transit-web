@@ -44,6 +44,32 @@ const KOREA_BOUNDS: [[number, number], [number, number]] = [
   [132.0, 39.2], // 동북단 (동해 독도 동단/휴전선 북방)
 ]
 
+/** [이슈 #90] GPS 오차 반경 원형 GeoJSON 폴리곤 생성 헬퍼 */
+function createGeoJsonCircle(center: [number, number], radiusInMeters: number, points = 64) {
+  const [lng, lat] = center
+  const coords: [number, number][] = []
+  const km = Math.max(0.005, radiusInMeters / 1000)
+  const distanceX = km / (111.32 * Math.cos((lat * Math.PI) / 180))
+  const distanceY = km / 110.574
+
+  for (let i = 0; i < points; i++) {
+    const theta = (i / points) * (2 * Math.PI)
+    const x = distanceX * Math.cos(theta)
+    const y = distanceY * Math.sin(theta)
+    coords.push([lng + x, lat + y])
+  }
+  coords.push(coords[0])
+
+  return {
+    type: 'Feature' as const,
+    geometry: {
+      type: 'Polygon' as const,
+      coordinates: [coords],
+    },
+    properties: {},
+  }
+}
+
 const getSavedMapView = (): SavedMapView | null => {
   if (typeof window === 'undefined') return null
   try {
@@ -79,7 +105,7 @@ const getSavedMapView = (): SavedMapView | null => {
 export interface TransitStop {
   id: string
   name: string
-  type: 'subway' | 'bus' | 'bike'
+  type: 'subway' | 'bus' | 'bike' | 'gps'
   coords: [number, number] // [lng, lat]
   lineInfo: string
   baseCrowd: number // 기본 혼잡도 (0~100)
@@ -152,11 +178,11 @@ interface TransitMapProps {
   liveWeather?: any
   focusedCoords?: [number, number] | null
   selectedBusStation?: {
-  id: string
-  name: string
-  arsId: string
-  coords: [number, number]
-} | null
+    id: string
+    name: string
+    arsId: string
+    coords: [number, number]
+  } | null
   selectedStop?: TransitStop | null
   onSelectStop?: (stop: TransitStop | null, details?: StopDetailData) => void
   activeRoute?: TransitRouteResult | null
@@ -165,6 +191,11 @@ interface TransitMapProps {
   onSetDestination?: (stop: TransitStop) => void
   /** [이슈 #98] 지도 카메라 중심 좌표 변경 통지 (디바운스 500ms, 확대 zoom 10 이상) */
   onViewportChange?: (center: { lat: number; lng: number }) => void
+  /** [이슈 #90] 브라우저 GPS 실시간 내 위치 연동 */
+  myLocation?: { coords: [number, number]; accuracy: number; district?: string } | null
+  onUpdateMyLocation?: (loc: { coords: [number, number]; accuracy: number; district: string }) => void
+  onLocationError?: (msg: string) => void
+  onToast?: (msg: string, actionLabel?: string) => void
 }
 
 interface MarkerItem {
@@ -203,7 +234,25 @@ type ApproachingBusVehicle = {
 
 // 버스 도착정보 표시
 
-export default function TransitMap({ filterType, rainMm, selectedTime, liveWeather, focusedCoords, selectedBusStation, selectedStop, onSelectStop, activeRoute, onClearRoute, onSetOrigin, onSetDestination, onViewportChange }: TransitMapProps) {
+export default function TransitMap({
+  filterType,
+  rainMm,
+  selectedTime,
+  liveWeather,
+  focusedCoords,
+  selectedBusStation,
+  selectedStop,
+  onSelectStop,
+  activeRoute,
+  onClearRoute,
+  onSetOrigin,
+  onSetDestination,
+  onViewportChange,
+  myLocation,
+  onUpdateMyLocation,
+  onLocationError,
+  onToast,
+}: TransitMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
@@ -213,6 +262,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
   const busStopPopupRef = useRef<any>(null)
   const searchedBusMarkerRef = useRef<any>(null)
+  const myLocationMarkerRef = useRef<any>(null)
   const onSetOriginRef = useRef<((stop: TransitStop) => void) | undefined>(onSetOrigin)
   onSetOriginRef.current = onSetOrigin
   const onSetDestinationRef = useRef<((stop: TransitStop) => void) | undefined>(onSetDestination)
@@ -229,6 +279,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
   const [mapLoaded, setMapLoaded] = useState(false)
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
   const [showLegend, setShowLegend] = useState(false)
+  const [isLocating, setIsLocating] = useState(false)
 
   useEffect(() => {
     const handleResize = () => {
@@ -947,6 +998,246 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     }
   }
 
+  // ── [이슈 #90] 내 위치(GPS) 펄스 마커 및 정확도 서클 렌더링 헬퍼 ──
+  const createMyLocationMarkerElement = () => {
+    const el = document.createElement('div')
+    el.className = 'my-location-pulse-marker'
+    el.style.width = '32px'
+    el.style.height = '32px'
+    el.style.display = 'flex'
+    el.style.alignItems = 'center'
+    el.style.justifyContent = 'center'
+    el.style.cursor = 'pointer'
+    el.style.position = 'relative'
+
+    const ring = document.createElement('div')
+    ring.style.position = 'absolute'
+    ring.style.width = '100%'
+    ring.style.height = '100%'
+    ring.style.borderRadius = '50%'
+    ring.style.backgroundColor = 'rgba(14, 165, 233, 0.45)'
+    ring.style.animation = 'myLocationPulse 2s cubic-bezier(0.24, 0, 0.38, 1) infinite'
+
+    const dot = document.createElement('div')
+    dot.style.position = 'relative'
+    dot.style.width = '16px'
+    dot.style.height = '16px'
+    dot.style.borderRadius = '50%'
+    dot.style.backgroundColor = '#0284C7'
+    dot.style.border = '2.5px solid #FFFFFF'
+    dot.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.4)'
+
+    el.appendChild(ring)
+    el.appendChild(dot)
+    return el
+  }
+
+  const openMyLocationPopup = (coords: [number, number], accuracy: number, district: string) => {
+    const map = mapInstanceRef.current
+    if (!map) return
+    if (activePopupRef.current) {
+      activePopupRef.current.remove()
+    }
+    const stop: TransitStop = {
+      id: `gps-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`,
+      name: '내 위치 (GPS)',
+      type: 'gps',
+      coords,
+      lineInfo: `GPS 실시간 위치 (오차 ±${Math.round(accuracy)}m)`,
+      baseCrowd: 30,
+      rainSensitivity: 0.1,
+      district,
+    }
+
+    const html = `
+      <div style="min-width: 250px; max-width: 310px; font-family: 'Outfit', 'Noto Sans KR', sans-serif; padding: 2px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
+          <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+            <span style="font-size: 16px; flex-shrink: 0;">📍</span>
+            <strong style="font-size: 14px; color: var(--app-text); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">현재 내 위치</strong>
+            <span style="font-size: 9px; color: #38BDF8; background: rgba(56,189,248,0.15); padding: 1px 5px; border-radius: 4px; flex-shrink: 0;">${district}</span>
+          </div>
+          <span style="font-size: 10px; font-weight: 800; color: #38BDF8; background: rgba(56,189,248,0.12); padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;">
+            GPS 수신
+          </span>
+        </div>
+        <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 8px; font-family: monospace;">
+          정확도: ±${Math.round(accuracy)}m · [${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}]
+        </div>
+        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;">
+          <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
+            🧭 스마트 길찾기 출발지 연동
+          </div>
+          <div style="font-size: 10px; color: var(--color-muted); line-height: 1.4;">
+            내 위치를 출발지로 설정하면 인근 지하철역·버스 정류소까지의 도보(First-Mile)가 자동으로 계산됩니다.
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--color-border);">
+          <button
+            type="button"
+            data-action="set-origin"
+            title="현재 위치를 출발지로 설정"
+            style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--color-primary); background: rgba(56, 189, 248, 0.18); color: var(--app-text); font-size: 11px; font-weight: 800; cursor: pointer; transition: all 0.15s ease;"
+          >
+            <span>🚩</span> 현재 위치를 출발지로 설정
+          </button>
+        </div>
+      </div>
+    `
+
+    const popup = new maplibregl.Popup({
+      offset: 16,
+      closeButton: true,
+      closeOnClick: false,
+      maxWidth: '320px',
+      anchor: 'top',
+    }).setLngLat(coords).setHTML(html)
+
+    const onPopupActionClick = (ev: Event) => {
+      const btn = (ev.target as HTMLElement | null)?.closest?.('[data-action]') as HTMLElement | null
+      if (!btn) return
+      ev.stopPropagation()
+      const action = btn.dataset.action
+      if (action === 'set-origin') {
+        onSetOriginRef.current?.(stop)
+        popup.remove()
+      }
+    }
+
+    popup.on('open', () => {
+      const popupEl = popup.getElement()
+      popupEl?.addEventListener('click', onPopupActionClick)
+      activePopupRef.current = popup
+    })
+
+    popup.addTo(map)
+  }
+
+  const updateMyLocationVisuals = (
+    coords: [number, number],
+    accuracy: number,
+    district: string,
+    showPopup = true,
+  ) => {
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    // 1. 오차 반경 원형 GeoJSON 소스 및 레이어 갱신
+    const circleGeoJson = createGeoJsonCircle(coords, Math.max(15, Math.min(accuracy, 300)))
+    const src = map.getSource('my-location-accuracy-source') as any
+    if (src && typeof src.setData === 'function') {
+      src.setData(circleGeoJson)
+    } else if (map.isStyleLoaded()) {
+      try {
+        if (!map.getSource('my-location-accuracy-source')) {
+          map.addSource('my-location-accuracy-source', {
+            type: 'geojson',
+            data: circleGeoJson,
+          })
+          map.addLayer({
+            id: 'my-location-accuracy-fill',
+            type: 'fill',
+            source: 'my-location-accuracy-source',
+            paint: {
+              'fill-color': '#0EA5E9',
+              'fill-opacity': 0.12,
+            },
+          })
+          map.addLayer({
+            id: 'my-location-accuracy-line',
+            type: 'line',
+            source: 'my-location-accuracy-source',
+            paint: {
+              'line-color': '#38BDF8',
+              'line-width': 1.5,
+              'line-dasharray': [2, 2],
+              'line-opacity': 0.7,
+            },
+          })
+        }
+      } catch (err) {
+        console.debug('[TransitMap] Failed to add my-location accuracy layer:', err)
+      }
+    }
+
+    // 2. 펄스 마커 갱신
+    if (myLocationMarkerRef.current) {
+      myLocationMarkerRef.current.setLngLat(coords)
+    } else {
+      const el = createMyLocationMarkerElement()
+      el.addEventListener('click', () => {
+        openMyLocationPopup(coords, accuracy, district)
+      })
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat(coords)
+        .addTo(map)
+      myLocationMarkerRef.current = marker
+    }
+
+    // 3. 팝업 오픈 (요청 시)
+    if (showPopup) {
+      openMyLocationPopup(coords, accuracy, district)
+    }
+  }
+
+  const handleLocateUser = (showPopup = true) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      const msg = '현재 브라우저 환경에서는 Geolocation 위치 서비스를 지원하지 않습니다.'
+      if (onToast) onToast(`❌ ${msg}`)
+      onLocationError?.(msg)
+      return
+    }
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false)
+        const lng = pos.coords.longitude
+        const lat = pos.coords.latitude
+        const accuracy = Math.round(pos.coords.accuracy || 25)
+        const coords: [number, number] = [lng, lat]
+
+        const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
+        const district = resolveDistrictNameFromPoint('내 위치 (GPS)', coords)
+
+        onUpdateMyLocation?.({ coords, accuracy, district })
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo({
+            center: coords,
+            zoom: Math.max(mapInstanceRef.current.getZoom(), 16),
+            pitch: DEFAULT_MAP_PITCH,
+            essential: true,
+          })
+          updateMyLocationVisuals(coords, accuracy, district, showPopup)
+        }
+
+        if (!isInsideKorea) {
+          if (onToast) onToast('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다. 기본 수도권 중심 지도로 안내합니다.')
+        } else {
+          if (onToast) onToast(`📍 현재 내 위치 획득: ${district} (오차 ±${accuracy}m)`)
+        }
+      },
+      (err) => {
+        setIsLocating(false)
+        let msg = '현재 위치를 확인할 수 없습니다.'
+        if (err.code === err.PERMISSION_DENIED) {
+          msg = '위치 정보 접근 권한이 거부되었습니다. 브라우저 주소창에서 위치 접근을 허용해 주세요.'
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          msg = '현재 위치 정보를 수신할 수 없습니다. GPS 신호 수신 상태를 확인해 주세요.'
+        } else if (err.code === err.TIMEOUT) {
+          msg = '위치 확인 요청 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.'
+        }
+        if (onToast) onToast(`❌ ${msg}`)
+        onLocationError?.(msg)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      }
+    )
+  }
+
   // 1. MapLibre GL 지도 초기화
   useEffect(() => {
     if (!mapContainerRef.current) return
@@ -1001,7 +1292,6 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
     // 컨트롤 추가
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left')
-    map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right')
 
     map.on('load', () => {
       // 0. 수도권 전철 전체 노선망 배경 벡터 레이어 (공식 호선별 고유 컬러)
@@ -1164,6 +1454,17 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       essential: true,
     })
   }, [focusedCoords, mapLoaded])
+
+  // 1-3. [이슈 #90] 외부에서 전달된 내 위치(myLocation) prop 변경 시 지도 마커 및 정확도 서클 동기화
+  useEffect(() => {
+    if (!mapLoaded || !mapInstanceRef.current || !myLocation || !myLocation.coords) return
+    updateMyLocationVisuals(
+      myLocation.coords,
+      myLocation.accuracy || 25,
+      myLocation.district || resolveDistrictNameFromPoint('내 위치 (GPS)', myLocation.coords),
+      false
+    )
+  }, [myLocation, mapLoaded])
 
   // 🚌 상단 버스 검색에서 선택된 버스정류장 전용 마커 및 상세 팝업 (주요 거점과 100% 동일한 기능/UI 적용)
   useEffect(() => {
@@ -3170,6 +3471,30 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
       {/* 지도 컨테이너 */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 
+      {/* [이슈 #90] 내 위치 마커 펄스 애니메이션 전역 CSS */}
+      <style>{`
+        @keyframes myLocationPulse {
+          0% {
+            transform: scale(0.6);
+            opacity: 0.9;
+          }
+          70% {
+            transform: scale(2.0);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(2.2);
+            opacity: 0;
+          }
+        }
+        .my-location-pulse-marker {
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .my-location-pulse-marker:hover {
+          transform: scale(1.18);
+        }
+      `}</style>
+
       {/* 권역 원클릭 카메라 퀵 이동 컨트롤 (모바일에서는 지도 가림 방지를 위해 미표시) */}
       {!isMobile && (
         <div style={{
@@ -3185,6 +3510,29 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           borderRadius: 12,
           border: '1px solid rgba(56, 189, 248, 0.25)',
         }}>
+          <button
+            type="button"
+            onClick={() => handleLocateUser(true)}
+            disabled={isLocating}
+            title="GPS 내 현재 위치로 지도 이동"
+            style={{
+              background: 'linear-gradient(135deg, rgba(14,165,233,0.3) 0%, rgba(2,132,199,0.35) 100%)',
+              border: '1px solid #38BDF8',
+              color: '#FFFFFF',
+              padding: '5px 11px',
+              borderRadius: 8,
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: isLocating ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 2px 8px rgba(14,165,233,0.3)',
+            }}
+          >
+            <span>{isLocating ? '⏳' : '🎯'}</span>
+            <span>{isLocating ? '위치 확인 중...' : '내 위치'}</span>
+          </button>
           <button
             onClick={() => flyToArea([127.0276, 37.4979], 14)}
             style={{ background: 'rgba(56,189,248,0.15)', border: 'none', color: 'var(--app-text)', padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
@@ -3515,13 +3863,38 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
         </div>
       )}
 
-      {/* 범례 (모바일에서는 플로팅 토글 ℹ️ 버튼으로 전환하여 지도를 가리지 않음) */}
+      {/* 범례 및 GPS 내 위치 플로팅 컨트롤 (모바일 & 데스크탑) */}
       {isMobile ? (
-        <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 11 }}>
+        <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 11, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+          {/* [이슈 #90] 모바일 원클릭 내 위치 플로팅 버튼 */}
+          <button
+            type="button"
+            onClick={() => handleLocateUser(true)}
+            disabled={isLocating}
+            title="GPS 내 현재 위치로 지도 이동"
+            style={{
+              padding: '7px 11px',
+              borderRadius: 20,
+              background: 'var(--color-surface)',
+              border: '1px solid rgba(56, 189, 248, 0.45)',
+              color: '#38BDF8',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: isLocating ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+            }}
+          >
+            <span>{isLocating ? '⏳' : '📍'}</span>
+            <span>{isLocating ? '위치 확인...' : '내 위치'}</span>
+          </button>
+
           {showLegend && (
             <div style={{
               position: 'absolute',
-              bottom: 40,
+              bottom: 84,
               right: 0,
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
@@ -3588,13 +3961,54 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
           bottom: 24,
           right: 16,
           zIndex: 10,
-          background: 'var(--app-glass)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 14,
-          padding: '10px 14px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: 10,
         }}>
+          {/* [이슈 #90] PC 데스크탑 우하단 원클릭 내 위치 플로팅 버튼 */}
+          <button
+            type="button"
+            onClick={() => handleLocateUser(true)}
+            disabled={isLocating}
+            title="GPS 내 현재 위치로 지도 이동 및 출발지 지정"
+            style={{
+              padding: '8px 14px',
+              borderRadius: 12,
+              background: 'var(--app-glass)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(56, 189, 248, 0.45)',
+              color: '#38BDF8',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: isLocating ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#38BDF8'
+              e.currentTarget.style.background = 'color-mix(in srgb, var(--color-primary) 15%, var(--app-glass))'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.45)'
+              e.currentTarget.style.background = 'var(--app-glass)'
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{isLocating ? '⏳' : '📍'}</span>
+            <span>{isLocating ? '위치 확인 중...' : '내 위치'}</span>
+          </button>
+
+          <div style={{
+            background: 'var(--app-glass)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 14,
+            padding: '10px 14px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          }}>
           <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6, letterSpacing: '0.05em' }}>
             대중교통 인프라 & 혼잡도
           </div>
@@ -3625,6 +4039,7 @@ export default function TransitMap({ filterType, rainMm, selectedTime, liveWeath
               지도: OpenStreetMap + MapLibre GL
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>

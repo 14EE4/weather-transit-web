@@ -6,7 +6,33 @@
 
 ---
 
-## [2026-11-08]
+## [2026-11-12]
+
+### 📍 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (이슈 #90 / `UI-09`)
+- **배경/문제**:
+  - 기존 지도 탐색 및 경로 추천 서비스는 사용자가 출발지나 관심 거점을 찾기 위해 역명/정류소명을 검색하거나 지도를 직접 드래그/스크롤해야만 했음.
+  - 특히 이동 중인 모바일 브라우저 사용자가 "내 현재 위치에서 목적지까지" 경로를 즉시 안내받거나 주변 대중교통 거점을 탐색하고자 할 때 GPS 기반 현 위치 자동 감지 편의성이 부족했던 한계를 해소.
+- **조치 내역**:
+  1. **지도 내 위치 시각화 및 GPS 컨트롤 (`TransitMap.tsx`)**:
+     - 브라우저 표준 `navigator.geolocation` API를 연동하여 실시간 GPS 위도·경도 및 오차 반경(`accuracy`) 획득 (`enableHighAccuracy: true`, `timeout: 10000`, `maximumAge: 30000`).
+     - PC 상단 권역 퀵 이동 바 및 PC/모바일 우하단 플로팅 컨트롤에 원클릭 `[📍 내 위치]` 버튼 탑재 (위치 수신 중 로딩 스피너 애니메이션 제공).
+     - 위치 획득 시 카메라 부드러운 이동 (`flyTo({ center, zoom: 16, essential: true })`) 및 MapLibre 상에 푸른색 펄스(Pulsing Dot: CSS `@keyframes myLocationPulse`) 애니메이션 마커와 오차 반경(`10~50m`) 원형 서클 GeoJSON 레이어(`my-location-accuracy`) 동적 렌더링.
+     - 내 위치 마커 클릭 시 소속 자치구 자동 해석, 오차 반경(±Xm) 표출 및 원클릭 `[🚩 현재 위치를 출발지로 설정]` 팝업 탑재.
+     - 권한 거부(PERMISSION_DENIED), 위치 수신 불가(POSITION_UNAVAILABLE), 타임아웃(TIMEOUT) 및 비-HTTPS 환경에 대한 친절한 토스트 안내 방어 처리.
+  2. **통합 검색창 및 PC·모바일 경로 추천 연동 (`UnifiedStationSearch.tsx`, `App.tsx`, `AppM.tsx`)**:
+     - `UnifiedStationSearch.tsx`: `variant="route"` 출발지 검색창 우측 및 드롭다운 최상단에 `[📍 내 위치]` 빠른 선택 버튼/행 제공.
+     - `App.tsx` 및 `AppM.tsx`: `myLocation` 상태 공유 및 출발지 선택 시 `departure="내 위치 (GPS)"`, `departureCoords=[lng, lat]`, `departureType="gps"` 자동 주입.
+  3. **백엔드 멀티모달 라우터 및 API 확장 (`multimodal_router.py`, `main.py`)**:
+     - `resolve_station()`: `coords`가 주어지고 `station_type="gps"` 또는 내 위치 키워드 쿼리 시 `station_type="gps"` 보존 및 최근접 지하철역 `nearest_subway` 자동 매핑.
+     - `resolve_station_district()`: GPS 내 위치 키워드 입력 시 좌표 기반 최단거리 자치구 우선 역지오코딩.
+     - `_node_synthesize_routes()`: `origin.get("station_type") in ("bus", "bike", "gps", "current_location")` 시 출발 좌표에서 최근접 지하철역/정류소까지의 First-Mile 도보 세그먼트(`walk`) 자동 조립.
+     - `main.py`: `MultimodalRouteRequest`에 `gps` 거점 유형 명세 반영.
+- **검증**:
+  - `tests/test_geolocation_routing.py` 단위 테스트 신설 (GPS 거점 해석, 역지오코딩, First-Mile 도보 세그먼트 생성, 멀티모달 API 호출 등 4종 전수 통과).
+  - 전체 단위 테스트 40개 100% PASS 검증 완료 (`Ran 40 tests, OK`).
+  - 프론트엔드 Vite 프로덕션 빌드 성공 (`npm run build`).
+
+---
 
 ### 🚲 경로 탐색 시 따릉이(First-Mile) 제외/포함 사용자 옵션 추가 (이슈 #105 / `ROUTE-05`)
 - **배경/문제**:

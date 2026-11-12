@@ -566,7 +566,7 @@ export default function TransitMap({
           <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
             ⏳ 기상청 실시간 관측 및 AI 모델 추론 중...
           </div>
-          <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 32차원 ONNX 텐서 연산 진행</div>
+          <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 32차원 LightGBM AI 연산 진행</div>
         </div>
       `
     } else if (weatherData) {
@@ -631,7 +631,7 @@ export default function TransitMap({
               <span>🤖</span> AI 수요 추론 (${rec.name})
             </span>
             <span style="font-size: 9px; font-weight: 700; color: #C084FC; background: rgba(168,85,247,0.22); padding: 1px 5px; border-radius: 4px;">
-              ⚡ ONNX ${aiData.latency_ms ?? 1.2}ms
+              ⚡ LightGBM AI
             </span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">

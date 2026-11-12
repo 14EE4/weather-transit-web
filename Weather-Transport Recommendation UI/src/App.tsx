@@ -1799,7 +1799,7 @@ export default function App() {
                     color: aiStatus === 'connected' ? '#34D399' : 'var(--app-text)',
                     fontFamily: 'JetBrains Mono', fontWeight: 600
                   }}>
-                    {aiStatus === 'connected' ? `ONNX AI (${aiLatency}ms)` : aiStatus === 'loading' ? '추론 중...' : '오프라인'}
+                    {aiStatus === 'connected' ? 'LightGBM AI' : aiStatus === 'loading' ? '예측 중...' : '오프라인'}
                   </span>
                   {/* [이슈 #97] 실시간 추론 미연동 시 폴백 점수·소요시간을 추정치로 명시 */}
                   {aiStatus !== 'connected' && (
@@ -1874,7 +1874,7 @@ export default function App() {
                         boxShadow: hourlyLiveStatus === 'live' ? '0 0 6px #10B981' : 'none'
                       }} />
                       <span style={{ fontSize: 10, color: hourlyLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
-                        {hourlyLiveStatus === 'live' ? '24H ONNX AI 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '⚠️ 시계열 기본값(추정)'}
+                        {hourlyLiveStatus === 'live' ? '24H LightGBM 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '⚠️ 시계열 기본값(추정)'}
                       </span>
                     </span>
                   </div>
@@ -2106,7 +2106,7 @@ export default function App() {
                     boxShadow: districtLiveStatus === 'live' ? '0 0 8px #10B981' : 'none'
                   }} />
                   <span style={{ fontSize: 10, color: districtLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
-                    {districtLiveStatus === 'live' ? 'ONNX 실시간 연동' : districtLiveStatus === 'loading' ? '추론 중...' : '기본값'}
+                    {districtLiveStatus === 'live' ? 'LightGBM 실시간 연동' : districtLiveStatus === 'loading' ? '연동 중...' : '기본값'}
                   </span>
                   {/* [이슈 #97] 실시간 연동 전에는 혼잡도를 추정치로 명시 */}
                   {districtLiveStatus !== 'live' && (
@@ -2225,7 +2225,7 @@ export default function App() {
                     <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 1 }}>
                       {departure && destination
                         ? `📍 출발(${resolveDistrictNameFromPoint(departure, departureCoords, DISTRICTS[selectedDistrict] || '강남구')}) ➔ 도착(${resolveDistrictNameFromPoint(destination, destinationCoords, DISTRICTS[selectedDistrict] || '강남구')}) 국지 기상 게이트 자동 적용`
-                        : '기상청 단기예보 및 32차원 ONNX 혼잡도 기반 멀티모달 경로 탐색'}
+                        : '기상청 단기예보 및 32차원 LightGBM 혼잡도 기반 멀티모달 경로 탐색'}
                     </div>
                   </div>
                 </div>
@@ -2497,7 +2497,7 @@ export default function App() {
                 </div>
                 {aiStatus === 'connected' && (
                   <span style={{ fontSize: 10, color: 'var(--color-primary)', fontFamily: 'JetBrains Mono', background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', padding: '2px 8px', borderRadius: 999 }}>
-                    ⚡ ONNX AI 추론 ({aiLatency}ms)
+                    ⚡ LightGBM AI 추천
                   </span>
                 )}
               </div>
@@ -3089,7 +3089,7 @@ export default function App() {
                   {stopDataLoading && !stopAIData ? (
                     <div style={{ background: 'rgba(124, 58, 237, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
                       <div style={{ fontSize: 11, color: '#C084FC', fontWeight: 700, marginBottom: 2 }}>⚡ AI 모델 32차원 피처 추론 연산 중...</div>
-                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 및 기상 차분 반영 ONNX 인메모리 추론</div>
+                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 및 기상 차분 반영 LightGBM AI 추론</div>
                     </div>
                   ) : stopAIData ? (() => {
                     const rec = stopAIData.recommendations?.find((r: any) => r.id === selectedStop.type) || stopAIData.recommendations?.[0]
@@ -3100,7 +3100,7 @@ export default function App() {
                             <span>🤖</span> AI 수요 추론 ({rec.name})
                           </span>
                           <span style={{ fontSize: 9, fontWeight: 700, color: '#C084FC', background: 'rgba(168,85,247,0.2)', padding: '1px 6px', borderRadius: 4 }}>
-                            ⚡ ONNX {stopAIData.latency_ms}ms
+                            ⚡ LightGBM AI
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>

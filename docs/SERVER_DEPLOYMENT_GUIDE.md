@@ -52,13 +52,13 @@ flowchart TD
     end
 
     %% 연결 관계
-    User -->|HTTPS 443| Router
-    Router -->|포트포워딩| NPM
-    NPM -->|HTTP 프록시 :3100| FE_Nginx
-    NPM -->|HTTP 프록시 /api/ :8100| FastAPI
-    FE_Nginx -->|컨테이너 내부 통신 http://backend:8000| FastAPI
+    User -->|"HTTPS 443"| Router
+    Router -->|"포트포워딩"| NPM
+    NPM -->|"HTTP 프록시 :3100"| FE_Nginx
+    NPM -->|"HTTP 프록시 /api/ :8100"| FastAPI
+    FE_Nginx -->|"컨테이너 내부 통신 http://backend:8000"| FastAPI
     FastAPI --> HostData
-    FastAPI -->|HTTPS 아웃바운드 API 쿼리| PublicAPIs
+    FastAPI -->|"HTTPS 아웃바운드 API 쿼리"| PublicAPIs
 ```
 
 ### 1.2 서비스 포트 요약 명세

@@ -215,7 +215,7 @@ flowchart TB
         FactChatLLM["FactChat LLM 브리핑 엔진 (gpt-6-luna / XAI Fallback)"]
     end
 
-    UI_Dash & UI_Route & UI_Map & UI_B2B -->|HTTP/REST| Router
+    UI_Dash & UI_Route & UI_Map & UI_B2B -->|"HTTP/REST"| Router
     Router --> CORS --> Schema --> Lifespan
     Router <--> KMA_Mgr
     Schema --> Cyclic & WeatherDerive & Spatial & LagEngine
@@ -511,14 +511,14 @@ flowchart LR
         LLM["FactChat LLM Gateway"]
     end
 
-    Client -->|HTTPS 443| Router
-    Router -->|포워딩| NPM
-    NPM -->|호스트 3100 전달| Frontend
-    NPM -->|/api/ 8100 전달| Backend
-    Frontend -->|내부망 http://backend:8000| Backend
+    Client -->|"HTTPS 443"| Router
+    Router -->|"포워딩"| NPM
+    NPM -->|"호스트 3100 전달"| Frontend
+    NPM -->|"/api/ 8100 전달"| Backend
+    Frontend -->|"내부망 http://backend:8000"| Backend
     Backend --> HostData
-    Backend -->|HTTPS 아웃바운드| APIs
-    Backend -->|추론 프롬프트| LLM
+    Backend -->|"HTTPS 아웃바운드"| APIs
+    Backend -->|"추론 프롬프트"| LLM
 ```
 
 ---

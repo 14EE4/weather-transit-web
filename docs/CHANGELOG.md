@@ -6,7 +6,72 @@
 
 ---
 
-## [2026-11-08]
+## [2026-11-12]
+
+### 🎯 경로 탐색 시 출발지·도착지 지도 직접 클릭 선택 (Pick on Map) 및 GPS 라우팅 확장 (이슈 #90)
+- **배경/문제**:
+  - 기존에는 출발지 또는 도착지를 지정하려면 텍스트 검색을 통해서만 입력할 수 있었으며, 지도 상에서 직관적으로 원하는 위치(골목, 한강변, 대형 건물 등)를 콕 찍어 출발지나 도착지로 설정할 수 없었음.
+  - 또한 지도에서 출발지를 GPS 위치로 설정한 뒤 내비게이션 전환 시 화면이 크래시되거나(`ReferenceError: resolveDistrictNameFromPoint is not defined`), 도착지를 좌표 기반으로 설정했을 때 Last-Mile 도보 세그먼트가 누락되던 한계가 있었음.
+- **조치 내역**:
+  1. **통합 검색창 원클릭 [🎯 지도에서 찍기] 버튼 탑재 (`UnifiedStationSearch.tsx`)**:
+     - 출발지 및 도착지 입력창 우측 액션 영역과 드롭다운 최상단 빠른 선택 목록에 `[🎯 지도에서 찍기]` 버튼 추가 (`allowMapPick={true}`, `onPickOnMap`).
+  2. **지도 인터랙티브 직접 찍기 모드 (`TransitMap.tsx`)**:
+     - `mapPickingTarget`('origin' | 'destination') 모드 진입 시 맵 캔버스 커서를 크로스헤어(`crosshair`)로 전환.
+     - 상단 안내 배너 단일 표출 및 중복 알림창 정리:
+       - 출발지 지정 시: `🚩 지도에서 출발지로 설정할 위치나 역을 클릭해 주세요` (에메랄드 그린 배지)
+       - 도착지 지정 시: `🏁 지도에서 도착지로 설정할 위치나 역을 클릭해 주세요` (레드 배지)
+       - `취소 (ESC)` 버튼 및 키보드 `ESC` 핫키 지원.
+       - 모드 진입 시 상단 플로팅 배너와 하단/상단 토스트가 동시에 중복 표출되던 '찍어 주세요' 알림 중복을 완전히 제거하여 단일 안내 배너로 정돈.
+     - **지도 클릭 좌표 자동 해석 및 지능형 네이밍**:
+       - 빈 지도 클릭 시: 좌표 역지오코딩 기반 자치구 판별 및 1.2km 이내 수도권 전철역 연동 (`{자치구} 지정 위치 ({역명}역 도보 {거리}m)` 명칭 자동 생성).
+       - 특정 지하철/버스/따릉이 마커 클릭 시: 해당 역/정류소를 즉시 출발/도착지로 확정.
+       - 선택 완료 즉시 원래 보던 경로 추천(`page === 'route'`) 탭으로 자동 복귀 및 확인 토스트 안내.
+  3. **PC·모바일 1:1 대칭 완비 (`App.tsx`, `AppM.tsx`) 및 임시 테스트 GPS 모듈 완전 제거**:
+     - `mapPickingTarget` 상태 선언 및 `handleStartPickOnMap`, `handleConfirmMapPick`, `handleCancelMapPick` 핸들러 동기화.
+     - 출발지 및 도착지 통합 검색창 모두에 `allowMapPick={true}` 및 `allowCurrentLocation={true}` 동시 지원.
+     - 데스크톱 위치 보정 및 검증용 임시 모의 GPS(`mockGps.ts`) 및 관련 프리셋 UI를 코드베이스에서 전면 삭제하고 브라우저 표준 `navigator.geolocation` 순수 파이프라인으로 일원화.
+  4. **백엔드 멀티모달 라우터 Last-Mile 도보 세그먼트 생성 및 예외 방어 (`multimodal_router.py`, `districtResolver.ts`)**:
+     - `resolve_station()` 및 `resolve_station_district()`: `station_type in ("gps", "current_location", "map_point")` 및 키워드(`"지정 위치"`, `"지도 지정"`, `"부근"`) 추가하여 좌표 기반 GPS 매핑 지원.
+     - `districtResolver.ts`: GPS 지정 키워드 무한 재귀 호출 방어 및 좌표 기반 최단 자치구 매핑.
+     - `TransitMap.tsx`: `resolveDistrictNameFromPoint` 누락 import 추가 및 `mergedBikePickup` 변수 선언 보정.
+- **검증**:
+  - `tests/test_geolocation_routing.py` 단위 테스트 4종 100% PASS 검증 완료.
+  - 프론트엔드 Vite 프로덕션 빌드 통과 (`dist/` 번들 생성 완료).
+  - Docker `weather-transit-frontend`, `weather-transit-backend` 컨테이너 재빌드 및 배포 완료 (`GET /health` verified, `http://localhost:3100` 200 OK).
+
+---
+
+### 📍 브라우저 Geolocation API 기반 내 위치(GPS) 조회 및 지도 중심 이동/출발지 지정 기능 (이슈 #90 / `UI-09`)
+- **배경/문제**:
+  - 기존 지도 탐색 및 경로 추천 서비스는 사용자가 출발지나 관심 거점을 찾기 위해 역명/정류소명을 검색하거나 지도를 직접 드래그/스크롤해야만 했음.
+  - 특히 이동 중인 모바일 브라우저 사용자가 "내 현재 위치에서 목적지까지" 경로를 즉시 안내받거나 주변 대중교통 거점을 탐색하고자 할 때 GPS 기반 현 위치 자동 감지 편의성이 부족했던 한계를 해소.
+- **조치 내역**:
+  1. **지도 내 위치 시각화, 상세 정보 카드 및 GPS 컨트롤 (`TransitMap.tsx`)**:
+     - 브라우저 표준 `navigator.geolocation` API를 연동하여 실시간 GPS 위도·경도 및 오차 반경(`accuracy`) 획득 (`enableHighAccuracy: true`, `timeout: 10000`, `maximumAge: 30000`).
+     - PC 상단 권역 퀵 이동 바 및 PC/모바일 우하단 플로팅 컨트롤에 원클릭 `[📍 내 위치]` 버튼 탑재 (위치 수신 중 로딩 스피너 애니메이션 제공).
+     - 위치 획득 시 카메라 부드러운 이동 (`flyTo({ center, zoom: 15.5, essential: true })`) 및 MapLibre 상에 푸른색 펄스(Pulsing Dot: CSS `@keyframes myLocationPulse`) 애니메이션 마커와 오차 반경(`15~1,500m`) 원형 서클 GeoJSON 레이어(`my-location-accuracy`) 동적 렌더링.
+     - **내 위치 상세 정보 플로팅 카드 (`showLocationInfoCard`) 및 마커 팝업 대폭 강화**:
+       - 감지된 자치구, 위도·경도 정밀 좌표, 오차 반경(±Xm) 실시간 표출.
+       - **데스크톱 환경 안내 배지**: GPS 위성 칩이 없는 PC 환경 특성상 통신사 IP/Wi-Fi 기반 삼각측량으로 실제 위치와 오차가 발생할 수 있음을 명확히 안내 (`🖥️ 데스크톱 IP/Wi-Fi` vs `🛰️ 모바일 GPS`).
+       - **인근 지하철역 자동 탐색**: 수도권 전철 마스터 데이터 연동 기반 최단거리 지하철역명, 호선 정보 및 도보 거리(m) 실시간 계산 표출.
+       - **`[🎯 지도에서 직접 클릭하여 보정]` 모드 탑재**: 데스크톱 IP 오차 발생 시 지도 상에서 사용자가 실제 위치를 클릭하면 즉시 해당 좌표로 내 위치 마커와 출발지가 정확히 보정되는 인터랙티브 기능 지원 (상단 안내 배너 및 ESC 취소 지원).
+       - 원클릭 `[🚩 이 위치를 출발지로 설정]` 버튼 탑재.
+     - 권한 거부(PERMISSION_DENIED), 위치 수신 불가(POSITION_UNAVAILABLE), 타임아웃(TIMEOUT) 및 비-HTTPS 환경에 대한 친절한 토스트 안내 방어 처리.
+  2. **통합 검색창 및 PC·모바일 경로 추천 연동 (`UnifiedStationSearch.tsx`, `App.tsx`, `AppM.tsx`)**:
+     - `UnifiedStationSearch.tsx`: `variant="route"` 출발지 검색창 우측 및 드롭다운 최상단에 `[📍 내 위치]` 빠른 선택 버튼/행 제공.
+     - `App.tsx` 및 `AppM.tsx`: `myLocation` 상태 공유 및 출발지 선택 시 `departure="내 위치 (GPS)"`, `departureCoords=[lng, lat]`, `departureType="gps"` 자동 주입.
+  3. **백엔드 멀티모달 라우터 및 API 확장 (`multimodal_router.py`, `main.py`)**:
+     - `resolve_station()`: `coords`가 주어지고 `station_type="gps"` 또는 내 위치 키워드 쿼리 시 `station_type="gps"` 보존 및 최근접 지하철역 `nearest_subway` 자동 매핑.
+     - `resolve_station_district()`: GPS 내 위치 키워드 입력 시 좌표 기반 최단거리 자치구 우선 역지오코딩.
+     - `_node_synthesize_routes()`: `origin.get("station_type") in ("bus", "bike", "gps", "current_location")` 시 출발 좌표에서 최근접 지하철역/정류소까지의 First-Mile 도보 세그먼트(`walk`) 자동 조립.
+     - `main.py`: `MultimodalRouteRequest`에 `gps` 거점 유형 명세 반영.
+- **검증**:
+  - **[버그 수정]** 출발지가 `내 위치 (GPS)`인 상태에서 도착지를 입력하면 화면이 하얗게 사라지는 문제 수정: `districtResolver.ts`의 `resolveDistrict()`가 GPS 키워드 감지 시 자기 자신을 무한 재귀 호출(`Maximum call stack size exceeded`)하여 React 렌더가 크래시하던 결함. GPS 명칭은 역명 키워드 매칭을 건너뛰고 좌표 기반 최근접 자치구로 직접 판별하도록 교정.
+  - `tests/test_geolocation_routing.py` 단위 테스트 신설 (GPS 거점 해석, 역지오코딩, First-Mile 도보 세그먼트 생성, 멀티모달 API 호출 등 4종 전수 통과).
+  - 전체 단위 테스트 40개 100% PASS 검증 완료 (`Ran 40 tests, OK`).
+  - 프론트엔드 Vite 프로덕션 빌드 성공 (`npm run build`).
+
+---
 
 ### 🚲 경로 탐색 시 따릉이(First-Mile) 제외/포함 사용자 옵션 추가 (이슈 #105 / `ROUTE-05`)
 - **배경/문제**:

@@ -861,7 +861,8 @@ class MultimodalRoutingEngine:
         # 0. 호출 시 좌표 및 거점 타입이 명시적으로 주입된 경우 최우선 처리
         if coords and len(coords) >= 2:
             c_lng, c_lat = float(coords[0]), float(coords[1])
-            s_type = station_type or ("subway" if q.endswith("역") else "bus")
+            is_gps = (station_type in ("gps", "current_location", "map_point")) or any(k in q for k in ["내 위치", "현재 위치", "내위치", "현재위치", "GPS", "gps", "지정 위치", "지도 지정", "부근"])
+            s_type = station_type or ("gps" if is_gps else ("subway" if q.endswith("역") else "bus"))
             if s_type == "subway":
                 nearest = self.find_nearest_subway(c_lat, c_lng) or {"name": q, "coords": [c_lng, c_lat], "lines": ["지하철"]}
                 res = dict(nearest)
@@ -1711,10 +1712,12 @@ class MultimodalRoutingEngine:
                     return d_key
 
         raw_name = (station_name or "").strip()
-        clean = re.sub(r"역$", "", raw_name)
-        for key in _SORTED_STATION_DONG_KEYS:
-            if key in raw_name or key in clean:
-                return STATION_DONG_MAP[key]
+        is_gps_name = any(loc_kw in raw_name for loc_kw in ["내 위치", "내위치", "현재 위치", "현재위치", "GPS", "gps", "지정 위치", "지도 지정", "부근"])
+        if not is_gps_name:
+            clean = re.sub(r"역$", "", raw_name)
+            for key in _SORTED_STATION_DONG_KEYS:
+                if key in raw_name or key in clean:
+                    return STATION_DONG_MAP[key]
 
         if coords and len(coords) >= 2:
             try:
@@ -2242,13 +2245,13 @@ class MultimodalRoutingEngine:
         first_walk_seg = None
         first_walk_min = 0
         first_walk_km = 0.0
-        if origin.get("station_type") in ("bus", "bike") and origin.get("name") != subway_origin.get("name"):
+        if origin.get("station_type") in ("bus", "bike", "gps", "current_location") and origin.get("name") != subway_origin.get("name"):
             first_walk_seg, first_walk_min, first_walk_km = self._make_walk_segment(origin, subway_origin)
 
         last_walk_seg = None
         last_walk_min = 0
         last_walk_km = 0.0
-        if dest.get("station_type") in ("bus", "bike") and dest.get("name") != subway_dest.get("name"):
+        if dest.get("station_type") in ("bus", "bike", "gps", "current_location") and dest.get("name") != subway_dest.get("name"):
             last_walk_seg, last_walk_min, last_walk_km = self._make_walk_segment(subway_dest, dest)
 
         sub_crowd = int(ai_cong.get("subway_crowd", 52))

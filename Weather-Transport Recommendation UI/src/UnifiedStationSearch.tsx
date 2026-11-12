@@ -12,6 +12,13 @@ export interface UnifiedStationSearchProps {
   onSelectSubway?: (station: SubwayStation) => void
   onSelectBus?: (station: BusStationResult) => void
   onSelectBike?: (station: BikeStationResult) => void
+  /** [이슈 #90] 내 위치(GPS) 선택 시 콜백 */
+  onSelectLocation?: (loc: { name: string; coords: [number, number]; type: string }) => void
+  /** [이슈 #90] 출발지 검색창 등에서 '내 위치' 사용 버튼 활성화 */
+  allowCurrentLocation?: boolean
+  /** [이슈 #90] 지도에서 위치 직접 찍기 활성화 */
+  allowMapPick?: boolean
+  onPickOnMap?: () => void
   placeholder?: string
   title?: string
   headerColor?: string
@@ -49,6 +56,10 @@ export default function UnifiedStationSearch({
   headerColor,
   variant = 'sidebar',
   onClear,
+  onSelectLocation,
+  allowCurrentLocation = false,
+  allowMapPick = false,
+  onPickOnMap,
 }: UnifiedStationSearchProps) {
   const [query, setQuery] = useState(value ?? '')
   const [open, setOpen] = useState(false)
@@ -56,8 +67,42 @@ export default function UnifiedStationSearch({
   const [busResults, setBusResults] = useState<BusStationResult[]>([])
   const [bikeResults, setBikeResults] = useState<BikeStationResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [isLocating, setIsLocating] = useState(false)
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+
+  const handleUseCurrentLocation = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('이 브라우저는 위치 정보(GPS) 서비스를 지원하지 않습니다.')
+      return
+    }
+
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false)
+        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
+        const locName = '내 위치 (GPS)'
+        setQuery(locName)
+        onChange?.(locName)
+        setOpen(false)
+        onSelectLocation?.({ name: locName, coords, type: 'gps' })
+      },
+      (err: any) => {
+        setIsLocating(false)
+        let msg = '현재 위치를 확인할 수 없습니다.'
+        if (err.code === 1) {
+          msg = '위치 정보 접근 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해 주세요.'
+        } else if (err.code === 2) {
+          msg = '현재 위치 정보를 수신할 수 없습니다.'
+        } else if (err.code === 3) {
+          msg = '위치 확인 요청 시간이 초과되었습니다.'
+        }
+        alert(msg)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    )
+  }
 
   // 외부 value 동기화 (맞바꾸기, 지도 팝업 등 부모 변경 반영)
   useEffect(() => {
@@ -253,6 +298,57 @@ export default function UnifiedStationSearch({
             fontWeight: isRouteVariant ? 500 : 400,
           }}
         />
+        {allowCurrentLocation && (
+          <button
+            type="button"
+            onClick={handleUseCurrentLocation}
+            disabled={isLocating}
+            title="현재 내 위치(GPS)를 출발지로 설정"
+            style={{
+              background: 'rgba(56, 189, 248, 0.15)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              borderRadius: 6,
+              padding: '3px 8px',
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#38BDF8',
+              cursor: isLocating ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            <span>{isLocating ? '⏳' : '📍'}</span>
+            <span>{isLocating ? '확인 중' : '내 위치'}</span>
+          </button>
+        )}
+        {allowMapPick && onPickOnMap && (
+          <button
+            type="button"
+            onClick={onPickOnMap}
+            title="지도에서 위치 직접 찍기"
+            style={{
+              background: 'rgba(52, 211, 153, 0.15)',
+              border: '1px solid rgba(52, 211, 153, 0.35)',
+              borderRadius: 6,
+              padding: '3px 8px',
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#34D399',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            <span>🎯</span>
+            <span>지도에서 찍기</span>
+          </button>
+        )}
         {query && (
           <button
             type="button"
@@ -272,6 +368,63 @@ export default function UnifiedStationSearch({
           background: 'var(--color-surface)', border: '1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)',
           borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.6)', maxHeight: 320, overflowY: 'auto',
         }}>
+          {allowCurrentLocation && (
+            <div
+              onClick={handleUseCurrentLocation}
+              style={{
+                padding: '9px 14px',
+                borderBottom: '1px solid var(--color-border)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(14, 165, 233, 0.08)',
+                color: '#38BDF8',
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(14, 165, 233, 0.18)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(14, 165, 233, 0.08)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{isLocating ? '⏳' : '📍'}</span>
+                <span>{isLocating ? 'GPS 위치 수신 중...' : '현재 내 위치 사용 (GPS)'}</span>
+              </div>
+              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.18)' }}>
+                GPS
+              </span>
+            </div>
+          )}
+          {allowMapPick && onPickOnMap && (
+            <div
+              onClick={() => {
+                setOpen(false)
+                onPickOnMap()
+              }}
+              style={{
+                padding: '9px 14px',
+                borderBottom: '1px solid var(--color-border)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(52, 211, 153, 0.08)',
+                color: '#34D399',
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(52, 211, 153, 0.18)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(52, 211, 153, 0.08)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🎯</span>
+                <span>지도에서 위치 직접 찍기</span>
+              </div>
+              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(52, 211, 153, 0.18)' }}>
+                지도 선택
+              </span>
+            </div>
+          )}
           {items.length > 0 && (
             <div style={{ padding: '6px 12px', fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between' }}>
               <span>검색 결과 {items.length}건 (지하철·버스·따릉이)</span>

@@ -551,6 +551,74 @@ export default function App() {
     }, 4500)
   }
 
+  // ── 현재 위치(GPS) 기반 지역 자동 감지 및 1회 초기화 ──
+  const [isLocatingDistrict, setIsLocatingDistrict] = useState(false)
+  const userManuallyChangedDistrictRef = useRef(false)
+  const hasAutoLocatedRef = useRef(false)
+
+  const locateCurrentDistrict = (isManualClick = false) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      if (isManualClick) {
+        showRouteToast('이 브라우저는 위치 정보(GPS) 서비스를 지원하지 않습니다.')
+      }
+      return
+    }
+
+    setIsLocatingDistrict(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocatingDistrict(false)
+        const lng = pos.coords.longitude
+        const lat = pos.coords.latitude
+        const accuracy = Math.round(pos.coords.accuracy || 25)
+        const coords: [number, number] = [lng, lat]
+
+        const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
+        if (!isInsideKorea) {
+          if (isManualClick) {
+            showRouteToast('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다.')
+          }
+          return
+        }
+
+        const detectedDistrict = resolveDistrictNameFromPoint('내 위치 (GPS)', coords)
+        const matchedIdx = DISTRICTS.findIndex(d => d.startsWith(detectedDistrict) || d.includes(detectedDistrict))
+
+        if (matchedIdx !== -1 && (isManualClick || !userManuallyChangedDistrictRef.current)) {
+          setSelectedDistrict(matchedIdx)
+          setMyLocation({ coords, accuracy, district: detectedDistrict, isManual: false })
+          if (isManualClick) {
+            showRouteToast(`📍 내 위치 감지: ${detectedDistrict} (정확도 ±${accuracy}m)`)
+          } else {
+            showRouteToast(`📍 현재 위치(${detectedDistrict}) 기준으로 메인 지역 날씨가 자동 설정되었습니다.`)
+          }
+        }
+      },
+      (err) => {
+        setIsLocatingDistrict(false)
+        if (isManualClick) {
+          let msg = '현재 위치를 확인할 수 없습니다.'
+          if (err.code === 1) {
+            msg = '위치 정보 접근 권한이 거부되었습니다. 브라우저 주소창에서 위치 접근을 허용해 주세요.'
+          } else if (err.code === 2) {
+            msg = '현재 위치 정보를 수신할 수 없습니다.'
+          } else if (err.code === 3) {
+            msg = '위치 확인 요청 시간이 초과되었습니다.'
+          }
+          showRouteToast(`❌ ${msg}`)
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    )
+  }
+
+  // 앱 마운트 시 1회 현재 위치 기반 지역 자동 설정
+  useEffect(() => {
+    if (hasAutoLocatedRef.current) return
+    hasAutoLocatedRef.current = true
+    locateCurrentDistrict(false)
+  }, [])
+
   const [mapPickingTarget, setMapPickingTarget] = useState<'origin' | 'destination' | null>(null)
 
   const handleStartPickOnMap = (target: 'origin' | 'destination') => {
@@ -1420,15 +1488,18 @@ export default function App() {
             </div>
 
             {/* 동 선택 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, color: 'var(--color-muted)', fontWeight: 600 }}>지역</span>
               <select
                 value={selectedDistrict}
-                onChange={e => setSelectedDistrict(Number(e.target.value))}
+                onChange={e => {
+                  userManuallyChangedDistrictRef.current = true
+                  setSelectedDistrict(Number(e.target.value))
+                }}
                 style={{
                   background: 'var(--color-card)', border: '1px solid var(--color-border)', color: 'var(--app-text)', borderRadius: 12, padding: '8px 14px', fontSize: 13,
                   fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", outline: 'none', cursor: 'pointer',
-                  maxWidth: 280, textOverflow: 'ellipsis',
+                  maxWidth: 240, textOverflow: 'ellipsis',
                   boxShadow: '0 2px 12px var(--color-card2)'
                 }}
               >
@@ -1445,6 +1516,32 @@ export default function App() {
                   </optgroup>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={() => locateCurrentDistrict(true)}
+                disabled={isLocatingDistrict}
+                title="현재 위치(GPS) 기준으로 지역 자동 재설정"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  background: 'var(--color-card)',
+                  border: '1px solid var(--color-border)',
+                  color: isLocatingDistrict ? 'var(--color-primary)' : 'var(--app-text)',
+                  borderRadius: 12,
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: isLocatingDistrict ? 'wait' : 'pointer',
+                  boxShadow: '0 2px 10px var(--color-card2)',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span style={{ fontSize: 14 }}>{isLocatingDistrict ? '⏳' : '📍'}</span>
+                <span>{isLocatingDistrict ? '감지 중...' : '내 위치'}</span>
+              </button>
             </div>
           </div>
 

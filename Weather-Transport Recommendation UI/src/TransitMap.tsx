@@ -26,6 +26,23 @@ if (import.meta.env.DEV) {
 // ── 로컬 스토리지 키 (새로고침 시 지도 카메라 위치 및 선택 역 복원) ──
 const STORAGE_MAP_VIEW_KEY = 'weather_transit_map_view'
 const STORAGE_SELECTED_STOP_KEY = 'weather_transit_selected_stop_id'
+const STORAGE_BASEMAP_KEY = 'weather_transit_basemap_mode'
+
+export type BaseMapMode = 'standard' | 'satellite'
+
+// ── 지도 베이스맵 래스터 타일 URL (환경변수 또는 고성능 CDN 기본값) ──
+const OSM_TILE_URL = (import.meta as any).env?.VITE_OSM_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const SATELLITE_TILE_URL = (import.meta as any).env?.VITE_SATELLITE_TILE_URL || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+const SATELLITE_LABEL_URL = (import.meta as any).env?.VITE_SATELLITE_LABEL_URL || 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+
+export const getSavedBaseMapMode = (): BaseMapMode => {
+  if (typeof window === 'undefined') return 'standard'
+  try {
+    const raw = localStorage.getItem(STORAGE_BASEMAP_KEY)
+    if (raw === 'satellite' || raw === 'standard') return raw
+  } catch {}
+  return 'standard'
+}
 
 // ── 기본 카메라 뷰 각도 (탑뷰: 3D 틸트 없이 수직 상공에서 내려다보는 시점) ──
 // 새로고침 시 복원하는 것은 위치(중심·줌)뿐이며, 시야각(틸트)과 방위각은 항상 아래 기본값으로 초기화한다.
@@ -234,6 +251,9 @@ interface TransitMapProps {
   mapPickingTarget?: 'origin' | 'destination' | null
   onCancelMapPick?: () => void
   onConfirmMapPick?: (target: 'origin' | 'destination', stop: TransitStop) => void
+  /** [이슈 #107] 지도 베이스맵 모드 (일반 OSM vs 위성) */
+  baseMapMode?: BaseMapMode
+  onChangeBaseMapMode?: (mode: BaseMapMode) => void
   /** [이슈 #90] 브라우저 GPS 실시간 내 위치 연동 */
   myLocation?: { coords: [number, number]; accuracy: number; district?: string; isManual?: boolean } | null
   onUpdateMyLocation?: (loc: { coords: [number, number]; accuracy: number; district: string; isManual?: boolean }) => void
@@ -294,11 +314,27 @@ export default function TransitMap({
   mapPickingTarget,
   onCancelMapPick,
   onConfirmMapPick,
+  baseMapMode: propBaseMapMode,
+  onChangeBaseMapMode,
   myLocation,
   onUpdateMyLocation,
   onLocationError,
   onToast,
 }: TransitMapProps) {
+  const [internalBaseMap, setInternalBaseMap] = useState<BaseMapMode>(() => propBaseMapMode ?? getSavedBaseMapMode())
+  const currentBaseMap = propBaseMapMode ?? internalBaseMap
+
+  const handleToggleBaseMap = (mode: BaseMapMode) => {
+    setInternalBaseMap(mode)
+    try {
+      localStorage.setItem(STORAGE_BASEMAP_KEY, mode)
+    } catch {}
+    onChangeBaseMapMode?.(mode)
+    if (onToastRef.current) {
+      onToastRef.current(mode === 'satellite' ? '🛰️ 고해상도 위성 지도 모드로 전환되었습니다.' : '🗺️ 일반 지도 모드로 전환되었습니다.')
+    }
+  }
+
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
@@ -1381,6 +1417,31 @@ export default function TransitMap({
     )
   }
 
+  // [이슈 #107] 베이스맵 모드(일반 vs 위성) 실시간 동적 전환
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map || !mapLoaded) return
+    try {
+      const isSat = currentBaseMap === 'satellite'
+      if (map.getLayer('osm-tiles-layer')) {
+        map.setLayoutProperty('osm-tiles-layer', 'visibility', isSat ? 'none' : 'visible')
+      }
+      if (map.getLayer('satellite-tiles-layer')) {
+        map.setLayoutProperty('satellite-tiles-layer', 'visibility', isSat ? 'visible' : 'none')
+      }
+      if (map.getLayer('satellite-labels-layer')) {
+        map.setLayoutProperty('satellite-labels-layer', 'visibility', isSat ? 'visible' : 'none')
+      }
+      // 위성 모드 시 수도권 전철 노선망 케이싱(외곽선) 대비 최적화 (어두운 배경 위 선명한 식별)
+      if (map.getLayer('subway-network-casing')) {
+        map.setPaintProperty('subway-network-casing', 'line-color', isSat ? '#FFFFFF' : '#0B1120')
+        map.setPaintProperty('subway-network-casing', 'line-opacity', isSat ? 0.4 : 0.8)
+      }
+    } catch (e) {
+      console.warn('[TransitMap] 베이스맵 전환 오류:', e)
+    }
+  }, [currentBaseMap, mapLoaded])
+
   // 1. MapLibre GL 지도 초기화
   useEffect(() => {
     if (!mapContainerRef.current) return
@@ -1407,10 +1468,23 @@ export default function TransitMap({
         sources: {
           'osm-tiles': {
             type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tiles: [OSM_TILE_URL],
             tileSize: 256,
             maxzoom: 19,
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+          },
+          'satellite-tiles': {
+            type: 'raster',
+            tiles: [SATELLITE_TILE_URL],
+            tileSize: 256,
+            maxzoom: 19,
+            attribution: '&copy; <a href="https://www.esri.com/" target="_blank">Esri</a>, Maxar, Earthstar Geographics, CNES/Airbus DS, USGS',
+          },
+          'satellite-labels': {
+            type: 'raster',
+            tiles: [SATELLITE_LABEL_URL],
+            tileSize: 256,
+            maxzoom: 19,
           },
         },
         layers: [
@@ -1420,6 +1494,29 @@ export default function TransitMap({
             source: 'osm-tiles',
             minzoom: 6,
             maxzoom: 19,
+            layout: {
+              visibility: currentBaseMap === 'standard' ? 'visible' : 'none',
+            },
+          },
+          {
+            id: 'satellite-tiles-layer',
+            type: 'raster',
+            source: 'satellite-tiles',
+            minzoom: 6,
+            maxzoom: 19,
+            layout: {
+              visibility: currentBaseMap === 'satellite' ? 'visible' : 'none',
+            },
+          },
+          {
+            id: 'satellite-labels-layer',
+            type: 'raster',
+            source: 'satellite-labels',
+            minzoom: 6,
+            maxzoom: 19,
+            layout: {
+              visibility: currentBaseMap === 'satellite' ? 'visible' : 'none',
+            },
           },
         ],
       },
@@ -1496,14 +1593,14 @@ export default function TransitMap({
         source: 'subway-network',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': '#0B1120',
+          'line-color': currentBaseMap === 'satellite' ? '#FFFFFF' : '#0B1120',
           'line-width': [
             'interpolate', ['linear'], ['zoom'],
             9, 2.0,
             12, 3.8,
             15, 6.0,
           ],
-          'line-opacity': 0.8,
+          'line-opacity': currentBaseMap === 'satellite' ? 0.4 : 0.8,
         },
       })
 
@@ -3752,6 +3849,69 @@ export default function TransitMap({
       {/* 지도 컨테이너 */}
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
 
+      {/* [이슈 #107] 지도 베이스맵(일반 ↔ 위성) 전환 토글 컨트롤 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: isMobile ? 12 : 14,
+          right: isMobile ? 54 : 58,
+          zIndex: 10,
+          display: 'flex',
+          background: 'var(--app-glass)',
+          backdropFilter: 'blur(12px)',
+          padding: '3px',
+          borderRadius: 10,
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          gap: 2,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handleToggleBaseMap('standard')}
+          title="일반 지도 (OpenStreetMap)"
+          style={{
+            padding: isMobile ? '5px 7px' : '5px 10px',
+            borderRadius: 7,
+            border: 'none',
+            background: currentBaseMap === 'standard' ? 'var(--color-primary)' : 'transparent',
+            color: currentBaseMap === 'standard' ? '#FFFFFF' : 'var(--color-muted)',
+            fontSize: isMobile ? 11 : 11.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>🗺️</span>
+          {!isMobile && <span>일반</span>}
+        </button>
+        <button
+          type="button"
+          onClick={() => handleToggleBaseMap('satellite')}
+          title="위성 지도 (고해상도 항공사진)"
+          style={{
+            padding: isMobile ? '5px 7px' : '5px 10px',
+            borderRadius: 7,
+            border: 'none',
+            background: currentBaseMap === 'satellite' ? 'var(--color-primary)' : 'transparent',
+            color: currentBaseMap === 'satellite' ? '#FFFFFF' : 'var(--color-muted)',
+            fontSize: isMobile ? 11 : 11.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>🛰️</span>
+          {!isMobile && <span>위성</span>}
+        </button>
+      </div>
+
       {/* [이슈 #90] 내 위치 마커 펄스 애니메이션 전역 CSS */}
       <style>{`
         @keyframes myLocationPulse {
@@ -4210,7 +4370,7 @@ export default function TransitMap({
                 </div>
               </div>
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--color-border)', fontSize: 9, color: 'var(--color-muted)' }}>
-                지도: OpenStreetMap + MapLibre GL
+                지도: {currentBaseMap === 'satellite' ? 'Esri World Imagery (Maxar)' : 'OpenStreetMap'} + MapLibre GL
               </div>
             </div>
           )}
@@ -4494,7 +4654,7 @@ export default function TransitMap({
               </span>
             </div>
             <div style={{ marginTop: 2, fontSize: 9, color: 'var(--color-muted)' }}>
-              지도: OpenStreetMap + MapLibre GL
+              지도: {currentBaseMap === 'satellite' ? 'Esri World Imagery (Maxar)' : 'OpenStreetMap'} + MapLibre GL
             </div>
           </div>
         </div>

@@ -105,6 +105,10 @@
       - 지도 카메라 중심 좌표를 자치구로 해석해 해당 지점의 기상청 실황(기온 · 강수 · 습도 · 풍속)을 표출 — 지도를 이동하면 날씨가 함께 갱신되며 `지도 중심 기준` 배지로 조회 기준을 명시
       - `moveend` 디바운스 `500ms` + 좌표 캐시로 과호출을 억제하고, 조회 실패 시 직전 자치구 기상으로 폴백 (모바일은 지도 사이드바에 1줄 요약)
       - 지도 우측 상단 기상 오버레이는 사이드바 카드와 중복되어 **PC에서 제거**, 모바일에서만 컴팩트 알약으로 표시(값은 뷰포트 기준)
+    - **지도 위성 사진(Satellite View) 보기 및 베이스맵 전환 (이슈 #107)**:
+      - OpenStreetMap(OSM) 일반 타일 외에 고해상도 위성/항공 사진(Esri World Imagery) 및 지명/도로명 하이브리드 라벨 오버레이를 원클릭(`🗺️ 일반` ↔ `🛰️ 위성`)으로 즉시 전환 지원
+      - 선택한 베이스맵 모드는 브라우저 `localStorage`에 자동 영속화되어 재접속 시에도 유지
+      - 모바일 환경에서는 텍스트 없이 컴팩트 아이콘으로 슬림화하여 지도 시야 확보, 위성 모드 시 수도권 전철 노선망 외곽선 대비(화이트 반투명 글로우) 자동 최적화
     - 기상청 초단기실황 날씨와 연계된 32차원 AI 기반 실시간 대중교통 혼잡도 예측 및 맞춤 추천 제공
 
 9. **백엔드 독립형 실시간 모니터링 & 로그 대시보드 (`/health/dashboard`)**
@@ -465,6 +469,23 @@ git push origin <작업-브랜치명>
    - **서울 열린데이터광장**: [서울교통공사_환승역거리 소요시간 정보](https://data.seoul.go.kr/dataList/OA-13290/S/1/datasetView.do) (서비스 ID: `OA-13290`)
    - **특징**: 성인 보행속도 `1.2 m/s` 기준 수도권 119개 주요 환승역 최단 환승거리 및 도보시간 실측 데이터셋.
    - **연동 현황**: 시스템 내부(`models/station_transfer_times.json`, 프론트엔드 `src/data/stationTransferTimes.json`)에 최신 실측치가 사전 정규화 탑재되어 있어, 별도 API 키 발급 없이 즉시 다익스트라 최적 경로 탐색 및 세그먼트 타임라인에 반영됩니다. (상세 규격: [`docs/CURRENT_DATA_SPEC.md`](docs/CURRENT_DATA_SPEC.md) §7)
+
+7. **지도 베이스맵 타일 출처 및 라이선스 (OpenStreetMap & Esri World Imagery)**
+   - **일반 지도 타일 (Standard Map)**:
+     - **제공처**: [OpenStreetMap (OSM)](https://www.openstreetmap.org/)
+     - **라이선스/출처**: `© OpenStreetMap contributors` (ODbL 1.0)
+     - **특징**: 전 세계 자원봉사자 기반의 오픈소스 도로망·철도망 래스터 타일
+   - **고해상도 위성 지도 타일 (Satellite View)**:
+     - **제공처**: [Esri (에스리) ArcGIS World Imagery](https://www.esri.com/en-us/arcgis/products/arcgis-platform/services/basemaps)
+     - **원천 데이터 파트너 / 위성 센서 출처**:
+       - **Maxar Technologies** (구 DigitalGlobe: WorldView-2, WorldView-3, GeoEye-1 등 서브미터급 30~50cm 초고해상도 상용 광학 위성 영상)
+       - **Earthstar Geographics**
+       - **CNES/Airbus DS** (SPOT, Pléiades 정밀 지구관측 위성)
+       - **USGS** (미국 지질조사국), AeroGRID, IGN 등 국가별 정밀 디지털 항공사진 집약체
+     - **특징**: 수도권 및 전 세계 전역에 대해 줌 레벨 19(수십 cm 분해능)까지 제공되는 글로벌 GIS 업계 표준 위성 레이어
+   - **하이브리드 라벨 타일 (Boundaries & Places)**:
+     - **제공처**: [Esri ArcGIS World Boundaries and Places](https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer)
+     - **특징**: 위성 지도 위에 행정 경계구역, 주요 랜드마크 지명, 도로명을 선명하게 오버레이하여 시인성 보장
 
 ---
 

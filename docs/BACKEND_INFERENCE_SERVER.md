@@ -323,7 +323,7 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 }
 ```
 > [!NOTE]
-> - `from_coords`, `to_coords`, `from_type`, `to_type`는 선택(Optional) 필드이며, 버스 정류소나 따릉이 대여소 출발/도착 시 좌표와 수단 유형을 주입하면 First-Mile / Last-Mile 도보 세그먼트(`walk`)가 경로 최전방/최후방에 자동으로 계산·삽입됩니다.
+> - `from_coords`, `to_coords`, `from_type`, `to_type`는 선택(Optional) 필드이며, `from_type` 및 `to_type`에 `subway`, `bus`, `bike`뿐 아니라 **`gps`**(브라우저 Geolocation 내 위치 및 지도 직접 찍기 좌표)를 주입할 수 있습니다 (이슈 #90). 좌표 기반 거점 설정 시 인근 지하철/버스 거점까지의 First-Mile 및 Last-Mile 도보 세그먼트(`walk`)가 경로 최전방/최후방에 자동으로 계산·조립됩니다.
 > - `from_district`, `to_district`를 생략하더라도 백엔드(`resolve_station_district`)가 출발/도착 역명과 좌표로부터 소속 자치구를 자동 역지오코딩하여 각 권역의 기상청 단기예보를 독립 조회하며, 각 경로 세그먼트(`segments[].weather`, `segments[].to_weather`)에도 승하차 거점 국지 기상과 구간 기상 게이트(`weather_gate`)가 자동 매핑됩니다 (이슈 #91).
 - **Response Body**:
 ```json

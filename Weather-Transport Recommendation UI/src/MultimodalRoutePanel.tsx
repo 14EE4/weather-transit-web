@@ -566,7 +566,7 @@ export default function MultimodalRoutePanel({
           }}
         >
           {loading
-            ? '⏳ LangGraph 에이전트가 기상청 예보·32차원 ONNX 혼잡도·실시간 따릉이/열차 데이터를 결합해 최적 멀티모달 경로를 추론 중입니다...'
+            ? '⏳ LangGraph 에이전트가 기상청 예보·32차원 LightGBM 혼잡도·실시간 따릉이/열차 데이터를 결합해 최적 멀티모달 경로를 추론 중입니다...'
             : briefing?.summary ||
               '현재 기상 및 혼잡도를 반영하여 지하철·버스·따릉이 복합 경로를 탐색했습니다.'}
         </div>

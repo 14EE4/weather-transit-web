@@ -51,6 +51,11 @@
   - 사용자 선택 베이스맵 모드(`standard` | `satellite`) `localStorage` 영속화.
   - 타일 소스 환경변수화(`VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL`) 및 Esri 고성능 CDN 연동.
   - 위성 모드 시 수도권 전철 노선망 케이싱 대비 최적화(화이트 반투명 글로우)를 통한 시인성 확보.
+- [x] **[UI-13] 메인 화면 초기 진입 시 브라우저 GPS 기반 현재 위치 자치구 자동 설정 (완료 · 2026-11-12 · 이슈 #110)**:
+  - 메인 화면("날씨 기반 교통 현황") 최초 로드 시 `navigator.geolocation`을 통해 사용자의 실제 GPS 좌표 획득.
+  - `resolveDistrictNameFromPoint('내 위치 (GPS)', coords)`로 자치구 역지오코딩 후 `selectedDistrict` 및 `myLocation` 자동 동기화.
+  - 지역 선택 드롭다운 우측에 `[📍 내 위치]` 원클릭 버튼을 탑재하여 타 지역 탐색 후에도 즉시 현재 물리적 위치 자치구로 복귀 지원.
+  - 위치 거부/오류 시 무음 폴백(Silent Fallback) 및 수동 선택 시 덮어쓰기 방지 적용, PC/모바일 1:1 대칭 완비.
 - [x] **[UI-10] 지도 보기 '실시간 대중교통 경로 안내' CTA 구버전 단일 지하철 경로 UI 정리 및 LangGraph 멀티모달 일원화 (완료 · 2026-11-03 · 이슈 #96)**:
   - 지도 사이드바 CTA가 `handleSearchRoute('강남역', '서울역')`을 하드코딩 호출해 레거시 `findSubwayRoute()` 단일 지하철 경로 카드를 표출하던 결함 제거.
   - 지도 경로 진입 CTA(`🧭 실시간 대중교통 경로 안내`)를 삭제하고 `경로 추천` 탭(LangGraph 멀티모달)으로 진입점 단일화. 버튼이 차지하던 하단 고정 푸터 영역을 상세 정보 스크롤 영역(`flex: 1`)이 흡수하여 사이드바 가용 영역 확대.

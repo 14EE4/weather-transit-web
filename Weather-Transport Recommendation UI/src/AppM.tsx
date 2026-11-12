@@ -555,6 +555,74 @@ export default function AppM() {
     }, 4500)
   }
 
+  // ── 현재 위치(GPS) 기반 지역 자동 감지 및 1회 초기화 ──
+  const [isLocatingDistrict, setIsLocatingDistrict] = useState(false)
+  const userManuallyChangedDistrictRef = useRef(false)
+  const hasAutoLocatedRef = useRef(false)
+
+  const locateCurrentDistrict = (isManualClick = false) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      if (isManualClick) {
+        showRouteToast('이 브라우저는 위치 정보(GPS) 서비스를 지원하지 않습니다.')
+      }
+      return
+    }
+
+    setIsLocatingDistrict(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocatingDistrict(false)
+        const lng = pos.coords.longitude
+        const lat = pos.coords.latitude
+        const accuracy = Math.round(pos.coords.accuracy || 25)
+        const coords: [number, number] = [lng, lat]
+
+        const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
+        if (!isInsideKorea) {
+          if (isManualClick) {
+            showRouteToast('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다.')
+          }
+          return
+        }
+
+        const detectedDistrict = resolveDistrictNameFromPoint('내 위치 (GPS)', coords)
+        const matchedIdx = DISTRICTS.findIndex(d => d.startsWith(detectedDistrict) || d.includes(detectedDistrict))
+
+        if (matchedIdx !== -1 && (isManualClick || !userManuallyChangedDistrictRef.current)) {
+          setSelectedDistrict(matchedIdx)
+          setMyLocation({ coords, accuracy, district: detectedDistrict, isManual: false })
+          if (isManualClick) {
+            showRouteToast(`📍 내 위치 감지: ${detectedDistrict} (정확도 ±${accuracy}m)`)
+          } else {
+            showRouteToast(`📍 현재 위치(${detectedDistrict}) 기준으로 메인 지역 날씨가 자동 설정되었습니다.`)
+          }
+        }
+      },
+      (err) => {
+        setIsLocatingDistrict(false)
+        if (isManualClick) {
+          let msg = '현재 위치를 확인할 수 없습니다.'
+          if (err.code === 1) {
+            msg = '위치 정보 접근 권한이 거부되었습니다. 브라우저 주소창에서 위치 접근을 허용해 주세요.'
+          } else if (err.code === 2) {
+            msg = '현재 위치 정보를 수신할 수 없습니다.'
+          } else if (err.code === 3) {
+            msg = '위치 확인 요청 시간이 초과되었습니다.'
+          }
+          showRouteToast(`❌ ${msg}`)
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    )
+  }
+
+  // 앱 마운트 시 1회 현재 위치 기반 지역 자동 설정
+  useEffect(() => {
+    if (hasAutoLocatedRef.current) return
+    hasAutoLocatedRef.current = true
+    locateCurrentDistrict(false)
+  }, [])
+
   const [mapPickingTarget, setMapPickingTarget] = useState<'origin' | 'destination' | null>(null)
 
   const handleStartPickOnMap = (target: 'origin' | 'destination') => {
@@ -1435,17 +1503,21 @@ export default function AppM() {
             </div>
 
             {/* 동 선택 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, color: 'var(--color-muted)', fontWeight: 600 }}>지역</span>
               <select
                 value={selectedDistrict}
-                onChange={e => setSelectedDistrict(Number(e.target.value))}
+                onChange={e => {
+                  userManuallyChangedDistrictRef.current = true
+                  setSelectedDistrict(Number(e.target.value))
+                }}
                 style={{
                   background: 'var(--color-card)', border: '1px solid rgba(56,189,248,0.3)',
                   color: 'var(--app-text)', borderRadius: 12, padding: '8px 14px', fontSize: 13,
                   fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", outline: 'none', cursor: 'pointer',
-                  maxWidth: 280, textOverflow: 'ellipsis',
-                  boxShadow: '0 2px 12px var(--color-card2)'
+                  maxWidth: 200, textOverflow: 'ellipsis',
+                  boxShadow: '0 2px 12px var(--color-card2)',
+                  flex: 1,
                 }}
               >
                 {DISTRICT_GROUPS.map(group => (
@@ -1461,6 +1533,32 @@ export default function AppM() {
                   </optgroup>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={() => locateCurrentDistrict(true)}
+                disabled={isLocatingDistrict}
+                title="현재 위치(GPS) 기준으로 지역 자동 재설정"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: 'var(--color-card)',
+                  border: '1px solid var(--color-border)',
+                  color: isLocatingDistrict ? 'var(--color-primary)' : 'var(--app-text)',
+                  borderRadius: 12,
+                  padding: '8px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: isLocatingDistrict ? 'wait' : 'pointer',
+                  boxShadow: '0 2px 10px var(--color-card2)',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span style={{ fontSize: 13 }}>{isLocatingDistrict ? '⏳' : '📍'}</span>
+                <span>{isLocatingDistrict ? '감지 중' : '내 위치'}</span>
+              </button>
             </div>
           </div>
 
@@ -1717,7 +1815,7 @@ export default function AppM() {
                     color: aiStatus === 'connected' ? '#34D399' : 'var(--app-text)',
                     fontFamily: 'JetBrains Mono', fontWeight: 600
                   }}>
-                    {aiStatus === 'connected' ? `ONNX AI (${aiLatency}ms)` : aiStatus === 'loading' ? '추론 중...' : '오프라인'}
+                    {aiStatus === 'connected' ? 'LightGBM AI' : aiStatus === 'loading' ? '예측 중...' : '오프라인'}
                   </span>
                   {/* [이슈 #97] 실시간 추론 미연동 시 폴백 점수·소요시간을 추정치로 명시 */}
                   {aiStatus !== 'connected' && (
@@ -1788,7 +1886,7 @@ export default function AppM() {
                         boxShadow: hourlyLiveStatus === 'live' ? '0 0 6px #10B981' : 'none'
                       }} />
                       <span style={{ fontSize: 10, color: hourlyLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
-                        {hourlyLiveStatus === 'live' ? '24H ONNX AI 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '⚠️ 시계열 기본값(추정)'}
+                        {hourlyLiveStatus === 'live' ? '24H LightGBM 시계열 예측' : hourlyLiveStatus === 'loading' ? 'AI 예측 연산 중...' : '⚠️ 시계열 기본값(추정)'}
                       </span>
                     </span>
                   </div>
@@ -2020,7 +2118,7 @@ export default function AppM() {
                     boxShadow: districtLiveStatus === 'live' ? '0 0 8px #10B981' : 'none'
                   }} />
                   <span style={{ fontSize: 10, color: districtLiveStatus === 'live' ? '#34D399' : 'var(--app-text)', fontFamily: 'JetBrains Mono', fontWeight: 600 }}>
-                    {districtLiveStatus === 'live' ? 'ONNX 실시간 연동' : districtLiveStatus === 'loading' ? '추론 중...' : '기본값'}
+                    {districtLiveStatus === 'live' ? 'LightGBM 실시간 연동' : districtLiveStatus === 'loading' ? '연동 중...' : '기본값'}
                   </span>
                   {/* [이슈 #97] 실시간 연동 전에는 혼잡도를 추정치로 명시 */}
                   {districtLiveStatus !== 'live' && (
@@ -2135,7 +2233,7 @@ export default function AppM() {
                     <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 1 }}>
                       {departure && destination
                         ? `📍 출발(${resolveDistrictNameFromPoint(departure, departureCoords, DISTRICTS[selectedDistrict] || '강남구')}) ➔ 도착(${resolveDistrictNameFromPoint(destination, destinationCoords, DISTRICTS[selectedDistrict] || '강남구')}) 국지 기상 게이트 자동 적용`
-                        : '기상청 단기예보 및 32차원 ONNX 혼잡도 기반 멀티모달 경로 탐색'}
+                        : '기상청 단기예보 및 32차원 LightGBM 혼잡도 기반 멀티모달 경로 탐색'}
                     </div>
                   </div>
                 </div>
@@ -2407,7 +2505,7 @@ export default function AppM() {
                 </div>
                 {aiStatus === 'connected' && (
                   <span style={{ fontSize: 10, color: '#38BDF8', fontFamily: 'JetBrains Mono', background: 'rgba(56,189,248,0.1)', padding: '2px 8px', borderRadius: 999 }}>
-                    ⚡ ONNX AI 추론 ({aiLatency}ms)
+                    ⚡ LightGBM AI 추천
                   </span>
                 )}
               </div>
@@ -2939,7 +3037,7 @@ export default function AppM() {
                   {stopDataLoading && !stopAIData ? (
                     <div style={{ background: 'rgba(124, 58, 237, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
                       <div style={{ fontSize: 11, color: '#C084FC', fontWeight: 700, marginBottom: 2 }}>⚡ AI 모델 32차원 피처 추론 연산 중...</div>
-                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 및 기상 차분 반영 ONNX 인메모리 추론</div>
+                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 및 기상 차분 반영 LightGBM AI 추론</div>
                     </div>
                   ) : stopAIData ? (() => {
                     const rec = stopAIData.recommendations?.find((r: any) => r.id === selectedStop.type) || stopAIData.recommendations?.[0]
@@ -2950,7 +3048,7 @@ export default function AppM() {
                             <span>🤖</span> AI 수요 추론 ({rec.name})
                           </span>
                           <span style={{ fontSize: 9, fontWeight: 700, color: '#C084FC', background: 'rgba(168,85,247,0.2)', padding: '1px 6px', borderRadius: 4 }}>
-                            ⚡ ONNX {stopAIData.latency_ms}ms
+                            ⚡ LightGBM AI
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>

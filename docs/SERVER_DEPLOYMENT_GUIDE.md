@@ -1,6 +1,6 @@
-# 🚀 리눅스 홈서버 / 미니 PC 배포 가이드 (Docker Compose 표준)
+# 🚀 서버 배포 및 AWS 클라우드 확장 가이드 (Docker Compose & Cloud Roadmap)
 
-본 문서는 Intel N100 등의 리눅스(Ubuntu/Debian) 미니 PC 및 홈서버 환경에서 **Weather & Transit Web** 서비스를 안정적으로 배포하고 상시 운영(24/7)하기 위한 가이드입니다.
+본 문서는 리눅스(Ubuntu/Debian) 미니 PC / 온프레미스 서버 환경에서의 실서버 배포부터, 향후 대규모 트래픽 확장을 대비한 **AWS 클라우드(ECS Fargate / EC2) 배포 로드맵**까지 포괄하는 공식 인프라 운영 가이드입니다.
 
 본 프로젝트의 공식 표준 배포 방식은 **Docker Compose 멀티 컨테이너**입니다. 복잡한 파이썬 가상환경(venv)이나 Node.js 번들 환경을 호스트 OS에 직접 설치하지 않고, 완전히 격리된 컨테이너 환경에서 무중단 자동 재기동(`restart: unless-stopped`)을 보장합니다.
 
@@ -274,6 +274,100 @@ ss -tulpn | grep -E '3100|8100'
    docker compose logs backend --tail=50
    ```
 3. **API 키 점검**: 프로젝트 루트의 `.env` 파일에 공공데이터 키(`KMA_APIHUB_KEY`, `SEOUL_SUBWAY_API_KEY`, `BUS_API_KEY`) 및 LLM 키(`FACTCHAT_API_KEY`)가 올바르게 설정되어 있는지 점검합니다.
+
+---
+
+## ☁️ 8. 대규모 트래픽 확장을 위한 AWS 클라우드 배포 로드맵 (Cloud Scalability)
+
+> 💡 **캡스톤 발표 및 기술 평가 가이드**: 본 프로젝트는 현재 로컬 및 온프레미스(미니 PC) 환경에서 구동되지만, **처음부터 모든 컴포넌트를 컨테이너(Docker) 단위로 완전 격리·설계**하였기 때문에 클라우드 대규모 트래픽 환경으로의 확장이 즉각 가능합니다. 본 섹션은 상용 서비스 런칭 시의 AWS 이전 로드맵과 아키텍처를 정의합니다.
+
+### 8.1 Docker Hub / AWS ECR 기반 원클릭 이미지 파이프라인
+
+호스트 환경에 소스 코드나 Python/Node.js 종속성을 설치할 필요 없이, 사전 빌드된 도커 이미지를 레지스트리(Docker Hub 또는 AWS ECR)에서 끌어와 즉시 배포합니다.
+
+```mermaid
+flowchart LR
+    subgraph Build ["개발 환경 (Local / CI-CD)"]
+        Src["소스 코드"] --> BuildFE["Dockerfile.frontend"]
+        Src --> BuildBE["Dockerfile.backend"]
+    end
+
+    subgraph Registry ["컨테이너 레지스트리 (Docker Hub / AWS ECR)"]
+        RegFE["weather-transit-frontend:latest"]
+        RegBE["weather-transit-backend:latest"]
+    end
+
+    subgraph AWS ["AWS 클라우드 서빙 환경"]
+        Deploy["docker compose pull<br>docker compose up -d"]
+    end
+
+    BuildFE -->|docker push| RegFE
+    BuildBE -->|docker push| RegBE
+    RegFE -->|docker pull| Deploy
+    RegBE -->|docker pull| Deploy
+```
+
+```bash
+# 1. 로컬에서 프로덕션 이미지 빌드 및 태깅
+docker tag weather-transit-backend:latest <DOCKER_ID>/weather-transit-backend:latest
+docker tag weather-transit-frontend:latest <DOCKER_ID>/weather-transit-frontend:latest
+
+# 2. Docker Hub (또는 AWS ECR)로 이미지 푸시
+docker push <DOCKER_ID>/weather-transit-backend:latest
+docker push <DOCKER_ID>/weather-transit-frontend:latest
+
+# 3. AWS 인스턴스에서 원클릭 서빙 (docker-compose.prod.yml)
+docker compose pull && docker compose up -d
+```
+
+---
+
+### 8.2 서비스 성장 단계별 AWS 3단계 확장 로드맵
+
+```mermaid
+flowchart TD
+    subgraph Phase1 ["1단계: AWS EC2 단일 인스턴스 (초기 저비용 실증)"]
+        EC2["EC2 (Ubuntu t3.small ~ t3.medium)<br>• Docker Compose로 FE/BE 동시 구동<br>• Let's Encrypt Nginx SSL 적용<br>• 월 비용: 약 $15 ~ $25"]
+    end
+
+    subgraph Phase2 ["2단계: AWS ECS Fargate + ALB (상용 서비스 권장)"]
+        ALB["Application Load Balancer (ALB)<br>(HTTPS 443 종단 & SSL 자동 관리)"]
+        ECS_FE["ECS Fargate: Frontend Task<br>(CPU 0.25 / RAM 0.5GB - 오토스케일링)"]
+        ECS_BE["ECS Fargate: Backend Task<br>(CPU 0.5 / RAM 1.0GB - 오토스케일링)"]
+        EFS["AWS EFS (탄력적 파일 시스템)<br>timeseries_cache.db 영속 공유"]
+
+        ALB -->|/ (루트 경로)| ECS_FE
+        ALB -->|/api/* (API 경로)| ECS_BE
+        ECS_BE --- EFS
+    end
+
+    subgraph Phase3 ["3단계: 대규모 엔터프라이즈 (DAU 10만+ 대응)"]
+        CloudFront["CloudFront CDN + WAF"] --> ALB
+        ECS_BE --- ElastiCache["Amazon ElastiCache (Redis)<br>• 분산 시계열 캐시<br>• 실시간 버스/따릉이 API 버퍼"]
+    end
+
+    Phase1 -->|사용자 증가 시| Phase2 -->|초대규모 트래픽| Phase3
+```
+
+| 구분 | **1단계: AWS EC2 + Docker Compose** | **2단계: AWS ECS Fargate (강력 권장)** | **3단계: CloudFront + Redis 클러스터** |
+| :--- | :--- | :--- | :--- |
+| **운영 인프라** | 가상머신(EC2) 1대 관리 | **서버리스 컨테이너 (EC2 관리 불필요)** | 글로벌 CDN + 컨테이너 + 인메모리 캐시 |
+| **핵심 장점** | 현재 로컬 구성과 100% 동일, 구현 최소 | • 트래픽 급증 시 컨테이너 자동 증설(오토스케일링)<br>• 무중단 롤링 업데이트 및 자동 헬스 복구 | • 정적 에셋 초고속 CDN 캐싱<br>• 공공 API 호출량 극단적 절감(Redis) |
+| **비용 효율** | 고정 비용 (월 $15~$25) | 사용한 CPU/메모리 초단위 과금 | 트래픽 비례 엔터프라이즈 과금 |
+| **추천 시점** | 소규모 공개 시연 및 외부 테스트 | **공식 런칭 및 상용 서비스** | 대규모 지자체/B2B 트래픽 대응 |
+
+---
+
+### 8.3 클라우드 운영 시 필수 고려사항 (Best Practices)
+
+1. **보안 및 환경변수 격리 (AWS Secrets Manager / SSM Parameter Store)**:
+   - 공공데이터포털, 기상청, FactChat API 키 등 민감 키는 도커 이미지 내부에 포함하지 않고, AWS SSM Parameter Store 또는 인스턴스 보안 그룹(`IAM Role`)을 통해 컨테이너 시작 시 안전하게 환경변수로 주입합니다.
+2. **시계열 SQLite 캐시 영속성 (`AWS EFS`)**:
+   - 컨테이너가 트래픽에 따라 자동으로 죽고 살아나도 10분 공공 API 캐시(`timeseries_cache.db`)가 유실되지 않도록, 다중 가용 영역(Multi-AZ) 지원 네트워크 스토리지인 **AWS EFS** 볼륨을 `/app/data` 경로에 마운트합니다.
+3. **관측성 및 알림 (AWS CloudWatch + Discord/Slack Webhook)**:
+   - 컨테이너 CPU/메모리 사용률 및 5xx 에러율을 CloudWatch로 모니터링하고, 백엔드의 `in_memory_log_handler` 경고 발생 시 운영진 메신저로 실시간 장애 알림을 발송합니다.
+
+---
 
 ---
 

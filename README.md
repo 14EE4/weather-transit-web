@@ -333,7 +333,7 @@ docker compose down
 ## 🚀 리눅스 홈서버 / 미니 PC 배포 (PM2 & 호스트 배포)
 
 이미 서버에서 다른 웹 서비스가 구동 중이거나 PM2 프로세스 매니저를 사용하는 경우, 다음 가이드를 통해 초경량으로 즉시 구동할 수 있습니다:
-- 📖 **서버 배포 완벽 가이드**: [리눅스 홈서버 / 미니 PC 배포 가이드](docs/SERVER_DEPLOYMENT_GUIDE.md)
+- 📖 **서버 배포 및 AWS 확장 완벽 가이드**: [서버 배포 및 AWS 클라우드 확장 가이드](docs/SERVER_DEPLOYMENT_GUIDE.md)
 - 기본 포트: **프론트엔드 `3100`**, **백엔드 `8100`** (기존 서비스와의 포트 충돌 방지 완비)
 - 실행 명령어 한 줄 요약:
   ```bash
@@ -529,7 +529,7 @@ weather-transit-web/
 │   ├── CHANGELOG.md                    # 통합 변경 이력
 │   ├── TODO.md                         # 📋 향후 개발 백로그 및 고도화 과제
 │   ├── TODO_MOCK_AND_UNVERIFIED_DATA.md # 🔍 하드코딩·목업·미검증 데이터 전수 조사 및 수정 방안
-│   ├── SERVER_DEPLOYMENT_GUIDE.md      # 🚀 리눅스 홈서버 / 미니 PC (PM2, Docker, NPM) 배포 가이드
+│   ├── SERVER_DEPLOYMENT_GUIDE.md      # 🚀 서버 배포 및 AWS 클라우드 확장 가이드 (Docker, AWS ECS)
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
 │   ├── MODEL_PERFORMANCE_REPORT.md     # ONNX 모델 성능 비교 분석 보고서 (v2: 실피처 32차원 vs 25차원)

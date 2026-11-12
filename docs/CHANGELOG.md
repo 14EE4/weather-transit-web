@@ -8,6 +8,21 @@
 
 ## [2026-11-12]
 
+### 📚 AI 모델 사양서(LightGBM) 심층 보강 및 AWS 클라우드 확장 가이드 신설
+- **조치 내역**:
+  1. **AI 모델 사양서 내 LightGBM 앙상블 알고리즘 및 타 모델 대비 기술적 우위 보강 (`docs/AI_MODEL_SPEC.md` §2-1)**:
+     - 마이크로소프트(MS Research) 2017년 발표 배경, GBDT 순차 잔차 경사하강 부스팅 원리 명시.
+     - 전통적 Level-wise 대비 Leaf-wise(리프 중심 수직 분할)의 오차 극소화 원리 Mermaid 다이어그램 추가.
+     - 4대 혁신 기술(Leaf-wise, GOSS 샘플링, EFB 희소 번들링, Histogram 버킷 분할) 기술적 설명 명시.
+     - 선형회귀 vs 랜덤포레스트 vs XGBoost vs LightGBM vs 딥러닝(LSTM/MLP) 8개 축 종합 비교 평가표 반영.
+  2. **서버 배포 가이드 내 대규모 트래픽 대비 AWS 클라우드 배포 로드맵 신설 (`docs/SERVER_DEPLOYMENT_GUIDE.md` §8)**:
+     - Docker Hub / AWS ECR 기반 이미지 레지스트리 원클릭 배포 파이프라인 정립.
+     - AWS 3단계 확장 로드맵(EC2 단일 인스턴스 ➔ ECS Fargate 서버리스 오토스케일링 ➔ CloudFront/EKS/ElastiCache) 아키텍처 다이어그램 및 비용/특성 비교표 수립.
+     - 클라우드 실무 보안(Secrets Manager), 캐시 영속성(EFS), 관측성(CloudWatch) 가이드라인 추가.
+     - `README.md` 공식 인덱스 표 동기화.
+
+---
+
 ### 🛰️ 지도 위성 사진(Satellite View) 보기 및 베이스맵 전환 기능 구현 (이슈 #107 / `UI-12`)
 - **배경/문제**:
   - 기존 대중교통 및 복합 경로 안내 지도는 기본 OpenStreetMap(OSM) 일반 래스터 타일만 지원하여, 도보 및 따릉이(First/Last-Mile) 이동, 버스 정류소 및 지하철 환승 출구 탐색 시 실제 건물 외형, 현장 지형지물, 도로 구조를 파악하기 어려웠음.

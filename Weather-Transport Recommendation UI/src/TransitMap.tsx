@@ -4,7 +4,7 @@ import { SUBWAY_STATIONS } from './subwayData'
 import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
 import { TransitRouteResult } from './subwayGraph'
-import { resolveDistrict } from './districtResolver'
+import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
 import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
 
 const getApiBaseUrl = (): string => {
@@ -2980,6 +2980,8 @@ export default function TransitMap({
        activeRoute.from.includes(seg.from_name) || 
        seg.from_name.includes(activeRoute.from))
     ) || null
+    // 출발 알약에 병합된 따릉이 대여 세그먼트 (개별 대여 핀 중복 방지)
+    const mergedBikePickup = matchedBikePickup
 
     // 출발지 마커 핀 (초록색 캡슐 + 이동 모드별 최적화된 안내 표시)
     const startStop = TRANSIT_STOPS.find(s => s.name === activeRoute.from)

@@ -17,17 +17,19 @@
      - 출발지 및 도착지 입력창 우측 액션 영역과 드롭다운 최상단 빠른 선택 목록에 `[🎯 지도에서 찍기]` 버튼 추가 (`allowMapPick={true}`, `onPickOnMap`).
   2. **지도 인터랙티브 직접 찍기 모드 (`TransitMap.tsx`)**:
      - `mapPickingTarget`('origin' | 'destination') 모드 진입 시 맵 캔버스 커서를 크로스헤어(`crosshair`)로 전환.
-     - 상단 안내 배너 표출:
+     - 상단 안내 배너 단일 표출 및 중복 알림창 정리:
        - 출발지 지정 시: `🚩 지도에서 출발지로 설정할 위치나 역을 클릭해 주세요` (에메랄드 그린 배지)
        - 도착지 지정 시: `🏁 지도에서 도착지로 설정할 위치나 역을 클릭해 주세요` (레드 배지)
        - `취소 (ESC)` 버튼 및 키보드 `ESC` 핫키 지원.
+       - 모드 진입 시 상단 플로팅 배너와 하단/상단 토스트가 동시에 중복 표출되던 '찍어 주세요' 알림 중복을 완전히 제거하여 단일 안내 배너로 정돈.
      - **지도 클릭 좌표 자동 해석 및 지능형 네이밍**:
        - 빈 지도 클릭 시: 좌표 역지오코딩 기반 자치구 판별 및 1.2km 이내 수도권 전철역 연동 (`{자치구} 지정 위치 ({역명}역 도보 {거리}m)` 명칭 자동 생성).
        - 특정 지하철/버스/따릉이 마커 클릭 시: 해당 역/정류소를 즉시 출발/도착지로 확정.
        - 선택 완료 즉시 원래 보던 경로 추천(`page === 'route'`) 탭으로 자동 복귀 및 확인 토스트 안내.
-  3. **PC·모바일 1:1 대칭 완비 (`App.tsx`, `AppM.tsx`)**:
+  3. **PC·모바일 1:1 대칭 완비 (`App.tsx`, `AppM.tsx`) 및 임시 테스트 GPS 모듈 완전 제거**:
      - `mapPickingTarget` 상태 선언 및 `handleStartPickOnMap`, `handleConfirmMapPick`, `handleCancelMapPick` 핸들러 동기화.
      - 출발지 및 도착지 통합 검색창 모두에 `allowMapPick={true}` 및 `allowCurrentLocation={true}` 동시 지원.
+     - 데스크톱 위치 보정 및 검증용 임시 모의 GPS(`mockGps.ts`) 및 관련 프리셋 UI를 코드베이스에서 전면 삭제하고 브라우저 표준 `navigator.geolocation` 순수 파이프라인으로 일원화.
   4. **백엔드 멀티모달 라우터 Last-Mile 도보 세그먼트 생성 및 예외 방어 (`multimodal_router.py`, `districtResolver.ts`)**:
      - `resolve_station()` 및 `resolve_station_district()`: `station_type in ("gps", "current_location", "map_point")` 및 키워드(`"지정 위치"`, `"지도 지정"`, `"부근"`) 추가하여 좌표 기반 GPS 매핑 지원.
      - `districtResolver.ts`: GPS 지정 키워드 무한 재귀 호출 방어 및 좌표 기반 최단 자치구 매핑.

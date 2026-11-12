@@ -6,7 +6,6 @@ import { BIKE_STATIONS } from './bikeStopData'
 import { TransitRouteResult } from './subwayGraph'
 import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
 import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
-import { MOCK_GPS_PRESETS, setActiveMockGps, getPositionWithMock, type MockGpsPreset } from './mockGps'
 
 const getApiBaseUrl = (): string => {
   const envVal = (import.meta as any).env?.VITE_API_BASE_URL
@@ -1240,7 +1239,6 @@ export default function TransitMap({
         popup.remove()
         setIsPickingLocationMode(true)
         isPickingLocationModeRef.current = true
-        if (onToastRef.current) onToastRef.current('🎯 지도에서 실제 계신 위치를 직접 클릭해 주세요.')
       }
     }
 
@@ -1322,30 +1320,14 @@ export default function TransitMap({
     }
   }
 
-  const applyMapMockPreset = (preset: MockGpsPreset) => {
-    setActiveMockGps(preset)
-    const coords = preset.coords
-    const accuracy = preset.accuracy
-    const district = resolveDistrictNameFromPoint('내 위치 (GPS)', coords)
-    onUpdateMyLocationRef.current?.({ coords, accuracy, district, isManual: false })
-    setShowLocationInfoCard(true)
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo({
-        center: coords,
-        zoom: Math.max(mapInstanceRef.current.getZoom(), 15.5),
-        pitch: DEFAULT_MAP_PITCH,
-        essential: true,
-      })
-      updateMyLocationVisuals(coords, accuracy, district, true, false)
-    }
-    if (onToastRef.current) {
-      onToastRef.current(`🧪 테스트 GPS 적용: ${preset.label} (${district} · ±${accuracy}m)`)
-    }
-  }
-
   const handleLocateUser = (showPopup = true) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      if (onToastRef.current) onToastRef.current('이 브라우저는 위치 정보(GPS) 서비스를 지원하지 않습니다.')
+      return
+    }
+
     setIsLocating(true)
-    getPositionWithMock(
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
         setIsLocating(false)
         const lng = pos.coords.longitude
@@ -1370,9 +1352,7 @@ export default function TransitMap({
         }
 
         const isDesktop = isDesktopDevice()
-        if (pos.isMock) {
-          if (onToastRef.current) onToastRef.current(`🧪 테스트 GPS 수신: ${pos.mockLabel} (${district} · ±${accuracy}m)`)
-        } else if (!isInsideKorea) {
+        if (!isInsideKorea) {
           if (onToastRef.current) onToastRef.current('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다. 기본 수도권 중심 지도로 안내합니다.')
         } else if (isDesktop || accuracy >= 100) {
           if (onToastRef.current) onToastRef.current(`📍 내 위치 감지: ${district} (데스크톱 네트워크 추정 ±${accuracy}m)`)
@@ -4418,7 +4398,6 @@ export default function TransitMap({
                   onClick={() => {
                     setIsPickingLocationMode(true)
                     isPickingLocationModeRef.current = true
-                    if (onToastRef.current) onToastRef.current('🎯 지도에서 실제 계신 위치를 직접 클릭해 주세요.')
                   }}
                   title="지도에서 실제 계신 위치를 직접 클릭하여 보정"
                   style={{
@@ -4441,64 +4420,6 @@ export default function TransitMap({
               </div>
             </div>
           )}
-
-          {/* [임시 테스트용 GPS 설정 — 추후 삭제] 지도에서 바로 모의 GPS 적용 */}
-          <div style={{
-            width: isMobile ? 'calc(100vw - 32px)' : '320px',
-            background: 'var(--app-glass)',
-            backdropFilter: 'blur(12px)',
-            border: '1px dashed rgba(245, 158, 11, 0.5)',
-            borderRadius: 12,
-            padding: '8px 10px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-              <span style={{ fontSize: 10.5, fontWeight: 800, color: '#F59E0B' }}>
-                🧪 임시 GPS 테스트 위치 (추후 삭제)
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMockGps(null)
-                  if (onToastRef.current) onToastRef.current('🔄 모의 GPS가 해제되었습니다 (실제 브라우저 위치 사용).')
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 5,
-                  padding: '1px 6px',
-                  fontSize: 9.5,
-                  color: 'var(--color-muted)',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                }}
-              >
-                실제 위치 복원
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {MOCK_GPS_PRESETS.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => applyMapMockPreset(p)}
-                  title={p.desc}
-                  style={{
-                    padding: '3px 7px',
-                    borderRadius: 6,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    border: '1px solid rgba(245, 158, 11, 0.45)',
-                    background: 'rgba(245, 158, 11, 0.14)',
-                    color: '#FBBF24',
-                  }}
-                >
-                  📍 {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* [이슈 #90] PC 데스크탑 우하단 원클릭 내 위치 플로팅 버튼 */}
           <button

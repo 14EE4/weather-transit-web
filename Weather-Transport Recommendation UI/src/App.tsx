@@ -556,7 +556,6 @@ export default function App() {
   const handleStartPickOnMap = (target: 'origin' | 'destination') => {
     setMapPickingTarget(target)
     setPage('map')
-    showRouteToast(`🎯 지도에서 ${target === 'origin' ? '출발지' : '도착지'}로 설정할 위치나 역을 클릭해 주세요.`)
   }
 
   const handleConfirmMapPick = (target: 'origin' | 'destination', stop: TransitStop) => {

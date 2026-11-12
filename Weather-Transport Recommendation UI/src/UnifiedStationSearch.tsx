@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { searchSubwayStations, type SubwayStation } from './subwayData'
 import type { BusStationResult } from './BusStationSearch'
 import type { BikeStationResult } from './BikeStationSearch'
-import { MOCK_GPS_PRESETS, getActiveMockGps, setActiveMockGps, getPositionWithMock, type MockGpsPreset } from './mockGps'
 
 export type SearchTransport = 'all' | 'subway' | 'bus' | 'bike'
 
@@ -69,29 +68,17 @@ export default function UnifiedStationSearch({
   const [bikeResults, setBikeResults] = useState<BikeStationResult[]>([])
   const [loading, setLoading] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
-  const [activeMock, setActiveMock] = useState<MockGpsPreset | null>(() => getActiveMockGps())
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onMockChange = () => setActiveMock(getActiveMockGps())
-    window.addEventListener('mock-gps-changed', onMockChange)
-    return () => window.removeEventListener('mock-gps-changed', onMockChange)
-  }, [])
-
-  const applyMockPreset = (preset: MockGpsPreset) => {
-    setActiveMockGps(preset)
-    setActiveMock(preset)
-    const locName = '내 위치 (GPS)'
-    setQuery(locName)
-    onChange?.(locName)
-    setOpen(false)
-    onSelectLocation?.({ name: locName, coords: preset.coords, type: 'gps' })
-  }
-
   const handleUseCurrentLocation = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('이 브라우저는 위치 정보(GPS) 서비스를 지원하지 않습니다.')
+      return
+    }
+
     setIsLocating(true)
-    getPositionWithMock(
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
         setIsLocating(false)
         const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
@@ -372,80 +359,6 @@ export default function UnifiedStationSearch({
           </button>
         )}
       </div>
-
-      {/* [임시 테스트용 GPS 설정 — 추후 삭제] */}
-      {allowCurrentLocation && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: '8px 10px',
-            borderRadius: 10,
-            background: 'rgba(245, 158, 11, 0.08)',
-            border: '1px dashed rgba(245, 158, 11, 0.45)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10.5, fontWeight: 800, color: '#F59E0B' }}>
-              🧪 임시 GPS 테스트 위치 (클릭 시 출발지에 모의 GPS 즉시 적용)
-            </span>
-            {activeMock && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveMockGps(null)
-                  setActiveMock(null)
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 6,
-                  padding: '2px 6px',
-                  fontSize: 9.5,
-                  color: 'var(--color-muted)',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                }}
-              >
-                🔄 실제 브라우저 위치로 복원
-              </button>
-            )}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {MOCK_GPS_PRESETS.map(p => {
-              const isSelected = activeMock?.id === p.id
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => applyMockPreset(p)}
-                  title={`${p.desc} [${p.coords[1].toFixed(4)}, ${p.coords[0].toFixed(4)}]`}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: 6,
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    border: isSelected ? '1px solid #F59E0B' : '1px solid var(--color-border)',
-                    background: isSelected ? 'rgba(245, 158, 11, 0.24)' : 'var(--color-card)',
-                    color: isSelected ? '#FBBF24' : 'var(--app-text)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  📍 {p.label}
-                </button>
-              )
-            })}
-          </div>
-          {activeMock && (
-            <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }}>
-              적용 중: <strong style={{ color: '#FBBF24' }}>{activeMock.desc}</strong> ({activeMock.coords[1].toFixed(4)}°N, {activeMock.coords[0].toFixed(4)}°E · 오차 ±{activeMock.accuracy}m)
-            </div>
-          )}
-        </div>
-      )}
 
       {/* 드롭다운 자동완성 리스트 */}
       {showDropdown && (

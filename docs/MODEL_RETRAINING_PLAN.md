@@ -1,6 +1,6 @@
 # 🧠 모델 재학습 계획서 — 지점 단위(역·정류소·대여소) 수요 분배 모델 및 자치구 모델 v3 (`MODEL_RETRAINING_PLAN`)
 
-> **상태**: Phase 0 완료 (`G0: PASS`, 217,912,809행 감사 완료) · Phase 1 착수 대기  
+> **상태**: Phase 0 완료 (`G0: PASS`) · **Colab 학습 노트북 작성 완료** (`benchmarks/CastTransit_PointShare_v3.ipynb`) → Colab 실행 대기  
 > **대상 모델**: LightGBM 회귀 3종(따릉이·버스·지하철) — 현행 `v2.1-multiyear-32d`  
 > **신규 데이터**: `data/통합데이터/{23,24,25}_통합데이터/정류장_대여소_역_별_퍼센트데이터/` (팀원 추가분, 약 `18.69GB`)  
 > **원칙**: 현행 v2.1은 **게이트를 통과하기 전까지 절대 교체하지 않는다** (롤백 보장). `main`은 사용자 지시 전까지 건드리지 않는다.
@@ -104,6 +104,11 @@ flowchart LR
   - **버스**: 전체 `10,797`개 (`84.18M`행/년) vs `K95` `6,042`개 (`47.11M`행/년)
 - 산출: [`benchmarks/results/point_share_audit_20261116_194804.md`](../benchmarks/results/point_share_audit_20261116_194804.md) · JSON
 - **게이트 G0**: **PASS** — 전 지표 기준 통과. Phase 1 진행 확정.
+
+### Phase 1 ~ Phase 3 Colab 통합 실행 노트북 (`benchmarks/CastTransit_PointShare_v3.ipynb` 준비 완료)
+- Google Colab에서 바로 업로드해 실행할 수 있는 단일 노트북(`16셀`, 누수 가드 및 Drive 캐시 지원) 작성 완료:
+  - **Stage 1 (`v2.1` vs `v3` 마스킹)**: `2023~2025` 공휴일 전수 동기화 + 버스 미관측일(`40일`) 마스킹 비교 및 `G3` 판정
+  - **Stage 2 (`16차원` 지점 점유율 모델)**: 학습구간(`<= 2024-09-30`) 전용 4대 프로필 + 캘린더(8) + 기상(4) 기반 Optuna 튜닝, 2025년 25개 자치구 전수 평가(B0/B1/B2/M2 × 6대 지표) 및 ONNX(`lgb_{bike,bus,subway}_point_share.onnx`) 반출
 
 ### Phase 1 — 데이터셋 구축
 - [ ] 미관측일 마스크 테이블 생성 (수단별 날짜 단위)

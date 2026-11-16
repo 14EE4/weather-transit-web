@@ -271,9 +271,9 @@
 > 계획서: [`MODEL_RETRAINING_PLAN.md`](./MODEL_RETRAINING_PLAN.md). Feature Freeze 기간이므로 **Phase 0~3(분석·학습·평가)만 진행**하고, Phase 4(서빙·UI)와 `main` 반영은 사용자 승인 후 착수한다. 현행 v2.1은 게이트 통과 전까지 교체하지 않는다.
 
 - [x] **[MODEL-01 · Phase 0] 신규 지점 점유율 데이터(`18.69GB`, 75개 CSV) 감사 (완료 · 2026-11-16 · G0: PASS)** — `scripts/audit_point_share_data.py` (`217,912,809`행 스캔, 2025 커버리지 `98.4~100%`, 라벨 `r >= 0.998` → `benchmarks/results/point_share_audit_20261116_194804.md`)
-- [ ] **[MODEL-02 · Phase 1] 미관측일 마스킹 + 학습구간 전용 지점 프로필 + 상위 K·기타 버킷 밀집화 Parquet** → 게이트 G1
-- [ ] **[MODEL-03 · Phase 2] 지점 점유율 모델(베이스라인 B0 균등 / B1 정적 프로필 / 후보 LightGBM)** → 게이트 G2
-- [ ] **[MODEL-04 · Phase 3] 자치구 모델 v3 (결측일 마스킹·평가지표 보강, 선택)** → 게이트 G3, 미통과 시 v2.1 유지
+- [ ] **[MODEL-02 · Phase 1] 미관측일 마스킹 + 학습구간 전용 지점 프로필 + 상위 K·기타 버킷 밀집화 Parquet** — Colab 노트북 `benchmarks/CastTransit_PointShare_v3.ipynb` 구현 완료 (Colab 실행 대기) → 게이트 G1
+- [ ] **[MODEL-03 · Phase 2] 지점 점유율 모델(베이스라인 B0/B1/B2 vs LightGBM M2)** — `CastTransit_PointShare_v3.ipynb` Cell 6~8 구현 완료 (Colab 실행 대기) → 게이트 G2
+- [ ] **[MODEL-04 · Phase 3] 자치구 모델 v3 (결측일 마스킹·평가지표 보강, 선택)** — `CastTransit_PointShare_v3.ipynb` Cell 3 구현 완료 (Colab 실행 대기) → 게이트 G3, 미통과 시 v2.1 유지
 - [ ] **[MODEL-05 · Phase 4] ONNX 변환 · `POST /api/v1/predict/point-demand` · PC/모바일 지점 팝업 연동** (Feature Freeze 해제 승인 후)
 - [ ] **[MODEL-06 · Phase 5] 모델·데이터·성능 문서 동기화**
 

@@ -22,6 +22,9 @@
      - 기존 자치구 라벨 정합성: 2023·2024년 `r = 1.0000`, 2025년 `r = 0.9980~1.0000`.
      - 결과 리포트: `benchmarks/results/point_share_audit_20261116_194804.{json,md}`.
   3. **문서 동기화**: `README.md`, `docs/TODO.md` 반영 완료.
+  4. **Colab 학습·평가 통합 노트북 신설 (`benchmarks/CastTransit_PointShare_v3.ipynb`)**:
+     - `16개 셀` 자기완결형 Colab 파이프라인 구축: Stage 1(`v2.1` vs `v3` 마스킹 비교) + Stage 2(`16차원` 지점 점유율 LightGBM + Optuna 튜닝 + 2025년 25개 자치구 전수 평가 4종 × 6대 정량 지표 + ONNX Opset 14 변환·다운로드).
+     - 미래 정보 누수 컬럼(`연간_점유율(%)` 등) 제외 가드 `assert` 및 Google Drive 중간 캐시 지원.
 
 ---
 

@@ -25,6 +25,10 @@
   4. **Colab 학습·평가 통합 노트북 신설 (`benchmarks/CastTransit_PointShare_v3.ipynb`)**:
      - `16개 셀` 자기완결형 Colab 파이프라인 구축: Stage 1(`v2.1` vs `v3` 마스킹 비교) + Stage 2(`16차원` 지점 점유율 LightGBM + Optuna 튜닝 + 2025년 25개 자치구 전수 평가 4종 × 6대 정량 지표 + ONNX Opset 14 변환·다운로드).
      - 미래 정보 누수 컬럼(`연간_점유율(%)` 등) 제외 가드 `assert` 및 Google Drive 중간 캐시 지원.
+  5. **로컬 전체 학습·2025 전수 평가·ONNX 변환 완료 (`scripts/run_point_share_v3.py`, 총 `2,008.3s`)**:
+     - Stage 1 (`G3: KEEP_V21`): 버스 v3(미관측 40일 마스킹) MAE `175.64 → 169.86` 개선(`R²=0.9976`), 따릉이·지하철 동일(현행 `models/` 유지).
+     - Stage 2 (2025년 25개 자치구 전수 평가): 기존 자치구 균등 분배(`B0`) 대비 `M2` LightGBM(16d) 오차 대폭 절감 — **지하철 WAPE `55.12% → 7.88%` (`MAE 500.41 → 71.54명`, `Spearman ρ=0.9860`, 등급 일치율 `93.11%`, `G2 PASS`), 버스 WAPE `82.64% → 19.08%` (`ρ=0.9382`, 등급 `82.69%`), 따릉이 WAPE `84.00% → 59.71%` (`ρ=0.5443`, 등급 `87.29%`)**.
+     - 산출물(`benchmarks/point_share_v3_2026-11-16/`): ONNX 6종(`1.92~13.06MB`) `onnxruntime` 추론 검증 완료 및 `docs/CURRENT_MODEL_PERFORMANCE.md` §6 반영.
 
 ---
 

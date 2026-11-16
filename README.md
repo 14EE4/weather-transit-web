@@ -150,6 +150,7 @@
 | **현행 데이터** | 📋 **현행 데이터 규격서 (v2.1)** | 2023~2025 3개년 28열 통합 정제 데이터셋 및 32차원 피처 생성 규격 | [`CURRENT_DATA_SPEC.md`](docs/CURRENT_DATA_SPEC.md) |
 | **현행 성능** | 📈 **현행 모델 성능 리포트 (v2.1)** | 2026-10-29 신규 학습 32차원 ONNX 3종 성능($R^2 \ge 0.989$) 및 Optuna 파라미터 | [`CURRENT_MODEL_PERFORMANCE.md`](docs/CURRENT_MODEL_PERFORMANCE.md) |
 | **AI 모델** | 🧩 **AI 모델 사양서 (단일 기준)** | 32차원 입력 특성 스키마, AHP 추천 스코어링 공식 및 서빙 규격 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
+| **AI 모델** | 🧠 **모델 재학습 계획서 (지점 단위 수요 분배)** | 신규 지점 점유율 데이터 활용 2단계 분배 설계, 누수 리스크, 게이트·롤백 정책 (이슈 #116) | [`MODEL_RETRAINING_PLAN.md`](docs/MODEL_RETRAINING_PLAN.md) |
 | **에이전트** | 🤖 **ONNX 모델 × LangGraph 연동 명세서** | ONNX 실시간 혼잡도 추론 결과의 LangGraph 5단계 노드 및 다목적 효용 연동 규격 | [`ONNX_LANGGRAPH_INTEGRATION.md`](docs/ONNX_LANGGRAPH_INTEGRATION.md) |
 | **백엔드** | 🚀 **백엔드 추론 서버 구축 가이드** | FastAPI 인메모리 ONNX 런타임 서빙, 시계열 캐싱 및 REST API 규격 | [`BACKEND_INFERENCE_SERVER.md`](docs/BACKEND_INFERENCE_SERVER.md) |
 | **테스트** | 🧪 **공공 API 및 추론 연동 테스트 가이드** | 외부 공공 API 및 AI 추론 통합 테스트 스위트 실행 방법 및 트러블슈팅 | [`API_TEST_GUIDE.md`](docs/API_TEST_GUIDE.md) |
@@ -538,6 +539,7 @@ weather-transit-web/
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
 │   ├── MODEL_PERFORMANCE_REPORT.md     # ONNX 모델 성능 비교 분석 보고서 (v2: 실피처 32차원 vs 25차원)
 │   ├── AI_MODEL_SPEC.md                # AI 모델 사양서 (모델 규격만 분리한 문서)
+│   ├── MODEL_RETRAINING_PLAN.md        # 지점 단위 수요 분배 모델 재학습 계획서 (이슈 #116)
 │   ├── DATA_PREPROCESSING_HANDOFF.md   # 데이터 전처리 산출물 인수 검수·회신 요청서
 │   └── REQUIREMENTS.md                 # 프로젝트 요구사항 명세서
 └── Weather-Transport Recommendation UI/ # 🌐 프론트엔드 React 웹 대시보드

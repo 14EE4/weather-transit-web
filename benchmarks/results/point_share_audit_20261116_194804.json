@@ -1,0 +1,945 @@
+{
+  "generated_at": "2026-11-16T19:42:56",
+  "limit_files": null,
+  "train_end": "2024-09-30",
+  "years": {
+    "2023": {
+      "quality": {
+        "files": 25,
+        "rows": 72718404,
+        "dup_chunk_local": 0,
+        "nonpositive_usage": 0,
+        "null_usage": 0
+      },
+      "internal": {
+        "따릉이": {
+          "rows": 12512186,
+          "volume": 43621409.0,
+          "observed_dates": 365,
+          "hours": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 2741,
+          "multi_district_points": 0,
+          "hour_groups": 209647,
+          "share_sum_abs_dev_max": 5.600000037020436e-07,
+          "share_sum_abs_dev_p99": 2.499999993688107e-07,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.99999995,
+          "annual_share_sum_max": 100.00000003,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        },
+        "버스": {
+          "rows": 58517713,
+          "volume": 1473685546.0,
+          "observed_dates": 354,
+          "hours": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 10748,
+          "multi_district_points": 0,
+          "hour_groups": 203550,
+          "share_sum_abs_dev_max": 1.3599999988400668e-06,
+          "share_sum_abs_dev_p99": 5.6999999742402e-07,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.99999982,
+          "annual_share_sum_max": 100.00000011,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        },
+        "지하철": {
+          "rows": 1688505,
+          "volume": 1474306936.0,
+          "observed_dates": 365,
+          "hours": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 258,
+          "multi_district_points": 0,
+          "hour_groups": 164250,
+          "share_sum_abs_dev_max": 5.000001124244591e-08,
+          "share_sum_abs_dev_p99": 2.999999537678377e-08,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.99999998,
+          "annual_share_sum_max": 100.00000001000001,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        }
+      },
+      "report_check": {
+        "available": true,
+        "file": "data\\통합데이터\\23_통합데이터\\정류장_대여소_역_별_퍼센트데이터\\검증자료\\2023_validation_report.json",
+        "modes": {
+          "따릉이": {
+            "report_observed_days": 365,
+            "report_missing_days": [],
+            "report_mapped_volume": 43621409,
+            "recount_observed_days": 365,
+            "recount_volume": 43621409.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          },
+          "버스": {
+            "report_observed_days": 354,
+            "report_missing_days": [
+              "2023-01-01",
+              "2023-04-26",
+              "2023-06-05",
+              "2023-06-06",
+              "2023-06-07",
+              "2023-06-08",
+              "2023-06-09",
+              "2023-06-10",
+              "2023-06-11",
+              "2023-07-11",
+              "2023-12-23"
+            ],
+            "report_mapped_volume": 1473685546,
+            "recount_observed_days": 354,
+            "recount_volume": 1473685546.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          },
+          "지하철": {
+            "report_observed_days": 365,
+            "report_missing_days": [],
+            "report_mapped_volume": 1474306936,
+            "recount_observed_days": 365,
+            "recount_volume": 1474306936.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          }
+        }
+      },
+      "label_alignment": {
+        "available": true,
+        "label_files": [
+          "2023_통합데이터_train.csv"
+        ],
+        "modes": {
+          "따릉이": {
+            "matched_cells": 209647,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 1.0,
+            "sum_ratio_point_over_label": 1.0,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 1.0,
+            "share_cells_exact": 1.0
+          },
+          "버스": {
+            "matched_cells": 203550,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 0.9999999999999998,
+            "sum_ratio_point_over_label": 1.0,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 1.0,
+            "share_cells_exact": 1.0
+          },
+          "지하철": {
+            "matched_cells": 164250,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 1.0,
+            "sum_ratio_point_over_label": 1.0,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 1.0,
+            "share_cells_exact": 1.0
+          }
+        }
+      }
+    },
+    "2024": {
+      "quality": {
+        "files": 25,
+        "rows": 74689486,
+        "dup_chunk_local": 0,
+        "nonpositive_usage": 0,
+        "null_usage": 0
+      },
+      "internal": {
+        "따릉이": {
+          "rows": 12522572,
+          "volume": 42479393.0,
+          "observed_dates": 366,
+          "hours": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 2744,
+          "multi_district_points": 0,
+          "hour_groups": 210309,
+          "share_sum_abs_dev_max": 5.400000020472362e-07,
+          "share_sum_abs_dev_p99": 2.499999993688107e-07,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.99999994,
+          "annual_share_sum_max": 100.00000007,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        },
+        "버스": {
+          "rows": 60471172,
+          "volume": 1559352164.0,
+          "observed_dates": 363,
+          "hours": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 10718,
+          "multi_district_points": 0,
+          "hour_groups": 208725,
+          "share_sum_abs_dev_max": 1.330000003463283e-06,
+          "share_sum_abs_dev_p99": 5.6999999742402e-07,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.9999999,
+          "annual_share_sum_max": 100.00000011,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        },
+        "지하철": {
+          "rows": 1695742,
+          "volume": 1520743378.0,
+          "observed_dates": 366,
+          "hours": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 258,
+          "multi_district_points": 0,
+          "hour_groups": 164700,
+          "share_sum_abs_dev_max": 6.000000496442226e-08,
+          "share_sum_abs_dev_p99": 2.999999537678377e-08,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.99999997,
+          "annual_share_sum_max": 100.00000002,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        }
+      },
+      "report_check": {
+        "available": true,
+        "file": "data\\통합데이터\\24_통합데이터\\정류장_대여소_역_별_퍼센트데이터\\검증자료\\검증_보고서.json",
+        "modes": {
+          "따릉이": {
+            "report_observed_days": 366,
+            "report_missing_days": [],
+            "report_mapped_volume": 42479393,
+            "recount_observed_days": 366,
+            "recount_volume": 42479393.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          },
+          "버스": {
+            "report_observed_days": 363,
+            "report_missing_days": [
+              "2024-02-04",
+              "2024-05-28",
+              "2024-05-29"
+            ],
+            "report_mapped_volume": 1559352164,
+            "recount_observed_days": 363,
+            "recount_volume": 1559352164.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          },
+          "지하철": {
+            "report_observed_days": 366,
+            "report_missing_days": [],
+            "report_mapped_volume": 1520743378,
+            "recount_observed_days": 366,
+            "recount_volume": 1520743378.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          }
+        }
+      },
+      "label_alignment": {
+        "available": true,
+        "label_files": [
+          "2024_통합데이터_train.csv"
+        ],
+        "modes": {
+          "따릉이": {
+            "matched_cells": 210309,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 1.0,
+            "sum_ratio_point_over_label": 1.0,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 1.0,
+            "share_cells_exact": 1.0
+          },
+          "버스": {
+            "matched_cells": 208725,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 1.0,
+            "sum_ratio_point_over_label": 1.0,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 1.0,
+            "share_cells_exact": 1.0
+          },
+          "지하철": {
+            "matched_cells": 164700,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 0.9999999999999998,
+            "sum_ratio_point_over_label": 1.0,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 1.0,
+            "share_cells_exact": 1.0
+          }
+        }
+      }
+    },
+    "2025": {
+      "quality": {
+        "files": 25,
+        "rows": 70504919,
+        "dup_chunk_local": 0,
+        "nonpositive_usage": 0,
+        "null_usage": 0
+      },
+      "internal": {
+        "따릉이": {
+          "rows": 11829266,
+          "volume": 36396428.0,
+          "observed_dates": 365,
+          "hours": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 2779,
+          "multi_district_points": 0,
+          "hour_groups": 209697,
+          "share_sum_abs_dev_max": 5.600000037020436e-07,
+          "share_sum_abs_dev_p99": 2.5999999309078703e-07,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.99999993,
+          "annual_share_sum_max": 100.00000007,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        },
+        "버스": {
+          "rows": 56980606,
+          "volume": 1500828366.0,
+          "observed_dates": 339,
+          "hours": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 10797,
+          "multi_district_points": 0,
+          "hour_groups": 194925,
+          "share_sum_abs_dev_max": 1.3500000051180905e-06,
+          "share_sum_abs_dev_p99": 5.6999999742402e-07,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.9999999,
+          "annual_share_sum_max": 100.00000018,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        },
+        "지하철": {
+          "rows": 1695047,
+          "volume": 1544827429.0,
+          "observed_dates": 365,
+          "hours": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "points": 258,
+          "multi_district_points": 0,
+          "hour_groups": 164250,
+          "share_sum_abs_dev_max": 6.000000496442226e-08,
+          "share_sum_abs_dev_p99": 2.999999537678377e-08,
+          "share_groups_dev_gt_0.01": 0,
+          "tot_not_constant_groups": 0,
+          "tot_vs_usage_sum_max_abs_diff": 0.0,
+          "tot_vs_usage_sum_groups_diff_gt_0": 0,
+          "annual_share_sum_min": 99.99999998,
+          "annual_share_sum_max": 100.00000002,
+          "annual_total_vs_usage_max_abs_diff": 0.0
+        }
+      },
+      "report_check": {
+        "available": true,
+        "file": "data\\통합데이터\\25_통합데이터\\정류장_대여소_역_별_퍼센트데이터\\검증데이터\\2025_데이터_검증_보고서.json",
+        "modes": {
+          "지하철": {
+            "report_observed_days": 365,
+            "report_missing_days": [],
+            "report_mapped_volume": 1544827429,
+            "recount_observed_days": 365,
+            "recount_volume": 1544827429.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          },
+          "버스": {
+            "report_observed_days": 339,
+            "report_missing_days": [
+              "2025-01-01",
+              "2025-01-02",
+              "2025-01-03",
+              "2025-01-04",
+              "2025-01-05",
+              "2025-01-06",
+              "2025-01-07",
+              "2025-01-08",
+              "2025-06-30",
+              "2025-07-01",
+              "2025-07-02",
+              "2025-11-28",
+              "2025-11-29",
+              "2025-11-30",
+              "2025-12-01",
+              "2025-12-02",
+              "2025-12-03",
+              "2025-12-04",
+              "2025-12-20",
+              "2025-12-21",
+              "2025-12-22",
+              "2025-12-23",
+              "2025-12-26",
+              "2025-12-27",
+              "2025-12-28",
+              "2025-12-31"
+            ],
+            "report_mapped_volume": 1500828366,
+            "recount_observed_days": 339,
+            "recount_volume": 1500828366.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          },
+          "따릉이": {
+            "report_observed_days": 365,
+            "report_missing_days": [],
+            "report_mapped_volume": 36396428,
+            "recount_observed_days": 365,
+            "recount_volume": 36396428.0,
+            "observed_days_match": true,
+            "volume_rel_diff": 0.0
+          }
+        }
+      },
+      "label_alignment": {
+        "available": true,
+        "label_files": [
+          "2025_통합데이터_test.csv"
+        ],
+        "modes": {
+          "따릉이": {
+            "matched_cells": 209697,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 5,
+            "pearson_r": 0.9999265441814771,
+            "sum_ratio_point_over_label": 0.9941408492221874,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.02727272727272727,
+            "share_cells_within_5pct": 0.9511628683290653,
+            "share_cells_exact": 0.7300247499964234
+          },
+          "버스": {
+            "matched_cells": 194925,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 0.9979793300893267,
+            "sum_ratio_point_over_label": 1.0049672211072325,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 0.981531358214698,
+            "share_cells_exact": 0.9751596767987688
+          },
+          "지하철": {
+            "matched_cells": 164250,
+            "label_positive_cells_on_unobserved_dates": 0,
+            "label_positive_cells_observed_date_without_rows": 0,
+            "pearson_r": 1.0,
+            "sum_ratio_point_over_label": 1.0,
+            "median_ratio": 1.0,
+            "median_abs_rel_diff": 0.0,
+            "p90_abs_rel_diff": 0.0,
+            "share_cells_within_5pct": 1.0,
+            "share_cells_exact": 1.0
+          }
+        }
+      }
+    }
+  },
+  "id_continuity": {
+    "따릉이": {
+      "points": {
+        "2023": 2741,
+        "2024": 2744,
+        "2025": 2779
+      },
+      "jaccard": {
+        "2023-2024": 0.9484902309058615,
+        "2024-2025": 0.9599006387508872
+      },
+      "train_window_points": 2799,
+      "test2025_points": 2779,
+      "test2025_points_unseen_in_train": 89,
+      "test2025_volume_coverage_by_train_points": 0.9841796837865519
+    },
+    "버스": {
+      "points": {
+        "2023": 10748,
+        "2024": 10718,
+        "2025": 10797
+      },
+      "jaccard": {
+        "2023-2024": 0.9866728366496992,
+        "2024-2025": 0.9829493087557604
+      },
+      "train_window_points": 10795,
+      "test2025_points": 10797,
+      "test2025_points_unseen_in_train": 137,
+      "test2025_volume_coverage_by_train_points": 0.9932813836489015
+    },
+    "지하철": {
+      "points": {
+        "2023": 258,
+        "2024": 258,
+        "2025": 258
+      },
+      "jaccard": {
+        "2023-2024": 0.9922779922779923,
+        "2024-2025": 1.0
+      },
+      "train_window_points": 259,
+      "test2025_points": 258,
+      "test2025_points_unseen_in_train": 0,
+      "test2025_volume_coverage_by_train_points": 1.0
+    }
+  },
+  "concentration": {
+    "따릉이": {
+      "districts": 25,
+      "points_total": 2779,
+      "points_per_district_median": 96.0,
+      "k90_median": 65.0,
+      "k90_max": 145,
+      "k90_sum": 1924,
+      "k95_median": 75.0,
+      "k95_max": 170,
+      "k95_sum": 2215,
+      "top1_cum_median": 0.04040404040404041,
+      "top10_cum_median": 0.25509193496682797,
+      "top50_cum_median": 0.792002846550202,
+      "dense_rows_per_year_k90": 16151980,
+      "dense_rows_per_year_k95": 18594925,
+      "dense_rows_per_year_all": 23329705
+    },
+    "버스": {
+      "districts": 25,
+      "points_total": 10797,
+      "points_per_district_median": 439.0,
+      "k90_median": 186.0,
+      "k90_max": 266,
+      "k90_sum": 4743,
+      "k95_median": 240.0,
+      "k95_max": 331,
+      "k95_sum": 6042,
+      "top1_cum_median": 0.030166431865424597,
+      "top10_cum_median": 0.1840761174142305,
+      "top50_cum_median": 0.5177451136809292,
+      "dense_rows_per_year_k90": 36981171,
+      "dense_rows_per_year_k95": 47109474,
+      "dense_rows_per_year_all": 84184209
+    },
+    "지하철": {
+      "districts": 25,
+      "points_total": 258,
+      "points_per_district_median": 11.0,
+      "k90_median": 9.0,
+      "k90_max": 16,
+      "k90_sum": 203,
+      "k95_median": 10.0,
+      "k95_max": 19,
+      "k95_sum": 229,
+      "top1_cum_median": 0.21547041610867138,
+      "top10_cum_median": 0.9701408341808533,
+      "top50_cum_median": 1.0,
+      "dense_rows_per_year_k90": 1333710,
+      "dense_rows_per_year_k95": 1504530,
+      "dense_rows_per_year_all": 1695060
+    }
+  },
+  "g0": {
+    "criteria": {
+      "label_pearson_r_min": 0.98,
+      "label_sum_ratio_range": [
+        0.9,
+        1.1
+      ],
+      "train_coverage_min": 0.95,
+      "share_dev_p99_max": 0.01
+    },
+    "items": [
+      {
+        "check": "label_alignment",
+        "year": "2023",
+        "mode": "따릉이",
+        "pearson_r": 1.0,
+        "sum_ratio": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2024",
+        "mode": "따릉이",
+        "pearson_r": 1.0,
+        "sum_ratio": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2025",
+        "mode": "따릉이",
+        "pearson_r": 0.9999265441814771,
+        "sum_ratio": 0.9941408492221874,
+        "status": "PASS"
+      },
+      {
+        "check": "train_coverage_2025",
+        "mode": "따릉이",
+        "coverage": 0.9841796837865519,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2023",
+        "mode": "버스",
+        "pearson_r": 0.9999999999999998,
+        "sum_ratio": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2024",
+        "mode": "버스",
+        "pearson_r": 1.0,
+        "sum_ratio": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2025",
+        "mode": "버스",
+        "pearson_r": 0.9979793300893267,
+        "sum_ratio": 1.0049672211072325,
+        "status": "PASS"
+      },
+      {
+        "check": "train_coverage_2025",
+        "mode": "버스",
+        "coverage": 0.9932813836489015,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2023",
+        "mode": "지하철",
+        "pearson_r": 1.0,
+        "sum_ratio": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2024",
+        "mode": "지하철",
+        "pearson_r": 0.9999999999999998,
+        "sum_ratio": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "label_alignment",
+        "year": "2025",
+        "mode": "지하철",
+        "pearson_r": 1.0,
+        "sum_ratio": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "train_coverage_2025",
+        "mode": "지하철",
+        "coverage": 1.0,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2023",
+        "mode": "따릉이",
+        "p99_dev": 2.499999993688107e-07,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2023",
+        "mode": "버스",
+        "p99_dev": 5.6999999742402e-07,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2023",
+        "mode": "지하철",
+        "p99_dev": 2.999999537678377e-08,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2024",
+        "mode": "따릉이",
+        "p99_dev": 2.499999993688107e-07,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2024",
+        "mode": "버스",
+        "p99_dev": 5.6999999742402e-07,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2024",
+        "mode": "지하철",
+        "p99_dev": 2.999999537678377e-08,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2025",
+        "mode": "따릉이",
+        "p99_dev": 2.5999999309078703e-07,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2025",
+        "mode": "버스",
+        "p99_dev": 5.6999999742402e-07,
+        "status": "PASS"
+      },
+      {
+        "check": "share_sum_p99_dev",
+        "year": "2025",
+        "mode": "지하철",
+        "p99_dev": 2.999999537678377e-08,
+        "status": "PASS"
+      }
+    ],
+    "overall": "PASS"
+  },
+  "elapsed_sec": 308.55952501296997
+}

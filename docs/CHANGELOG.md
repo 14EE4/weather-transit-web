@@ -34,6 +34,25 @@
 
 ---
 
+### 🚀 Phase 4: 2단계 지점 점유율(32d × 16d) 백엔드 서빙 엔진 & 프론트엔드 UI 연동 완료 (이슈 #116 · PR #118 후속)
+- **배경/목적**:
+  - Phase `0~3` 체크포인트 PR(#118) 병합 이후, 학습·검증된 Stage 2 `16차원` 지점 점유율 모델(`lgb_{bike,bus,subway}_point_share.onnx`)을 실제 FastAPI 서빙 및 React 지도·사이드바 UI에 1:1 통합하여 개별 역·정류소·대여소별 수요/점유율/혼잡도를 실시간 표출.
+- **조치 내역**:
+  1. **경량 서빙 사전통계 번들 생성 (`scripts/export_point_share_serving_bundle.py`)**:
+     - `stage2_priors_cache.pkl`을 컨테이너 내 `pyarrow`/`pandas` 의존성 없이 표준 라이브러리(`gzip`, `json`)만으로 로드 가능한 `models/point_share_priors.json.gz`(`1.64 MB`, 컨테이너 기동 로딩 `527.0 ms`, 총 `8,432`개 지점: 지하철 `259`·버스 `5,967`·따릉이 `2,206`)으로 내보내기 완료.
+     - `models/lgb_{bike,bus,subway}_point_share.onnx`(`2.08 MB`, `2.02 MB`, `13.70 MB`) 및 `models/point_share_schema.json` 운영 `models/` 슬롯 배치 완료.
+  2. **Stage 2 추론 엔진 신설 (`point_share_inference.py`) & `main.py` 통합**:
+     - `PointShareEngine`이 기동 시 `point_share_schema.json::stage2_feature_cols`(`16차원`) 순서 정합성을 단언 검증하고 ONNX 3종을 `CPUExecutionProvider`로 인메모리 웜업.
+     - 지하철(환승역 호선 합산 예: 잠실 `2호선_216,8호선_2815`), 버스(`stId` 9자리 정확 매칭 + 미매칭 정류소 `baseCrowd` 백분위 매핑), 따릉이(대여소명·`stationNo`) 2계층 리졸버(`POINT_EXACT_ONNX` / `POINT_PERCENTILE_ONNX`) 구현.
+     - `PredictionRequest.point_id`, `RecommendationItem` 확장 필드(`district_predicted_volume`, `point_share_pct`, `point_p95`, `inference_tier`, `matched_point_id`), `/health`·`/api/v1/admin/status`의 `point_share_models` 상태 노출 추가(기존 `feature_schema.model_input_dims = 32` / `verified` 완벽 유지).
+  3. **프론트엔드 PC(`App.tsx`) · 모바일(`AppM.tsx`) · 지도 팝업(`TransitMap.tsx`) 1:1 연동**:
+     - 거점 클릭 시 `point_id: stop.stId || stop.stationNo || stop.id` 전달, AI 카드·팝업에 `🎯 지점 AI · 구 내 X.XX%` 배지 및 `구 전체 N명/시 중 X.XX% 점유 · 피크용량(P95)` 표출.
+  4. **Docker 빌드 최적화(`.dockerignore`) 및 통합 검증**:
+     - `.dockerignore`에 `data/통합데이터`(`18.69GB`)·학습 캐시(`cache_point_share_v3`, `*.parquet`, `*.pkl`) 제외 규칙 추가하여 백엔드 빌드 컨텍스트를 `~19GB → 95.25MB`로 단축(기존 `data/*.json`, `data/*.csv`는 온전히 보존).
+     - `tests/test_point_share_inference.py` 신설 및 8종 회귀 테스트 전수 통과; 라이브 Docker 실측(`http://localhost:8100/api/v1/predict/recommendation`) 결과 동일 강남구 내 `강남역(6,760명/시 · 점유 13.88% · 91% 혼잡)` vs `학여울역(149명/시 · 점유 0.31% · 29% 여유)` 변별 확인.
+
+---
+
 ## [2026-11-12]
 
 ### 🐛 버스·따릉이 모드에서 베이스맵 전환 시 지하철 케이싱 선 검게 변하는 현상 수정 (이슈 #113)

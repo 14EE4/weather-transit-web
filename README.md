@@ -113,7 +113,7 @@
       - OpenStreetMap(OSM) 일반 타일 외에 고해상도 위성/항공 사진(Esri World Imagery) 및 지명/도로명 하이브리드 라벨 오버레이를 원클릭(`🗺️ 일반` ↔ `🛰️ 위성`)으로 즉시 전환 지원
       - 선택한 베이스맵 모드는 브라우저 `localStorage`에 자동 영속화되어 재접속 시에도 유지
       - 모바일 환경에서는 텍스트 없이 컴팩트 아이콘으로 슬림화하여 지도 시야 확보, 위성 모드 시 수도권 전철 노선망 외곽선 대비(화이트 반투명 글로우) 자동 최적화
-    - 기상청 초단기실황 날씨와 연계된 32차원 AI 기반 실시간 대중교통 혼잡도 예측 및 맞춤 추천 제공
+    - 기상청 초단기실황 날씨와 연계된 **2단계 계층형 LightGBM AI (`Stage 1: 32d 자치구 수요` × `Stage 2: 16d 개별 지점 점유율`, 총 `8,432`개 역·정류소·대여소 독립 예측)** 실시간 혼잡도 예측 및 맞춤 추천 제공 (이슈 #116)
 
 9. **백엔드 독립형 실시간 모니터링 & 로그 대시보드 (`/health/dashboard`)**
    - 일반 사용자 UI(`http://localhost:3100/`)에는 관리자 요소를 일절 노출하지 않고, 시스템 운영자/개발자 전용 URL로 직접 접근하는 독립 대시보드 제공
@@ -148,9 +148,9 @@
 | :---: | :--- | :--- | :---: |
 | **아키텍처** | 🏛️ **시스템 아키텍처 명세서** | 5-Tier 계층형 구조, C4 컨텍스트, 엔드투엔드 파이프라인 플로우차트 | [`SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md) |
 | **현행 데이터** | 📋 **현행 데이터 규격서 (v2.1)** | 2023~2025 3개년 28열 통합 정제 데이터셋 및 32차원 피처 생성 규격 | [`CURRENT_DATA_SPEC.md`](docs/CURRENT_DATA_SPEC.md) |
-| **현행 성능** | 📈 **현행 모델 성능 리포트 (v2.1)** | 2026-10-29 신규 학습 32차원 ONNX 3종 성능($R^2 \ge 0.989$) 및 Optuna 파라미터 | [`CURRENT_MODEL_PERFORMANCE.md`](docs/CURRENT_MODEL_PERFORMANCE.md) |
-| **AI 모델** | 🧩 **AI 모델 사양서 (단일 기준)** | 32차원 입력 특성 스키마, AHP 추천 스코어링 공식 및 서빙 규격 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
-| **AI 모델** | 🧠 **모델 재학습 계획서 (지점 단위 수요 분배)** | 신규 지점 점유율 데이터 활용 2단계 분배 설계, 누수 리스크, 게이트·롤백 정책 (이슈 #116) | [`MODEL_RETRAINING_PLAN.md`](docs/MODEL_RETRAINING_PLAN.md) |
+| **현행 성능** | 📈 **현행 모델 성능 리포트 (`v2.1` + `v3.0`)** | 32d Stage 1 자치구 모델($R^2 \ge 0.989$) 및 16d Stage 2 지점 점유율 분해 모델(`WAPE 7.88%`) 성능 | [`CURRENT_MODEL_PERFORMANCE.md`](docs/CURRENT_MODEL_PERFORMANCE.md) |
+| **AI 모델** | 🧩 **AI 모델 사양서 (단일 기준)** | Stage 1(`32d`) + Stage 2(`16d`) 입력 스키마, CPU 학습 사유, AHP 추천 스코어링 및 서빙 자산 규격 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
+| **AI 모델** | 🧠 **모델 재학습 계획서 (지점 단위 수요 분배)** | 신규 지점 점유율(`18.69GB`) 기반 Stage 2 분배 구축, 6대 평가 지표, Gate G0~G4 완료 (이슈 #116) | [`MODEL_RETRAINING_PLAN.md`](docs/MODEL_RETRAINING_PLAN.md) |
 | **에이전트** | 🤖 **ONNX 모델 × LangGraph 연동 명세서** | ONNX 실시간 혼잡도 추론 결과의 LangGraph 5단계 노드 및 다목적 효용 연동 규격 | [`ONNX_LANGGRAPH_INTEGRATION.md`](docs/ONNX_LANGGRAPH_INTEGRATION.md) |
 | **백엔드** | 🚀 **백엔드 추론 서버 구축 가이드** | FastAPI 인메모리 ONNX 런타임 서빙, 시계열 캐싱 및 REST API 규격 | [`BACKEND_INFERENCE_SERVER.md`](docs/BACKEND_INFERENCE_SERVER.md) |
 | **테스트** | 🧪 **공공 API 및 추론 연동 테스트 가이드** | 외부 공공 API 및 AI 추론 통합 테스트 스위트 실행 방법 및 트러블슈팅 | [`API_TEST_GUIDE.md`](docs/API_TEST_GUIDE.md) |
@@ -251,7 +251,7 @@ flowchart TD
 
 | 영역 (Domain) | 핵심 기술 및 프레임워크 | 역할 및 활용 상세 |
 | :--- | :--- | :--- |
-| **AI & Machine Learning** | `LightGBM`, `Optuna`, `ONNX Runtime`, `AHP-MCDA` | • 32차원 입력 피처 기반 3개 수단(따릉이/버스/지하철) 다중 회귀 수요 예측<br>• Optuna 베이지안 최적화 기반 자동 하이퍼파라미터 튜닝<br>• C++ 기반 인메모리 **1~3ms 초저지연(Latency SLA 달성) ONNX 추론**<br>• 계층화 분석법(AHP: 기상 57% + 정시성 29% + 혼잡도 14%) 기반 맞춤 추천 스코어링 |
+| **AI & Machine Learning** | `LightGBM`, `Optuna`, `ONNX Runtime`, `AHP-MCDA` | • Stage 1 (`32차원` 자치구 총수요) × Stage 2 (`16차원` 지점 점유율, `point_share_inference.py`) 2단계 계층 예측 (`8,432`개 역·정류소·대여소 독립 예측)<br>• Optuna 베이지안 최적화 기반 하이퍼파라미터 튜닝<br>• C++ 기반 인메모리 **`1~6ms` 초저지연(Latency SLA 달성) ONNX 추론**<br>• 계층화 분석법(AHP: 기상 57% + 정시성 29% + 혼잡도 14%) 기반 맞춤 추천 스코어링 |
 | **Agent & LLM** | `LangGraph`, `FactChat (BAZE Gateway)` | • 상태 기반 멀티모달(지하철+버스+따릉이) 에이전트 경로 오케스트레이션<br>• OpenAI 호환 Gateway를 통한 외부 LLM 실시간 환승 판단 및 자연어 안내 브리핑 |
 | **Backend & Data** | `FastAPI`, `Uvicorn`, `Pydantic v2`, `SQLite (WAL)`, `Pandas`, `NumPy` | • 비동기(Async) 고성능 Python RESTful API 서빙<br>• 32차원 데이터 계약(Data Contract) 및 피처 순서 3중 무결성 검증<br>• 시계열 래그(1h Lag, 3h Rolling) 인메모리/디스크 하이브리드 캐싱 (`timeseries_cache`)<br>• 2023~2025 서울시 3개년 62.9만 건 다년도 완전 그리드 데이터 전처리 및 특성 공학 |
 | **Frontend & GIS** | `React 18`, `TypeScript`, `MapLibre GL JS`, `Vite`, `Tailwind CSS` | • 수도권 561개 역사 정밀 GPS 매핑 및 실시간 노선도 시각화<br>• 줌 레벨에 따른 마커 겹침 방지 **화면 충돌 감지(Collision Detection)** 알고리즘 탑재<br>• 모던 다크 테마 기반 반응형 대시보드 및 API 모니터링 콘솔 로거 (`apiLogger.ts`) |

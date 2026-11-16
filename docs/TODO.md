@@ -266,16 +266,16 @@
 
 ---
 
-### 🧪 3-1. 지점 단위(역·정류소·대여소) 수요 분배 모델 및 자치구 모델 v3 재학습 (진행 중 · 2026-11-16 · 이슈 #116)
+### 🧪 3-1. 지점 단위(역·정류소·대여소) 수요 분배 모델 및 자치구 모델 v3 재학습 (**전체 완료 · 2026-11-16 · 이슈 #116**)
 
-> 계획서: [`MODEL_RETRAINING_PLAN.md`](./MODEL_RETRAINING_PLAN.md). Feature Freeze 기간이므로 **Phase 0~3(분석·학습·평가)만 진행**하고, Phase 4(서빙·UI)와 `main` 반영은 사용자 승인 후 착수한다. 현행 v2.1은 게이트 통과 전까지 교체하지 않는다.
+> 계획서: [`MODEL_RETRAINING_PLAN.md`](./MODEL_RETRAINING_PLAN.md). Phase 0~3 학습·평가 완료 후 체크포인트 PR(#118)을 거쳐, Phase 4~5(Stage 2 `16차원` 지점 점유율 서빙 엔진·UI 팝업/사이드바 연동 및 Docker/문서 동기화)까지 전수 완료.
 
 - [x] **[MODEL-01 · Phase 0] 신규 지점 점유율 데이터(`18.69GB`, 75개 CSV) 감사 (완료 · 2026-11-16 · G0: PASS)** — `scripts/audit_point_share_data.py` (`217,912,809`행 스캔, 2025 커버리지 `98.4~100%`, 라벨 `r >= 0.998` → `benchmarks/results/point_share_audit_20261116_194804.md`)
 - [x] **[MODEL-02 · Phase 1] 미관측일 마스킹 + 학습구간 전용 지점 프로필 + K95/전체 밀집화 (완료 · 2026-11-16 · G1: PASS)** — 버스 `40일` 마스킹, 지하철 `259`·따릉이 `2,205`·버스 `5,966`(+기타) 사전 프로필 산출, 누수 컬럼 0건(`scripts/run_point_share_v3.py`)
-- [x] **[MODEL-03 · Phase 2] 지점 점유율 모델 학습 및 2025 전수 평가 (완료 · 2026-11-16)** — 지하철 `M2 PASS`(WAPE `55.12%→7.88%`, Spearman `0.9860`, 등급 `93.11%`), 버스·따릉이 `B0` 대비 `-76.9%` / `-28.9%` 개선(`B2` 동등 폴백 권장 → `benchmarks/results/point_share_eval_20261116_215626.md`)
-- [x] **[MODEL-04 · Phase 3] 자치구 모델 v3 비교 평가 (완료 · 2026-11-16 · G3: KEEP_V21)** — 버스 v3 마스킹 MAE `175.64→169.86` 개선, 따릉이·지하철 동일 (`models/` 현행 v2.1 유지, v3 ONNX는 `benchmarks/point_share_v3_2026-11-16/` 보관)
-- [ ] **[MODEL-05 · Phase 4] ONNX 변환 · `POST /api/v1/predict/point-demand` · PC/모바일 지점 팝업 연동** (Feature Freeze 해제 승인 후)
-- [ ] **[MODEL-06 · Phase 5] 모델·데이터·성능 문서 동기화**
+- [x] **[MODEL-03 · Phase 2] 지점 점유율 모델 학습 및 2025 전수 평가 (완료 · 2026-11-16)** — 지하철 `M2 PASS`(WAPE `55.12%→7.88%`, Spearman `0.9860`, 등급 `93.11%`), 버스·따릉이 `B0` 대비 `-76.9%` / `-28.9%` 개선(`benchmarks/results/point_share_eval_20261116_215626.md`)
+- [x] **[MODEL-04 · Phase 3] 자치구 모델 v3 비교 평가 (완료 · 2026-11-16 · G3: KEEP_V21)** — 버스 v3 마스킹 MAE `175.64→169.86` 개선, 따릉이·지하철 동일 (`models/` 현행 32d v2.1 유지, v3 ONNX는 `benchmarks/point_share_v3_2026-11-16/` 보관)
+- [x] **[MODEL-05 · Phase 4] ONNX 서빙 엔진 · `POST /api/v1/predict/recommendation` 지점 정밀 분해 · PC/모바일 UI 팝업 연동 (완료 · 2026-11-16)** — `point_share_inference.py`, `models/lgb_{bike,bus,subway}_point_share.onnx`, `models/point_share_priors.json.gz` (`8,432`개 지점), `TransitMap.tsx`·`App.tsx`·`AppM.tsx` 1:1 연동, `.dockerignore` 최적화 및 Docker 재빌드/헬스체크 통과
+- [x] **[MODEL-06 · Phase 5] 모델·백엔드·성능·운영 문서 전수 동기화 (완료 · 2026-11-16)** — `MODEL_RETRAINING_PLAN.md`, `AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `BACKEND_INFERENCE_SERVER.md`, `CHANGELOG.md`, `README.md` 갱신 완료
 
 ---
 

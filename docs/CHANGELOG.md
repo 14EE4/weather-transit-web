@@ -29,6 +29,8 @@
      - Stage 1 (`G3: KEEP_V21`): 버스 v3(미관측 40일 마스킹) MAE `175.64 → 169.86` 개선(`R²=0.9976`), 따릉이·지하철 동일(현행 `models/` 유지).
      - Stage 2 (2025년 25개 자치구 전수 평가): 기존 자치구 균등 분배(`B0`) 대비 `M2` LightGBM(16d) 오차 대폭 절감 — **지하철 WAPE `55.12% → 7.88%` (`MAE 500.41 → 71.54명`, `Spearman ρ=0.9860`, 등급 일치율 `93.11%`, `G2 PASS`), 버스 WAPE `82.64% → 19.08%` (`ρ=0.9382`, 등급 `82.69%`), 따릉이 WAPE `84.00% → 59.71%` (`ρ=0.5443`, 등급 `87.29%`)**.
      - 산출물(`benchmarks/point_share_v3_2026-11-16/`): ONNX 6종(`1.92~13.06MB`) `onnxruntime` 추론 검증 완료 및 `docs/CURRENT_MODEL_PERFORMANCE.md` §6 반영.
+  6. **모델 학습 환경 명세 및 CPU 학습 선정 이유 문서화**:
+     - `docs/MODEL_RETRAINING_PLAN.md` §7, `docs/CURRENT_MODEL_PERFORMANCE.md` §5.2, `docs/AI_MODEL_SPEC.md` §2-1에 실측 학습 환경(`Windows 11`, `AMD Ryzen 5 5600 6C/12T`, `15.9GB RAM`, 보유 GPU `RTX 4060`, `Python 3.10.11`, `LightGBM 4.7.0`, `Optuna 5.1.0`)과 GPU 대신 멀티코어 CPU로 학습하는 4대 기술적 근거(조건 분기 연산 특성, `16~32차원` PCIe 병목 회피, 결정론적 재현성, 서빙 일관성) 수록.
 
 ---
 

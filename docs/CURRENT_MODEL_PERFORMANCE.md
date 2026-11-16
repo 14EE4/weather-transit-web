@@ -67,15 +67,21 @@
 
 ---
 
-## 5. 추론 서빙 및 시스템 레이턴시
+## 5. 추론 서빙 및 학습 환경 명세
 
-- **런타임**: ONNX Runtime (CPU Execution Provider)
+### 5.1 실시간 추론 레이턴시 (`v2.1` 서빙)
+- **런타임**: ONNX Runtime (`CPUExecutionProvider`)
 - **단건 추론 시간**:
   - `bike`: **0.057 ms**
   - `bus`: **0.054 ms**
   - `subway`: **0.056 ms**
   - **3종 수단 동시 추론 합산**: **약 0.17 ms**
 - **SLA 검증**: 시스템 목표 요구사항인 **10ms 이내 추론 대비 50배 이상의 초고속 서빙 속도**를 달성하였습니다.
+
+### 5.2 모델 학습 하드웨어·소프트웨어 환경 (`2026-11-16` Stage 1·2 로컬 학습 기준)
+- **OS / CPU / RAM**: `Windows 11 Home (64-bit)` · **`AMD Ryzen 5 5600` (6코어 12스레드, `n_jobs=-1`)** · `15.9 GB RAM` (보유 GPU: `NVIDIA GeForce RTX 4060`)
+- **SW 스택 (`.venv`)**: `Python 3.10.11` · `LightGBM 4.7.0` · `Optuna 5.1.0` · `Pandas 2.3.3` · `NumPy 2.2.6` · `PyArrow 25.0.1` · `onnxmltools` (Opset 14)
+- **왜 GPU 대신 CPU로 학습하는가?**: LightGBM은 행렬 곱셈(딥러닝)이 아니라 조건 분기와 히스토그램 탐색 중심 알고리즘이며, 본 프로젝트의 **`16~32차원` 정형 데이터**는 PCIe GPU 전송 오버헤드보다 12스레드 CPU 캐시 연산이 효율적입니다. 또한 GPU `atomicAdd` 비결정성 없이 **100% 결정론적 재현성**과 운영 CPU 서빙 환경과의 일관성을 보장합니다 (상세 근거: [`MODEL_RETRAINING_PLAN.md` §7](./MODEL_RETRAINING_PLAN.md#7-컴퓨팅-및-모델-학습-환경-왜-gpu-대신-cpu로-학습하는가)).
 
 ---
 

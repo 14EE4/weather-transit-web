@@ -165,11 +165,34 @@ flowchart LR
 
 ---
 
-## 7. 컴퓨팅 및 인프라
+## 7. 컴퓨팅 및 모델 학습 환경 (왜 GPU 대신 CPU로 학습하는가?)
 
-- 로컬: RAM `15.9GB`, **RTX 4060**, D: 여유 `227GB`. LightGBM은 CPU로 충분 → 전처리·밀집화는 **청크 + Parquet**.
-- 로컬 Python에는 `lightgbm`·`pyarrow`·`optuna`가 없으므로 **전용 가상환경/컨테이너**로 분리 (운영 `requirements.txt`·Docker 이미지 오염 방지).
-- 메모리 초과 시 Colab 폴백 (기존 `CastTransit.ipynb`·`retrain_25d_colab.ipynb` 운영 방식 재사용).
+### 7.1 실측 학습·평가 환경 스펙 (`2026-11-16` 로컬 학습 기준)
+
+| 구분 | 상세 사양 | 비고 |
+| :--- | :--- | :--- |
+| **OS** | `Microsoft Windows 11 Home` (`64-bit`, `10.0.26300`) | — |
+| **CPU (학습·추론)** | **`AMD Ryzen 5 5600 6-Core Processor` (6코어 12스레드)** | `n_jobs=-1` 전 스레드 병렬 학습 |
+| **GPU (보유)** | `NVIDIA GeForce RTX 4060` | 정형 GBDT 특성상 미사용 (사유 §7.2) |
+| **메모리 / 디스크** | `15.9 GB RAM` / 로컬 SSD (`D:` 여유 `227.5 GB`) | `18.69 GB` 원천 스캔 `약 70만 행/초` |
+| **Python / ML 스택** | `Python 3.10.11` · `LightGBM 4.7.0` · `Optuna 5.1.0` | 전용 `.venv` 격리 (운영 이미지 오염 0) |
+| **전처리 / ONNX** | `Pandas 2.3.3` · `NumPy 2.2.6` · `PyArrow 25.0.1` · `onnxmltools` (Opset 14) | `ONNX Runtime CPUExecutionProvider` |
+
+> 💡 **Colab 대비 로컬 실행 이점**: `18.69 GB` CSV를 Google Drive 마운트로 읽으면 네트워크/FUSE 병목으로 20~40분 이상 걸리지만, 로컬 SSD + 12스레드 CPU 직결 처리로 전체 75개 CSV 스캔을 약 5분(`309s`) 만에 완료했습니다. (노트북 `CastTransit_PointShare_v3.ipynb` 는 Colab fallback 용으로도 그대로 호환됩니다.)
+
+### 7.2 보유 중인 GPU(`RTX 4060`) 대신 멀티코어 CPU로 학습한 4가지 기술적 이유
+
+1. **연산 구조 차이 (행렬 곱셈 vs 조건 분기·히스토그램 탐색)**:
+   - 딥러닝(CNN·Transformer 등)은 수억 개 가중치의 고밀도 **행렬 곱셈(GEMM)**이 핵심이라 GPU의 수천 개 코어가 필수적입니다.
+   - 반면 **LightGBM(GBDT)**은 연속형 수치의 이산 버킷(`256`개) 히스토그램 생성과 `if-else` 조건 분기·불규칙한 샘플 인덱스 분할이 중심이므로, 강력한 **분기 예측(Branch Prediction)과 대용량 L3 캐시를 갖춘 멀티코어 CPU 아키텍처**에 본질적으로 더 적합합니다.
+2. **저차원(`16~32차원`) 정형 데이터에서의 PCIe 전송 병목**:
+   - LightGBM 공식 가이드에서도 GPU 가속은 피처 수백 개 이상의 초고차원 밀집 행렬에서만 유리하며, 본 프로젝트처럼 **`16~32차원` 정형 데이터**에서는 메인 메모리(`RAM`) ↔ 비디오 메모리(`VRAM`) 간 PCIe 복사 및 GPU 커널 런칭 오버헤드 때문에 12스레드 CPU(`n_jobs=-1`)가 GPU와 동등하거나 오히려 더 빠릅니다.
+   - 실제로 150만 행 단일 LightGBM 모델 `fit`은 CPU에서 수 초 만에 끝나며, 전체 파이프라인 시간(`2,008s`)의 대부분은 원천 `18.69 GB` CSV 디스크 스트리밍과 6,713만 셀 전수 평가 연산에 쓰였습니다.
+3. **완벽한 재현성 (Deterministic Reproducibility)**:
+   - GPU 히스토그램 구축은 부동소수점 `atomicAdd` 연산 순서에 따라 결과가 실행마다 미세하게 달라지는 비결정성(Non-determinism)이 발생할 수 있습니다.
+   - CPU 학습(`random_state=42`)은 로컬 PC, Google Colab, 그리고 실제 운영 Docker 서빙(`CPUExecutionProvider`) 간에 항상 **동일하고 재현 가능한 결과**를 보장합니다.
+4. **의존성 경량화 및 학습-서빙 환경 일치**:
+   - 별도의 CUDA/OpenCL 커스텀 빌드 없이 표준 `lightgbm` 배포판 Wheel만으로 즉시 구동되며, 외장 GPU가 없는 실제 운영 Docker 서버와 동일한 CPU 추론 경로를 일관되게 유지할 수 있습니다.
 
 ---
 

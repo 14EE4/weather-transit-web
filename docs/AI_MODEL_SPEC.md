@@ -268,14 +268,23 @@ $$Score_m = \max\left(5, \; \min\left(99, \; 100 - \left( 0.5714 \cdot \text{Wea
 
 ## 6. 배포 모델 자산 명세 (`models/`)
 
-모든 배포 모델은 `models/` 디렉터리에 위치하며 서빙 시작 시 `ModelRegistry`에 의해 무결성 검증을 거칩니다.
+모든 배포 모델은 `models/` 디렉터리에 위치하며 서빙 시작 시 `ModelRegistry`(32d Stage 1) 및 `PointShareEngine`(16d Stage 2, `point_share_inference.py`)에 의해 차원·피처 순서 무결성 검증을 거칩니다.
 
-| 자산 파일명 | 알고리즘 | 추론 타깃 | 텐서 형상 | 파일 크기 | SHA-256 (Prefix) |
+| 자산 파일명 | 알고리즘 / 계층 | 추론 타깃 | 텐서 형상 | 파일 크기 | SHA-256 (Prefix) |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| `lgb_bike_demand.onnx` | LightGBM GBDT | 따릉이_대여 | `[None, 32]` | 7,020,769 B | `b491fa58...` |
-| `lgb_bus_demand.onnx` | LightGBM GBDT | 버스_승차 | `[None, 32]` | 13,596,760 B | `0fcabf26...` |
-| `lgb_subway_demand.onnx` | LightGBM GBDT | 지하철_승차 | `[None, 32]` | 7,345,447 B | `cf578b7b...` |
-| `feature_schema.json` | JSON Schema | 메타/SSoT | — | 3,180 B | `473f309a...` |
+| `lgb_bike_demand.onnx` | LightGBM (Stage 1) | 자치구 따릉이_대여 | `[None, 32]` | 6,925,949 B | `96f15c8e...` |
+| `lgb_bus_demand.onnx` | LightGBM (Stage 1) | 자치구 버스_승차 | `[None, 32]` | 11,095,656 B | `fca958ca...` |
+| `lgb_subway_demand.onnx` | LightGBM (Stage 1) | 자치구 지하철_승차 | `[None, 32]` | 13,351,498 B | `cd158fd9...` |
+| `feature_schema.json` | JSON Schema | Stage 1 SSoT | — | 3,232 B | `b1580139...` |
+| `lgb_bike_point_share.onnx` | LightGBM (Stage 2) | 대여소 점유율(`%`) | `[None, 16]` | 2,075,814 B | `a72bdcfa...` |
+| `lgb_bus_point_share.onnx` | LightGBM (Stage 2) | 정류소 점유율(`%`) | `[None, 16]` | 2,017,590 B | `1189b8cc...` |
+| `lgb_subway_point_share.onnx` | LightGBM (Stage 2) | 역사 점유율(`%`) | `[None, 16]` | 13,697,636 B | `7ad2edf8...` |
+| `point_share_schema.json` | JSON Schema | Stage 2 16d SSoT | — | 8,798 B | `e38e685b...` |
+| `point_share_priors.json.gz` | Gzip JSON 번들 | `8,432`개 지점 사전통계 | — | 1,721,187 B | `214e8cd5...` |
+
+> **📌 Stage 2 `16차원` 지점 점유율 모델 결합 서빙 (`point_share_inference.py`)**:
+> - 입력 피처(`models/point_share_schema.json::stage2_feature_cols`): `month_sin`, `month_cos`, `hour_sin`, `hour_cos`, `dayofweek`, `is_weekend`, `is_holiday`, `is_rush_hour`, `temperature`, `precipitation`, `wind_speed`, `humidity`, `point_prior_base_share`, `point_prior_dow_hour_share`, `point_prior_rush_ratio`, `point_prior_rain_elasticity`.
+> - 예측 산식: `y_hat(지점) = Stage1_자치구수요 × (Stage2_지점점유율 / 100)`. (`/health` 응답의 `point_share_models` 필드에서 실시간 로드·검증 상태 확인 가능.)
 
 ---
 

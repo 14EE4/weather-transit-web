@@ -566,7 +566,7 @@ export default function TransitMap({
           <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
             ⏳ 기상청 실시간 관측 및 AI 모델 추론 중...
           </div>
-          <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 32차원 LightGBM AI 연산 진행</div>
+          <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 2단계(32d×16d) LightGBM AI 연산 진행</div>
         </div>
       `
     } else if (weatherData) {
@@ -631,7 +631,7 @@ export default function TransitMap({
               <span>🤖</span> AI 수요 추론 (${rec.name})
             </span>
             <span style="font-size: 9px; font-weight: 700; color: #C084FC; background: rgba(168,85,247,0.22); padding: 1px 5px; border-radius: 4px;">
-              ⚡ LightGBM AI
+              ${rec.point_share_pct != null ? `🎯 지점 AI · 구 내 ${Number(rec.point_share_pct).toFixed(2)}%` : '⚡ LightGBM AI'}
             </span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">
@@ -641,6 +641,12 @@ export default function TransitMap({
           <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 5px;">
             <div style="width: ${displayCrowd}%; height: 100%; background: ${displayColor}; border-radius: 2px;"></div>
           </div>
+          ${rec.district_predicted_volume != null && rec.point_share_pct != null ? `
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: var(--color-muted); margin-bottom: 5px; font-family: monospace;">
+              <span>구 전체 ${Number(rec.district_predicted_volume).toLocaleString()}명/시 중 ${Number(rec.point_share_pct).toFixed(2)}%</span>
+              ${rec.point_p95 != null ? `<span>피크(P95) ${Math.round(Number(rec.point_p95)).toLocaleString()}명</span>` : ''}
+            </div>
+          ` : ''}
           <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: var(--color-card2); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
             ${rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석'}
           </div>
@@ -973,6 +979,7 @@ export default function TransitMap({
       const aiPayload = {
         district,
         station: stop.name,
+        point_id: stop.stId || stop.stationNo || stop.id,
         stop_type: stop.type,
         base_crowd: stop.baseCrowd,
         hour: currentHour,

@@ -28,3 +28,14 @@ data/timeseries_cache.db
 **/timeseries_cache.db
 *.db-shm
 *.db-wal
+
+# Large raw datasets & training caches (not needed in runtime container)
+data/통합데이터
+data/통합데이터/**
+benchmarks/cache_point_share_v3
+benchmarks/point_share_v3_2026-11-16
+benchmarks/archive
+raw_data
+*.parquet
+*.pkl
+*.h5

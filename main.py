@@ -51,6 +51,7 @@ from feature_schema import (
     schema_summary,
     validate_expected_order,
 )
+from point_share_inference import point_share_engine
 
 # ==============================================================================
 # 0. 로깅 및 환경 설정
@@ -635,6 +636,9 @@ class ModelRegistry:
         self.is_loaded = True
         logger.info("All 3 ONNX models successfully loaded in-memory and warmed up.")
 
+        # Stage 2 (16차원 지점 점유율 분해 모델 및 사전통계 번들) 로드
+        point_share_engine.load()
+
     def _warmup(self):
         for name, sess in [("bike", self.bike_session), ("bus", self.bus_session), ("subway", self.subway_session)]:
             inp_meta = sess.get_inputs()[0]
@@ -691,6 +695,7 @@ class PredictionRequest(BaseModel):
     station: Optional[str] = Field(default=None, description="특정 역사 또는 정류소 명칭", example="강남역")
     stop_type: Optional[str] = Field(default=None, description="교통수단 유형 (subway, bus, bike)", example="subway")
     base_crowd: Optional[int] = Field(default=None, description="역/정류소 기준 혼잡도 (0~100)", example=88)
+    point_id: Optional[str] = Field(default=None, description="정류소/대여소/역 고유 지점 ID (stId, stationNo 등)", example="2호선_222")
 
 class RecommendationItem(BaseModel):
     id: str
@@ -707,6 +712,11 @@ class RecommendationItem(BaseModel):
     crowdColor: str
     predicted_volume: int
     predicted_demand: int
+    district_predicted_volume: Optional[int] = None
+    point_share_pct: Optional[float] = None
+    point_p95: Optional[float] = None
+    inference_tier: Optional[str] = None
+    matched_point_id: Optional[str] = None
 
 class WeatherSummary(BaseModel):
     condition: str
@@ -1281,6 +1291,7 @@ async def get_admin_system_status():
         "uptime": get_system_uptime_str(),
         "models_loaded": registry.is_loaded,
         "feature_schema": registry.schema_report(),
+        "point_share_models": point_share_engine.status_report(),
         "circuit_breakers": {
             "kma_weather": kma_circuit_breaker.get_status(),
             "seoul_subway": subway_circuit_breaker.get_status(),
@@ -1343,6 +1354,7 @@ async def health_check():
         "dashboard_url": "/health/dashboard",
         "models_loaded": registry.is_loaded,
         "feature_schema": registry.schema_report(),
+        "point_share_models": point_share_engine.status_report(),
         "circuit_breakers": {
             "kma_weather": kma_circuit_breaker.state,
             "seoul_subway": subway_circuit_breaker.state,
@@ -1429,8 +1441,9 @@ async def predict_recommendation(req: PredictionRequest):
             logger.warning("[ONNX 추론] 기상청 단기예보 자동 조회 실패로 기본값(맑음)을 적용합니다 (%s): %s", norm_district, sanitize_exception(exc))
             weather = WeatherInput()
 
-    # 1. 32차원 피처 벡터 조립
-    features_32 = build_feature_vector(norm_district, req.hour, weather)
+    # 1. 32차원 피처 벡터 조립 (Stage 1)
+    now_dt = get_kst_now()
+    features_32 = build_feature_vector(norm_district, req.hour, weather, dt=now_dt)
 
     # 2. 세션별 텐서 준비 및 ONNX 추론 실행
     bike_tensor = prepare_session_input(features_32, registry.bike_session)
@@ -1509,6 +1522,8 @@ async def predict_recommendation(req: PredictionRequest):
             crowdColor=get_crowd_color(subway_crowd),
             predicted_volume=int(round(subway_demand)),
             predicted_demand=int(round(subway_demand)),
+            district_predicted_volume=int(round(subway_demand)),
+            inference_tier="DISTRICT_ONNX",
         ),
         RecommendationItem(
             id="bus",
@@ -1525,6 +1540,8 @@ async def predict_recommendation(req: PredictionRequest):
             crowdColor=get_crowd_color(bus_crowd),
             predicted_volume=int(round(bus_demand)),
             predicted_demand=int(round(bus_demand)),
+            district_predicted_volume=int(round(bus_demand)),
+            inference_tier="DISTRICT_ONNX",
         ),
         RecommendationItem(
             id="bike",
@@ -1541,21 +1558,60 @@ async def predict_recommendation(req: PredictionRequest):
             crowdColor=get_crowd_color(bike_crowd),
             predicted_volume=int(round(bike_demand)),
             predicted_demand=int(round(bike_demand)),
+            district_predicted_volume=int(round(bike_demand)),
+            inference_tier="DISTRICT_ONNX",
         ),
     ]
 
-    # 특정 역사/정류소에 대한 정밀 추론 요청인 경우 역 특성 및 가중치 반영 (알약 UI 및 팝업 일치화)
+    # 특정 역사/정류소/대여소에 대한 Stage 2 (16차원 Point-Share ONNX) 지점 정밀 분해 추론
     target_stop_type = req.stop_type or ("subway" if "역" in (req.station or "") else None)
-    if req.station and req.base_crowd is not None:
-        station_crowd = calculate_station_crowd(
-            base=req.base_crowd,
-            hour=req.hour,
-            rain=weather.rain,
-            stop_type=target_stop_type or "subway",
-            station_name=req.station
-        )
+    target_mode = target_stop_type if target_stop_type in ("subway", "bus", "bike") else ("subway" if req.station else None)
+    if (req.station or req.point_id) and target_mode:
+        is_hol = is_kr_public_holiday(now_dt)
         for r in recommendations:
-            if target_stop_type and r.id == target_stop_type:
+            if r.id != target_mode:
+                continue
+            pt = point_share_engine.predict_point(
+                mode=target_mode,
+                district=norm_district,
+                hour=req.hour,
+                temp=weather.temp,
+                rain=weather.rain,
+                wind=weather.wind,
+                humidity=weather.humidity,
+                district_volume=float(r.predicted_volume),
+                station_name=req.station,
+                point_id=req.point_id,
+                base_crowd=req.base_crowd,
+                dt=now_dt,
+                is_holiday=is_hol,
+            )
+            if pt is not None:
+                r.predicted_volume = int(pt["predicted_volume"])
+                r.predicted_demand = int(pt["predicted_volume"])
+                r.district_predicted_volume = int(pt["district_predicted_volume"])
+                r.point_share_pct = float(pt["point_share_pct"])
+                r.point_p95 = float(pt["point_p95"])
+                r.inference_tier = str(pt["inference_tier"])
+                r.matched_point_id = str(pt["matched_point_id"])
+                r.crowd = int(pt["crowd"])
+                r.crowdLabel = get_crowd_label(r.crowd)
+                r.crowdColor = get_crowd_color(r.crowd)
+                point_label = req.station or req.point_id or r.name
+                r.reasons.insert(
+                    0,
+                    f"{point_label} 지점 점유율 {r.point_share_pct:.2f}% "
+                    f"({norm_district} 전체 {r.district_predicted_volume:,}명 중 {r.predicted_volume:,}명/시) · "
+                    f"기상({weather.temp:.1f}°C, 강수 {weather.rain}mm) 반영 2단계 LightGBM AI 추론",
+                )
+            elif req.station and req.base_crowd is not None:
+                station_crowd = calculate_station_crowd(
+                    base=req.base_crowd,
+                    hour=req.hour,
+                    rain=weather.rain,
+                    stop_type=target_mode,
+                    station_name=req.station,
+                )
                 r.crowd = station_crowd
                 r.crowdLabel = get_crowd_label(station_crowd)
                 r.crowdColor = get_crowd_color(station_crowd)
@@ -1565,7 +1621,12 @@ async def predict_recommendation(req: PredictionRequest):
                     r.predicted_volume = int(round(station_crowd * 18))
                 elif r.id == "bike":
                     r.predicted_volume = int(round(station_crowd * 0.45))
-                r.reasons.insert(0, f"{req.station} 역사 고유 특성 및 실시간 기상 관측({weather.temp:.1f}°C, 강수 {weather.rain}mm) 반영 AI 추론")
+                r.predicted_demand = r.predicted_volume
+                r.inference_tier = "HEURISTIC_FALLBACK"
+                r.reasons.insert(
+                    0,
+                    f"{req.station} 역사 고유 특성 및 실시간 기상 관측({weather.temp:.1f}°C, 강수 {weather.rain}mm) 반영 AI 추론",
+                )
 
     # 추천 점수 내림차순 정렬
     recommendations.sort(key=lambda x: x.score, reverse=True)

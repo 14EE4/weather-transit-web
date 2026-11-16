@@ -1,0 +1,285 @@
+{
+  "model_version": "v3.0-point-share-colab",
+  "stage1_feature_dim": 32,
+  "stage1_feature_cols": [
+    "month_sin",
+    "month_cos",
+    "hour_sin",
+    "hour_cos",
+    "dayofweek",
+    "is_weekend",
+    "is_holiday",
+    "is_rush_hour",
+    "temperature",
+    "wind_speed",
+    "humidity",
+    "precipitation",
+    "is_raining",
+    "rain_intensity",
+    "sensible_temp",
+    "discomfort_index",
+    "district_code",
+    "district_subway_stations",
+    "district_bus_stops",
+    "district_bike_racks",
+    "commercial_density",
+    "따릉이_대여_lag_1h",
+    "버스_승차_lag_1h",
+    "지하철_승차_lag_1h",
+    "따릉이_대여_roll_3h",
+    "버스_승차_roll_3h",
+    "지하철_승차_roll_3h",
+    "same_day_last_week_bike",
+    "same_day_last_week_bus",
+    "same_day_last_week_sub",
+    "temp_diff_1h",
+    "rain_diff_1h"
+  ],
+  "stage2_feature_dim": 16,
+  "stage2_feature_cols": [
+    "month_sin",
+    "month_cos",
+    "hour_sin",
+    "hour_cos",
+    "dayofweek",
+    "is_weekend",
+    "is_holiday",
+    "is_rush_hour",
+    "temperature",
+    "precipitation",
+    "wind_speed",
+    "humidity",
+    "point_prior_base_share",
+    "point_prior_dow_hour_share",
+    "point_prior_rush_ratio",
+    "point_prior_rain_elasticity"
+  ],
+  "forbidden_leakage_cols_verified": [
+    "시간대_점유율(%)",
+    "연간_점유율(%)",
+    "이용량",
+    "지점_연간총이용량",
+    "행정구_시간대총이용량",
+    "행정구_연간총이용량"
+  ],
+  "split": {
+    "train": "2023-01-01~2024-09-30",
+    "valid": "2024-10-01~2024-12-31",
+    "test": "2025-01-01~2025-12-31"
+  },
+  "stage2_best_params": {
+    "bike": {
+      "learning_rate": 0.06555049906622845,
+      "num_leaves": 99,
+      "max_depth": 9,
+      "min_child_samples": 124,
+      "subsample": 0.7971213229266811,
+      "colsample_bytree": 0.6739449875945781,
+      "reg_alpha": 0.2982429973046393,
+      "reg_lambda": 0.23112300589874643
+    },
+    "bus": {
+      "learning_rate": 0.059007028486552295,
+      "num_leaves": 108,
+      "max_depth": 10,
+      "min_child_samples": 151,
+      "subsample": 0.9495781809281885,
+      "colsample_bytree": 0.9774368247898053,
+      "reg_alpha": 0.9532321565011224,
+      "reg_lambda": 0.5917243188476904
+    },
+    "subway": {
+      "learning_rate": 0.10101897877665829,
+      "num_leaves": 124,
+      "max_depth": 10,
+      "min_child_samples": 198,
+      "subsample": 0.7987072220896116,
+      "colsample_bytree": 0.9546549645952445,
+      "reg_alpha": 0.8306695283066395,
+      "reg_lambda": 2.0055714309537698
+    }
+  },
+  "evaluation": {
+    "generated_at": "2026-11-16T21:56:26",
+    "stage1": {
+      "bike": {
+        "v2.1": {
+          "wape": 6.729126630589855,
+          "mae": 11.738399751432071,
+          "rmse": 21.956015717573255,
+          "r2": 0.9898640511926122
+        },
+        "v3": {
+          "wape": 6.729126630589855,
+          "mae": 11.738399751432071,
+          "rmse": 21.956015717573255,
+          "r2": 0.9898640511926122
+        },
+        "winner": "v2.1"
+      },
+      "bus": {
+        "v2.1": {
+          "wape": 2.2924903172604516,
+          "mae": 175.63824941874287,
+          "rmse": 283.1246431957063,
+          "r2": 0.9974806239527049
+        },
+        "v3": {
+          "wape": 2.2171076323728367,
+          "mae": 169.86283448657977,
+          "rmse": 275.35720468696275,
+          "r2": 0.997616964344524
+        },
+        "winner": "v3"
+      },
+      "subway": {
+        "v2.1": {
+          "wape": 2.782522230250743,
+          "mae": 204.81318227962365,
+          "rmse": 501.5334801439785,
+          "r2": 0.9970410178707984
+        },
+        "v3": {
+          "wape": 2.782522230250743,
+          "mae": 204.81318227962365,
+          "rmse": 501.5334801439785,
+          "r2": 0.9970410178707984
+        },
+        "winner": "v2.1"
+      }
+    },
+    "stage2": {
+      "bike": {
+        "B0_uniform": {
+          "wape_pct": 84.00297709309783,
+          "mae_volume": 1.6331567784339838,
+          "mae_share_pp": 1.193754662807343,
+          "rmse_volume": 3.6114703455485726,
+          "spearman_median": 0.0,
+          "grade_acc_pct": 80.38282449781927,
+          "r2": 0.22349340533327156
+        },
+        "B1_base_prior": {
+          "wape_pct": 67.03618378943773,
+          "mae_volume": 1.3032942610442568,
+          "mae_share_pp": 1.0372655612549315,
+          "rmse_volume": 2.6335521676266564,
+          "spearman_median": 0.4469361160039694,
+          "grade_acc_pct": 85.68950127798685,
+          "r2": 0.5870847778634083
+        },
+        "B2_dow_hour_prior": {
+          "wape_pct": 59.847475039205875,
+          "mae_volume": 1.1635338759972191,
+          "mae_share_pp": 0.970973946326886,
+          "rmse_volume": 2.332559975785498,
+          "spearman_median": 0.5432678051080082,
+          "grade_acc_pct": 87.269568422374,
+          "r2": 0.6760763325816532
+        },
+        "M2_lgb_point": {
+          "wape_pct": 59.706565123430565,
+          "mae_volume": 1.1607943542319135,
+          "mae_share_pp": 0.9678847696311277,
+          "rmse_volume": 2.3178351494151013,
+          "spearman_median": 0.5443138334599729,
+          "grade_acc_pct": 87.2929167211959,
+          "r2": 0.6801531107375834
+        }
+      },
+      "bus": {
+        "B0_uniform": {
+          "wape_pct": 82.64039855101014,
+          "mae_volume": 26.551959597491514,
+          "mae_share_pp": 0.40274703585152594,
+          "rmse_volume": 63.39344790433042,
+          "spearman_median": 0.0,
+          "grade_acc_pct": 51.90068887693046,
+          "r2": 0.11930064950554264
+        },
+        "B1_base_prior": {
+          "wape_pct": 43.05582520760222,
+          "mae_volume": 13.833628000272233,
+          "mae_share_pp": 0.23786158297469995,
+          "rmse_volume": 41.01929917536686,
+          "spearman_median": 0.8391773506308171,
+          "grade_acc_pct": 71.24578749617308,
+          "r2": 0.6312641175903319
+        },
+        "B2_dow_hour_prior": {
+          "wape_pct": 19.218629983433207,
+          "mae_volume": 6.174852684480672,
+          "mae_share_pp": 0.1233199010498794,
+          "rmse_volume": 26.931209454427417,
+          "spearman_median": 0.9380614381435075,
+          "grade_acc_pct": 82.67191946913145,
+          "r2": 0.8410536187424202
+        },
+        "M2_lgb_point": {
+          "wape_pct": 19.083837293547855,
+          "mae_volume": 6.131544446395833,
+          "mae_share_pp": 0.10599624375031133,
+          "rmse_volume": 27.061917416429072,
+          "spearman_median": 0.9382101607364245,
+          "grade_acc_pct": 82.68908000536995,
+          "r2": 0.8395070135924303
+        }
+      },
+      "subway": {
+        "B0_uniform": {
+          "wape_pct": 55.12056905973848,
+          "mae_volume": 500.41293927335994,
+          "mae_share_pp": 4.747277167247252,
+          "rmse_volume": 879.6177147769066,
+          "spearman_median": 0.0,
+          "grade_acc_pct": 61.07479299260121,
+          "r2": 0.3977612805045765
+        },
+        "B1_base_prior": {
+          "wape_pct": 25.109617405711372,
+          "mae_volume": 227.9580502226615,
+          "mae_share_pp": 2.1675254996178848,
+          "rmse_volume": 449.72051253681184,
+          "spearman_median": 0.8951048951048951,
+          "grade_acc_pct": 80.47254691090308,
+          "r2": 0.8425777433674029
+        },
+        "B2_dow_hour_prior": {
+          "wape_pct": 8.931584621668998,
+          "mae_volume": 81.08552921603906,
+          "mae_share_pp": 0.8129282287839972,
+          "rmse_volume": 185.462076512059,
+          "spearman_median": 0.9833333333333333,
+          "grade_acc_pct": 92.45752601916986,
+          "r2": 0.9732273737132251
+        },
+        "M2_lgb_point": {
+          "wape_pct": 7.8796663777604525,
+          "mae_volume": 71.53567315887368,
+          "mae_share_pp": 0.6983233025647909,
+          "rmse_volume": 165.56823072774412,
+          "spearman_median": 0.9860139860139862,
+          "grade_acc_pct": 93.11230996162503,
+          "r2": 0.9786629312967681
+        }
+      }
+    },
+    "g2": {
+      "bike": {
+        "rel_wape_gain_vs_B2_pct": 0.23544838889694317,
+        "rel_wape_gain_vs_B0_pct": 28.923274877199077,
+        "g2_pass": false
+      },
+      "bus": {
+        "rel_wape_gain_vs_B2_pct": 0.7013647174722921,
+        "rel_wape_gain_vs_B0_pct": 76.90737505123685,
+        "g2_pass": false
+      },
+      "subway": {
+        "rel_wape_gain_vs_B2_pct": 11.777509685755842,
+        "rel_wape_gain_vs_B0_pct": 85.70467157329121,
+        "g2_pass": true
+      }
+    }
+  }
+}

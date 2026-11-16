@@ -983,11 +983,12 @@ export default function App() {
           weatherJson
         )
 
-        // 2. 해당 역의 실시간 기상 관측값을 투입하여 AI 모델(ONNX 32차원 피처) 추론 실행
+        // 2. 해당 역의 실시간 기상 관측값을 투입하여 AI 모델(2단계 32d×16d) 추론 실행
         const currentHour = liveWeather ? parseInt(liveWeather.base_time.slice(0, 2), 10) : new Date().getHours()
         const aiPayload = {
           district,
           station: stop.name,
+          point_id: stop.stId || stop.stationNo || stop.id,
           stop_type: stop.type,
           base_crowd: stop.baseCrowd,
           hour: currentHour,
@@ -3088,8 +3089,8 @@ export default function App() {
                   {/* 2. AI 수요 추론 및 혼잡도 예측 카드 */}
                   {stopDataLoading && !stopAIData ? (
                     <div style={{ background: 'rgba(124, 58, 237, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, color: '#C084FC', fontWeight: 700, marginBottom: 2 }}>⚡ AI 모델 32차원 피처 추론 연산 중...</div>
-                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 및 기상 차분 반영 LightGBM AI 추론</div>
+                      <div style={{ fontSize: 11, color: '#C084FC', fontWeight: 700, marginBottom: 2 }}>⚡ AI 모델 2단계 지점 정밀(32d×16d) 추론 연산 중...</div>
+                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 · 기상 차분 · 지점 점유율 반영 LightGBM AI 추론</div>
                     </div>
                   ) : stopAIData ? (() => {
                     const rec = stopAIData.recommendations?.find((r: any) => r.id === selectedStop.type) || stopAIData.recommendations?.[0]
@@ -3100,7 +3101,7 @@ export default function App() {
                             <span>🤖</span> AI 수요 추론 ({rec.name})
                           </span>
                           <span style={{ fontSize: 9, fontWeight: 700, color: '#C084FC', background: 'rgba(168,85,247,0.2)', padding: '1px 6px', borderRadius: 4 }}>
-                            ⚡ LightGBM AI
+                            {rec.point_share_pct != null ? `🎯 지점 AI · 구 내 ${Number(rec.point_share_pct).toFixed(2)}%` : '⚡ LightGBM AI'}
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
@@ -3111,9 +3112,17 @@ export default function App() {
                             시간당 {rec.predicted_volume?.toLocaleString()}명
                           </span>
                         </div>
-                        <div style={{ height: 6, background: 'var(--color-subtle)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+                        <div style={{ height: 6, background: 'var(--color-subtle)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
                           <div style={{ width: `${rec.crowd}%`, height: '100%', background: rec.crowdColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
                         </div>
+                        {rec.district_predicted_volume != null && rec.point_share_pct != null && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6 }}>
+                            <span>구 전체 {Number(rec.district_predicted_volume).toLocaleString()}명/시 중 {Number(rec.point_share_pct).toFixed(2)}% 점유</span>
+                            {rec.point_p95 != null && (
+                              <span>피크용량(P95) {Math.round(Number(rec.point_p95)).toLocaleString()}명</span>
+                            )}
+                          </div>
+                        )}
                         <div style={{ fontSize: 10, color: 'var(--app-text)', background: 'var(--color-card2)', padding: '6px 8px', borderRadius: 6, borderLeft: '2px solid #A855F7', lineHeight: 1.4 }}>
                           {rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석 완료'}
                         </div>

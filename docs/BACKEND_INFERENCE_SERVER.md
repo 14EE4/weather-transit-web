@@ -1,10 +1,10 @@
 # ⚡ 대중교통·날씨 맞춤형 AI 추론 백엔드 서버 구축 및 운영 가이드
 
-> **문서 버전**: v1.0.0  
-> **최종 수정일**: 2026-10-05  
-> **서버 파일**: `main.py`  
-> **검증 스크립트**: `tests/test_inference.py`  
-> **참조 사양서**: [`docs/AI_INFERENCE_MODEL_SPEC.md`](AI_INFERENCE_MODEL_SPEC.md)
+> **문서 버전**: v1.2.0  
+> **최종 수정일**: 2026-11-16  
+> **서버 파일**: `main.py`, `point_share_inference.py`  
+> **검증 스크립트**: `tests/test_inference.py`, `tests/test_point_share_inference.py`  
+> **참조 사양서**: [`docs/AI_MODEL_SPEC.md`](AI_MODEL_SPEC.md) · [`docs/MODEL_RETRAINING_PLAN.md`](MODEL_RETRAINING_PLAN.md)
 
 ---
 
@@ -22,8 +22,9 @@
 
 ## 1. 시스템 개요
 
-본 백엔드 추론 서버(`main.py`)는 **FastAPI**와 **ONNX Runtime**을 기반으로 구축된 고성능 실시간 AI 서빙 엔진입니다.  
-2025년 서울시 25개 자치구 시계열 통합 교통-기상 빅데이터(총 209,875건)를 학습한 3개 LightGBM 회귀 모델(`models/lgb_bike_demand.onnx`, `models/lgb_bus_demand.onnx`, `models/lgb_subway_demand.onnx`)을 인메모리에 상주시켜, **단일 요청 기준 1~3ms 이하**의 초저지연으로 대중교통 수요와 혼잡도를 예측하고 최적의 이동 수단을 추천합니다.
+본 백엔드 추론 서버(`main.py`, `point_share_inference.py`)는 **FastAPI**와 **ONNX Runtime**을 기반으로 구축된 2단계 계층형 실시간 AI 서빙 엔진입니다.
+- **Stage 1 (32차원 자치구 총수요 모델)**: `models/lgb_{bike,bus,subway}_demand.onnx` (`v2.1-multiyear-32d`)가 서울시 25개 자치구 시간대별 총수요를 예측합니다.
+- **Stage 2 (16차원 지점 점유율 모델)**: `models/lgb_{bike,bus,subway}_point_share.onnx` + `models/point_share_priors.json.gz` (`v3.0-point-share-16d`, 총 `8,432`개 지점)가 특정 역·정류소·대여소(`station`, `point_id`)의 구 내 시간대 점유율(%)을 예측해 개별 지점 수요(`Stage1 × share / 100`)와 지점 고유 혼잡도를 `1~6ms` 이내에 반환합니다.
 
 ---
 
@@ -115,13 +116,17 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 
 ## 6. API 엔드포인트 명세
 
-### 1) 기상 기반 교통수단 최적 추천
+### 1) 기상 기반 교통수단 최적 추천 (자치구 + 개별 지점 2단계 분해 지원)
 - **엔드포인트**: `POST /api/v1/predict/recommendation`
-- **Request Body**:
+- **Request Body** (`station`, `point_id`, `stop_type`, `base_crowd` 전달 시 Stage 2 `16차원` 지점 점유율 분해 추론 활성화):
 ```json
 {
   "district": "강남구",
   "hour": 8,
+  "station": "강남역",
+  "point_id": "2호선_222",
+  "stop_type": "subway",
+  "base_crowd": 88,
   "weather": {
     "temp": 14.0,
     "rain": 2.8,
@@ -130,6 +135,13 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
   }
 }
 ```
+- **Response `RecommendationItem` 확장 필드 (지점 정밀 추론 시)**:
+  - `district_predicted_volume`: Stage 1 32d 모델이 산출한 자치구 전체 예상 이용량 (`명/시`)
+  - `point_share_pct`: Stage 2 16d ONNX 모델이 예측한 구 내 해당 지점 점유율 (`%`, 환승역은 호선 합산)
+  - `point_p95`: 학습구간 기준 해당 지점의 피크 수용량(95백분위수)
+  - `inference_tier`: `"DISTRICT_ONNX"` (자치구) / `"POINT_EXACT_ONNX"` (매핑 지점) / `"POINT_PERCENTILE_ONNX"` (`baseCrowd` 백분위 대표 지점)
+  - `matched_point_id`: 매칭된 지점 ID (예: `"2호선_222"`, `"2호선_216,8호선_2815"`, `"101000003"`, `"2301"`)
+- **헬스체크 (`/health`) 확장 필드**: `feature_schema` (`status: "verified"`, 32d)와 별도로 `point_share_models` (`loaded`, `schema_status: "verified"`, `feature_dim: 16`, `point_counts`)를 함께 반환합니다.
 - **Response Body**:
 ```json
 {

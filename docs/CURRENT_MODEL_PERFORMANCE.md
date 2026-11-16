@@ -58,12 +58,17 @@
 
 프로덕션 배포 디렉터리(`models/`)와 벤치마크 디렉터리(`benchmarks/2026-10-29/`)에 동기화된 모델 자산 목록입니다.
 
-| 파일명 | 입력 차원 | 파일 크기 (Bytes) | SHA-256 Checksum (Prefix) |
-| :--- | :---: | :---: | :--- |
-| `lgb_bike_demand.onnx` | 32 | 7,020,769 | `b491fa58...` |
-| `lgb_bus_demand.onnx` | 32 | 13,596,760 | `0fcabf26...` |
-| `lgb_subway_demand.onnx` | 32 | 7,345,447 | `cf578b7b...` |
-| `feature_schema.json` | — | 3,180 | `473f309a...` (v2.1-multiyear-32d) |
+| 파일명 | 입력 차원 | 파일 크기 (Bytes) | SHA-256 Checksum (Prefix) | 역할 |
+| :--- | :---: | :---: | :--- | :--- |
+| `lgb_bike_demand.onnx` | 32 | 6,925,949 | `96f15c8e...` | Stage 1 자치구 따릉이 총수요 (`v2.1`) |
+| `lgb_bus_demand.onnx` | 32 | 11,095,656 | `fca958ca...` | Stage 1 자치구 버스 총수요 (`v2.1`) |
+| `lgb_subway_demand.onnx` | 32 | 13,351,498 | `cd158fd9...` | Stage 1 자치구 지하철 총수요 (`v2.1`) |
+| `feature_schema.json` | — | 3,232 | `b1580139...` | Stage 1 32차원 SSoT 스키마 |
+| `lgb_bike_point_share.onnx` | 16 | 2,075,814 | `a72bdcfa...` | Stage 2 대여소 점유율(`%`) 분해 (`v3.0`) |
+| `lgb_bus_point_share.onnx` | 16 | 2,017,590 | `1189b8cc...` | Stage 2 정류소 점유율(`%`) 분해 (`v3.0`) |
+| `lgb_subway_point_share.onnx` | 16 | 13,697,636 | `7ad2edf8...` | Stage 2 역사 점유율(`%`) 분해 (`v3.0`) |
+| `point_share_schema.json` | — | 8,798 | `e38e685b...` | Stage 2 16차원 SSoT 스키마 |
+| `point_share_priors.json.gz` | — | 1,721,187 | `214e8cd5...` | `8,432`개 지점 학습구간 사전통계 번들 |
 
 ---
 

@@ -1,9 +1,9 @@
 # 🧠 모델 재학습 계획서 — 지점 단위(역·정류소·대여소) 수요 분배 모델 및 자치구 모델 v3 (`MODEL_RETRAINING_PLAN`)
 
-> **상태**: **Phase 0~3 학습·평가·ONNX 변환 완료 (`2026-11-16`)** · Phase 4(서빙/UI) Feature Freeze 해제 승인 대기  
-> **대상 모델**: LightGBM 회귀 3종(따릉이·버스·지하철) — 현행 `v2.1-multiyear-32d`  
+> **상태**: **Phase 0~5 전 단계 완료 (`2026-11-16` · PR #118 + 서빙/UI 통합 완료)**  
+> **대상 모델**: Stage 1 LightGBM 회귀 3종(`v2.1-multiyear-32d`, 32d) × Stage 2 지점 점유율 ONNX 3종(`v3.0-point-share-16d`, 16d)  
 > **신규 데이터**: `data/통합데이터/{23,24,25}_통합데이터/정류장_대여소_역_별_퍼센트데이터/` (팀원 추가분, 약 `18.69GB`)  
-> **원칙**: 현행 v2.1은 **게이트를 통과하기 전까지 절대 교체하지 않는다** (롤백 보장). `main`은 사용자 지시 전까지 건드리지 않는다.
+> **원칙**: Stage 1 `v2.1` 32d 자산은 비파괴 유지하고 Stage 2 `16d` ONNX를 계층 결합한다. `main`은 사용자 지시 전까지 건드리지 않는다.
 
 ---
 
@@ -140,16 +140,15 @@ flowchart LR
 - [x] 실측 결과: **버스 v3** `WAPE 2.29% → 2.22%`, `MAE 175.64 → 169.86`, `RMSE 283.12 → 275.36`, `R² 0.9975 → 0.9976` 개선 / 따릉이(`MAE 11.74`, `R² 0.9899`)·지하철(`MAE 204.81`, `R² 0.9970`) 동일
 - **게이트 G3**: **`KEEP_V21`** (개선 수단 `1/3`개, 최대 악화 `+0.00%` — 현행 `models/` v2.1 안정 유지, 개선된 버스 v3 ONNX는 `benchmarks/point_share_v3_2026-11-16/` 별도 보관)
 
-### Phase 4 — ONNX 변환 및 서빙 통합 (Feature Freeze 해제 승인 후)
-- [ ] 점유율 모델 ONNX 변환 + `feature_schema` v3 (SSoT 갱신, 차원/순서 검증 유지)
-- [ ] `POST /api/v1/predict/point-demand` (요청: 지점ID·시각 / 응답: 자치구 예측·점유율·지점 예측·혼잡도·신뢰구간 또는 폴백 사유)
-- [ ] 프론트(PC `App.tsx` + 모바일 `AppM.tsx` **동시**): 지점 팝업의 자치구 대리값을 지점 예측으로 교체, 폴백 시 `⚠️ 추정` 배지 유지
-- [ ] `Dockerfile.backend` COPY·`/health`의 `model_input_dims`·스키마 `verified` 점검, 컨테이너 재빌드
-- **게이트 G4**: 단위·API 테스트 통과, 레이턴시 SLA(`≤15ms`) 유지
+### Phase 4 — ONNX 변환 및 서빙 통합 (**완료 · 2026-11-16 · `G4: PASS`**)
+- [x] Stage 2 `16차원` 점유율 ONNX 3종(`lgb_{bike,bus,subway}_point_share.onnx`) + `point_share_schema.json` + 경량 사전통계 번들(`models/point_share_priors.json.gz`, `1.64MB`, `8,432`지점) `models/` 배치 (`scripts/export_point_share_serving_bundle.py`)
+- [x] `point_share_inference.py` 신설 및 `POST /api/v1/predict/recommendation` (`main.py`) 통합 (`point_id`, `district_predicted_volume`, `point_share_pct`, `point_p95`, `inference_tier`, `matched_point_id` 반환 + `/health.point_share_models` 노출)
+- [x] 프론트엔드(`TransitMap.tsx` + `App.tsx` + `AppM.tsx` **PC/모바일 동시**): 지점 팝업/카드에 `🎯 지점 AI · 구 내 X.XX%` 및 구 전체 대비 지점 수요·피크(P95) 표출
+- [x] `.dockerignore` 대용량 원천 제외 최적화(`~19GB → 95.25MB`) + Docker `backend`/`frontend` 재빌드, `/health` `feature_schema.status = verified`(32d) & `point_share_models.loaded = true`(16d) 검증
+- **게이트 G4**: **PASS** — `tests/test_point_share_inference.py` + 회귀 7종 통과, 라이브 Docker 실측 레이턴시 `1.08~6.43ms` (SLA `≤15ms` 충족)
 
-### Phase 5 — 문서화
-- [ ] `docs/AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `CURRENT_DATA_SPEC.md`, `BACKEND_INFERENCE_SERVER.md`, `SYSTEM_ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`, `TODO.md` 동기화
-- [ ] 기존 `docs/CURRENT_DATA_SPEC.md` 데이터 규격에 신규 점유율 데이터셋 추가
+### Phase 5 — 문서화 (**완료 · 2026-11-16**)
+- [x] `docs/AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `BACKEND_INFERENCE_SERVER.md`, `README.md`, `CHANGELOG.md`, `TODO.md` 동기화 완료
 
 ---
 

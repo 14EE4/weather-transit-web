@@ -2295,6 +2295,8 @@ export default function App() {
                   }}
                   onChange={val => {
                     setDeparture(val)
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2317,6 +2319,8 @@ export default function App() {
                   }}
                   onClear={() => {
                     setDeparture('')
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
@@ -2359,6 +2363,8 @@ export default function App() {
                   }}
                   onChange={val => {
                     setDestination(val)
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2381,6 +2387,8 @@ export default function App() {
                   }}
                   onClear={() => {
                     setDestination('')
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
@@ -2440,7 +2448,11 @@ export default function App() {
                       onClick={() => {
                         setDeparture(item.from)
                         setDestination(item.to)
-                        handleSearchRoute(item.from, item.to)
+                        setDepartureCoords(undefined)
+                        setDestinationCoords(undefined)
+                        setDepartureType('subway')
+                        setDestinationType('subway')
+                        handleSearchRoute(item.from, item.to, false, undefined, undefined, 'subway', 'subway')
                       }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 12,

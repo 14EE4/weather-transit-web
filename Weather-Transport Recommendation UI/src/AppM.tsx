@@ -2303,6 +2303,8 @@ export default function AppM() {
                   }}
                   onChange={val => {
                     setDeparture(val)
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2325,6 +2327,8 @@ export default function AppM() {
                   }}
                   onClear={() => {
                     setDeparture('')
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
@@ -2367,6 +2371,8 @@ export default function AppM() {
                   }}
                   onChange={val => {
                     setDestination(val)
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2389,6 +2395,8 @@ export default function AppM() {
                   }}
                   onClear={() => {
                     setDestination('')
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}

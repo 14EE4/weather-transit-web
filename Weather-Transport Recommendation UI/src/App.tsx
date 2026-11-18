@@ -9,7 +9,7 @@ import {
 import { TransportScoreSkeleton, DistrictCongestionSkeleton } from './components/SkeletonLoader'
 import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logDistrictCongestionCall, logHourlyForecastCall } from './apiLogger'
-import { searchSubwayStations, SubwayStation } from './subwayData'
+import { searchSubwayStations, SubwayStation, SUBWAY_STATIONS } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
 import { BUS_STOPS } from './busStopData'
@@ -2447,13 +2447,22 @@ export default function App() {
                     <button
                       key={item.from + item.to}
                       onClick={() => {
+                        // 사용자가 통합 검색창에서 역을 직접 선택한 것과 동일한 경로(onSelectSubway)로 입력값만 채우고,
+                        // 실제 검색은 '경로 검색' 버튼으로 실행한다 (이전 GPS/지도 좌표 잔류 방지).
+                        const fromSt = SUBWAY_STATIONS.find(s => s.name === item.from)
+                        const toSt = SUBWAY_STATIONS.find(s => s.name === item.to)
                         setDeparture(item.from)
-                        setDestination(item.to)
-                        setDepartureCoords(undefined)
-                        setDestinationCoords(undefined)
+                        setDepartureCoords(fromSt?.coords)
                         setDepartureType('subway')
+                        setDestination(item.to)
+                        setDestinationCoords(toSt?.coords)
                         setDestinationType('subway')
-                        handleSearchRoute(item.from, item.to, false, null, null, 'subway', 'subway')
+                        setSearchedRoute(null)
+                        setActiveRoute(null)
+                        setShowDepartureList(false)
+                        setShowDestinationList(false)
+                        if (fromSt) setFocusedCoords(fromSt.coords)
+                        showRouteToast(`🧭 '${item.from} → ${item.to}'이(가) 입력되었습니다. [경로 검색]을 눌러 주세요.`)
                       }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 12,

@@ -13,7 +13,7 @@
   - 지도에서 찍기(Pick on Map) 또는 내 위치(GPS)로 임의 좌표(예: 인천 간석역 부근)를 출발지로 설정한 뒤 `자주 찾는 경로`(예: `강남역 → 서울역`)를 클릭하거나 입력창을 수동 수정(`onChange`/`onClear`)하면, 텍스트(`departure`)는 바뀌지만 이전 `departureCoords`·`departureType('gps')` 상태가 초기화되지 않아 백엔드 `resolve_station()`이 이전 좌표를 우선 해석해 여전히 이전 역(간석역)에서 출발하는 문제가 발생.
 - **조치 내역**:
   1. **`App.tsx` 자주 찾는 경로 프리셋 좌표·타입 초기화**:
-     - `자주 찾는 경로` 버튼 클릭 시 `setDepartureCoords(undefined)`, `setDestinationCoords(undefined)`, `setDepartureType('subway')`, `setDestinationType('subway')` 및 `handleSearchRoute(item.from, item.to, false, null, null, 'subway', 'subway')` 호출로 이전 GPS/지도 좌표가 잔류하지 않도록 수정.
+     - `자주 찾는 경로` 버튼 클릭 시 즉시 검색하던 방식을 폐기하고, **사용자가 통합 검색창에서 역을 직접 선택할 때(`onSelectSubway`)와 동일하게** 출발·도착 역명, `SUBWAY_STATIONS` 기반 좌표(`departureCoords`/`destinationCoords`), 타입(`'subway'`)만 입력창에 채우고 `searchedRoute`/`activeRoute`를 초기화하도록 변경 (안내 토스트 `[경로 검색]을 눌러 주세요`). 실제 검색은 `경로 검색` 버튼으로 실행되어 이전 GPS/지도 좌표가 잔류할 여지가 없음.
   2. **`App.tsx` · `AppM.tsx` 통합 검색 입력·지우기 시 좌표 초기화 동기화**:
      - 출발지/도착지 `UnifiedStationSearch`의 `onChange` 및 `onClear`에서 `departureCoords`/`departureType`, `destinationCoords`/`destinationType`을 함께 초기화하여 PC·모바일 양쪽에서 수동 입력/지우기 시에도 이전 좌표가 남지 않도록 차단.
   3. **(후속 보완) `handleSearchRoute` 기본 파라미터 함정 해소 (`App.tsx`, `AppM.tsx`)**:

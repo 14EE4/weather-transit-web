@@ -68,6 +68,7 @@ export default function UnifiedStationSearch({
   const [isLocating, setIsLocating] = useState(false)
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const handleUseCurrentLocation = () => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
@@ -202,6 +203,9 @@ export default function UnifiedStationSearch({
     if (item.kind === 'subway') onSelectSubway?.(item.data)
     else if (item.kind === 'bus') onSelectBus?.(item.data)
     else onSelectBike?.(item.data)
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
   }
 
   const handleClear = () => {
@@ -213,11 +217,12 @@ export default function UnifiedStationSearch({
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { setOpen(false); return }
-    if (items.length === 0) return
-    if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+    if (e.key === 'Tab') { setOpen(false); return }
+    if (!showDropdown || items.length === 0) return
+    if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActiveIdx(i => (i + 1) % items.length)
-    } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+    } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActiveIdx(i => (i - 1 + items.length) % items.length)
     } else if (e.key === 'Enter') {
@@ -254,6 +259,7 @@ export default function UnifiedStationSearch({
           {query && (
             <button
               type="button"
+              tabIndex={-1}
               onClick={handleClear}
               title="지우기"
               style={{
@@ -280,6 +286,7 @@ export default function UnifiedStationSearch({
       }}>
         <span style={{ fontSize: 14 }}>{headerMeta?.icon ?? '🔎'}</span>
         <input
+          ref={inputRef}
           value={query}
           onChange={e => {
             const next = e.target.value
@@ -299,6 +306,7 @@ export default function UnifiedStationSearch({
         {query && (
           <button
             type="button"
+            tabIndex={-1}
             onClick={handleClear}
             style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}
           >
@@ -313,6 +321,7 @@ export default function UnifiedStationSearch({
           {allowCurrentLocation && (
             <button
               type="button"
+              tabIndex={-1}
               onClick={handleUseCurrentLocation}
               disabled={isLocating}
               title="현재 내 위치(GPS)를 출발지로 설정"
@@ -338,6 +347,7 @@ export default function UnifiedStationSearch({
           {allowMapPick && onPickOnMap && (
             <button
               type="button"
+              tabIndex={-1}
               onClick={onPickOnMap}
               title="지도에서 위치 직접 찍기"
               style={{

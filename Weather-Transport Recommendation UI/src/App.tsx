@@ -1509,6 +1509,8 @@ export default function App() {
                 {/* 출발 ↔ 도착 맞바꾸기 구분선 */}
                 <div style={{ position: 'relative', height: 1, background: 'var(--color-border)' }}>
                   <button
+                    type="button"
+                    tabIndex={-1}
                     onClick={handleSwapRoute}
                     title="출발지 ↔ 도착지 맞바꾸기"
                     style={{

@@ -2654,8 +2654,9 @@ async def get_subway_arrival(station: str = "강남"):
             if call_success:
                 subway_circuit_breaker.record_success()
     except Exception as e:
-        logger.warning(f"Seoul Subway API error: {e}")
-        subway_circuit_breaker.record_failure(str(e))
+        err_msg = sanitize_exception(e)
+        logger.warning(f"Seoul Subway API error: {err_msg} (배차 폴백)")
+        subway_circuit_breaker.record_failure(err_msg)
 
     if arrivals:
         resp_data = {
@@ -2749,8 +2750,9 @@ async def get_bus_arrival(stId: str = "111000299", busRouteId: Optional[str] = N
                 else:
                     bus_circuit_breaker.record_failure(f"HTTP {res.status_code}")
         except Exception as e:
-            logger.warning(f"Seoul Bus API error: {e}")
-            bus_circuit_breaker.record_failure(str(e))
+            err_msg = sanitize_exception(e)
+            logger.warning(f"Seoul Bus API error: {err_msg} (스냅샷/배차 폴백)")
+            bus_circuit_breaker.record_failure(err_msg)
     else:
         fallback_data = generate_intelligent_bus_fallback(stId, busRouteId, source="SEOUL_BUS_NO_KEY_FALLBACK")
         return BusArrivalResponse(**fallback_data)
@@ -3493,8 +3495,9 @@ async def _fetch_bike_snapshot() -> tuple[list[dict], str]:
         if not stations:
             raise ValueError("대여소 데이터가 비어 있습니다.")
     except Exception as exc:
-        logger.warning("Seoul bike API error: %s", exc)
-        bike_circuit_breaker.record_failure(str(exc))
+        err_msg = sanitize_exception(exc)
+        logger.warning("Seoul bike API error: %s (스냅샷 폴백)", err_msg)
+        bike_circuit_breaker.record_failure(err_msg)
         if _bike_snapshot_last_good:
             return _bike_snapshot_last_good, "SEOUL_BIKE_CACHED_STALE"
         raise HTTPException(status_code=503, detail="서울시 따릉이 API 연결 실패")

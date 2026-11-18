@@ -13,6 +13,10 @@
 
 
 ### 🛡️ 0-0. 관측성(Observability) 및 외부 API 장애 격리 (완료 · 2026-11-02 · 이슈 #80)
+- [x] **[LOG-04] 빈 예외 메시지(`ReadTimeout`) 보강 및 주요 경고/폴백 로그 트러블슈팅 가이드 문서화 (완료 · 2026-11-18 · 이슈 #129)**:
+  - `logging_utils.py::sanitize_exception()`이 `httpx.ReadTimeout("")` 등 빈 문자열 예외 시 `ReadTimeout` 등 예외 클래스명을 보존하도록 개선.
+  - `kma_forecast.py`, `main.py`, `multimodal_router.py` 경고 로그에 `sanitize_exception()` 및 간결한 `1줄` 폴백 표기 적용.
+  - `docs/LOGGING_POLICY.md` `§8`에 기상청 격자 타임아웃, 서울시 버스 5종 API 장애 진단, FactChat LLM 빈 응답 폴백 트러블슈팅 가이드 신설 (`tests/test_observability_logging.py` 검증).
 - [x] **[LOG-02] FactChat LLM 연동 무음 Fallback 개선 및 외부 버스 API 장애 시 관측성·Graceful Degradation 강화 (완료 · 2026-11-02 · 이슈 #80)**:
   - FactChat API 키 부재 및 HTTP 401/429/500 에러 시 명시적 `WARNING` 로그 출력 및 `langgraph_trace`에 `fallback_reason` 주입.
   - 서울시 버스 서버 503 장애 시 주변 정류장 API(`GET /api/v1/transit/bus/stations/nearby`)가 502 에러 대신 200 OK 빈 목록(`stations: []`)을 반환하여 브라우저 콘솔 에러 폭주 원천 차단.

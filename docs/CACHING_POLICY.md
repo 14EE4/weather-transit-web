@@ -77,6 +77,7 @@ flowchart TD
 | **🚇 지하철 실시간 도착** | L2 (RAM) | `clean_station_name` | **`15초`** | 서울 열린데이터광장 `realtimeStationArrival`. 열차 이동 속도 감안 15초 보호 |
 | **🚌 버스 실시간 도착** | L2 (RAM) | `{stId}_{busRouteId}` | **`15초`** | 공공데이터포털 서울 버스도착정보(`getLowArrInfoByStId`). 15초간 서버 보호 |
 | **🧠 32차원 시계열 피처** | L2 + L3 | `{district}_{hour}` | **`영속 + 100μs`** | `timeseries_cache.py`: 인메모리 Deque + SQLite WAL 저장소 연동. 1시간 래그 및 3시간 이동평균 실시간 공급 |
+| **🎯 지도 전체 AI 배치 혼잡도** | L2 (RAM) + L1 Ref | `{date}\|h{hour}\|r{rain}\|t{2deg}` | **`15분`** (`900초`) | `POST /api/v1/predict/map-crowds`: 최초 접속자가 시간대별 전 거점(`Stage 1 × Stage 2`) 배치를 계산·저장하면 동일 시간대 후속 사용자에게 `<1ms` 즉시 공유(`POST /api/v1/admin/cache/clear`로 초기화 가능) |
 | **🗺️ 멀티모달 경로 검색** | L1 (브라우저) | `{from}\|{to}\|{coords}\|{hour}\|{temp}\|{rain}` | **`최근 12개`** | `weather_transit_multimodal_cache_v5`: 동일 시간대·날씨 재검색 시 네트워크 트래픽 0 건 |
 
 ---

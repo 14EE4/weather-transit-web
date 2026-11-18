@@ -203,6 +203,11 @@ _bus_last_good: dict[str, dict] = {}
 _bike_snapshot_cache: Optional[tuple[float, list[dict]]] = None
 _bike_snapshot_last_good: Optional[list[dict]] = None
 
+# 지도 전체 거점 AI 배치 추론 공용 캐시 (동일 시간대/기상 슬롯 내 다중 사용자 즉시 공유, TTL 15분)
+_map_crowds_cache: dict[str, dict[str, Any]] = {}
+MAP_CROWDS_CACHE_TTL_SEC = 900.0
+MAP_CROWDS_MAX_BUCKETS = 24
+
 # ==============================================================================
 # 1. 서울시 25개 자치구 정수 매핑 딕셔너리 및 인프라/용량 기준 메타데이터
 # ==============================================================================
@@ -731,6 +736,33 @@ class PredictionResponse(BaseModel):
     latency_ms: float
     weather_summary: WeatherSummary
     recommendations: list[RecommendationItem]
+
+class MapCrowdStopInput(BaseModel):
+    id: str = Field(..., description="지도 거점 고유 ID")
+    name: str = Field(..., description="역/정류소/대여소 명칭")
+    stop_type: str = Field(default="subway", description="교통수단 유형 (subway, bus, bike)")
+    district: str = Field(default="강남구", description="자치구 명칭")
+    point_id: Optional[str] = Field(default=None, description="고유 지점 ID (stId, stationNo 등)")
+    base_crowd: Optional[int] = Field(default=55, description="기본 혼잡도 (0~100)")
+
+class MapCrowdBatchRequest(BaseModel):
+    hour: int = Field(default=8, ge=0, le=24, description="시간대 (0~24시)")
+    weather: Optional[WeatherInput] = Field(default=None, description="기상 관측 데이터 (생략 시 실시간 단기예보 자동 반영)")
+    items: list[MapCrowdStopInput] = Field(..., description="일괄 추론할 지도 거점 목록")
+
+class MapCrowdItemResult(BaseModel):
+    crowd: int
+    label: str
+    color: str
+
+class MapCrowdBatchResponse(BaseModel):
+    status: str = "success"
+    cache_key: str
+    cache_hit: bool
+    computed_count: int
+    total_cached_in_slot: int
+    latency_ms: float
+    items: dict[str, MapCrowdItemResult]
 
 class SimulationRequest(BaseModel):
     simulated_rain_mm: float = Field(default=5.0, ge=0.0, description="시뮬레이션 가상 강수량 (mm)")
@@ -1329,11 +1361,12 @@ async def clear_admin_cache():
                 cleared_db = True
 
         # 인메모리 단기 캐시 클리어
-        global _weather_cache, _subway_cache, _bus_cache, _bike_snapshot_cache
+        global _weather_cache, _subway_cache, _bus_cache, _bike_snapshot_cache, _map_crowds_cache
         _weather_cache.clear()
         _subway_cache.clear()
         _bus_cache.clear()
         _bike_snapshot_cache = None
+        _map_crowds_cache.clear()
 
         logger.info("[Admin] 관리자 요청에 의해 시계열 캐시 및 인메모리 스냅샷이 성공적으로 비워졌습니다.")
         return {
@@ -1408,6 +1441,95 @@ async def get_timeseries_cache_status(district: Optional[str] = None):
         }
     return status_info
 
+async def _resolve_weather_for_hour(
+    norm_district: str,
+    hour: int,
+    weather: Optional[WeatherInput],
+) -> WeatherInput:
+    """요청 기상 입력이 생략되면 해당 시간대(`hour`) 기상청 단기예보를 자동 조회하여 보완."""
+    if weather is not None:
+        return weather
+    try:
+        h_fcst = await kma_forecast_manager.get_hour_weather(norm_district, hour, auth_key=KMA_AUTH_KEY)
+        return WeatherInput(
+            temp=h_fcst.temp,
+            rain=h_fcst.rain,
+            humidity=75.0 if h_fcst.rain > 0 else 50.0,
+            wind=2.0,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[ONNX 추론] 기상청 단기예보 자동 조회 실패로 기본값(맑음)을 적용합니다 (%s): %s",
+            norm_district,
+            sanitize_exception(exc),
+        )
+        return WeatherInput()
+
+
+def _predict_stage1_district_volumes(
+    norm_district: str,
+    hour: int,
+    weather: WeatherInput,
+    now_dt: datetime,
+    record_timeseries: bool = True,
+) -> tuple[float, float, float]:
+    """Stage 1 (32d) ONNX 세션으로 자치구별 3대 수단 수요(`bike`, `bus`, `subway`)를 추론."""
+    features_32 = build_feature_vector(norm_district, hour, weather, dt=now_dt)
+    bike_tensor = prepare_session_input(features_32, registry.bike_session)
+    bus_tensor = prepare_session_input(features_32, registry.bus_session)
+    subway_tensor = prepare_session_input(features_32, registry.subway_session)
+
+    bike_pred = float(registry.bike_session.run(None, {"float_input": bike_tensor})[0].flatten()[0])
+    bus_pred = float(registry.bus_session.run(None, {"float_input": bus_tensor})[0].flatten()[0])
+    subway_pred = float(registry.subway_session.run(None, {"float_input": subway_tensor})[0].flatten()[0])
+
+    bike_demand = max(0.0, bike_pred)
+    bus_demand = max(0.0, bus_pred)
+    subway_demand = max(0.0, subway_pred)
+
+    if record_timeseries:
+        timeseries_cache.record_weather(
+            norm_district,
+            temp=weather.temp,
+            rain=weather.rain,
+            humidity=weather.humidity,
+            wind=weather.wind,
+        )
+        timeseries_cache.record_demand(
+            norm_district,
+            bike_vol=bike_demand,
+            bus_vol=bus_demand,
+            subway_vol=subway_demand,
+        )
+
+    return bike_demand, bus_demand, subway_demand
+
+
+def _build_map_crowds_cache_key(now_dt: datetime, hour: int, weather: WeatherInput) -> str:
+    """날짜 · 시간대 · 강수(0.1mm) · 기온(2°C 버킷) 기반 전 사용자 공용 캐시 키 생성."""
+    h_norm = 0 if hour == 24 else max(0, min(23, int(hour)))
+    rain_key = round(max(0.0, float(weather.rain)), 1)
+    temp_bucket = int(round(float(weather.temp) / 2.0) * 2)
+    return f"{now_dt.strftime('%Y-%m-%d')}|h{h_norm}|r{rain_key:.1f}|t{temp_bucket}"
+
+
+def _get_or_create_map_crowds_bucket(cache_key: str) -> dict[str, Any]:
+    """만료된 슬롯 정리 후 해당 `(시간대, 기상)` 공용 캐시 버킷을 반환/신설."""
+    now_ts = time.time()
+    expired = [k for k, v in _map_crowds_cache.items() if now_ts - float(v.get("ts", 0.0)) > MAP_CROWDS_CACHE_TTL_SEC]
+    for k in expired:
+        _map_crowds_cache.pop(k, None)
+
+    bucket = _map_crowds_cache.get(cache_key)
+    if bucket is None:
+        while len(_map_crowds_cache) >= MAP_CROWDS_MAX_BUCKETS:
+            oldest_key = min(_map_crowds_cache.keys(), key=lambda k: float(_map_crowds_cache[k].get("ts", 0.0)))
+            _map_crowds_cache.pop(oldest_key, None)
+        bucket = {"ts": now_ts, "district_volumes": {}, "items": {}}
+        _map_crowds_cache[cache_key] = bucket
+    return bucket
+
+
 @app.post("/api/v1/predict/recommendation", response_model=PredictionResponse, tags=["Inference"])
 async def predict_recommendation(req: PredictionRequest):
     """
@@ -1426,56 +1548,20 @@ async def predict_recommendation(req: PredictionRequest):
     t_start = time.perf_counter()
 
     norm_district = normalize_district_name(req.district)
-    # 기상 입력 검증 및 디폴트 보정: 기상 정보가 생략된 경우 해당 시간대(req.hour)의 기상청 단기예보 자동 반영
-    weather = req.weather
-    if weather is None:
-        try:
-            h_fcst = await kma_forecast_manager.get_hour_weather(norm_district, req.hour, auth_key=KMA_AUTH_KEY)
-            weather = WeatherInput(
-                temp=h_fcst.temp,
-                rain=h_fcst.rain,
-                humidity=75.0 if h_fcst.rain > 0 else 50.0,
-                wind=2.0
-            )
-        except Exception as exc:
-            logger.warning("[ONNX 추론] 기상청 단기예보 자동 조회 실패로 기본값(맑음)을 적용합니다 (%s): %s", norm_district, sanitize_exception(exc))
-            weather = WeatherInput()
+    weather = await _resolve_weather_for_hour(norm_district, req.hour, req.weather)
 
-    # 1. 32차원 피처 벡터 조립 (Stage 1)
     now_dt = get_kst_now()
-    features_32 = build_feature_vector(norm_district, req.hour, weather, dt=now_dt)
-
-    # 2. 세션별 텐서 준비 및 ONNX 추론 실행
-    bike_tensor = prepare_session_input(features_32, registry.bike_session)
-    bus_tensor = prepare_session_input(features_32, registry.bus_session)
-    subway_tensor = prepare_session_input(features_32, registry.subway_session)
-
     try:
-        bike_pred = float(registry.bike_session.run(None, {"float_input": bike_tensor})[0].flatten()[0])
-        bus_pred = float(registry.bus_session.run(None, {"float_input": bus_tensor})[0].flatten()[0])
-        subway_pred = float(registry.subway_session.run(None, {"float_input": subway_tensor})[0].flatten()[0])
+        bike_demand, bus_demand, subway_demand = _predict_stage1_district_volumes(
+            norm_district=norm_district,
+            hour=req.hour,
+            weather=weather,
+            now_dt=now_dt,
+            record_timeseries=True,
+        )
     except Exception as e:
         logger.error(f"ONNX 추론 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"ONNX Model Inference Error: {str(e)}")
-
-    bike_demand = max(0.0, bike_pred)
-    bus_demand = max(0.0, bus_pred)
-    subway_demand = max(0.0, subway_pred)
-
-    # 실시간 관측 기상 및 추론 수요 스냅샷을 시계열 캐시에 동적 적재
-    timeseries_cache.record_weather(
-        norm_district,
-        temp=weather.temp,
-        rain=weather.rain,
-        humidity=weather.humidity,
-        wind=weather.wind
-    )
-    timeseries_cache.record_demand(
-        norm_district,
-        bike_vol=bike_demand,
-        bus_vol=bus_demand,
-        subway_vol=subway_demand
-    )
 
     # 3. 혼잡도 지수 및 MCDA 추천 스코어링 계산
     subway_crowd, subway_score, subway_reasons = evaluate_subway(subway_demand, weather.rain, norm_district)
@@ -1651,6 +1737,118 @@ async def predict_recommendation(req: PredictionRequest):
         latency_ms=round(latency_ms, 2),
         weather_summary=WeatherSummary(condition=cond, description=desc),
         recommendations=recommendations,
+    )
+
+
+@app.post("/api/v1/predict/map-crowds", response_model=MapCrowdBatchResponse, tags=["Inference"])
+async def predict_map_crowds(req: MapCrowdBatchRequest):
+    """
+    지도 전체 거점(지하철·버스·따릉이) 2단계 ONNX 일괄 추론 및 시간대 공용 캐시 API.
+    - 최초 사용자 요청 시 필요한 서울 자치구 Stage 1(32d) + 전 지점 Stage 2(16d)를 수단별 단일 배치로 연산해 서버 메모리에 캐싱(TTL 15분).
+    - 동일 시간대·기상 조건으로 재접속하는 다른 사용자는 캐시에서 1ms 미만으로 즉시 반환(`cache_hit: true`).
+    """
+    if not registry.is_loaded:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 추론 세션이 아직 준비되지 않았습니다.",
+        )
+
+    t_start = time.perf_counter()
+    now_dt = get_kst_now()
+    weather = await _resolve_weather_for_hour("강남구", req.hour, req.weather)
+    cache_key = _build_map_crowds_cache_key(now_dt, req.hour, weather)
+    bucket = _get_or_create_map_crowds_bucket(cache_key)
+    cached_items: dict[str, dict[str, Any]] = bucket["items"]
+    district_volumes: dict[str, dict[str, float]] = bucket["district_volumes"]
+
+    missing_items = [it for it in req.items if it.id and it.id not in cached_items]
+    if missing_items:
+        needed_districts: set[str] = {"강남구"}
+        for it in missing_items:
+            needed_districts.add(normalize_district_name(it.district))
+
+        try:
+            for norm_d in needed_districts:
+                if norm_d not in district_volumes:
+                    b_vol, bs_vol, s_vol = _predict_stage1_district_volumes(
+                        norm_district=norm_d,
+                        hour=req.hour,
+                        weather=weather,
+                        now_dt=now_dt,
+                        record_timeseries=False,
+                    )
+                    district_volumes[norm_d] = {
+                        "bike": b_vol,
+                        "bus": bs_vol,
+                        "subway": s_vol,
+                    }
+        except Exception as e:
+            logger.error(f"지도 일괄 Stage 1 ONNX 추론 실패: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"ONNX Model Inference Error: {str(e)}")
+
+        batch_payload = [
+            {
+                "id": it.id,
+                "name": it.name,
+                "stop_type": it.stop_type,
+                "district": normalize_district_name(it.district),
+                "point_id": it.point_id,
+                "base_crowd": it.base_crowd,
+            }
+            for it in missing_items
+        ]
+        is_hol = is_kr_public_holiday(now_dt)
+        batch_preds = point_share_engine.predict_points_batch(
+            items=batch_payload,
+            district_volumes=district_volumes,
+            hour=req.hour,
+            temp=weather.temp,
+            rain=weather.rain,
+            wind=weather.wind,
+            humidity=weather.humidity,
+            dt=now_dt,
+            is_holiday=is_hol,
+        )
+
+        for it in missing_items:
+            pred = batch_preds.get(it.id)
+            if pred is not None:
+                crowd = int(pred["crowd"])
+            else:
+                crowd = calculate_station_crowd(
+                    base=int(it.base_crowd if it.base_crowd is not None else 55),
+                    hour=req.hour,
+                    rain=weather.rain,
+                    stop_type=it.stop_type,
+                    station_name=it.name,
+                )
+            cached_items[it.id] = {
+                "crowd": crowd,
+                "label": get_crowd_label(crowd),
+                "color": get_crowd_color(crowd),
+            }
+
+    resp_items = {
+        it.id: MapCrowdItemResult(**cached_items[it.id])
+        for it in req.items
+        if it.id in cached_items
+    }
+    latency_ms = round((time.perf_counter() - t_start) * 1000.0, 2)
+    cache_hit = len(missing_items) == 0
+
+    logger.info(
+        f"🗺️ [지도 일괄 AI 혼잡도] key={cache_key} | hit={cache_hit} | "
+        f"신규={len(missing_items)}개 · 총캐시={len(cached_items)}개 | 소요={latency_ms:.2f}ms"
+    )
+
+    return MapCrowdBatchResponse(
+        status="success",
+        cache_key=cache_key,
+        cache_hit=cache_hit,
+        computed_count=len(missing_items),
+        total_cached_in_slot=len(cached_items),
+        latency_ms=latency_ms,
+        items=resp_items,
     )
 
 @app.post("/api/v1/simulate/weather-impact", response_model=SimulationResponse, tags=["Simulation"])

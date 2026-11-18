@@ -339,10 +339,12 @@ export default function TransitMap({
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
   const aiCrowdCacheRef = useRef<Record<string, { crowd: number; label: string; color: string }>>({})
+  const inFlightBatchIdsRef = useRef<Set<string>>(new Set())
   const crowdCacheKey = `${selectedTime}|${rainMm}`
   const prevCrowdCacheKeyRef = useRef<string>(crowdCacheKey)
   if (prevCrowdCacheKeyRef.current !== crowdCacheKey) {
     aiCrowdCacheRef.current = {}
+    inFlightBatchIdsRef.current.clear()
     prevCrowdCacheKeyRef.current = crowdCacheKey
   }
   const routeMarkersRef = useRef<any[]>([])
@@ -612,6 +614,85 @@ export default function TransitMap({
     if (dotTooltipBadge) {
       dotTooltipBadge.textContent = `${crowdInfo.crowd}% (${crowdInfo.label})`
       dotTooltipBadge.style.color = crowdInfo.color
+    }
+  }
+
+  // 지도 전체/주변 거점에 대해 Stage 1(32d) × Stage 2(16d) 일괄 ONNX AI 혼잡도 조회 및 캐시 동기화
+  const requestBatchAiCrowds = async (
+    stopsToFetch: TransitStop[],
+    onApplied?: (cacheMap: Record<string, { crowd: number; label: string; color: string }>) => void,
+    signal?: AbortSignal,
+  ) => {
+    const missing = stopsToFetch.filter(
+      s =>
+        (s.type === 'subway' || s.type === 'bus' || s.type === 'bike') &&
+        !aiCrowdCacheRef.current[s.id] &&
+        !inFlightBatchIdsRef.current.has(s.id)
+    )
+    if (missing.length === 0) return
+
+    const reqCacheKey = crowdCacheKey
+    missing.forEach(s => inFlightBatchIdsRef.current.add(s.id))
+
+    const parsedHour = parseInt(selectedTime.replace(/[^0-9]/g, ''), 10)
+    const hour = !isNaN(parsedHour) ? Math.max(0, Math.min(24, parsedHour)) : new Date().getHours()
+
+    const payload: any = {
+      hour,
+      items: missing.map(s => ({
+        id: s.id,
+        name: s.name,
+        stop_type: s.type,
+        district: resolveDistrict(s.name, s.coords),
+        point_id: s.stId || s.stationNo || undefined,
+        base_crowd: s.baseCrowd,
+      })),
+    }
+    if (liveWeather && typeof liveWeather.temp === 'number') {
+      payload.weather = {
+        temp: liveWeather.temp,
+        rain: rainMm,
+        humidity: typeof liveWeather.humidity === 'number' ? liveWeather.humidity : 55.0,
+        wind: typeof liveWeather.wind === 'number' ? liveWeather.wind : 2.0,
+      }
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/predict/map-crowds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (!data || data.status !== 'success' || !data.items) return
+      if (prevCrowdCacheKeyRef.current !== reqCacheKey) return
+
+      for (const [id, info] of Object.entries(data.items as Record<string, any>)) {
+        if (!info || typeof info.crowd !== 'number') continue
+        aiCrowdCacheRef.current[id] = {
+          crowd: Number(info.crowd),
+          label: String(info.label || getCrowdLevel(Number(info.crowd)).label),
+          color: String(info.color || getCrowdLevel(Number(info.crowd)).color),
+        }
+      }
+
+      const currentActiveId = activeStopRef.current?.id
+      for (const item of markerItemsRef.current) {
+        const cached = aiCrowdCacheRef.current[item.stop.id]
+        if (cached) {
+          applyMarkerCrowdStyle(item.el, cached, currentActiveId === item.stop.id)
+        }
+      }
+
+      onApplied?.(aiCrowdCacheRef.current)
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.debug('[TransitMap] 지도 일괄 AI 혼잡도 조회 폴백(휴리스틱 유지):', err)
+      }
+    } finally {
+      missing.forEach(s => inFlightBatchIdsRef.current.delete(s.id))
     }
   }
 
@@ -2393,6 +2474,7 @@ export default function TransitMap({
             bounds.contains(station.coords)
         )
 
+        const batchBusStops: TransitStop[] = []
         const features = stations.map((station: any) => {
           const stationKey = `bus-dyn-${station.stId || station.id || station.arsId || `${station.coords[0]}_${station.coords[1]}`}`
           const tempStop: TransitStop = {
@@ -2406,6 +2488,7 @@ export default function TransitMap({
             stId: station.stId,
             arsId: station.arsId,
           }
+          batchBusStops.push(tempStop)
           const { crowd, label, color } = getStopCrowdInfo(tempStop)
 
           return {
@@ -2430,6 +2513,31 @@ export default function TransitMap({
         console.log(
           `[서울 버스] 주변 정류장 ${features.length}개 표시`
         )
+
+        if (batchBusStops.length > 0) {
+          requestBatchAiCrowds(
+            batchBusStops,
+            (cacheMap) => {
+              if (disposed || latestFeatures.length === 0) return
+              const refreshed = latestFeatures.map(f => {
+                const cached = cacheMap[f.properties?.stationKey]
+                return cached
+                  ? {
+                      ...f,
+                      properties: {
+                        ...f.properties,
+                        crowd: cached.crowd,
+                        label: cached.label,
+                        color: cached.color,
+                      }
+                    }
+                  : f
+              })
+              setStations(refreshed)
+            },
+            controller.signal,
+          )
+        }
       } catch (error) {
         if (controller?.signal.aborted || disposed) return
 
@@ -3117,8 +3225,12 @@ export default function TransitMap({
       }
     } catch {}
 
-    // 초기 마커 겹침 필터링 실행
+    // 초기 마커 겹침 필터링 실행 및 지도 전체 거점 Stage 1×Stage 2 ONNX 배치 AI 혼잡도 선계산 동기화
     updateCollisions()
+    const batchController = new AbortController()
+    requestBatchAiCrowds(allStops, () => {
+      updateCollisionsRef.current()
+    }, batchController.signal)
 
     // 지도 조작(이동, 확대, 축소) 시 고속 겹침 재계산 (최신 클로저 Refs 호출)
     const onMapMove = () => {
@@ -3138,6 +3250,7 @@ export default function TransitMap({
     map.on('resize', onMapMove)
 
     return () => {
+      batchController.abort()
       map.off('move', onMapMove)
       map.off('zoom', onMapMove)
       map.off('resize', onMapMove)

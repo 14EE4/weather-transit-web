@@ -218,6 +218,36 @@ $$Score_m = 100 - \left( \text{DelayRisk}_m + \text{WeatherPenalty}_m + \text{Cr
 }
 ```
 
+### 1-2) 지도 전체 거점 2단계 ONNX 일괄 추론 & 시간대 공용 캐시 API (`POST /api/v1/predict/map-crowds`)
+- **목적**: 지도를 처음 여는 시점부터 모든 마커(점·알약)가 휴리스틱 기본값이 아닌 100% `Stage 1 (32d) × Stage 2 (16d)` AI 추론 혼잡도·색상을 표출하고, 동일 시간대·기상 조건으로 접속하는 다른 사용자들이 이미 계산된 결과를 즉시 공유받아 재추론 비용을 `0`으로 절감.
+- **내부 동작 (`point_share_inference.py::predict_points_batch`)**:
+  - `(날짜 | 시간대 | 강수 0.1mm | 기온 2°C 버킷)` 공용 캐시 버킷(`_map_crowds_cache`, TTL `15분`, 최대 `24`슬롯)에서 미캐싱 거점만 추출.
+  - 필요한 서울 자치구별 Stage 1 (`32d`) 예측 후, 수단(`subway`/`bus`/`bike`)별 **단 1회 ONNX 배치 행렬 추론**(`(N_mode, 16)`)으로 일괄 연산해 버킷에 적재하고 요청된 거점 맵만 반환.
+- **Request Body**:
+```json
+{
+  "hour": 15,
+  "weather": { "temp": 14.0, "rain": 0.0, "humidity": 55.0, "wind": 2.0 },
+  "items": [
+    { "id": "sub-1002000222", "name": "강남역", "stop_type": "subway", "district": "강남구", "base_crowd": 84 }
+  ]
+}
+```
+- **Response Body**:
+```json
+{
+  "status": "success",
+  "cache_key": "2026-11-18|h15|r0.0|t14",
+  "cache_hit": false,
+  "computed_count": 1,
+  "total_cached_in_slot": 1,
+  "latency_ms": 2.28,
+  "items": {
+    "sub-1002000222": { "crowd": 80, "label": "혼잡", "color": "#F43F5E" }
+  }
+}
+```
+
 ### 2) 가상 기상 조건 배치 시뮬레이션 API (What-If Batch Simulator)
 - **엔드포인트**: `POST /api/v1/simulate/weather-impact`
 - **목적**: 25개 자치구 일괄 가상 기상(강수량/기온/시간대) 조건에서의 모달 시프트 및 수요 변동 배치 연산 (B2B 모빌리티 재배치 분석 및 시뮬레이션용).

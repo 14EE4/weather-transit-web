@@ -22,7 +22,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from main import app  # noqa: E402
+import main as app_main  # noqa: E402
 from point_share_inference import FEATURE_ORDER_POINT_16, point_share_engine  # noqa: E402
 
 
@@ -123,7 +123,7 @@ def test_transfer_bus_bike_matching():
 
 
 def test_fastapi_endpoints():
-    with TestClient(app) as client:
+    with TestClient(app_main.app) as client:
         h = client.get("/health")
         assert h.status_code == 200
         h_json = h.json()
@@ -175,11 +175,102 @@ def test_fastapi_endpoints():
         )
 
 
+def test_predict_points_batch_matches_single_point():
+    if not point_share_engine.is_loaded:
+        assert point_share_engine.load() is True
+
+    district_volumes = {
+        "강남구": {"subway": 48000.0, "bus": 15000.0, "bike": 350.0},
+        "서초구": {"subway": 25000.0, "bus": 12000.0, "bike": 220.0},
+        "중구": {"subway": 32000.0, "bus": 11000.0, "bike": 180.0},
+    }
+    items = [
+        {"id": "sub-gn", "name": "강남역", "stop_type": "subway", "district": "강남구", "base_crowd": 84},
+        {"id": "sub-gd", "name": "교대역", "stop_type": "subway", "district": "서초구", "base_crowd": 85},
+        {"id": "sub-hy", "name": "학여울역", "stop_type": "subway", "district": "강남구", "base_crowd": 53},
+        {"id": "bus-sr", "name": "서울역버스환승센터", "stop_type": "bus", "district": "중구", "point_id": "101000003", "base_crowd": 85},
+        {"id": "bike-hd", "name": "현대고등학교 건너편", "stop_type": "bike", "district": "강남구", "point_id": "2301", "base_crowd": 70},
+    ]
+    batch = point_share_engine.predict_points_batch(
+        items=items,
+        district_volumes=district_volumes,
+        hour=15,
+        temp=14.0,
+        rain=0.0,
+        wind=2.0,
+        humidity=55.0,
+    )
+    assert len(batch) == len(items)
+    for it in items:
+        single = point_share_engine.predict_point(
+            mode=it["stop_type"],
+            district=it["district"],
+            hour=15,
+            temp=14.0,
+            rain=0.0,
+            wind=2.0,
+            humidity=55.0,
+            district_volume=district_volumes[it["district"]][it["stop_type"]],
+            station_name=it["name"],
+            point_id=it.get("point_id"),
+            base_crowd=it.get("base_crowd"),
+        )
+        assert single is not None
+        assert batch[it["id"]]["crowd"] == single["crowd"]
+        assert batch[it["id"]]["predicted_volume"] == single["predicted_volume"]
+        assert batch[it["id"]]["point_share_pct"] == single["point_share_pct"]
+    print("[Test 5] predict_points_batch == predict_point 100% 일치 PASS")
+
+
+def test_map_crowds_batch_endpoint_and_shared_cache():
+    app_main._map_crowds_cache.clear()
+    with TestClient(app_main.app) as client:
+        req_payload = {
+            "hour": 15,
+            "weather": {"temp": 14.0, "rain": 0.0, "humidity": 55.0, "wind": 2.0},
+            "items": [
+                {"id": "sub-1002000222", "name": "강남역", "stop_type": "subway", "district": "강남구", "base_crowd": 84},
+                {"id": "sub-1002000223", "name": "교대역", "stop_type": "subway", "district": "서초구", "base_crowd": 85},
+                {"id": "sub-1003000346", "name": "학여울역", "stop_type": "subway", "district": "강남구", "base_crowd": 53},
+            ],
+        }
+        r1 = client.post("/api/v1/predict/map-crowds", json=req_payload)
+        assert r1.status_code == 200
+        j1 = r1.json()
+        assert j1["status"] == "success"
+        assert j1["cache_hit"] is False
+        assert j1["computed_count"] == 3
+        assert j1["total_cached_in_slot"] == 3
+        assert j1["items"]["sub-1002000222"]["crowd"] > j1["items"]["sub-1003000346"]["crowd"]
+        assert j1["items"]["sub-1002000223"]["crowd"] > j1["items"]["sub-1003000346"]["crowd"]
+
+        # 다른 사용자가 동일 시간대·유사 기온으로 접속 시 서버 캐시 즉시 적중 확인
+        req_payload_user2 = {
+            "hour": 15,
+            "weather": {"temp": 14.4, "rain": 0.0, "humidity": 58.0, "wind": 2.2},
+            "items": req_payload["items"],
+        }
+        r2 = client.post("/api/v1/predict/map-crowds", json=req_payload_user2)
+        assert r2.status_code == 200
+        j2 = r2.json()
+        assert j2["cache_hit"] is True
+        assert j2["computed_count"] == 0
+        assert j2["cache_key"] == j1["cache_key"]
+        assert j2["items"] == j1["items"]
+        print(
+            f"[Test 6] /api/v1/predict/map-crowds 배치 추론 & 공용 캐시 PASS: "
+            f"강남={j1['items']['sub-1002000222']} | 교대={j1['items']['sub-1002000223']} | "
+            f"학여울={j1['items']['sub-1003000346']} | User2 cache_hit={j2['cache_hit']} ({j2['latency_ms']}ms)"
+        )
+
+
 def main():
     test_engine_load_and_status()
     test_same_district_differentiation()
     test_transfer_bus_bike_matching()
     test_fastapi_endpoints()
+    test_predict_points_batch_matches_single_point()
+    test_map_crowds_batch_endpoint_and_shared_cache()
     print("\nALL STAGE 2 POINT-SHARE SERVING TESTS PASSED!")
 
 

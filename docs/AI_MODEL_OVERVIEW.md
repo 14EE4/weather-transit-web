@@ -208,6 +208,7 @@ flowchart LR
    - Stage 1 (`32d`): `lgb_bike_demand.onnx` (`6.61 MB`), `lgb_bus_demand.onnx` (`10.58 MB`), `lgb_subway_demand.onnx` (`12.73 MB`), `feature_schema.json`
    - Stage 2 (`16d`): `lgb_bike_point_share.onnx` (`1.98 MB`), `lgb_bus_point_share.onnx` (`1.92 MB`), `lgb_subway_point_share.onnx` (`13.06 MB`), `point_share_schema.json`, `point_share_priors.json.gz` (`1.64 MB`, `8,432`개 지점 사전통계, 기동 로드 `527.0 ms`)
 2. **백엔드 & 프론트엔드 연동**:
-   - `main.py` + `point_share_inference.py` (`POST /api/v1/predict/recommendation`, `/health.point_share_models`)
+   - `main.py` + `point_share_inference.py` (`POST /api/v1/predict/recommendation`, `POST /api/v1/predict/map-crowds`, `/health.point_share_models`)
+   - `TransitMap.tsx`: 지도 진입 시 `POST /api/v1/predict/map-crowds`를 통해 서울 전체 지도 거점을 **Stage 1(32d) × Stage 2(16d) 단일 ONNX 배치(`predict_points_batch`)**로 일괄 추론하고 `(날짜 · 시간대 · 강수 · 2°C 기온 버킷)` 키로 **서버 인메모리 공용 캐시(TTL `15분`)**에 저장하여 클릭 전 점(Dot)·알약 마커와 클릭 후 팝업 수치가 처음부터 100% AI 예측값으로 일치하며, 동일 시간대 타 사용자 접속 시 `1ms` 미만으로 재사용 *(백엔드 미응답 시에만 `calculateCrowd()` 휴리스틱 폴백)*
    - `TransitMap.tsx`, `App.tsx`, `AppM.tsx`: 지도 마커 팝업·PC/모바일 사이드바 AI 카드에 `🎯 지점 AI · 구 내 X.XX%` 및 구 전체 대비 지점 수요·피크(P95) 표출
    - 전체 검증 스위트(`test_point_share_inference.py`, `test_feature_schema.py` 등 9종) 및 Docker 컨테이너 실기동 헬스체크 PASS

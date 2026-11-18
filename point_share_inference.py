@@ -271,36 +271,17 @@ class PointShareEngine:
 
         return [], "DISTRICT_FALLBACK"
 
-    def predict_point(
-        self,
-        mode: str,
-        district: str,
+    @staticmethod
+    def _build_temporal_weather_prefix(
         hour: int,
         temp: float,
         rain: float,
         wind: float,
         humidity: float,
-        district_volume: float,
-        station_name: Optional[str] = None,
-        point_id: Optional[str] = None,
-        base_crowd: Optional[int] = None,
         dt: Optional[datetime] = None,
         is_holiday: bool = False,
-    ) -> Optional[dict[str, Any]]:
-        """Stage 1 자치구 총수요와 Stage 2 16차원 ONNX 점유율 모델을 결합해 개별 지점 수요·혼잡도를 산출."""
-        if not self.is_loaded or mode not in self.sessions:
-            return None
-
-        matched_ids, tier = self.resolve_points(
-            mode=mode,
-            district=district,
-            station_name=station_name,
-            point_id=point_id,
-            base_crowd=base_crowd,
-        )
-        if not matched_ids:
-            return None
-
+    ) -> tuple[list[float], int]:
+        """Stage 2 (16차원) 앞 12개 공통 캘린더·기상 피처와 요일×시간 슬롯 인덱스 반환."""
         if dt is None:
             dt = datetime.now(timezone(timedelta(hours=9)))
 
@@ -320,46 +301,58 @@ class PointShareEngine:
         w_val = max(0.0, float(wind))
         hum_val = max(0.0, min(100.0, float(humidity)))
 
-        sess = self.sessions[mode]
-        inp_name = sess.get_inputs()[0].name
-        mode_points = self.points.get(mode, {})
         dh_slot = is_weekend * 24 + h_norm
+        prefix_12 = [
+            month_sin,
+            month_cos,
+            hour_sin,
+            hour_cos,
+            float(dayofweek),
+            float(is_weekend),
+            1.0 if is_holiday else 0.0,
+            float(is_rush_hour),
+            t_val,
+            r_val,
+            w_val,
+            hum_val,
+        ]
+        return prefix_12, dh_slot
 
+    def _build_point_feature_vector(
+        self,
+        prefix_12: list[float],
+        dh_slot: int,
+        meta: dict[str, Any],
+    ) -> list[float]:
+        """12개 공통 피처에 지점 사전통계 4개를 결합해 16차원 피처 벡터 조립."""
+        b = float(meta["b"])
+        r_ratio = float(meta["r"])
+        e_ratio = float(meta["e"])
+        dh_arr = meta.get("dh", [])
+        dh_share = float(dh_arr[dh_slot]) if dh_slot < len(dh_arr) else b
+        return [*prefix_12, b, dh_share, r_ratio, e_ratio]
+
+    def _score_point_result(
+        self,
+        mode: str,
+        district: str,
+        district_volume: float,
+        matched_ids: list[str],
+        tier: str,
+        raw_shares: dict[str, float],
+    ) -> Optional[dict[str, Any]]:
+        """매칭된 지점(환승역 다중 호선 합산 포함)의 raw share를 수요·혼잡도(%)로 환산."""
+        mode_points = self.points.get(mode, {})
         total_share_pct = 0.0
         total_p95 = 0.0
         point_districts: list[str] = []
 
         for pid in matched_ids:
             meta = mode_points.get(pid)
-            if not meta:
+            raw_share = raw_shares.get(pid)
+            if not meta or raw_share is None:
                 continue
-            b = float(meta["b"])
-            r_ratio = float(meta["r"])
-            e_ratio = float(meta["e"])
-            dh_arr = meta.get("dh", [])
-            dh_share = float(dh_arr[dh_slot]) if dh_slot < len(dh_arr) else b
-
-            vec_16 = [
-                month_sin,
-                month_cos,
-                hour_sin,
-                hour_cos,
-                float(dayofweek),
-                float(is_weekend),
-                1.0 if is_holiday else 0.0,
-                float(is_rush_hour),
-                t_val,
-                r_val,
-                w_val,
-                hum_val,
-                b,
-                dh_share,
-                r_ratio,
-                e_ratio,
-            ]
-            tensor = np.array([vec_16], dtype=np.float32)
-            raw_share = float(sess.run(None, {inp_name: tensor})[0].flatten()[0])
-            total_share_pct += max(0.005, raw_share)
+            total_share_pct += max(0.005, float(raw_share))
             total_p95 += float(meta["p95"])
             if meta.get("d"):
                 point_districts.append(str(meta["d"]))
@@ -394,6 +387,165 @@ class PointShareEngine:
             "matched_point_id": ",".join(matched_ids),
             "resolved_district": ref_district,
         }
+
+    def predict_point(
+        self,
+        mode: str,
+        district: str,
+        hour: int,
+        temp: float,
+        rain: float,
+        wind: float,
+        humidity: float,
+        district_volume: float,
+        station_name: Optional[str] = None,
+        point_id: Optional[str] = None,
+        base_crowd: Optional[int] = None,
+        dt: Optional[datetime] = None,
+        is_holiday: bool = False,
+    ) -> Optional[dict[str, Any]]:
+        """Stage 1 자치구 총수요와 Stage 2 16차원 ONNX 점유율 모델을 결합해 개별 지점 수요·혼잡도를 산출."""
+        if not self.is_loaded or mode not in self.sessions:
+            return None
+
+        matched_ids, tier = self.resolve_points(
+            mode=mode,
+            district=district,
+            station_name=station_name,
+            point_id=point_id,
+            base_crowd=base_crowd,
+        )
+        if not matched_ids:
+            return None
+
+        prefix_12, dh_slot = self._build_temporal_weather_prefix(
+            hour=hour,
+            temp=temp,
+            rain=rain,
+            wind=wind,
+            humidity=humidity,
+            dt=dt,
+            is_holiday=is_holiday,
+        )
+
+        sess = self.sessions[mode]
+        inp_name = sess.get_inputs()[0].name
+        mode_points = self.points.get(mode, {})
+
+        vectors: list[list[float]] = []
+        valid_pids: list[str] = []
+        for pid in matched_ids:
+            meta = mode_points.get(pid)
+            if not meta:
+                continue
+            vectors.append(self._build_point_feature_vector(prefix_12, dh_slot, meta))
+            valid_pids.append(pid)
+
+        if not vectors:
+            return None
+
+        tensor = np.array(vectors, dtype=np.float32)
+        preds = sess.run(None, {inp_name: tensor})[0].flatten()
+        raw_shares = {pid: float(preds[idx]) for idx, pid in enumerate(valid_pids)}
+
+        return self._score_point_result(
+            mode=mode,
+            district=district,
+            district_volume=district_volume,
+            matched_ids=matched_ids,
+            tier=tier,
+            raw_shares=raw_shares,
+        )
+
+    def predict_points_batch(
+        self,
+        items: list[dict[str, Any]],
+        district_volumes: dict[str, dict[str, float]],
+        hour: int,
+        temp: float,
+        rain: float,
+        wind: float,
+        humidity: float,
+        dt: Optional[datetime] = None,
+        is_holiday: bool = False,
+    ) -> dict[str, dict[str, Any]]:
+        """지도 전체 지점 목록을 수단별 단 1회 ONNX 배치 추론으로 일괄 산출."""
+        if not self.is_loaded or not items:
+            return {}
+
+        prefix_12, dh_slot = self._build_temporal_weather_prefix(
+            hour=hour,
+            temp=temp,
+            rain=rain,
+            wind=wind,
+            humidity=humidity,
+            dt=dt,
+            is_holiday=is_holiday,
+        )
+
+        resolved_entries: list[tuple[dict[str, Any], str, list[str], str]] = []
+        pids_by_mode: dict[str, dict[str, None]] = {"subway": {}, "bus": {}, "bike": {}}
+
+        for item in items:
+            item_id = str(item.get("id") or "").strip()
+            mode = str(item.get("stop_type") or "subway").strip()
+            if not item_id or mode not in self.sessions:
+                continue
+            district = str(item.get("district") or "강남구")
+            matched_ids, tier = self.resolve_points(
+                mode=mode,
+                district=district,
+                station_name=item.get("name"),
+                point_id=item.get("point_id"),
+                base_crowd=item.get("base_crowd"),
+            )
+            if not matched_ids:
+                continue
+            resolved_entries.append((item, mode, matched_ids, tier))
+            mode_points = self.points.get(mode, {})
+            for pid in matched_ids:
+                if pid in mode_points:
+                    pids_by_mode[mode][pid] = None
+
+        raw_shares_by_mode: dict[str, dict[str, float]] = {}
+        for mode, pid_map in pids_by_mode.items():
+            if not pid_map or mode not in self.sessions:
+                continue
+            mode_points = self.points.get(mode, {})
+            pid_list = list(pid_map.keys())
+            vectors = [
+                self._build_point_feature_vector(prefix_12, dh_slot, mode_points[pid])
+                for pid in pid_list
+            ]
+            tensor = np.array(vectors, dtype=np.float32)
+            sess = self.sessions[mode]
+            inp_name = sess.get_inputs()[0].name
+            preds = sess.run(None, {inp_name: tensor})[0].flatten()
+            raw_shares_by_mode[mode] = {
+                pid: float(preds[idx]) for idx, pid in enumerate(pid_list)
+            }
+
+        results: dict[str, dict[str, Any]] = {}
+        for item, mode, matched_ids, tier in resolved_entries:
+            item_id = str(item["id"])
+            district = str(item.get("district") or "강남구")
+            dist_vol = float(
+                district_volumes.get(district, {}).get(mode)
+                or district_volumes.get("강남구", {}).get(mode)
+                or 1.0
+            )
+            scored = self._score_point_result(
+                mode=mode,
+                district=district,
+                district_volume=dist_vol,
+                matched_ids=matched_ids,
+                tier=tier,
+                raw_shares=raw_shares_by_mode.get(mode, {}),
+            )
+            if scored is not None:
+                results[item_id] = scored
+
+        return results
 
 
 point_share_engine = PointShareEngine()

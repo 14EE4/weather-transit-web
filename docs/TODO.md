@@ -13,6 +13,9 @@
 
 
 ### 🛡️ 0-0. 관측성(Observability) 및 외부 API 장애 격리 (완료 · 2026-11-02 · 이슈 #80)
+- [x] **[LOG-05] `/health/dashboard` Stage 2(`16d`) 모델 로드 현황 연동 및 FactChat LLM `max_tokens` 상향 (완료 · 2026-11-18 · 이슈 #132)**:
+  - `admin_dashboard.py` 카드 4(`🧠 AI ONNX & 시계열 캐시`)에 `Stage 1 (자치구): 3종 완료 (32d)`와 `Stage 2 (지점별): 3종 · 8,432개 (16d)` 동적 상태 및 `32d×16d Verified` 배지 연동.
+  - `multimodal_router.py::_node_factchat_llm_briefing`의 `"max_tokens": 240` ➔ `700`, `timeout=5.0` ➔ `8.0` 상향으로 `gpt-6-luna` 내부 추론 소진 빈 본문 폴백 해소 (`tests/test_observability_logging.py` 검증).
 - [x] **[LOG-04] 빈 예외 메시지(`ReadTimeout`) 보강 및 주요 경고/폴백 로그 트러블슈팅 가이드 문서화 (완료 · 2026-11-18 · 이슈 #129)**:
   - `logging_utils.py::sanitize_exception()`이 `httpx.ReadTimeout("")` 등 빈 문자열 예외 시 `ReadTimeout` 등 예외 클래스명을 보존하도록 개선.
   - `kma_forecast.py`, `main.py`, `multimodal_router.py` 경고 로그에 `sanitize_exception()` 및 간결한 `1줄` 폴백 표기 적용.

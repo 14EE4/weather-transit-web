@@ -137,6 +137,23 @@ class TestObservabilityAndGracefulDegradation(unittest.TestCase):
         self.assertIn("fallback_reason", fc_step)
         self.assertIn("fallback_reason", briefing)
 
+    def test_admin_dashboard_and_status_stage2(self):
+        """관리자 대시보드(/health/dashboard) 및 /api/v1/admin/status에 Stage 1(32d)·Stage 2(16d) 표시 검증"""
+        dash_resp = self.client.get("/health/dashboard")
+        self.assertEqual(dash_resp.status_code, 200)
+        html = dash_resp.text
+        self.assertIn("Stage 1 (자치구)", html)
+        self.assertIn("Stage 2 (지점별)", html)
+        self.assertIn("32d×16d Verified", html)
+        self.assertIn("point-share-loaded-text", html)
+
+        status_resp = self.client.get("/api/v1/admin/status")
+        self.assertEqual(status_resp.status_code, 200)
+        st = status_resp.json()
+        self.assertIn("models_loaded", st)
+        self.assertIn("point_share_models", st)
+        self.assertIn("point_counts", st["point_share_models"])
+
 
 if __name__ == "__main__":
     unittest.main()

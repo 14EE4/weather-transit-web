@@ -3540,10 +3540,10 @@ class MultimodalRoutingEngine:
                                 },
                                 {"role": "user", "content": prompt_text},
                             ],
-                            "max_tokens": 240,
+                            "max_tokens": 700,
                             "temperature": 0.3,
                         },
-                        timeout=5.0,
+                        timeout=8.0,
                     )
                     if resp.status_code == 200:
                         data = resp.json()

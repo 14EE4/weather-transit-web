@@ -179,7 +179,7 @@ interface MultimodalRouteLogPayload {
 | `[버스]` | `[서울 버스] Nearby bus station API 연결 실패/타임아웃 (...) -> 200 빈 목록 Fallback` | 지도 주변 정류소 조회(`getStationByPos`) `4.0초` 타임아웃 또는 서버 502/503 | 브라우저 502 에러 폭주 차단을 위해 `HTTP 200` 빈 목록(`stations: []`) 반환 | 지도 정적 마스터 정류소 레이어는 정상 표출됨 |
 | `[버스]` | `getStationByPos API 헤더 오류` / `서울시 버스 노선·위치·도착 API 오류` (`headerCd != "0"`) | `DATA_GO_KR_API_KEY`의 **서울시 버스 OpenAPI 5종 활용신청 누락**, 인증키 오설정 또는 일일 트래픽 한도 초과 | 빈 목록 폴백 반환 또는 해당 버스 상세 API `502` 응답 | 공공데이터포털 마이페이지에서 5종 API(정류소·노선·위치·도착·환승) 승인 상태 및 트래픽 확인 |
 | `[버스]` | `[버스 검색] getStationByName 안내 응답 (4: ...)` | API 장애가 아니라 검색 결과 `0건` 또는 심야 운행 종료 상태 (`headerCd` `"4"`, `"7"`) | 정상 `HTTP 200` 빈 목록(`count: 0`) 반환 | 정상 동작 (검색어 철자 확인) |
-| `[LangGraph]` | `[FactChat] LLM Gateway 응답 본문이 비어 있어 XAI 규칙 엔진으로 Fallback합니다.` | 추론형 LLM(`gpt-6-luna`)이 `max_tokens=240`을 내부 추론(Thinking)에 소진하여 빈 본문(`content=""`) 반환 | 내장 **LangGraph XAI 규칙 엔진**으로 `0ms` 전환하여 한국어 브리핑 정상 생성 | 사용자 화면 브리핑은 정상 표출 (`fallback_reason="EMPTY_LLM_RESPONSE"`) |
+| `[LangGraph]` | `[FactChat] LLM Gateway 응답 본문이 비어 있어 XAI 규칙 엔진으로 Fallback합니다.` | 추론형 LLM(`gpt-6-luna`)이 `max_tokens` 한도(과거 `240`, 현행 `700`으로 상향)를 내부 추론(Thinking)에 소진해 빈 본문(`content=""`) 반환 | 내장 **LangGraph XAI 규칙 엔진**으로 `0ms` 전환하여 한국어 브리핑 정상 생성 | 사용자 화면 브리핑은 정상 표출 (`fallback_reason="EMPTY_LLM_RESPONSE"`) |
 | `[LangGraph]` | `fetch_public_transit_transfer_routes error: ... (다익스트라 폴백)` | 대중교통 환승경로 API(`getPathInfoByBusNSub`, `timeout=2.5s`) 지연 또는 오류 | 자체 다익스트라 지하철+버스 복합 탐색 엔진으로 무중단 경로 생성 | 자체 라우팅으로 정상 동작 |
 | `[지하철]` / `[따릉이]` | `Seoul Subway API error: ... (배차 폴백)` / `Seoul bike API error: ... (스냅샷 폴백)` | 서울 열린데이터광장(`swopenAPI`, `openapi.seoul.go.kr:8088`) 응답 지연·오류 | 직전 정상 스냅샷 또는 시간대 표준 배차간격·마스터 대여소 DB로 대체 | `SEOUL_SUBWAY_API_KEY` / `SEOUL_BIKE_API_KEY` 만료 여부 확인 |
 | `[서킷브레이커]` | `[CircuitBreaker:NAME] 연속 실패 3회 발생! 서킷을 OPEN 상태로 차단합니다` | 동일 외부 API가 연속 `3`회(`failure_threshold=3`) 실패 | 쿨다운(`30초` 또는 KMA `45초`) 동안 외부 호출 차단 후 스냅샷/폴백 즉시 응답 | 쿨다운 후 `HALF_OPEN` 프로빙 성공 시 `CLOSED`로 자동 복귀 |
@@ -215,7 +215,7 @@ interface MultimodalRouteLogPayload {
 ### 8.4 FactChat LLM 빈 응답 (`[LangGraph]`) 상세 해설
 
 - **`[FactChat] LLM Gateway 응답 본문이 비어 있어 XAI 규칙 엔진으로 Fallback합니다.`**
-  - 경로 탐색 `4단계`(`_node_factchat_llm_briefing`)에서 외부 BAZE/FactChat LLM(`gpt-6-luna`, `max_tokens=240`) 호출 시 `HTTP 200` 응답은 왔지만 `choices[0].message.content`가 비어 있는 상태입니다.
-  - 추론(Reasoning) 계열 모델이 제한된 `240` 토큰을 내부 추론에 모두 소진해 최종 출력 텍스트가 비어 돌아올 때 간헐적으로 발생하며, 서버는 즉시 **내장 LangGraph XAI 규칙 엔진(`LANGGRAPH_XAI_ENGINE`)**으로 `0ms` 전환해 출발·도착 국지 기상과 혼잡도(`%`)를 반영한 브리핑 문장을 정상 생성합니다.
+  - 경로 탐색 `4단계`(`_node_factchat_llm_briefing`)에서 외부 BAZE/FactChat LLM(`gpt-6-luna`) 호출 시 `HTTP 200` 응답은 왔지만 `choices[0].message.content`가 비어 있는 상태입니다.
+  - 추론(Reasoning) 계열 모델은 내부 추론 토큰(`reasoning_tokens`)과 최종 출력 텍스트 토큰을 `max_tokens` 한도 안에서 함께 사용합니다. 초기 설정(`max_tokens=240`, `timeout=5.0s`)에서 간혹 내부 추론에 한도를 소진해 본문이 비어 돌아오는 현상을 완화하기 위해 현행 코드에서는 **`max_tokens=700`, `timeout=8.0s`**로 상향하여 정상 LLM 브리핑(`FACTCHAT_LLM_LIVE`) 성공률을 확보했습니다. 그럼에도 게이트웨이 정책이나 한도 초과로 빈 본문이 오면 서버는 즉시 **내장 LangGraph XAI 규칙 엔진(`LANGGRAPH_XAI_ENGINE`)**으로 `0ms` 전환해 브리핑 문장을 정상 생성합니다.
 
 

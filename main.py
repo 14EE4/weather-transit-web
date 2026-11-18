@@ -33,6 +33,18 @@ import numpy as np
 import onnxruntime as ort
 import httpx
 from logging_utils import mask_sensitive_text, sanitize_exception
+from services.circuit_breaker import CircuitBreaker
+from services.mcda_evaluator import (
+    AHP_CRITERIA_WEIGHTS,
+    calculate_station_crowd,
+    configure_mcda_context,
+    evaluate_bike,
+    evaluate_bus,
+    evaluate_mode,
+    evaluate_subway,
+    get_crowd_color,
+    get_score_meta,
+)
 
 from timeseries_cache import timeseries_cache
 from multimodal_router import multimodal_routing_engine
@@ -77,71 +89,8 @@ SEOUL_BIKE_KEY = os.getenv("SEOUL_BIKE_API_KEY") or os.getenv("SEOUL_DATA_API_KE
 DATA_GO_KR_BUS_KEY = os.getenv("DATA_GO_KR_API_KEY")
 
 # ==============================================================================
-# 공공 API 서킷 브레이커 (Circuit Breaker) 및 장애 대비 복원력(Resilience) 계층
+# 공공 API 서킷 브레이커 (Circuit Breaker) 인스턴스 (정의: services/circuit_breaker.py)
 # ==============================================================================
-class CircuitBreaker:
-    """
-    공공 API 장애 및 지연 전파 차단용 3상 서킷 브레이커 (CLOSED -> OPEN -> HALF_OPEN)
-    - failure_threshold: 연속 실패 횟수 임계치 (초과 시 OPEN 전환)
-    - recovery_timeout: OPEN 상태 지속 시간(초) 후 HALF_OPEN 프로빙 시도
-    """
-    def __init__(self, name: str, failure_threshold: int = 3, recovery_timeout: float = 30.0):
-        self.name = name
-        self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout
-        self.failure_count = 0
-        self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
-        self.last_failure_time = 0.0
-        self.last_state_change = time.time()
-        self.success_count = 0
-        self.fallback_count = 0
-
-    def can_execute(self) -> bool:
-        now = time.time()
-        if self.state == "OPEN":
-            if now - self.last_failure_time >= self.recovery_timeout:
-                self.state = "HALF_OPEN"
-                self.last_state_change = now
-                logger.info(f"[CircuitBreaker:{self.name}] 쿨다운 만료 -> HALF_OPEN (프로빙 시험 요청 허용)")
-                return True
-            return False
-        return True
-
-    def record_success(self):
-        if self.state in ("OPEN", "HALF_OPEN"):
-            logger.info(f"[CircuitBreaker:{self.name}] 원격 API 정상 복구 확인 -> CLOSED 전환")
-        self.failure_count = 0
-        self.state = "CLOSED"
-        self.success_count += 1
-        self.last_state_change = time.time()
-
-    def record_failure(self, error_msg: str = ""):
-        self.failure_count += 1
-        self.last_failure_time = time.time()
-        self.fallback_count += 1
-        if self.state == "HALF_OPEN" or self.failure_count >= self.failure_threshold:
-            if self.state != "OPEN":
-                logger.warning(
-                    f"[CircuitBreaker:{self.name}] 연속 실패 {self.failure_count}회 발생! "
-                    f"서킷을 OPEN 상태로 차단합니다 (쿨다운: {self.recovery_timeout}초). 원인: {error_msg}"
-                )
-            self.state = "OPEN"
-            self.last_state_change = time.time()
-
-    def get_status(self) -> dict:
-        now = time.time()
-        remaining_cooldown = max(0.0, self.recovery_timeout - (now - self.last_failure_time)) if self.state == "OPEN" else 0.0
-        return {
-            "name": self.name,
-            "state": self.state,
-            "failure_count": self.failure_count,
-            "failure_threshold": self.failure_threshold,
-            "recovery_timeout_sec": self.recovery_timeout,
-            "remaining_cooldown_sec": round(remaining_cooldown, 1),
-            "total_success": self.success_count,
-            "total_fallback": self.fallback_count,
-        }
-
 # 서비스별 서킷 브레이커 인스턴스
 kma_circuit_breaker = CircuitBreaker("KMA_WEATHER", failure_threshold=3, recovery_timeout=45.0)
 subway_circuit_breaker = CircuitBreaker("SEOUL_SUBWAY", failure_threshold=3, recovery_timeout=30.0)
@@ -1057,186 +1006,8 @@ def get_crowd_label(val: int) -> str:
 # 기준 1: 기상 안전/쾌적성 (Weather Safety): 57.14% (w = 0.5714)
 # 기준 2: 정시성/신뢰성 (Punctuality): 28.57% (w = 0.2857)
 # 기준 3: 공간 쾌적도/혼잡도 (Crowd Comfort): 14.29% (w = 0.1429)
-# 쌍대비교 일관성 지표: lambda_max = 3.00, CI = 0.000, CR = 0.000 < 0.10 (완벽한 일관성 충족)
-AHP_CRITERIA_WEIGHTS = {
-    "weather_safety": 0.5714,
-    "punctuality": 0.2857,
-    "crowd_comfort": 0.1429,
-}
-
-def get_crowd_color(val: int) -> str:
-    if val < 45:
-        return "#10B981"  # Emerald
-    elif val <= 75:
-        return "#38BDF8"  # Sky
-    return "#F43F5E"      # Rose
-
-def evaluate_subway(volume: float, rain: float, district: str) -> tuple[int, int, list[str]]:
-    """지하철 혼잡도(0~100%), 실측 캘리브레이션 MCDA 추천 스코어(0~100), 추천 사유 도출"""
-    norm_d = normalize_district_name(district)
-    stats = DISTRICT_STATS.get(norm_d, DISTRICT_STATS["강남구"])
-    p95 = stats["subway_p95"]
-    v_min = stats["subway_min"]
-
-    # 1) 혼잡도 계산: C_m = min(100, max(5, ((V - min) / (p95 - min)) * 100))
-    denom = max(1.0, p95 - v_min)
-    crowd = int(round(min(100.0, max(5.0, ((volume - v_min) / denom) * 100.0))))
-
-    # 2) 실측 데이터 기반 MCDA 추천 스코어 (20.9만 건 실측 검증):
-    # 지하철은 지하 터널 주행으로 직접 우천 노출 0점, 정시 운행률 99.2% 실측 기반 지연 리스크 2.0점, 혼잡도 페널티 0.40 * crowd
-    weather_penalty = 0.0
-    delay_risk = 2.0
-    crowd_penalty = 0.40 * crowd
-    score = int(round(max(25.0, min(99.0, 100.0 - (weather_penalty + delay_risk + crowd_penalty)))))
-
-    # 3) 추천 사유 (Explainability)
-    reasons = []
-    if rain > 0:
-        reasons.append("실측 정시성 99.2% 유지로 우천 도로 정체 완전 회피")
-        reasons.append("지하 역사 이동으로 강수 및 빗길 미끄러짐 노출 최소화")
-        if crowd > 75:
-            reasons.append(f"우천 모달 시프트 집중으로 차내 혼잡도({crowd}%) 높음, 안전 유의")
-        else:
-            reasons.append("출퇴근 배차 간격 2.5~3분 유지로 신속한 이동")
-    else:
-        reasons.append("정시성 99.2% 유지로 가장 신뢰도 높은 이동 수단")
-        reasons.append(f"현재 자치구 역사 혼잡도 {crowd}% 수준")
-        reasons.append("중장거리 이동 시 최적 소요 시간 보장")
-
-    return crowd, score, reasons
-
-def evaluate_bus(volume: float, rain: float, district: str) -> tuple[int, int, list[str]]:
-    """버스 혼잡도(0~100%), 실측 캘리브레이션 MCDA 추천 스코어(0~100), 추천 사유 도출"""
-    norm_d = normalize_district_name(district)
-    stats = DISTRICT_STATS.get(norm_d, DISTRICT_STATS["강남구"])
-    p95 = stats["bus_p95"]
-    v_min = stats["bus_min"]
-
-    # 1) 혼잡도 계산
-    denom = max(1.0, p95 - v_min)
-    crowd = int(round(min(100.0, max(5.0, ((volume - v_min) / denom) * 100.0))))
-
-    # 2) 실측 데이터 기반 MCDA 추천 스코어:
-    # 버스는 노면 수막현상 감속 페널티 min(30, 3.5*rain + 5), 간선/지선 도로 통행속도 15~25% 감속 지연 리스크 12.0 + 2.5*rain, 혼잡도 페널티 0.35 * crowd
-    weather_penalty = min(30.0, 3.5 * rain + (5.0 if rain > 0 else 0.0))
-    delay_risk = 12.0 + 2.5 * rain
-    crowd_penalty = 0.35 * crowd
-    score = int(round(max(10.0, min(99.0, 100.0 - (weather_penalty + delay_risk + crowd_penalty)))))
-
-    # 3) 추천 사유
-    reasons = []
-    if rain > 0:
-        delay_est = round(3.5 + 1.2 * rain, 1)
-        reasons.append(f"우천 노면 감속 및 도로 정체로 평균 {delay_est}분 지연 예상")
-        reasons.append("간선/지선 교차로 및 주요 대로 병목 구간 통과")
-        reasons.append("승하차 시 우산 이용 불편 및 차내 혼잡 가중")
-    else:
-        reasons.append("정상 도로 소통으로 목적지 인접 하차 편리")
-        reasons.append(f"현재 노선 차내 혼잡도 {crowd}% 수준 운행 중")
-        reasons.append("환승 할인 및 단거리 이동 접근성 우수")
-
-    return crowd, score, reasons
-
-def evaluate_bike(volume: float, rain: float, district: str) -> tuple[int, int, list[str]]:
-    """따릉이 혼잡도(0~100%), 실측 캘리브레이션 MCDA 추천 스코어(0~100), 추천 사유 도출"""
-    norm_d = normalize_district_name(district)
-    stats = DISTRICT_STATS.get(norm_d, DISTRICT_STATS["강남구"])
-    p95 = stats["bike_p95"]
-    v_min = stats["bike_min"]
-
-    # 1) 혼잡도 계산 (대여율)
-    denom = max(1.0, p95 - v_min)
-    crowd = int(round(min(100.0, max(5.0, ((volume - v_min) / denom) * 100.0))))
-
-    # 2) 실측 20.9만 건 데이터 기반 캘리브레이션 MCDA 스코어:
-    # 실측치: 강수 발생 시 즉시 -73.6%(0.1~1.0mm), -84.5%(1.0~3.0mm), -89.3%(3.0~5.0mm) 급감 반영
-    # Step-and-Slope 곡선: rain > 0 시 즉시 40점 기본 감점 + 12.0*rain 추가 감점 (최대 85점 감점)
-    weather_penalty = min(85.0, (40.0 + 12.0 * rain) if rain > 0 else 0.0)
-    delay_risk = 8.0
-    crowd_penalty = 0.15 * crowd
-    score = int(round(max(5.0, min(99.0, 100.0 - (weather_penalty + delay_risk + crowd_penalty)))))
-
-    # 3) 추천 사유
-    reasons = []
-    if rain > 0:
-        if rain < 1.0:
-            reasons.append(f"소우(강수량 {rain:.1f}mm)에도 실측 따릉이 이용객 73.6% 급감 패턴 관측")
-            reasons.append("노면 미끄러짐 및 빗길 제동거리 증가로 안전사고 주의")
-            reasons.append("우천 안전을 위해 지하철/버스 이용 권장")
-        else:
-            reasons.append(f"강수량 {rain:.1f}mm로 노면 수막현상 및 미끄러짐 위험 극심 (실측 이용률 85% 이상 급감)")
-            reasons.append("우천 시 시야 제한 및 급제동 위험으로 자전거 운행 매우 부적합")
-            reasons.append("지하철 또는 대체 대중교통 이용 강력 권고")
-    else:
-        reasons.append("쾌적한 날씨로 단거리 친환경 이동에 최적")
-        reasons.append(f"현재 거치대 여유도 {100 - crowd}% 수준으로 대여 원활")
-        reasons.append("교통 체증 없는 전용 자전거 도로 이용 권장")
-
-    return crowd, score, reasons
-
-def get_score_meta(mode_id: str, score: int) -> tuple[str, str]:
-    """점수에 따른 라벨 및 테마 색상 반환"""
-    if mode_id == "subway":
-        if score >= 85:
-            return "최우선 추천", "#38BDF8"
-        elif score >= 70:
-            return "추천", "#38BDF8"
-        return "보통", "#FB923C"
-    elif mode_id == "bus":
-        if score >= 80:
-            return "최우선 추천", "#38BDF8"
-        elif score >= 65:
-            return "추천", "#38BDF8"
-        elif score >= 45:
-            return "주의 필요", "#FB923C"
-        return "비추천", "#F43F5E"
-    else:  # bike
-        if score >= 75:
-            return "최우선 추천", "#10B981"
-        elif score >= 55:
-            return "쾌적", "#10B981"
-        elif score >= 35:
-            return "주의", "#FB923C"
-        return "비추천", "var(--color-muted)"
-
-def calculate_station_crowd(base: int, hour: int, rain: float, stop_type: str, station_name: str) -> int:
-    """특정 지하철역/정류소의 시간대 첨두곡선, 기상 강수 민감도 및 고유 분산 반영 혼잡도 계산 (지도 마커와 100% 동기화)"""
-    time_mult = 1.0
-    if 8 <= hour <= 9:
-        time_mult = 1.25
-    elif hour == 7:
-        time_mult = 1.15
-    elif 18 <= hour <= 19:
-        time_mult = 1.22
-    elif hour == 17:
-        time_mult = 1.15  # 퇴근 초입 (17시)
-    elif hour == 20:
-        time_mult = 1.12
-    elif 12 <= hour <= 13:
-        time_mult = 1.02
-    elif 10 <= hour <= 16:
-        time_mult = 0.78
-    elif 21 <= hour <= 22:
-        time_mult = 0.70
-    else:
-        time_mult = 0.42
-
-    st_hash = 0
-    for ch in station_name:
-        st_hash = ((st_hash << 5) - st_hash) + ord(ch)
-        st_hash = st_hash & 0xFFFFFFFF
-        if st_hash >= 0x80000000:
-            st_hash -= 0x100000000
-    hash_offset = (abs(st_hash) % 7) - 3
-
-    if stop_type == "bike":
-        bike_rain_penalty = int(round(-2.5 * rain * 7.5))
-        crowd = int(round(base * (0.35 if (hour >= 23 or hour <= 5) else 1.0))) + bike_rain_penalty
-        return max(5, min(95, crowd))
-    else:
-        rain_bonus = min(15, int(round(1.2 * rain * 2.2)))
-        crowd = int(round(base * time_mult)) + hash_offset + rain_bonus
-        return max(10, min(99, crowd))
+# MCDA 평가 컨텍스트 주입 (실제 구현: services/mcda_evaluator.py)
+configure_mcda_context(DISTRICT_STATS, normalize_district_name)
 
 # ==============================================================================
 # 7. 엔드포인트 구현

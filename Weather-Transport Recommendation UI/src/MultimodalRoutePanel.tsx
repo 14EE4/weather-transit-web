@@ -104,6 +104,8 @@ export interface MultimodalSearchResponse {
     bike_enabled: boolean
     first_mile_bike_enabled?: boolean
     last_mile_bike_enabled?: boolean
+    origin_in_seoul?: boolean
+    dest_in_seoul?: boolean
     from_district?: string
     to_district?: string
     from_weather?: SegmentLocalWeather
@@ -232,6 +234,9 @@ export default function MultimodalRoutePanel({
       return
     }
 
+    // 캐시 미스 시 이전 경로(예: 인천 출발 → 따릉이 자동 차단)의 결과·배지가 새 탐색 중에 잔류하지 않도록 즉시 비움
+    setData(null)
+    setSelectedIdx(0)
     let cancelled = false
     const timer = setTimeout(async () => {
       setLoading(true)
@@ -512,7 +517,9 @@ export default function MultimodalRoutePanel({
                 ? '☀️ CLEAR_MULTIMODAL · 따릉이 First-Mile 활성'
                 : (!allowBike
                   ? '🚫 USER_TRANSIT_ONLY · 따릉이 제외 모드'
-                  : '🌧️ RAIN_SAFE_ONLY · 따릉이 자동 차단')}
+                  : (data?.weather_context?.origin_in_seoul === false
+                    ? '📍 NON_SEOUL_ORIGIN · 서울 외 출발 · 따릉이 대여 불가'
+                    : '🌧️ RAIN_SAFE_ONLY · 따릉이 자동 차단'))}
             </span>
           </div>
 

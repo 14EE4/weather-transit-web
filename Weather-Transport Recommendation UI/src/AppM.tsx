@@ -713,10 +713,10 @@ export default function AppM() {
     from = departure,
     to = destination,
     navigateToMap = false,
-    fromCoords = departureCoords,
-    toCoords = destinationCoords,
-    fromType = departureType,
-    toType = destinationType,
+    fromCoords: [number, number] | null | undefined = departureCoords,
+    toCoords: [number, number] | null | undefined = destinationCoords,
+    fromType: typeof departureType | null | undefined = departureType,
+    toType: typeof destinationType | null | undefined = destinationType,
   ) => {
     if (!from.trim() || !to.trim()) {
       alert('출발지와 도착지를 입력해주세요.')
@@ -730,13 +730,14 @@ export default function AppM() {
     setShowDestinationList(false)
     setDeparture(from.trim())
     setDestination(to.trim())
+    // null = '좌표/타입 없음(명시적 초기화)', undefined = '현재 입력 상태값 사용(기본 파라미터)'
     setSearchedRoute({
       from: from.trim(),
       to: to.trim(),
-      fromCoords,
-      toCoords,
-      fromType,
-      toType,
+      fromCoords: fromCoords ?? undefined,
+      toCoords: toCoords ?? undefined,
+      fromType: fromType ?? undefined,
+      toType: toType ?? undefined,
     })
     const route = findSubwayRoute(from, to)
     if (route) {
@@ -828,7 +829,7 @@ export default function AppM() {
       localStorage.setItem('weather_transit_route_destination', prevDep)
     } catch {}
         if (prevDest && prevDep) {
-      handleSearchRoute(prevDest, prevDep, false, prevDestCoords, prevDepCoords, prevDestType, prevDepType)
+      handleSearchRoute(prevDest, prevDep, false, prevDestCoords ?? null, prevDepCoords ?? null, prevDestType ?? null, prevDepType ?? null)
     }
   }
 
@@ -2303,6 +2304,8 @@ export default function AppM() {
                   }}
                   onChange={val => {
                     setDeparture(val)
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2325,6 +2328,8 @@ export default function AppM() {
                   }}
                   onClear={() => {
                     setDeparture('')
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
@@ -2367,6 +2372,8 @@ export default function AppM() {
                   }}
                   onChange={val => {
                     setDestination(val)
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2389,6 +2396,8 @@ export default function AppM() {
                   }}
                   onClear={() => {
                     setDestination('')
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}

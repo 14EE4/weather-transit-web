@@ -9,7 +9,7 @@ import {
 import { TransportScoreSkeleton, DistrictCongestionSkeleton } from './components/SkeletonLoader'
 import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
 import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logDistrictCongestionCall, logHourlyForecastCall } from './apiLogger'
-import { searchSubwayStations, SubwayStation } from './subwayData'
+import { searchSubwayStations, SubwayStation, SUBWAY_STATIONS } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
 import { BUS_STOPS } from './busStopData'
@@ -709,10 +709,10 @@ export default function App() {
     from = departure,
     to = destination,
     navigateToMap = false,
-    fromCoords = departureCoords,
-    toCoords = destinationCoords,
-    fromType = departureType,
-    toType = destinationType,
+    fromCoords: [number, number] | null | undefined = departureCoords,
+    toCoords: [number, number] | null | undefined = destinationCoords,
+    fromType: typeof departureType | null | undefined = departureType,
+    toType: typeof destinationType | null | undefined = destinationType,
   ) => {
     if (!from.trim() || !to.trim()) {
       alert('출발지와 도착지를 입력해주세요.')
@@ -726,13 +726,14 @@ export default function App() {
     setShowDestinationList(false)
     setDeparture(from.trim())
     setDestination(to.trim())
+    // null = '좌표/타입 없음(명시적 초기화)', undefined = '현재 입력 상태값 사용(기본 파라미터)'
     setSearchedRoute({
       from: from.trim(),
       to: to.trim(),
-      fromCoords,
-      toCoords,
-      fromType,
-      toType,
+      fromCoords: fromCoords ?? undefined,
+      toCoords: toCoords ?? undefined,
+      fromType: fromType ?? undefined,
+      toType: toType ?? undefined,
     })
     const route = findSubwayRoute(from, to)
     if (route) {
@@ -825,7 +826,7 @@ export default function App() {
       localStorage.setItem('weather_transit_route_destination', prevDep)
     } catch {}
         if (prevDest && prevDep) {
-      handleSearchRoute(prevDest, prevDep, false, prevDestCoords, prevDepCoords, prevDestType, prevDepType)
+      handleSearchRoute(prevDest, prevDep, false, prevDestCoords ?? null, prevDepCoords ?? null, prevDestType ?? null, prevDepType ?? null)
     }
   }
 
@@ -2295,6 +2296,8 @@ export default function App() {
                   }}
                   onChange={val => {
                     setDeparture(val)
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2317,6 +2320,8 @@ export default function App() {
                   }}
                   onClear={() => {
                     setDeparture('')
+                    setDepartureCoords(undefined)
+                    setDepartureType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
@@ -2359,6 +2364,8 @@ export default function App() {
                   }}
                   onChange={val => {
                     setDestination(val)
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setActiveRoute(null)
                   }}
                   onSelectSubway={st => {
@@ -2381,6 +2388,8 @@ export default function App() {
                   }}
                   onClear={() => {
                     setDestination('')
+                    setDestinationCoords(undefined)
+                    setDestinationType(undefined)
                     setSearchedRoute(null)
                     setActiveRoute(null)
                   }}
@@ -2438,9 +2447,22 @@ export default function App() {
                     <button
                       key={item.from + item.to}
                       onClick={() => {
+                        // 사용자가 통합 검색창에서 역을 직접 선택한 것과 동일한 경로(onSelectSubway)로 입력값만 채우고,
+                        // 실제 검색은 '경로 검색' 버튼으로 실행한다 (이전 GPS/지도 좌표 잔류 방지).
+                        const fromSt = SUBWAY_STATIONS.find(s => s.name === item.from)
+                        const toSt = SUBWAY_STATIONS.find(s => s.name === item.to)
                         setDeparture(item.from)
+                        setDepartureCoords(fromSt?.coords)
+                        setDepartureType('subway')
                         setDestination(item.to)
-                        handleSearchRoute(item.from, item.to)
+                        setDestinationCoords(toSt?.coords)
+                        setDestinationType('subway')
+                        setSearchedRoute(null)
+                        setActiveRoute(null)
+                        setShowDepartureList(false)
+                        setShowDestinationList(false)
+                        if (fromSt) setFocusedCoords(fromSt.coords)
+                        showRouteToast(`🧭 '${item.from} → ${item.to}'이(가) 입력되었습니다. [경로 검색]을 눌러 주세요.`)
                       }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 12,

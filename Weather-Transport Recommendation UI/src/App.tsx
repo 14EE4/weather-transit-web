@@ -1,14 +1,29 @@
 import { useState, useEffect, useRef } from 'react'
+import { API_BASE_URL } from './api/client'
+import { DISTRICT_GROUPS, DISTRICTS } from './constants/districts'
+import {
+  getInitialDistrict,
+  getInitialPage,
+  type Page,
+} from './utils/storage'
+import {
+  CrowdBar,
+  StatCard,
+  BarChart,
+  CorrelationChart,
+} from './components/AnalyticsCharts'
+import { useTheme } from './hooks/useTheme'
+import { useGeoDistrict, type MyLocationState } from './hooks/useGeoDistrict'
+import { useWeatherAndAI } from './hooks/useWeatherAndAI'
+import { useStopDetailPipeline } from './hooks/useStopDetailPipeline'
+import { TransportScoreSkeleton, DistrictCongestionSkeleton } from './components/SkeletonLoader'
 import {
   DEFAULT_24H_DATA,
   FALLBACK_TRANSPORT_SCORES as TRANSPORT_SCORES,
-  CORRELATION_DATA,
   FALLBACK_DISTRICT_DATA as DISTRICT_DATA,
-  type HourlyTransitData
 } from './constants/fallbackData'
-import { TransportScoreSkeleton, DistrictCongestionSkeleton } from './components/SkeletonLoader'
-import TransitMap, { TransitStop, StopDetailData } from './TransitMap'
-import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall, logDistrictCongestionCall, logHourlyForecastCall } from './apiLogger'
+import TransitMap, { type TransitStop } from './TransitMap'
+import { logWeatherApiCall, logBusApiCall, logSubwayApiCall, logAIPredictionCall } from './apiLogger'
 import { searchSubwayStations, SubwayStation, SUBWAY_STATIONS } from './subwayData'
 import { findSubwayRoute, calculateSubwayFare, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
@@ -20,458 +35,15 @@ import EnterpriseView from './EnterpriseView'
 import MultimodalRoutePanel from './MultimodalRoutePanel'
 import WeatherMoveLogo from './components/WeatherMoveLogo'
 
-type Page = 'main' | 'route' | 'map' | 'enterprise'
+export { DISTRICT_GROUPS }
+export type { HourlyTransitData } from './constants/fallbackData'
 
-type Theme = 'dark' | 'light'
-
-const getInitialTheme = (): Theme => {
-  try {
-    const saved = localStorage.getItem('weather-transit-theme')
-    if (saved === 'light' || saved === 'dark') {
-      return saved
-    }
-  } catch {
-    // localStorage 접근 불가 환경 대비
-  }
-
-  // 사용자가 수동 설정한 테마가 없을 경우 OS/기기 시스템 테마(prefers-color-scheme)를 기본값으로 사용
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark'
-    }
-    return 'light'
-  }
-
-  return 'dark'
-}
-
-// ── 서울 25개 자치구 및 수도권 주요 거점 권역별 데이터 ──
-export const DISTRICT_GROUPS = [
-  {
-    zone: '🏢 동남권 (강남·서초·송파·강동)',
-    items: [
-      '강남구 역삼·삼성동',
-      '강남구 논현·압구정동',
-      '강남구 대치·수서동',
-      '서초구 서초·교대역',
-      '서초구 반포·고속터미널',
-      '서초구 양재·시민의숲',
-      '송파구 잠실·롯데월드',
-      '송파구 문정·가락시장',
-      '강동구 천호·길동',
-      '강동구 명일·고덕동',
-    ]
-  },
-  {
-    zone: '🏛️ 도심권 (종로·중구·용산)',
-    items: [
-      '종로구 광화문·종로1가',
-      '종로구 혜화·대학로',
-      '중구 명동·을지로',
-      '중구 서울역·회현동',
-      '중구 동대문·신당동',
-      '용산구 이태원·한남동',
-      '용산구 용산역·이촌동',
-    ]
-  },
-  {
-    zone: '🏭 서남권 (영등포·구로·금천·동작·관악·강서·양천)',
-    items: [
-      '영등포구 여의도동',
-      '영등포구 당산·영등포동',
-      '구로구 신도림·구로디지털',
-      '금천구 가산디지털단지',
-      '동작구 노량진·사당동',
-      '관악구 신림·서울대입구',
-      '강서구 마곡·가양동',
-      '강서구 화곡·발산동',
-      '양천구 목동·오목교',
-    ]
-  },
-  {
-    zone: '🎨 서북권 (마포·서대문·은평)',
-    items: [
-      '마포구 홍대·서교동',
-      '마포구 합정·망원동',
-      '마포구 상암DMC·공덕동',
-      '서대문구 신촌·연희동',
-      '서대문구 홍제·독립문',
-      '은평구 연신내·불광동',
-      '은평구 응암·녹번동',
-    ]
-  },
-  {
-    zone: '🌲 동북권 (성동·광진·동대문·중랑·성북·강북·도봉·노원)',
-    items: [
-      '성동구 성수동 카페거리',
-      '성동구 왕십리·행당동',
-      '광진구 건대입구·화양동',
-      '광진구 구의·강변역',
-      '동대문구 청량리·회기동',
-      '동대문구 장안·답십리동',
-      '중랑구 상봉·면목동',
-      '성북구 안암·고려대',
-      '성북구 길음·성북동',
-      '강북구 수유·미아사거리',
-      '도봉구 창동·쌍문동',
-      '노원구 상계·노원역',
-      '노원구 공릉·태릉입구',
-    ]
-  },
-  {
-    zone: '🚆 수도권 인접 광역권 (출퇴근 연계축)',
-    items: [
-      '성남시 분당·판교 테크노밸리',
-      '광명시 철산·광명역',
-      '부천시 부천역·중동',
-      '고양시 일산·삼송',
-      '하남시 미사강변도시',
-      '수원시 수원역·광교',
-      '안양시 평촌·인덕원',
-      '남양주시 다산·별내',
-      '인천시 부평·송도·구월동',
-    ]
-  }
-]
-
-const DISTRICTS = DISTRICT_GROUPS.flatMap(g => g.items)
-
-export interface HourlyTransitData {
-  hour: string
-  hour_num: number
-  temp: number
-  rain: number
-  humidity: number
-  wind: number
-  subway: number
-  bus: number
-  bike: number
-  subway_crowd?: number
-  bus_crowd?: number
-  bike_crowd?: number
-  is_peak?: boolean
-}
-
-// ── 24시간 시간대별, 교통수단 추천, 강우 상관관계, 거점 혼잡도 기본 상수는 ./constants/fallbackData.ts 에서 임포트됨 ──
-const HOURLY_DATA = DEFAULT_24H_DATA
-
-
-function CrowdBar({ value, color }: { value: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-subtle)' }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${value}%`, background: color }} />
-      </div>
-      <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono', color, minWidth: 28 }}>{value}%</span>
-    </div>
-  )
-}
-
-function StatCard({ label, value, unit, color, icon }: { label: string; value: string | number; unit?: string; color: string; icon: string }) {
-  return (
-    <div className="rounded-2xl p-4" style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
-      <div className="flex items-center gap-2 mb-2">
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', letterSpacing: '0.04em' }}>{label}</span>
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span style={{ fontSize: 26, fontWeight: 800, color, fontFamily: 'JetBrains Mono', lineHeight: 1 }}>{value}</span>
-        {unit && <span style={{ fontSize: 12, color: 'var(--app-text)' }}>{unit}</span>}
-      </div>
-    </div>
-  )
-}
-
-// ── 간단한 막대 차트 컴포넌트 ──
-function BarChart({ data }: { data: typeof HOURLY_DATA }) {
-  const maxBus = Math.max(...data.map(d => d.bus))
-  const maxSubway = Math.max(...data.map(d => d.subway))
-  const maxBike = Math.max(...data.map(d => d.bike))
-  const [hovered, setHovered] = useState<number | null>(null)
-
-  return (
-    <div className="relative">
-      <div className="flex items-end gap-1.5 h-32">
-        {data.map((d, i) => (
-          <div
-            key={d.hour}
-            className="flex-1 flex flex-col items-center gap-0.5 cursor-pointer group"
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-          >
-            <div className="w-full flex flex-col gap-0.5 items-center">
-              {/* Subway bar */}
-              <div className="w-full rounded-sm transition-all" style={{ height: `${(d.subway / maxSubway) * 80}px`, background: hovered === i ? 'var(--color-primary)' : 'color-mix(in srgb, var(--color-primary) 50%, transparent)', minHeight: 2 }} />
-            </div>
-          </div>
-        ))}
-      </div>
-      {/* Labels */}
-      <div className="flex gap-1.5 mt-1">
-        {data.map((d, i) => (
-          <div key={d.hour} className="flex-1 text-center" style={{ fontSize: 9, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-            {d.hour.replace('시', '')}
-          </div>
-        ))}
-      </div>
-      {/* Tooltip */}
-      {hovered !== null && (
-        <div
-          className="absolute bottom-full mb-2 rounded-xl px-3 py-2 pointer-events-none z-10"
-          style={{
-            left: `${(hovered / data.length) * 100}%`,
-            transform: 'translateX(-50%)',
-            background: 'var(--color-card2)',
-            border: '1px solid color-mix(in srgb, var(--color-primary) 30%, transparent)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 2 }}>{data[hovered].hour}</div>
-          <div style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-            🚇 {data[hovered].subway.toLocaleString()}명
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-            🚌 {data[hovered].bus.toLocaleString()}명
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--app-text)', fontFamily: 'JetBrains Mono' }}>
-            🚲 {data[hovered].bike.toLocaleString()}명
-          </div>
-          <div style={{ fontSize: 10, color: '#FB923C', fontFamily: 'JetBrains Mono', marginTop: 2 }}>
-            💧 강수 {data[hovered].rain}mm
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── 상관관계 시각화 (20.9만 건 서울시 교통·기상 실측 빅데이터 교정) ──
-function CorrelationChart() {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
-  const activeItem = hoveredIdx !== null ? CORRELATION_DATA[hoveredIdx] : null
-
-  return (
-    <div className="relative">
-      {/* 호버 상세 정보 배지 */}
-      <div style={{
-        minHeight: 22,
-        marginBottom: 8,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        fontSize: 11,
-        fontFamily: 'JetBrains Mono',
-      }}>
-        {activeItem ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>
-              🌧 강수 {activeItem.rain}mm:
-            </span>
-            <div style={{ display: 'flex', gap: 8, fontSize: 10 }}>
-              <span style={{ color: 'var(--color-primary)' }}>🚇 {activeItem.subway}%</span>
-              <span style={{ color: '#FB923C' }}>🚌 {activeItem.bus}%</span>
-              <span style={{ color: '#34D399', fontWeight: 700 }}>🚲 {activeItem.bike}%</span>
-            </div>
-            <span style={{ fontSize: 9, color: 'var(--app-text)' }}>
-              ({activeItem.note})
-            </span>
-          </div>
-        ) : (
-          <span style={{ fontSize: 10, color: 'var(--app-text)' }}>
-            💡 그래프 위로 마우스를 올리면 강수량별 실측 이용률을 확인할 수 있습니다
-          </span>
-        )}
-      </div>
-
-      <div className="relative h-28">
-        <svg width="100%" height="100%" viewBox="0 0 300 112" preserveAspectRatio="none">
-          {/* Grid */}
-          {[0, 28, 56, 84, 112].map(y => (
-            <line key={y} x1="0" y1={y} x2="300" y2={y} stroke="var(--app-text)" strokeWidth="1" />
-          ))}
-
-          {/* 호버 세로 하이라이트 가이드선 */}
-          {hoveredIdx !== null && (
-            <line
-              x1={(hoveredIdx / (CORRELATION_DATA.length - 1)) * 300}
-              y1={0}
-              x2={(hoveredIdx / (CORRELATION_DATA.length - 1)) * 300}
-              y2={112}
-              stroke="var(--app-text)"
-              strokeWidth="1.5"
-              strokeDasharray="3 2"
-            />
-          )}
-
-          {/* Subway line */}
-          <polyline
-            points={CORRELATION_DATA.map((d, i) => `${(i / (CORRELATION_DATA.length - 1)) * 300},${112 - (d.subway / 100) * 100}`).join(' ')}
-            fill="none" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          />
-
-          {/* Bus line */}
-          <polyline
-            points={CORRELATION_DATA.map((d, i) => `${(i / (CORRELATION_DATA.length - 1)) * 300},${112 - (d.bus / 100) * 100}`).join(' ')}
-            fill="none" stroke="#FB923C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          />
-
-          {/* Bike line */}
-          <polyline
-            points={CORRELATION_DATA.map((d, i) => `${(i / (CORRELATION_DATA.length - 1)) * 300},${112 - (d.bike / 100) * 100}`).join(' ')}
-            fill="none" stroke="#34D399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          />
-
-          {/* 데이터 포인트 점 (Circles) */}
-          {CORRELATION_DATA.map((d, i) => {
-            const x = (i / (CORRELATION_DATA.length - 1)) * 300
-            const ySub = 112 - (d.subway / 100) * 100
-            const yBus = 112 - (d.bus / 100) * 100
-            const yBike = 112 - (d.bike / 100) * 100
-            const isHover = hoveredIdx === i
-
-            return (
-              <g key={i}>
-                <circle cx={x} cy={ySub} r={isHover ? 4.5 : 2.5} fill="var(--color-primary)" />
-                <circle cx={x} cy={yBus} r={isHover ? 4.5 : 2.5} fill="#FB923C" />
-                <circle cx={x} cy={yBike} r={isHover ? 5 : 3} fill="#34D399" />
-              </g>
-            )
-          })}
-
-          {/* 마우스 호버 감지 투명 히트박스 */}
-          {CORRELATION_DATA.map((_, i) => {
-            const x = (i / (CORRELATION_DATA.length - 1)) * 300
-            const step = 300 / (CORRELATION_DATA.length - 1)
-            return (
-              <rect
-                key={i}
-                x={x - step / 2}
-                y={0}
-                width={step}
-                height={112}
-                fill="transparent"
-                style={{ cursor: 'pointer' }}
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx(null)}
-              />
-            )
-          })}
-        </svg>
-
-        {/* X axis labels */}
-        <div className="flex justify-between mt-1">
-          {CORRELATION_DATA.map((d, i) => (
-            <span
-              key={d.rain}
-              style={{
-                fontSize: 9,
-                color: hoveredIdx === i ? 'var(--color-primary)' : 'var(--app-text)',
-                fontWeight: hoveredIdx === i ? 700 : 400,
-                fontFamily: 'JetBrains Mono',
-                transition: 'color 0.15s ease'
-              }}
-            >
-              {d.rain}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const getApiBaseUrl = (): string => {
-  const envVal = (import.meta as any).env?.VITE_API_BASE_URL
-  if (typeof envVal === 'string') return envVal
-  if (typeof window !== 'undefined' && window.location) {
-    const proto = window.location.protocol || 'http:'
-    const host = window.location.hostname || 'localhost'
-    return `${proto}//${host}:8000`
-  }
-  return 'http://localhost:8000'
-}
-const API_BASE_URL = getApiBaseUrl()
-
-interface LiveWeatherData {
-  status: string
-  district: string
-  nx: number
-  ny: number
-  base_date: string
-  base_time: string
-  temp: number
-  rain: number
-  pty: string
-  pty_desc: string
-  humidity: number
-  wind: number
-  source: string
-}
-
-const getInitialPage = (): Page => {
-  if (typeof window !== 'undefined') {
-    const hash = window.location.hash.replace(/^#/, '') as Page
-    if (hash === 'main' || hash === 'route' || hash === 'map' || hash === 'enterprise') return hash
-    try {
-      const saved = localStorage.getItem('weather_transit_page') as Page
-      if (saved === 'main' || saved === 'route' || saved === 'map' || saved === 'enterprise') return saved
-    } catch {}
-  }
-  return 'main'
-}
-
-const getInitialDistrict = (): number => {
-  if (typeof window !== 'undefined') {
-    try {
-      const savedName = localStorage.getItem('weather_transit_district_name')
-      if (savedName) {
-        const idx = DISTRICTS.indexOf(savedName)
-        if (idx !== -1) return idx
-        const partialIdx = DISTRICTS.findIndex(d => d.includes(savedName) || savedName.includes(d))
-        if (partialIdx !== -1) return partialIdx
-      }
-      const savedIdx = localStorage.getItem('weather_transit_district')
-      if (savedIdx !== null) {
-        const num = Number(savedIdx)
-        if (!isNaN(num) && num >= 0 && num < DISTRICTS.length) return num
-      }
-    } catch { }
-  }
-  return 0
-}
+const ALLOWED_PAGES = ['main', 'route', 'map', 'enterprise'] as const
 
 export default function App() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme)
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    try {
-      localStorage.setItem('weather-transit-theme', theme)
-    } catch {
-      // 저장 실패 시에도 화면 테마는 변경
-    }
-  }, [theme])
+  const { theme, toggleTheme } = useTheme()
 
-  // OS/기기 시스템 테마 실시간 변경 감지 (수동 설정 없을 때 동기화)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const handleChange = (e: MediaQueryListEvent) => {
-      try {
-        const saved = localStorage.getItem('weather-transit-theme')
-        if (!saved) {
-          setTheme(e.matches ? 'dark' : 'light')
-        }
-      } catch {}
-    }
-    mediaQuery.addEventListener('change', handleChange)
-    return () => mediaQuery.removeEventListener('change', handleChange)
-  }, [])
-
-  const toggleTheme = () => {
-    setTheme(current => current === 'dark' ? 'light' : 'dark')
-  }
-
-  const [page, setPage] = useState<Page>(getInitialPage)
+  const [page, setPage] = useState<Page>(() => getInitialPage(ALLOWED_PAGES))
   const [selectedDistrict, setSelectedDistrict] = useState<number>(getInitialDistrict)
   const [departure, setDeparture] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -493,7 +65,7 @@ export default function App() {
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>(undefined)
   const [departureType, setDepartureType] = useState<string | undefined>(undefined)
   const [destinationType, setDestinationType] = useState<string | undefined>(undefined)
-  const [myLocation, setMyLocation] = useState<{ coords: [number, number]; accuracy: number; district?: string; isManual?: boolean } | null>(null)
+  const [myLocation, setMyLocation] = useState<MyLocationState | null>(null)
   const [searchedRoute, setSearchedRoute] = useState<{
     from: string
     to: string
@@ -514,30 +86,60 @@ export default function App() {
     return 'all'
   })
   const [districtQuery, setDistrictQuery] = useState('')
-  const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null)
   const [subwaySearchQuery, setSubwaySearchQuery] = useState('')
   const [focusedCoords, setFocusedCoords] = useState<[number, number] | null>(null)
   const [selectedBusStation, setSelectedBusStation] = useState<BusStationResult | null>(null)
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showDepartureList, setShowDepartureList] = useState(false)
   const [showDestinationList, setShowDestinationList] = useState(false)
-  const [stopArrivalData, setStopArrivalData] = useState<{
-    loading: boolean
-    subwayArrivals?: any[]
-    busArrivals?: any[]
-    lastUpdated?: string
-  }>({ loading: false })
-  const [stopWeatherData, setStopWeatherData] = useState<any | null>(null)
-  const [stopAIData, setStopAIData] = useState<any | null>(null)
-  const [stopDataLoading, setStopDataLoading] = useState(false)
 
-  // ── 기상청 실시간 실황 데이터 연동 상태 (100% 진본 실시간) ──
-  const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null)
-  // [이슈 #98] 지도 뷰포트(중심 좌표) 기준 국지 기상 실황 — 지도 탭에서만 사용
-  const [viewportWeather, setViewportWeather] = useState<LiveWeatherData | null>(null)
-  const [viewportDistrict, setViewportDistrict] = useState<string | null>(null)
-  const viewportWeatherKeyRef = useRef<string>('')
-  const nowHour = new Date().getHours()
+  // ── 기상청 실시간 실황 + AI 수요예측/혼잡도/24시간 시계열 커스텀 훅 ──
+  const {
+    liveWeather,
+    nowHour,
+    selectedHour,
+    setSelectedHour,
+    transportScores,
+    aiLatency,
+    aiStatus,
+    aiWeatherSummary,
+    districtList,
+    districtLiveStatus,
+    hourlyForecast,
+    hourlyLiveStatus,
+    hourlyHovered,
+    setHourlyHovered,
+    isLive,
+    isCurrentHour,
+    activeTemp,
+    activeRain,
+    displayTemp,
+    displayRain,
+    displayHumidity,
+    displayWind,
+    isRaining,
+    displayPtyDesc,
+    handleViewportChange,
+    mapWeather,
+    mapTemp,
+    mapRain,
+    mapHumidity,
+    mapWind,
+    mapPtyDesc,
+    mapDistrictLabel,
+    isViewportWeather,
+  } = useWeatherAndAI(selectedDistrict)
+
+  // ── 선택된 거점 상세(기상·AI·실시간 도착) 파이프라인 커스텀 훅 ──
+  const {
+    selectedStop,
+    setSelectedStop,
+    stopArrivalData,
+    stopWeatherData,
+    stopAIData,
+    stopDataLoading,
+    handleSelectStop,
+  } = useStopDetailPipeline(liveWeather)
 
   // ── 지도 팝업에서 출발/도착 지정 시 피드백 토스트 상태 ──
   const [routeToast, setRouteToast] = useState<{ message: string; actionLabel?: string } | null>(null)
@@ -552,72 +154,15 @@ export default function App() {
   }
 
   // ── 현재 위치(GPS) 기반 지역 자동 감지 및 1회 초기화 ──
-  const [isLocatingDistrict, setIsLocatingDistrict] = useState(false)
-  const userManuallyChangedDistrictRef = useRef(false)
-  const hasAutoLocatedRef = useRef(false)
-
-  const locateCurrentDistrict = (isManualClick = false) => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      if (isManualClick) {
-        showRouteToast('이 브라우저는 위치 정보(GPS) 서비스를 지원하지 않습니다.')
-      }
-      return
-    }
-
-    setIsLocatingDistrict(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsLocatingDistrict(false)
-        const lng = pos.coords.longitude
-        const lat = pos.coords.latitude
-        const accuracy = Math.round(pos.coords.accuracy || 25)
-        const coords: [number, number] = [lng, lat]
-
-        const isInsideKorea = lng >= 124.0 && lng <= 132.0 && lat >= 32.8 && lat <= 39.2
-        if (!isInsideKorea) {
-          if (isManualClick) {
-            showRouteToast('⚠️ 대한민국 영역 밖의 위치가 감지되었습니다.')
-          }
-          return
-        }
-
-        const detectedDistrict = resolveDistrictNameFromPoint('내 위치 (GPS)', coords)
-        const matchedIdx = DISTRICTS.findIndex(d => d.startsWith(detectedDistrict) || d.includes(detectedDistrict))
-
-        if (matchedIdx !== -1 && (isManualClick || !userManuallyChangedDistrictRef.current)) {
-          setSelectedDistrict(matchedIdx)
-          setMyLocation({ coords, accuracy, district: detectedDistrict, isManual: false })
-          if (isManualClick) {
-            showRouteToast(`📍 내 위치 감지: ${detectedDistrict} (정확도 ±${accuracy}m)`)
-          } else {
-            showRouteToast(`📍 현재 위치(${detectedDistrict}) 기준으로 메인 지역 날씨가 자동 설정되었습니다.`)
-          }
-        }
-      },
-      (err) => {
-        setIsLocatingDistrict(false)
-        if (isManualClick) {
-          let msg = '현재 위치를 확인할 수 없습니다.'
-          if (err.code === 1) {
-            msg = '위치 정보 접근 권한이 거부되었습니다. 브라우저 주소창에서 위치 접근을 허용해 주세요.'
-          } else if (err.code === 2) {
-            msg = '현재 위치 정보를 수신할 수 없습니다.'
-          } else if (err.code === 3) {
-            msg = '위치 확인 요청 시간이 초과되었습니다.'
-          }
-          showRouteToast(`❌ ${msg}`)
-        }
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-    )
-  }
-
-  // 앱 마운트 시 1회 현재 위치 기반 지역 자동 설정
-  useEffect(() => {
-    if (hasAutoLocatedRef.current) return
-    hasAutoLocatedRef.current = true
-    locateCurrentDistrict(false)
-  }, [])
+  const {
+    isLocatingDistrict,
+    userManuallyChangedDistrictRef,
+    locateCurrentDistrict,
+  } = useGeoDistrict({
+    setSelectedDistrict,
+    setMyLocation,
+    showRouteToast,
+  })
 
   const [mapPickingTarget, setMapPickingTarget] = useState<'origin' | 'destination' | null>(null)
 
@@ -665,34 +210,7 @@ export default function App() {
       showRouteToast(`🏁 도착지가 '${stop.name}'(으)로 설정되었습니다. 지도에서 출발지를 마저 선택하세요.`, '경로 추천 탭 이동')
     }
   }
-  const [selectedHour, setSelectedHour] = useState<number>(nowHour)
   const [isConsoleLogging, setIsConsoleLogging] = useState(false)
-
-  // ── AI 추론 백엔드 서버 연동 상태 ──
-  const [transportScores, setTransportScores] = useState<(typeof TRANSPORT_SCORES[number] & { predicted_volume?: number })[]>(TRANSPORT_SCORES)
-  const [aiLatency, setAiLatency] = useState<number | null>(null)
-  const [aiStatus, setAiStatus] = useState<'connected' | 'loading' | 'offline'>('loading')
-  const [aiWeatherSummary, setAiWeatherSummary] = useState<{ condition: string; description: string } | null>(null)
-
-  // ── 동별 실시간 교통 혼잡도 상태 (8대 거점 ONNX 실시간 추론 연동) ──
-  const [districtList, setDistrictList] = useState<Array<{
-    name: string
-    district?: string
-    bus: number
-    subway: number
-    bike: number
-    weather: string
-    temp: number
-    rain?: number
-  }>>(DISTRICT_DATA)
-  const [districtLiveStatus, setDistrictLiveStatus] = useState<'idle' | 'loading' | 'live'>('idle')
-  const lastDistrictCongestionKeyRef = useRef<string>('')
-
-  // 24시간 실시간 AI 시계열 예측 상태
-  const [hourlyForecast, setHourlyForecast] = useState<HourlyTransitData[]>(DEFAULT_24H_DATA)
-  const [hourlyLiveStatus, setHourlyLiveStatus] = useState<'idle' | 'loading' | 'live'>('idle')
-  const [hourlyHovered, setHourlyHovered] = useState<number | null>(null)
-  const lastHourlyForecastKeyRef = useRef<string>('')
 
   // 활성 경로 탐색 결과 상태
   const [activeRoute, setActiveRoute] = useState<TransitRouteResult | null>(null)
@@ -876,34 +394,6 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHash)
   }, [])
 
-  const lastFetchedDistrictRef = useRef<number | null>(null)
-
-  // 선택된 자치구의 기상청 실시간 초단기실황 데이터 자동 동기화
-  useEffect(() => {
-    let isMounted = true
-    const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
-    if (lastFetchedDistrictRef.current === selectedDistrict && liveWeather) {
-      return
-    }
-    lastFetchedDistrictRef.current = selectedDistrict
-
-    fetch(`${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(districtName)}`)
-      .then(res => res.json())
-      .then((data: LiveWeatherData) => {
-        if (isMounted && data.status === 'success') {
-          setLiveWeather(data)
-          // 지역(자치구/광역도시) 변경 시 브라우저 콘솔(F12)에 해당 지역 기상청 실시간 API 데이터 즉시 출력
-          logWeatherApiCall({ nx: data.nx, ny: data.ny }, data, data)
-        }
-      })
-      .catch(err => {
-        console.warn('[Live Weather] 기상청 실시간 데이터 연동 실패 (fallback 유지):', err)
-      })
-    return () => {
-      isMounted = false
-    }
-  }, [selectedDistrict])
-
   // ── 지하철역 검색 선택 시 지도 카메라 이동 및 상태 갱신 ──
   const handleSelectStation = (station: SubwayStation) => {
     setActiveRoute(null)
@@ -913,214 +403,6 @@ export default function App() {
     setMapTransport('subway')
     setFocusedCoords(station.coords)
   }
-
-  const lastFetchedStopIdRef = useRef<string | null>(null)
-
-  // ── 지도(TransitMap)에서 거점 클릭 시 수신되는 통합 데이터 핸들러 (중복 Fetch 원천 방지) ──
-  const handleSelectStop = (stop: TransitStop | null, details?: StopDetailData) => {
-    if (!stop) {
-      lastFetchedStopIdRef.current = null
-      setSelectedStop(null)
-      setStopWeatherData(null)
-      setStopAIData(null)
-      setStopArrivalData({ loading: false })
-      setStopDataLoading(false)
-      return
-    }
-
-    lastFetchedStopIdRef.current = stop.id
-    setSelectedStop(stop)
-
-    if (details?.loading) {
-      setStopDataLoading(true)
-      setStopArrivalData({ loading: true })
-    } else if (details && !details.loading) {
-      setStopDataLoading(false)
-      setStopWeatherData(details.weather || null)
-      setStopAIData(details.aiPrediction || null)
-      setStopArrivalData({
-        loading: false,
-        subwayArrivals: stop.type === 'subway' ? (details.arrivals || []) : [],
-        busArrivals: stop.type === 'bus' ? (details.arrivals || []) : [],
-        lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      })
-    }
-  }
-
-  // ── 선택된 거점(지하철역 또는 버스 정류소)의 실시간 국지 기상, AI 모델 추론, 실시간 도착 정보 연동 파이프라인 ──
-  useEffect(() => {
-    if (!selectedStop) {
-      setStopArrivalData({ loading: false })
-      setStopWeatherData(null)
-      setStopAIData(null)
-      setStopDataLoading(false)
-      return
-    }
-
-    // TransitMap에서 이미 데이터를 수신 및 동기화한 경우 중복 Fetch 방지
-    if (lastFetchedStopIdRef.current === selectedStop.id && (stopWeatherData || stopAIData)) {
-      return
-    }
-
-    let isMounted = true
-    const stop = selectedStop
-    const district = resolveDistrict(stop.name, stop.coords)
-    const cleanName = stop.name.replace(/역$/, '').trim()
-
-    setStopDataLoading(true)
-    setStopArrivalData({ loading: true })
-
-    const runStopPipeline = async () => {
-      try {
-        // 1. 해당 역의 실시간 기상 API 조회 (WGS84 좌표 기반 KMA 격자 nx, ny 정밀 산출)
-        const weatherUrl = `${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(district)}&lat=${stop.coords[1]}&lng=${stop.coords[0]}&station=${encodeURIComponent(cleanName)}`
-        const weatherRes = await fetch(weatherUrl)
-        const weatherJson = await weatherRes.json()
-
-        if (!isMounted) return
-        setStopWeatherData(weatherJson)
-        logWeatherApiCall(
-          { nx: weatherJson.nx, ny: weatherJson.ny },
-          weatherJson,
-          weatherJson
-        )
-
-        // 2. 해당 역의 실시간 기상 관측값을 투입하여 AI 모델(2단계 32d×16d) 추론 실행
-        const currentHour = liveWeather ? parseInt(liveWeather.base_time.slice(0, 2), 10) : new Date().getHours()
-        const aiPayload = {
-          district,
-          station: stop.name,
-          point_id: stop.stId || stop.stationNo || stop.id,
-          stop_type: stop.type,
-          base_crowd: stop.baseCrowd,
-          hour: currentHour,
-          weather: {
-            temp: weatherJson.temp,
-            rain: weatherJson.rain,
-            humidity: weatherJson.humidity,
-            wind: weatherJson.wind,
-          }
-        }
-
-        const aiRes = await fetch(`${API_BASE_URL}/api/v1/predict/recommendation`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(aiPayload)
-        })
-        const aiJson = await aiRes.json()
-
-        if (!isMounted) return
-        setStopAIData(aiJson)
-        logAIPredictionCall(aiPayload, aiJson)
-
-        // 3. 실시간 대중교통 도착 정보 조회
-        if (stop.type === 'subway') {
-          const arrivalRes = await fetch(`${API_BASE_URL}/api/v1/transit/subway/arrival?station=${encodeURIComponent(cleanName)}`)
-          const arrivalData = await arrivalRes.json()
-          if (!isMounted) return
-
-          // [이슈 #97] 실시간 도착 정보가 없을 때 임의의 도착 시간을 생성하지 않는다.
-          const arrivals = (arrivalData.status === 'success' && Array.isArray(arrivalData.arrivals) && arrivalData.arrivals.length > 0)
-            ? arrivalData.arrivals
-            : []
-          setStopArrivalData({
-            loading: false,
-            subwayArrivals: arrivals,
-            lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          })
-          logSubwayApiCall(cleanName, arrivals, arrivalData)
-        } else if (stop.type === 'bus') {
-          // [이슈 #97] 정류소 고유 ID(stId)를 사용하며, 부재 시 가짜 도착 정보를 생성하지 않는다.
-          const targetStId = stop.stId || ''
-          if (!targetStId) {
-            setStopArrivalData({ loading: false, busArrivals: [] })
-          } else {
-            const busRes = await fetch(`${API_BASE_URL}/api/v1/transit/bus/arrival?stId=${encodeURIComponent(targetStId)}`)
-            const busData = await busRes.json()
-            if (!isMounted) return
-
-            const arrivals = (busData.status === 'success' && Array.isArray(busData.arrivals) && busData.arrivals.length > 0)
-              ? busData.arrivals
-              : []
-            setStopArrivalData({
-              loading: false,
-              busArrivals: arrivals,
-              lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            })
-            logBusApiCall(stop.lineInfo || targetStId, targetStId, arrivals, busData)
-          }
-        } else {
-          setStopArrivalData({ loading: false })
-        }
-      } catch (err) {
-        console.error('거점 상세 파이프라인 조회 오류:', err)
-        if (isMounted) {
-          setStopArrivalData({
-            loading: false,
-            subwayArrivals: [],
-            lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          })
-        }
-      } finally {
-        if (isMounted) {
-          setStopDataLoading(false)
-        }
-      }
-    }
-
-    runStopPipeline()
-
-    return () => {
-      isMounted = false
-    }
-  }, [selectedStop])
-
-  const isLive = liveWeather !== null
-  const isCurrentHour = selectedHour === nowHour
-  const selectedHourItem = hourlyForecast.find(d => d.hour_num === selectedHour) || null
-  const activeTemp = liveWeather ? liveWeather.temp : 14.0
-  const activeRain = liveWeather ? liveWeather.rain : 0.0
-  const activeHumidity = liveWeather ? liveWeather.humidity : 60.0
-  const activeWind = liveWeather ? liveWeather.wind : 2.0
-
-  const displayTemp = (!isCurrentHour && selectedHourItem) ? selectedHourItem.temp : activeTemp
-  const displayRain = (!isCurrentHour && selectedHourItem) ? selectedHourItem.rain : activeRain
-  const displayHumidity = (!isCurrentHour && selectedHourItem) ? selectedHourItem.humidity : activeHumidity
-  const displayWind = (!isCurrentHour && selectedHourItem) ? selectedHourItem.wind : activeWind
-  const isRaining = displayRain > 0 || (isCurrentHour && isLive && liveWeather.pty !== '0' && liveWeather.pty !== '')
-  const activePtyDesc = isLive ? liveWeather.pty_desc : (activeRain > 0 ? `비 · ${activeRain}mm/h` : '맑음')
-  const displayPtyDesc = !isCurrentHour ? (displayRain > 0 ? `비 · ${displayRain}mm/h` : '맑음') : activePtyDesc
-
-  // ── [이슈 #98] 지도 카메라 중심 좌표 → 자치구 해석 → 좌표 기반 국지 기상 조회 ──
-  //  · 같은 자치구 + 좌표 이동이 미미(0.01° 미만)하면 재조회 생략하여 과호출 방지
-  const handleViewportChange = (center: { lat: number; lng: number }) => {
-    const resolved = resolveDistrict('', [center.lng, center.lat])
-    const key = `${resolved}|${center.lat.toFixed(2)}|${center.lng.toFixed(2)}`
-    if (viewportWeatherKeyRef.current === key) return
-    viewportWeatherKeyRef.current = key
-    setViewportDistrict(resolved)
-    const url = `${API_BASE_URL}/api/v1/weather/current?district=${encodeURIComponent(resolved)}&lat=${center.lat}&lng=${center.lng}`
-    fetch(url)
-      .then(res => res.json())
-      .then((data: LiveWeatherData) => {
-        if (data && data.status === 'success') setViewportWeather(data)
-      })
-      .catch(err => {
-        // 실패 시 키를 초기화해 다음 이동에서 재시도하고, 표출은 기존 자치구 기상으로 폴백한다.
-        viewportWeatherKeyRef.current = ''
-        console.warn('[지도 뷰포트 기상] 조회 실패 — 기존 자치구 기상 유지:', err)
-      })
-  }
-
-  // 지도 뷰포트 기준 표출값 (미수신 시 전역 자치구 기상으로 폴백)
-  const mapWeather = viewportWeather || liveWeather
-  const mapTemp = mapWeather ? mapWeather.temp : activeTemp
-  const mapRain = mapWeather ? mapWeather.rain : activeRain
-  const mapHumidity = mapWeather ? mapWeather.humidity : activeHumidity
-  const mapWind = mapWeather ? mapWeather.wind : activeWind
-  const mapPtyDesc = mapWeather ? (mapWeather.pty_desc || (mapWeather.rain > 0 ? '비' : '맑음')) : activePtyDesc
-  const mapDistrictLabel = viewportDistrict || DISTRICTS[selectedDistrict] || '서울특별시'
-  const isViewportWeather = Boolean(viewportWeather)
 
   // ── 브라우저 개발자 콘솔(F12)에 실시간 공공 API 데이터 일괄 출력 (사용자 요청 시 온디맨드 On-Demand 호출) ──
   const triggerApiConsoleLog = async () => {
@@ -1194,150 +476,6 @@ export default function App() {
 
     setIsConsoleLogging(false)
   }
-
-  // ── 실시간 AI 대중교통 수요 예측 및 MCDA 추천 API 호출 ──
-  const fetchAIPrediction = async (
-    districtName: string,
-    hourVal: number,
-    weather: { temp: number; rain: number; humidity: number; wind: number; hour: string }
-  ) => {
-    setAiStatus('loading')
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/predict/recommendation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          district: districtName,
-          hour: hourVal,
-          weather: {
-            temp: weather.temp,
-            rain: weather.rain,
-            humidity: weather.humidity,
-            wind: weather.wind
-          }
-        })
-      })
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-
-      if (data.status === 'success' && Array.isArray(data.recommendations)) {
-        const mapped = data.recommendations.map((r: any) => ({
-          id: r.id,
-          icon: r.icon,
-          name: r.name,
-          score: r.score,
-          scoreLabel: r.scoreLabel,
-          scoreColor: r.scoreColor,
-          reasons: r.reasons,
-          time: `${r.estimated_time_min}분`,
-          price: `${r.fare_krw.toLocaleString()}원${r.id === 'bike' ? '/시간' : ''}`,
-          crowd: r.crowd,
-          crowdLabel: r.crowdLabel,
-          crowdColor: r.crowdColor,
-          dataset: r.id === 'subway'
-            ? '지하철 호선별 역별 시간대별 승하차 (AI 추론)'
-            : r.id === 'bus'
-              ? '버스노선별 정류장별 시간대별 승하차 (AI 추론)'
-              : '공공자전거 따릉이 대여이력 (AI 추론)',
-          predicted_volume: r.predicted_volume
-        }))
-
-        setTransportScores(mapped)
-        setAiLatency(data.latency_ms)
-        setAiWeatherSummary(data.weather_summary)
-        setAiStatus('connected')
-
-        logAIPredictionCall(
-          {
-            district: districtName,
-            station: districtName,
-            location: districtName,
-            rain: `${weather.rain}mm`,
-            temp: `${weather.temp}°C`,
-            hour: `${hourVal}시`,
-            latency: `${data.latency_ms}ms (ONNX Engine)`
-          },
-          data.recommendations
-        )
-      }
-    } catch (err) {
-      console.warn('[AI Engine] 백엔드 연결 불가, 기본 목데이터 유지:', err)
-      setAiStatus('offline')
-    }
-  }
-
-  // ── 8대 주요 거점 실시간 교통 혼잡도 ONNX 추론 조회 ──
-  const fetchDistrictCongestion = async (rainVal: number, tempVal: number, hourVal: number) => {
-    const fetchKey = `${rainVal}_${tempVal}_${hourVal}`
-    if (lastDistrictCongestionKeyRef.current === fetchKey) return
-    lastDistrictCongestionKeyRef.current = fetchKey
-
-    try {
-      setDistrictLiveStatus('loading')
-      const res = await fetch(`${API_BASE_URL}/api/v1/districts/live-congestion?rain=${rainVal}&temp=${tempVal}&hour=${hourVal}`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.status === 'success' && data.hotspots && data.hotspots.length > 0) {
-          setDistrictList(data.hotspots)
-          setDistrictLiveStatus('live')
-          logDistrictCongestionCall({ rain: rainVal, temp: tempVal, hour: hourVal }, data)
-        }
-      }
-    } catch (err) {
-      console.warn('동별 실시간 교통 혼잡도 조회 실패, 기본값 유지:', err)
-      setDistrictLiveStatus('idle')
-    }
-  }
-
-  // ── 24시간 실시간 시계열 AI 예측 곡선 조회 ──
-  const fetchHourlyForecast = async (districtName: string, rainVal: number, tempVal: number) => {
-    const fetchKey = `${districtName}_${rainVal}_${tempVal}`
-    if (lastHourlyForecastKeyRef.current === fetchKey) return
-    lastHourlyForecastKeyRef.current = fetchKey
-
-    try {
-      setHourlyLiveStatus('loading')
-      const targetDistrict = districtName.split(' ')[0] || districtName
-      const res = await fetch(`${API_BASE_URL}/api/v1/transit/hourly-forecast?district=${encodeURIComponent(targetDistrict)}&rain=${rainVal}&temp=${tempVal}`)
-      if (res.ok) {
-        const data = await res.json()
-        const forecastList = data.forecast || data.hourly
-        if (data.status === 'success' && forecastList && forecastList.length > 0) {
-          setHourlyForecast(forecastList)
-          setHourlyLiveStatus('live')
-          logHourlyForecastCall({ district: targetDistrict, rain: rainVal, temp: tempVal }, data)
-        }
-      }
-    } catch (err) {
-      console.warn('24시간 AI 시계열 예측 조회 실패, 기본값 유지:', err)
-      setHourlyLiveStatus('idle')
-    }
-  }
-
-  const lastAIFetchKeyRef = useRef<string>('')
-
-  // 자치구, 선택된 시간대 또는 실시간 기상 데이터 변경 시 AI 추론 자동 실행 (기상청 단기예보 동적 연동)
-  useEffect(() => {
-    if (!liveWeather) return
-
-    const districtName = DISTRICTS[selectedDistrict] || '강남구 역삼동'
-    const fetchKey = `${districtName}_${displayTemp}_${displayRain}_${selectedHour}`
-
-    if (lastAIFetchKeyRef.current !== fetchKey) {
-      lastAIFetchKeyRef.current = fetchKey
-      fetchAIPrediction(districtName, selectedHour, {
-        temp: displayTemp,
-        rain: displayRain,
-        humidity: displayHumidity,
-        wind: displayWind,
-        hour: `${selectedHour}시`
-      })
-    }
-
-    fetchDistrictCongestion(displayRain, displayTemp, selectedHour)
-    fetchHourlyForecast(districtName, activeRain, activeTemp)
-  }, [selectedDistrict, liveWeather, displayRain, displayTemp, selectedHour, displayHumidity, displayWind])
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', fontFamily: "'Outfit', 'Noto Sans KR', sans-serif", color: 'var(--app-text)', transition: 'background-color 0.2s ease, color 0.2s ease' }}>

@@ -31,9 +31,7 @@ type Item =
   | { kind: 'bus'; key: string; name: string; sub: string; data: BusStationResult }
   | { kind: 'bike'; key: string; name: string; sub: string; data: BikeStationResult }
 
-// 빈 문자열("")은 Docker/Nginx 리버스 프록시용 유효값이므로 `||` 대신 typeof 로 판별한다.
-const envApiBase = import.meta.env.VITE_API_BASE_URL
-const API_BASE: string = typeof envApiBase === 'string' ? envApiBase : 'http://127.0.0.1:8000'
+import { API_BASE_URL as API_BASE } from './api/client'
 
 const META = {
   subway: { icon: '🚇', label: '지하철역', color: 'var(--color-primary)', placeholder: '지하철역 이름 입력 (예: 강남, 시청)' },

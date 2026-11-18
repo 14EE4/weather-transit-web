@@ -5,19 +5,9 @@ import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
 import { TransitRouteResult } from './subwayGraph'
 import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
+import { API_BASE_URL } from './api/client'
 import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
 
-const getApiBaseUrl = (): string => {
-  const envVal = (import.meta as any).env?.VITE_API_BASE_URL
-  if (typeof envVal === 'string') return envVal
-  if (typeof window !== 'undefined' && window.location) {
-    const proto = window.location.protocol || 'http:'
-    const host = window.location.hostname || 'localhost'
-    return `${proto}//${host}:8000`
-  }
-  return 'http://localhost:8000'
-}
-const API_BASE_URL = getApiBaseUrl()
 // API Base URL: Docker Nginx 환경에서는 동일 오리진("") 리버스 프록시 적용
 if (import.meta.env.DEV) {
   console.log('[API 환경변수]', import.meta.env.VITE_API_BASE_URL || '(동일 오리진 프록시)')

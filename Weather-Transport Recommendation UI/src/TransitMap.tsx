@@ -338,13 +338,28 @@ export default function TransitMap({
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const markerItemsRef = useRef<MarkerItem[]>([])
+  const aiCrowdCacheRef = useRef<Record<string, { crowd: number; label: string; color: string }>>({})
+  const inFlightBatchIdsRef = useRef<Set<string>>(new Set())
+  const crowdCacheKey = `${selectedTime}|${rainMm}`
+  const prevCrowdCacheKeyRef = useRef<string>(crowdCacheKey)
+  if (prevCrowdCacheKeyRef.current !== crowdCacheKey) {
+    aiCrowdCacheRef.current = {}
+    inFlightBatchIdsRef.current.clear()
+    prevCrowdCacheKeyRef.current = crowdCacheKey
+  }
   const routeMarkersRef = useRef<any[]>([])
   const animFrameRef = useRef<number | null>(null)
   const activePopupRef = useRef<any>(null)
   // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
   const busStopPopupRef = useRef<any>(null)
   const searchedBusMarkerRef = useRef<any>(null)
+  const prevSearchedBusIdRef = useRef<string | null>(null)
   const myLocationMarkerRef = useRef<any>(null)
+  const filterTypeRef = useRef(filterType)
+  filterTypeRef.current = filterType
+  const detailRequestIdRef = useRef(0)
+  const onSelectStopRef = useRef(onSelectStop)
+  onSelectStopRef.current = onSelectStop
   const onSetOriginRef = useRef<((stop: TransitStop) => void) | undefined>(onSetOrigin)
   onSetOriginRef.current = onSetOrigin
   const onSetDestinationRef = useRef<((stop: TransitStop) => void) | undefined>(onSetDestination)
@@ -431,6 +446,43 @@ export default function TransitMap({
       setActiveStop(null)
     }
   }, [selectedStop])
+
+  // ── 교통수단 필터 탭 전환 시 현재 필터와 무관한 선택 마커/팝업/버스 노선 정리 ──
+  useEffect(() => {
+    if (filterType === 'all') return
+
+    const currentActive = activeStopRef.current
+    if (currentActive && currentActive.type !== 'gps' && currentActive.type !== filterType) {
+      detailRequestIdRef.current += 1
+      if (activePopupRef.current) {
+        try {
+          activePopupRef.current.remove()
+        } catch {}
+        activePopupRef.current = null
+        popupOpenedZoomRef.current = null
+      }
+      if (busStopPopupRef.current) {
+        try {
+          busStopPopupRef.current.remove()
+        } catch {}
+        busStopPopupRef.current = null
+      }
+      setActiveStop(null)
+      try {
+        localStorage.removeItem(STORAGE_SELECTED_STOP_KEY)
+      } catch {}
+      onSelectStopRef.current?.(null)
+    }
+
+    if (filterType !== 'bus') {
+      setSelectedBusRoute(null)
+      if (searchedBusMarkerRef.current) {
+        searchedBusMarkerRef.current.remove()
+        searchedBusMarkerRef.current = null
+      }
+      prevSearchedBusIdRef.current = null
+    }
+  }, [filterType])
 
   const getMapThemeSurface = () => {
     if (typeof document === 'undefined') return '#111D35'
@@ -519,6 +571,131 @@ export default function TransitMap({
     return { label: '혼잡', color: '#F43F5E', bg: 'rgba(244, 63, 94, 0.15)' }
   }
 
+  // 거점별 AI 추론 캐시 우선 혼잡도 조회 (미조회 거점은 휴리스틱 폴백)
+  const getStopCrowdInfo = (stop: TransitStop): { crowd: number; label: string; color: string } => {
+    const cached = aiCrowdCacheRef.current[stop.id]
+    if (cached) return cached
+    const crowd = calculateCrowd(stop)
+    const { label, color } = getCrowdLevel(crowd)
+    return { crowd, label, color }
+  }
+
+  // 알약·점 마커 DOM 전체(배지, 테두리, 화살표, 원형 점, 툴팁)에 혼잡도 색상·수치 일괄 반영
+  const applyMarkerCrowdStyle = (
+    el: HTMLElement,
+    crowdInfo: { crowd: number; label: string; color: string },
+    isSelected = false,
+  ) => {
+    const pillBadge = el.querySelector('.marker-crowd-badge') as HTMLElement | null
+    const pillBox = el.querySelector('.marker-pill') as HTMLElement | null
+    const pillArrow = el.querySelector('.marker-pill-arrow') as HTMLElement | null
+    const dotCircle = el.querySelector('.marker-dot-circle') as HTMLElement | null
+    const dotTooltip = el.querySelector('.marker-dot-tooltip') as HTMLElement | null
+    const dotTooltipBadge = el.querySelector('.marker-dot-tooltip-badge') as HTMLElement | null
+
+    if (pillBadge) {
+      pillBadge.textContent = `${crowdInfo.crowd}%`
+      pillBadge.style.background = crowdInfo.color
+    }
+    if (pillBox) {
+      pillBox.style.borderColor = crowdInfo.color
+      pillBox.style.boxShadow = isSelected ? `0 0 20px ${crowdInfo.color}` : '0 4px 14px var(--app-shadow)'
+    }
+    if (pillArrow) {
+      pillArrow.style.borderTopColor = crowdInfo.color
+    }
+    if (dotCircle) {
+      dotCircle.style.background = crowdInfo.color
+      dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${crowdInfo.color}bb`
+    }
+    if (dotTooltip) {
+      dotTooltip.style.borderColor = crowdInfo.color
+    }
+    if (dotTooltipBadge) {
+      dotTooltipBadge.textContent = `${crowdInfo.crowd}% (${crowdInfo.label})`
+      dotTooltipBadge.style.color = crowdInfo.color
+    }
+  }
+
+  // 지도 전체/주변 거점에 대해 Stage 1(32d) × Stage 2(16d) 일괄 ONNX AI 혼잡도 조회 및 캐시 동기화
+  const requestBatchAiCrowds = async (
+    stopsToFetch: TransitStop[],
+    onApplied?: (cacheMap: Record<string, { crowd: number; label: string; color: string }>) => void,
+    signal?: AbortSignal,
+  ) => {
+    const missing = stopsToFetch.filter(
+      s =>
+        (s.type === 'subway' || s.type === 'bus' || s.type === 'bike') &&
+        !aiCrowdCacheRef.current[s.id] &&
+        !inFlightBatchIdsRef.current.has(s.id)
+    )
+    if (missing.length === 0) return
+
+    const reqCacheKey = crowdCacheKey
+    missing.forEach(s => inFlightBatchIdsRef.current.add(s.id))
+
+    const parsedHour = parseInt(selectedTime.replace(/[^0-9]/g, ''), 10)
+    const hour = !isNaN(parsedHour) ? Math.max(0, Math.min(24, parsedHour)) : new Date().getHours()
+
+    const payload: any = {
+      hour,
+      items: missing.map(s => ({
+        id: s.id,
+        name: s.name,
+        stop_type: s.type,
+        district: resolveDistrict(s.name, s.coords),
+        point_id: s.stId || s.stationNo || undefined,
+        base_crowd: s.baseCrowd,
+      })),
+    }
+    if (liveWeather && typeof liveWeather.temp === 'number') {
+      payload.weather = {
+        temp: liveWeather.temp,
+        rain: rainMm,
+        humidity: typeof liveWeather.humidity === 'number' ? liveWeather.humidity : 55.0,
+        wind: typeof liveWeather.wind === 'number' ? liveWeather.wind : 2.0,
+      }
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/predict/map-crowds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal,
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (!data || data.status !== 'success' || !data.items) return
+      if (prevCrowdCacheKeyRef.current !== reqCacheKey) return
+
+      for (const [id, info] of Object.entries(data.items as Record<string, any>)) {
+        if (!info || typeof info.crowd !== 'number') continue
+        aiCrowdCacheRef.current[id] = {
+          crowd: Number(info.crowd),
+          label: String(info.label || getCrowdLevel(Number(info.crowd)).label),
+          color: String(info.color || getCrowdLevel(Number(info.crowd)).color),
+        }
+      }
+
+      const currentActiveId = activeStopRef.current?.id
+      for (const item of markerItemsRef.current) {
+        const cached = aiCrowdCacheRef.current[item.stop.id]
+        if (cached) {
+          applyMarkerCrowdStyle(item.el, cached, currentActiveId === item.stop.id)
+        }
+      }
+
+      onApplied?.(aiCrowdCacheRef.current)
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.debug('[TransitMap] 지도 일괄 AI 혼잡도 조회 폴백(휴리스틱 유지):', err)
+      }
+    } finally {
+      missing.forEach(s => inFlightBatchIdsRef.current.delete(s.id))
+    }
+  }
+
   // ── 정류소/역 상세 팝업 HTML 생성 헬퍼 (모든 대중교통 거점에 공통 적용) ──
   const buildStationPopupHtml = (
     stop: TransitStop,
@@ -551,8 +728,7 @@ export default function TransitMap({
       apiSource = String((arrivalsOrOptions as any).source || '')
     }
 
-    const crowd = calculateCrowd(stop)
-    const { label, color } = getCrowdLevel(crowd)
+    const { crowd, label, color } = getStopCrowdInfo(stop)
     const resolvedDistrict = resolveDistrict(stop.name, stop.coords)
     const rec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
     const displayCrowd = rec ? rec.crowd : crowd
@@ -566,7 +742,7 @@ export default function TransitMap({
           <div style="font-size: 11px; color: #38BDF8; font-weight: 700; margin-bottom: 2px;">
             ⏳ 기상청 실시간 관측 및 AI 모델 추론 중...
           </div>
-          <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 32차원 LightGBM AI 연산 진행</div>
+          <div style="font-size: 9px; color: var(--color-muted);">격자 매핑 및 2단계(32d×16d) LightGBM AI 연산 진행</div>
         </div>
       `
     } else if (weatherData) {
@@ -631,7 +807,7 @@ export default function TransitMap({
               <span>🤖</span> AI 수요 추론 (${rec.name})
             </span>
             <span style="font-size: 9px; font-weight: 700; color: #C084FC; background: rgba(168,85,247,0.22); padding: 1px 5px; border-radius: 4px;">
-              ⚡ LightGBM AI
+              ${rec.point_share_pct != null ? `🎯 지점 AI · 구 내 ${Number(rec.point_share_pct).toFixed(2)}%` : '⚡ LightGBM AI'}
             </span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">
@@ -641,6 +817,12 @@ export default function TransitMap({
           <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 5px;">
             <div style="width: ${displayCrowd}%; height: 100%; background: ${displayColor}; border-radius: 2px;"></div>
           </div>
+          ${rec.district_predicted_volume != null && rec.point_share_pct != null ? `
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 9px; color: var(--color-muted); margin-bottom: 5px; font-family: monospace;">
+              <span>구 전체 ${Number(rec.district_predicted_volume).toLocaleString()}명/시 중 ${Number(rec.point_share_pct).toFixed(2)}%</span>
+              ${rec.point_p95 != null ? `<span>피크(P95) ${Math.round(Number(rec.point_p95)).toLocaleString()}명</span>` : ''}
+            </div>
+          ` : ''}
           <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: var(--color-card2); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
             ${rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석'}
           </div>
@@ -852,6 +1034,8 @@ export default function TransitMap({
       return
     }
 
+    const requestId = ++detailRequestIdRef.current
+
     try {
       localStorage.setItem(STORAGE_SELECTED_STOP_KEY, stop.id)
     } catch {}
@@ -973,6 +1157,7 @@ export default function TransitMap({
       const aiPayload = {
         district,
         station: stop.name,
+        point_id: stop.stId || stop.stationNo || stop.id,
         stop_type: stop.type,
         base_crowd: stop.baseCrowd,
         hour: currentHour,
@@ -1093,6 +1278,12 @@ export default function TransitMap({
         logBikeApiCall({ stationNo: stop.stationNo, stationName: stop.name, method, proxyPath }, live, rawPayload)
       }
 
+      const isFilterIncompatible =
+        (stop.type === 'subway' || stop.type === 'bus' || stop.type === 'bike') &&
+        filterTypeRef.current !== 'all' &&
+        filterTypeRef.current !== stop.type
+      if (detailRequestIdRef.current !== requestId || isFilterIncompatible) return
+
       if (activePopupRef.current === popup) {
         popup.setHTML(buildStationPopupHtml(stop, {
           weather: weatherData,
@@ -1104,8 +1295,13 @@ export default function TransitMap({
       }
 
       const targetRec = aiData?.recommendations?.find((r: any) => r.id === stop.type) || aiData?.recommendations?.[0]
-      if (targetRec && options?.onCrowdUpdate) {
-        options.onCrowdUpdate(targetRec)
+      if (targetRec) {
+        aiCrowdCacheRef.current[stop.id] = {
+          crowd: targetRec.crowd,
+          label: targetRec.crowdLabel,
+          color: targetRec.crowdColor,
+        }
+        options?.onCrowdUpdate?.(targetRec)
       }
 
       if (onSelectStop) {
@@ -1118,6 +1314,11 @@ export default function TransitMap({
       }
     } catch (err) {
       console.error('역/정류소 정보 파이프라인 조회 실패:', err)
+      const isFilterIncompatible =
+        (stop.type === 'subway' || stop.type === 'bus' || stop.type === 'bike') &&
+        filterTypeRef.current !== 'all' &&
+        filterTypeRef.current !== stop.type
+      if (detailRequestIdRef.current !== requestId || isFilterIncompatible) return
       if (activePopupRef.current === popup) {
         popup.setHTML(buildStationPopupHtml(stop, {
           arrivalsList: [],
@@ -1759,10 +1960,13 @@ export default function TransitMap({
 
   // 🚌 상단 버스 검색에서 선택된 버스정류장 전용 마커 및 상세 팝업 (주요 거점과 100% 동일한 기능/UI 적용)
   useEffect(() => {
-    if (!mapLoaded || !mapInstanceRef.current || !selectedBusStation) {
+    if (!mapLoaded || !mapInstanceRef.current || !selectedBusStation || (filterType !== 'all' && filterType !== 'bus')) {
       if (searchedBusMarkerRef.current) {
         searchedBusMarkerRef.current.remove()
         searchedBusMarkerRef.current = null
+      }
+      if (!selectedBusStation) {
+        prevSearchedBusIdRef.current = null
       }
       return
     }
@@ -1813,8 +2017,11 @@ export default function TransitMap({
       openStationDetail(stop)
     })
 
-    // 선택 시 자동으로 주요 거점과 동일한 풀 스펙 상세 팝업(기상+AI+도착정보+노선) 오픈
-    openStationDetail(stop)
+    // 검색으로 새로 정류장이 선택됐을 때만 자동 팝업 오픈 (버스 ↔ 전체 탭 전환 시 중복 팝업/이동 방지)
+    if (prevSearchedBusIdRef.current !== selectedBusStation.id) {
+      prevSearchedBusIdRef.current = selectedBusStation.id
+      openStationDetail(stop)
+    }
 
     return () => {
       marker.remove()
@@ -1822,7 +2029,7 @@ export default function TransitMap({
         searchedBusMarkerRef.current = null
       }
     }
-  }, [mapLoaded, selectedBusStation])
+  }, [mapLoaded, selectedBusStation, filterType])
 
   // 역/정류소 중요도 가중치 계산 (환승역 및 주요 환승센터/대형 거점 우선 노출)
   const calculateStationPriority = (stop: TransitStop): number => {
@@ -2014,10 +2221,8 @@ export default function TransitMap({
             pill.style.borderColor = '#F59E0B'
             pill.style.boxShadow = '0 4px 18px rgba(245, 158, 11, 0.75)'
           } else {
-            const crowd = calculateCrowd(item.stop)
-            const { color } = getCrowdLevel(crowd)
-            pill.style.borderColor = color
-            pill.style.boxShadow = isSelected ? `0 0 20px ${color}` : '0 4px 14px rgba(0,0,0,0.5)'
+            const crowdInfo = getStopCrowdInfo(item.stop)
+            applyMarkerCrowdStyle(item.el, crowdInfo, Boolean(isSelected))
           }
         }
 
@@ -2212,7 +2417,9 @@ export default function TransitMap({
       }
     })
 
+    let latestFeatures: any[] = []
     const setStations = (features: any[]) => {
+      latestFeatures = features
       const source = map.getSource(sourceId) as any
       source?.setData({
         type: 'FeatureCollection',
@@ -2267,9 +2474,11 @@ export default function TransitMap({
             bounds.contains(station.coords)
         )
 
+        const batchBusStops: TransitStop[] = []
         const features = stations.map((station: any) => {
+          const stationKey = `bus-dyn-${station.stId || station.id || station.arsId || `${station.coords[0]}_${station.coords[1]}`}`
           const tempStop: TransitStop = {
-            id: station.stId || station.id,
+            id: stationKey,
             name: station.name,
             type: 'bus',
             coords: station.coords,
@@ -2279,8 +2488,8 @@ export default function TransitMap({
             stId: station.stId,
             arsId: station.arsId,
           }
-          const crowd = calculateCrowd(tempStop)
-          const { label, color } = getCrowdLevel(crowd)
+          batchBusStops.push(tempStop)
+          const { crowd, label, color } = getStopCrowdInfo(tempStop)
 
           return {
             type: 'Feature',
@@ -2289,6 +2498,7 @@ export default function TransitMap({
               coordinates: station.coords
             },
             properties: {
+              stationKey,
               stId: station.stId,
               name: station.name,
               arsId: station.arsId,
@@ -2303,6 +2513,31 @@ export default function TransitMap({
         console.log(
           `[서울 버스] 주변 정류장 ${features.length}개 표시`
         )
+
+        if (batchBusStops.length > 0) {
+          requestBatchAiCrowds(
+            batchBusStops,
+            (cacheMap) => {
+              if (disposed || latestFeatures.length === 0) return
+              const refreshed = latestFeatures.map(f => {
+                const cached = cacheMap[f.properties?.stationKey]
+                return cached
+                  ? {
+                      ...f,
+                      properties: {
+                        ...f.properties,
+                        crowd: cached.crowd,
+                        label: cached.label,
+                        color: cached.color,
+                      }
+                    }
+                  : f
+              })
+              setStations(refreshed)
+            },
+            controller.signal,
+          )
+        }
       } catch (error) {
         if (controller?.signal.aborted || disposed) return
 
@@ -2333,9 +2568,10 @@ export default function TransitMap({
 
       const coords = feature.geometry.coordinates as [number, number]
       const properties = feature.properties || {}
+      const stationKey = properties.stationKey || `bus-dyn-${properties.stId || properties.id || properties.arsId || `${coords[0]}_${coords[1]}`}`
 
       const stop: TransitStop = {
-        id: `bus-dyn-${properties.stId || properties.id || properties.arsId || `${coords[0]}_${coords[1]}`}`,
+        id: stationKey,
         name: properties.name || '버스정류장',
         type: 'bus',
         coords: coords,
@@ -2346,7 +2582,26 @@ export default function TransitMap({
         arsId: properties.arsId,
       }
 
-      openStationDetail(stop, { popupOffset: 12 })
+      openStationDetail(stop, {
+        popupOffset: 12,
+        onCrowdUpdate: (targetRec) => {
+          if (disposed || latestFeatures.length === 0) return
+          const updated = latestFeatures.map(f =>
+            f.properties?.stationKey === stationKey
+              ? {
+                  ...f,
+                  properties: {
+                    ...f.properties,
+                    crowd: targetRec.crowd,
+                    label: targetRec.crowdLabel,
+                    color: targetRec.crowdColor,
+                  }
+                }
+              : f
+          )
+          setStations(updated)
+        }
+      })
     }
 
     const busHoverPopup = new maplibregl.Popup({
@@ -2800,8 +3055,7 @@ export default function TransitMap({
     const sortedStops = [...filtered].sort((a, b) => calculateStationPriority(b) - calculateStationPriority(a))
 
     sortedStops.forEach(stop => {
-      const crowd = calculateCrowd(stop)
-      const { label, color } = getCrowdLevel(crowd)
+      const { crowd, label, color } = getStopCrowdInfo(stop)
 
       // 커스텀 마커 엘리먼트 생성
       const el = document.createElement('div')
@@ -2883,7 +3137,7 @@ export default function TransitMap({
             pointer-events: none;
             z-index: 10000;
           ">
-            ${typeIcon} ${stop.name} <span style="color: ${color}; font-weight: 800; margin-left: 3px;">${crowd}% (${label})</span>
+            ${typeIcon} ${stop.name} <span class="marker-dot-tooltip-badge" style="color: ${color}; font-weight: 800; margin-left: 3px;">${crowd}% (${label})</span>
           </div>
         </div>
       `
@@ -2895,31 +3149,34 @@ export default function TransitMap({
       const dotTooltip = el.querySelector('.marker-dot-tooltip') as HTMLElement | null
 
       el.addEventListener('mouseenter', () => {
+        const { color: currentColor } = getStopCrowdInfo(stop)
         if (dotView && dotView.style.display !== 'none') {
           if (dotCircle) {
             dotCircle.style.transform = 'scale(1.6)'
-            dotCircle.style.boxShadow = `0 0 16px ${color}, 0 2px 8px var(--app-shadow)`
+            dotCircle.style.boxShadow = `0 0 16px ${currentColor}, 0 2px 8px var(--app-shadow)`
           }
           if (dotTooltip) dotTooltip.style.display = 'block'
           el.style.zIndex = '5000'
         } else if (pill) {
           pill.style.transform = 'scale(1.1) translateY(-2px)'
-          pill.style.boxShadow = `0 6px 20px ${color}88`
+          pill.style.boxShadow = `0 6px 20px ${currentColor}88`
           el.style.zIndex = '5000'
         }
       })
 
       el.addEventListener('mouseleave', () => {
+        const { color: currentColor } = getStopCrowdInfo(stop)
+        const isCurrentlySelected = activeStopRef.current?.id === stop.id
         if (dotCircle) {
           dotCircle.style.transform = 'scale(1)'
-          dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${color}bb`
+          dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${currentColor}bb`
         }
         if (dotTooltip) dotTooltip.style.display = 'none'
         if (pill) {
           pill.style.transform = 'scale(1) translateY(0)'
-          pill.style.boxShadow = '0 4px 14px var(--app-shadow)'
+          pill.style.boxShadow = isCurrentlySelected ? `0 0 20px ${currentColor}` : '0 4px 14px var(--app-shadow)'
         }
-        el.style.zIndex = '1'
+        el.style.zIndex = isCurrentlySelected ? '99999' : '1'
       })
 
       const marker = new maplibregl.Marker({ element: el })
@@ -2929,15 +3186,15 @@ export default function TransitMap({
       el.addEventListener('click', () => {
         openStationDetail(stop, {
           onCrowdUpdate: (targetRec) => {
-            const pillBadge = el.querySelector('.marker-crowd-badge') as HTMLElement | null
-            const pillBox = el.querySelector('.marker-pill') as HTMLElement | null
-            const pillArrow = el.querySelector('.marker-pill-arrow') as HTMLElement | null
-            if (pillBadge) {
-              pillBadge.textContent = `${targetRec.crowd}%`
-              pillBadge.style.background = targetRec.crowdColor
-            }
-            if (pillBox) pillBox.style.borderColor = targetRec.crowdColor
-            if (pillArrow) pillArrow.style.borderTopColor = targetRec.crowdColor
+            applyMarkerCrowdStyle(
+              el,
+              {
+                crowd: targetRec.crowd,
+                label: targetRec.crowdLabel,
+                color: targetRec.crowdColor,
+              },
+              activeStopRef.current?.id === stop.id,
+            )
           }
         })
       })
@@ -2968,8 +3225,12 @@ export default function TransitMap({
       }
     } catch {}
 
-    // 초기 마커 겹침 필터링 실행
+    // 초기 마커 겹침 필터링 실행 및 지도 전체 거점 Stage 1×Stage 2 ONNX 배치 AI 혼잡도 선계산 동기화
     updateCollisions()
+    const batchController = new AbortController()
+    requestBatchAiCrowds(allStops, () => {
+      updateCollisionsRef.current()
+    }, batchController.signal)
 
     // 지도 조작(이동, 확대, 축소) 시 고속 겹침 재계산 (최신 클로저 Refs 호출)
     const onMapMove = () => {
@@ -2989,10 +3250,13 @@ export default function TransitMap({
     map.on('resize', onMapMove)
 
     return () => {
+      batchController.abort()
       map.off('move', onMapMove)
       map.off('zoom', onMapMove)
       map.off('resize', onMapMove)
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+      markerItemsRef.current.forEach(item => item.marker.remove())
+      markerItemsRef.current = []
     }
   }, [filterType, rainMm, mapLoaded, selectedTime, liveBikeStops])
 

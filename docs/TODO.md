@@ -38,6 +38,15 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (핵심 기능 개발 완료)
+- [x] **[ROUTE-06] 멀티모달 경로 탐색 시 승·하차 역·정류소·대여소별 Stage 1 × Stage 2 AI 혼잡도 연동 (완료 · 2026-11-18 · 이슈 #126)**:
+  - `main.py::_execute_multimodal_search`에 권역별 Stage 1(`32d`) `district_volume_resolver`를 추가하고, `multimodal_router.py::_annotate_segments_and_route_with_point_crowd()`가 각 `subway`/`bus`/`bike` 세그먼트 승·하차 지점의 `point_share_engine.predict_point()` 결과를 산출해 경로 혼잡도(소요시간 가중 평균)와 `utility_score`에 반영.
+  - `MultimodalRoutePanel.tsx`에 구간별 지점 AI 혼잡도·점유율 배지 표출 (`weather_transit_multimodal_cache_v7`).
+- [x] **[AI-03] 지도 초기 로드 100% 2단계 ONNX AI 배치 추론 및 시간대 서버 공용 캐시 구축 (완료 · 2026-11-18 · 이슈 #124)**:
+  - `PointShareEngine.predict_points_batch()` + `POST /api/v1/predict/map-crowds` 서버 배치 추론 및 `(날짜 · 시간대 · 강수 · 2°C 버킷)` 15분 공용 캐시(`_map_crowds_cache`) 구축으로 초기 지도 진입 시점부터 전 마커를 100% 2단계 ONNX AI 예측 혼잡도로 일괄 표출하고 타 사용자와 결과 공유(`tests/test_point_share_inference.py` 6종 전수 PASS).
+- [x] **[UI-15] 지도 점 마커 AI 혼잡도 색상 동기화, 탭 전환 시 버스 마커 잔류 해결 및 모바일 자주 찾는 경로 제거 (완료 · 2026-11-18 · 이슈 #122)**:
+  - `TransitMap.tsx`에 `aiCrowdCacheRef` 및 `getStopCrowdInfo` / `applyMarkerCrowdStyle` 헬퍼를 도입하여 `onCrowdUpdate`, `updateCollisions()`, 호버 툴팁, 점 마커(`.marker-dot-circle`), 실시간 버스 레이어(`live-bus-stations`)까지 AI 추론 혼잡도 색상 1:1 동기화.
+  - `[filterType]` 전환 및 `App.tsx`·`AppM.tsx` 탭 클릭 시 `searchedBusMarkerRef`(`selectedBusStation`), 비호환 `activePopupRef`/`activeStop`, `selectedBusRoute`를 즉시 정리하고 `openStationDetail` 비동기 가드(`detailRequestIdRef`) 적용.
+  - 모바일(`AppM.tsx`) 경로 추천 화면의 `자주 찾는 경로` 블록 제거(PC `App.tsx` 유지).
 - [x] **[UI-11] 지도 보기 기상 실황을 지도 뷰포트(중심 좌표) 기준 국지 날씨로 전환 (완료 · 2026-11-03 · 이슈 #98)**:
   - `TransitMap.tsx`에 `onViewportChange` 콜백 신설 — `moveend` 디바운스 `500ms` + `isMoving/isRotating` 가드 + `zoom < 10` 생략, 최초 진입 1회 통지.
   - `resolveDistrict('', [lng, lat])` 기반 자치구 해석 후 `GET /api/v1/weather/current?district=..&lat=..&lng=..`(좌표 → KMA 격자) 호출. 자치구 + 좌표 0.01° 캐시 키로 과호출 억제.
@@ -263,6 +272,19 @@
   - 1단계 타일 URL 환경변수화(`VITE_OSM_TILE_URL`, `VITE_SATELLITE_TILE_URL`, `VITE_SATELLITE_LABEL_URL`)는 완료되었으며, 향후 일 트래픽 50만 건 이상 또는 대규모 상용화 시 Nginx 캐시 프록시 및 PMTiles/Martin 기반 자체 타일 호스팅 인프라 구축.
 - [ ] 공공 API 서버 장애 시 자동 Fallback 서킷 브레이커 고도화 (Backlog)
 - [ ] Redis 기반 분산 캐시 레이어 도입 (대규모 트래픽 대비 · Backlog)
+
+---
+
+### 🧪 3-1. 지점 단위(역·정류소·대여소) 수요 분배 모델 및 자치구 모델 v3 재학습 (**전체 완료 · 2026-11-16 · 이슈 #116**)
+
+> 계획서: [`MODEL_RETRAINING_PLAN.md`](./MODEL_RETRAINING_PLAN.md). Phase 0~3 학습·평가 완료 후 체크포인트 PR(#118)을 거쳐, Phase 4~5(Stage 2 `16차원` 지점 점유율 서빙 엔진·UI 팝업/사이드바 연동 및 Docker/문서 동기화)까지 전수 완료.
+
+- [x] **[MODEL-01 · Phase 0] 신규 지점 점유율 데이터(`18.69GB`, 75개 CSV) 감사 (완료 · 2026-11-16 · G0: PASS)** — `scripts/audit_point_share_data.py` (`217,912,809`행 스캔, 2025 커버리지 `98.4~100%`, 라벨 `r >= 0.998` → `benchmarks/results/point_share_audit_20261116_194804.md`)
+- [x] **[MODEL-02 · Phase 1] 미관측일 마스킹 + 학습구간 전용 지점 프로필 + K95/전체 밀집화 (완료 · 2026-11-16 · G1: PASS)** — 버스 `40일` 마스킹, 지하철 `259`·따릉이 `2,205`·버스 `5,966`(+기타) 사전 프로필 산출, 누수 컬럼 0건(`scripts/run_point_share_v3.py`)
+- [x] **[MODEL-03 · Phase 2] 지점 점유율 모델 학습 및 2025 전수 평가 (완료 · 2026-11-16)** — 지하철 `M2 PASS`(WAPE `55.12%→7.88%`, Spearman `0.9860`, 등급 `93.11%`), 버스·따릉이 `B0` 대비 `-76.9%` / `-28.9%` 개선(`benchmarks/results/point_share_eval_20261116_215626.md`)
+- [x] **[MODEL-04 · Phase 3] 자치구 모델 v3 비교 평가 (완료 · 2026-11-16 · G3: KEEP_V21)** — 버스 v3 마스킹 MAE `175.64→169.86` 개선, 따릉이·지하철 동일 (`models/` 현행 32d v2.1 유지, v3 ONNX는 `benchmarks/point_share_v3_2026-11-16/` 보관)
+- [x] **[MODEL-05 · Phase 4] ONNX 서빙 엔진 · `POST /api/v1/predict/recommendation` 지점 정밀 분해 · PC/모바일 UI 팝업 연동 (완료 · 2026-11-16)** — `point_share_inference.py`, `models/lgb_{bike,bus,subway}_point_share.onnx`, `models/point_share_priors.json.gz` (`8,432`개 지점), `TransitMap.tsx`·`App.tsx`·`AppM.tsx` 1:1 연동, `.dockerignore` 최적화 및 Docker 재빌드/헬스체크 통과
+- [x] **[MODEL-06 · Phase 5] 모델·백엔드·성능·운영 문서 전수 동기화 (완료 · 2026-11-16)** — `MODEL_RETRAINING_PLAN.md`, `AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `BACKEND_INFERENCE_SERVER.md`, `CHANGELOG.md`, `README.md` 갱신 완료
 
 ---
 

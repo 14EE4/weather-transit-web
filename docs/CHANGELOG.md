@@ -6,6 +6,104 @@
 
 ---
 
+## [2026-11-18]
+
+### 🧭 멀티모달 경로 탐색 시 승·하차 역·정류소·대여소별 Stage 1×Stage 2 AI 혼잡도 연동 (이슈 #126)
+- **배경/목적**:
+  - 기존 멀티모달 경로 탐색(`POST /api/v1/routes/multimodal-search`)은 물리 좌표·국지 날씨·환승 거리 등은 정류장 단위로 계산했으나, 경로 혼잡도(`crowd_percent`) 및 효용 페널티에는 Stage 1(`32d`) 자치구 평균 혼잡도만 적용되어 동일 자치구 내 `강남역➔역삼역`과 `학여울역➔대치역`의 경로 혼잡도가 같게 계산되는 한계가 있었음.
+- **조치 내역**:
+  1. **백엔드 경로 구간별 Stage 1 × Stage 2 혼잡도 통합 (`main.py`, `multimodal_router.py`)**:
+     - `_execute_multimodal_search`에서 출발·도착 권역 Stage 1(`32d`) 수요 맵(`district_volumes`) 및 구간별 권역 수요 리졸버(`district_volume_resolver`) 전달.
+     - `MultimodalRoutingEngine._annotate_segments_and_route_with_point_crowd()` 신설: 각 `subway`/`bus`/`bike` 세그먼트의 승·하차 역/정류소(`st_id`, `station_no` 포함)와 구간별 국지 기상(`weather`, `to_weather`)을 기준으로 `point_share_engine.predict_point()`를 호출해 `seg["point_crowd"]`를 부착하고, 소요시간 가중 평균으로 경로 `crowd_percent`·`crowd_label`·`crowd_color`를 갱신해 다목적 효용 평가(`utility_score`)에 직접 반영.
+  2. **프론트엔드 UI & 캐시 버전 동기화 (`subwayGraph.ts`, `MultimodalRoutePanel.tsx`)**:
+     - `MultimodalSegment.point_crowd` 타입 추가 및 경로 상세 세그먼트 카드 내 `🎯 혼잡/보통/여유 XX% · 점유 X.XX%` 배지 표출 (`LOCAL_STORAGE_CACHE_KEY` `v6 ➔ v7` 상향).
+  3. **문서 동기화**: `docs/AI_MODEL_OVERVIEW.md` (`§2.2` 표 갱신), `README.md`, `docs/TODO.md` 동기화.
+
+### 🚀 지도 초기 로드 100% 2단계 ONNX AI 배치 추론 & 시간대 서버 공용 캐싱 구축 (이슈 #124)
+- **배경/목적**:
+  - 지도 초기 로드 시 클릭 전 마커 색상을 클라이언트 휴리스틱(`calculateCrowd`)으로 띄워 평시 낮 시간대 강남역·교대역 등이 클릭 전(파란색 `보통`)과 클릭 후(빨간색 `혼잡`) 간 차이를 보이던 구조적 위화감을 해소하고, 첫 사용자 로드 시 계산한 결과를 동일 시간대 다른 사용자들과 서버에서 공유해 `1ms` 미만으로 즉시 응답하도록 고도화.
+- **조치 내역**:
+  1. **Stage 2 수단별 단일 ONNX 배치 추론 (`point_share_inference.py`)**:
+     - `PointShareEngine.predict_points_batch()` 및 공용 피처/점수화 헬퍼(`_build_temporal_weather_prefix`, `_build_point_feature_vector`, `_score_point_result`) 구현으로 `subway`·`bus`·`bike` 수단별 `(N_mode, 16)` 행렬을 단 1회 `InferenceSession.run()`으로 일괄 추론(`predict_point`와 수치 100% 일치).
+  2. **지도 일괄 AI 추론 & 시간대 공용 캐시 API (`main.py`)**:
+     - `POST /api/v1/predict/map-crowds` 엔드포인트 및 `_map_crowds_cache`(TTL `15분`, 최대 `24`슬롯, 키 `{date}|h{hour}|r{rain_0.1mm}|t{temp_2deg}`) 신설, `POST /api/v1/admin/cache/clear` 초기화 연동.
+  3. **프론트엔드 지도 자동 연동 & 회귀 검증 (`TransitMap.tsx`, `tests/test_point_share_inference.py`)**:
+     - `requestBatchAiCrowds()`로 지도 마커 초기 로드 직후 및 주변 실시간 버스(`live-bus-stations`)·따릉이(`liveBikeStops`) 추가 시 일괄 AI 혼잡도·색상을 즉시 반영해 클릭 전 점(Dot)·알약 마커부터 100% AI 예측값으로 일치.
+     - `tests/test_point_share_inference.py` 배치 일치성 및 서버 공용 캐시 적중 테스트(`Test 5~6`) 추가, `README.md`, `AI_MODEL_OVERVIEW.md`, `BACKEND_INFERENCE_SERVER.md`, `CACHING_POLICY.md` 동기화.
+
+### 🐛 지도 점 마커 AI 혼잡도 색상 동기화, 탭 전환 시 버스 마커 잔류 해결 및 모바일 자주 찾는 경로 제거 (이슈 #122)
+- **배경/문제**:
+  1. `전체` 보기 또는 평시 낮 시간대에서 초기 휴리스틱 혼잡도가 `보통`(`#38BDF8` 파란색)으로 표시되는 주요 거점(강남역·교대역 등)을 클릭하면 팝업·사이드바·알약 배지는 2단계 ONNX AI 추론 결과(`혼잡`, `#F43F5E` 빨간색)로 갱신되지만, 선택 해제·축소 시 드러나는 점 마커(`.marker-dot-circle`, `.marker-dot-tooltip`)는 계속 파란색으로 남고 `updateCollisions()` 재호출 시 알약 테두리 색상도 파란색으로 덮어써지는 현상 확인.
+  2. 버스 정류장 선택/검색 상태에서 `따릉이` 또는 `지하철` 필터 탭으로 전환할 때 `searchedBusMarkerRef`(`selectedBusStation`), `activePopupRef`, `selectedBusRoute`(노선선·`🚌 첫차`/`🚌 다음 차` 차량 마커)가 지도에 잔류하는 현상 확인.
+  3. 모바일 경로 탐색 화면(`AppM.tsx`)의 세로 가용 공간 확보를 위해 `자주 찾는 경로` 블록 제거 필요.
+- **조치 내역**:
+  1. **점 마커·알약 마커 AI 혼잡도 색상 동기화 (`TransitMap.tsx`)**:
+     - `aiCrowdCacheRef`(시간대 `selectedTime`·강수량 `rainMm` 변경 시 자동 초기화) 및 `getStopCrowdInfo(stop)` / `applyMarkerCrowdStyle(el, crowdInfo, isSelected)` 헬퍼 도입.
+     - `onCrowdUpdate` 시 알약 배지·테두리·화살표뿐 아니라 `.marker-dot-circle`, `.marker-dot-tooltip`, `.marker-dot-tooltip-badge`까지 동시 갱신하고, `updateCollisions()`, `mouseenter`/`mouseleave` 호버, 탭 전환 마커 재생성, 실시간 버스 원형 레이어(`live-bus-stations`) 클릭까지 캐시된 AI 혼잡도·색상을 일관 유지하도록 보완.
+  2. **탭 전환 시 비호환 선택 마커·팝업·버스 노선 정리 (`TransitMap.tsx`, `App.tsx`, `AppM.tsx`)**:
+     - `selectedBusStation` 마커 효과를 `[mapLoaded, selectedBusStation, filterType]`로 연동해 `'all'`/`'bus'` 모드에서만 표출하고, `[filterType]` 전환 `useEffect`에서 타 수단 팝업(`activePopupRef`)·`activeStop`·`STORAGE_SELECTED_STOP_KEY`·`selectedBusRoute`·`searchedBusMarkerRef`를 즉시 정리.
+     - `openStationDetail` 비동기 응답 완료 시 `detailRequestIdRef` 및 `filterTypeRef` 가드를 적용해 탭 전환 후 뒤늦게 완료된 요청이 상태를 덮어쓰지 않도록 차단.
+     - `App.tsx`·`AppM.tsx` 교통수단 탭 클릭 및 비(非)버스 거점 검색 시 `setSelectedBusStation(null)`·`handleSelectStop(null)` 동기화 호출 추가.
+  3. **모바일 "자주 찾는 경로" 제거 (`AppM.tsx`)**:
+     - 모바일 경로 추천 화면(`AppM.tsx`)에서 `자주 찾는 경로` 프리셋 목록 블록을 제거해 출발·도착 검색창 및 멀티모달 추천 결과 가독성 개선(PC `App.tsx`는 현행 유지).
+
+### 📘 AI 모델 통합 상위 가이드 문서(`docs/AI_MODEL_OVERVIEW.md`) 신설 (이슈 #120)
+- **배경/목적**:
+  - `AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `MODEL_RETRAINING_PLAN.md`, `CURRENT_DATA_SPEC.md`, `BACKEND_INFERENCE_SERVER.md` 등으로 분산되어 있던 AI 모델 관련 내용을 한눈에 조망할 수 있는 최상위 마스터 가이드 요구 반영.
+- **조치 내역**:
+  1. `docs/AI_MODEL_OVERVIEW.md` 신설:
+     - 하위 문서 네비게이션 맵, 모델 세대 진화(`v1 ➔ v2.1 ➔ v3.0`), `Stage 1 (32d) × Stage 2 (16d)` 2단계 아키텍처 다이어그램 및 수식, `2023~2025` 데이터셋(`62.9만 행` + `2억 1,791만 행` / `18.69 GB`) 및 누수 차단 원칙, CPU 학습 근거, 2025년 전수 성적표, 프로덕션 서빙 자산 통합 정리.
+  2. `README.md` 문서 색인 및 `AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `MODEL_RETRAINING_PLAN.md` 상단에 상위 가이드 링크 연결.
+
+---
+
+## [2026-11-16]
+
+### 🧠 지점 단위(정류소·대여소·역) 수요 분배 모델 재학습 계획 수립 및 Phase 0 데이터 감사 완료 (이슈 #116)
+- **배경/목적**:
+  - 기존 자치구 단위 모델(`v2.1-multiyear-32d`)은 구 내 모든 정류소·대여소·역의 혼잡도/점수가 자치구 평균에 묶여 있어, 개별 정류소별 변별력과 예측 정확도가 떨어지는 구조적 한계가 있었음.
+  - 팀원이 추가한 3개년(`2023~2025`) `정류장_대여소_역_별_퍼센트데이터`(`18.69GB`, 75개 CSV)를 활용하여 **각 정류소·지점별로 최대한 각각 독립 예측**하는 2단계 분배 모델(자치구 수요 × 지점 점유율) 구축 착수.
+- **조치 내역**:
+  1. **재학습 계획서 및 정량적 평가 지표 체계 수립 (`docs/MODEL_RETRAINING_PLAN.md`)**:
+     - 리스크 대응(연간 컬럼 누수 차단, 미관측일 마스킹, 매핑실패 기타 버킷 보존) 및 단계별 합격 게이트(G0~G4) 정의.
+     - 6대 정량적 지표(`WAPE`, `MAE`, `RMSE`, `Spearman ρ`, `혼잡도 등급 일치율`, `R²`)와 **각 지표를 선택한 이유** 명문화.
+  2. **Phase 0 전수 데이터 감사 완료 (`scripts/audit_point_share_data.py`, `G0: PASS`)**:
+     - `217,912,809`행 전수 청크 스캔 완료(`309s`), 중복/결측/음수 0건, 보고서 JSON 대비 이용량 상대오차 `0.0000%` 완전 일치.
+     - 2025 이용량 학습구간 커버리지: 지하철 `100.00%`, 버스 `99.33%`, 따릉이 `98.42%`.
+     - 기존 자치구 라벨 정합성: 2023·2024년 `r = 1.0000`, 2025년 `r = 0.9980~1.0000`.
+     - 결과 리포트: `benchmarks/results/point_share_audit_20261116_194804.{json,md}`.
+  3. **문서 동기화**: `README.md`, `docs/TODO.md` 반영 완료.
+  4. **Colab 학습·평가 통합 노트북 신설 (`benchmarks/CastTransit_PointShare_v3.ipynb`)**:
+     - `16개 셀` 자기완결형 Colab 파이프라인 구축: Stage 1(`v2.1` vs `v3` 마스킹 비교) + Stage 2(`16차원` 지점 점유율 LightGBM + Optuna 튜닝 + 2025년 25개 자치구 전수 평가 4종 × 6대 정량 지표 + ONNX Opset 14 변환·다운로드).
+     - 미래 정보 누수 컬럼(`연간_점유율(%)` 등) 제외 가드 `assert` 및 Google Drive 중간 캐시 지원.
+  5. **로컬 전체 학습·2025 전수 평가·ONNX 변환 완료 (`scripts/run_point_share_v3.py`, 총 `2,008.3s`)**:
+     - Stage 1 (`G3: KEEP_V21`): 버스 v3(미관측 40일 마스킹) MAE `175.64 → 169.86` 개선(`R²=0.9976`), 따릉이·지하철 동일(현행 `models/` 유지).
+     - Stage 2 (2025년 25개 자치구 전수 평가): 기존 자치구 균등 분배(`B0`) 대비 `M2` LightGBM(16d) 오차 대폭 절감 — **지하철 WAPE `55.12% → 7.88%` (`MAE 500.41 → 71.54명`, `Spearman ρ=0.9860`, 등급 일치율 `93.11%`, `G2 PASS`), 버스 WAPE `82.64% → 19.08%` (`ρ=0.9382`, 등급 `82.69%`), 따릉이 WAPE `84.00% → 59.71%` (`ρ=0.5443`, 등급 `87.29%`)**.
+     - 산출물(`benchmarks/point_share_v3_2026-11-16/`): ONNX 6종(`1.92~13.06MB`) `onnxruntime` 추론 검증 완료 및 `docs/CURRENT_MODEL_PERFORMANCE.md` §6 반영.
+  6. **모델 학습 환경 명세 및 CPU 학습 선정 이유 문서화**:
+     - `docs/MODEL_RETRAINING_PLAN.md` §7, `docs/CURRENT_MODEL_PERFORMANCE.md` §5.2, `docs/AI_MODEL_SPEC.md` §2-1에 실측 학습 환경(`Windows 11`, `AMD Ryzen 5 5600 6C/12T`, `15.9GB RAM`, 보유 GPU `RTX 4060`, `Python 3.10.11`, `LightGBM 4.7.0`, `Optuna 5.1.0`)과 GPU 대신 멀티코어 CPU로 학습하는 4대 기술적 근거(조건 분기 연산 특성, `16~32차원` PCIe 병목 회피, 결정론적 재현성, 서빙 일관성) 수록.
+
+---
+
+### 🚀 Phase 4: 2단계 지점 점유율(32d × 16d) 백엔드 서빙 엔진 & 프론트엔드 UI 연동 완료 (이슈 #116 · PR #118 후속)
+- **배경/목적**:
+  - Phase `0~3` 체크포인트 PR(#118) 병합 이후, 학습·검증된 Stage 2 `16차원` 지점 점유율 모델(`lgb_{bike,bus,subway}_point_share.onnx`)을 실제 FastAPI 서빙 및 React 지도·사이드바 UI에 1:1 통합하여 개별 역·정류소·대여소별 수요/점유율/혼잡도를 실시간 표출.
+- **조치 내역**:
+  1. **경량 서빙 사전통계 번들 생성 (`scripts/export_point_share_serving_bundle.py`)**:
+     - `stage2_priors_cache.pkl`을 컨테이너 내 `pyarrow`/`pandas` 의존성 없이 표준 라이브러리(`gzip`, `json`)만으로 로드 가능한 `models/point_share_priors.json.gz`(`1.64 MB`, 컨테이너 기동 로딩 `527.0 ms`, 총 `8,432`개 지점: 지하철 `259`·버스 `5,967`·따릉이 `2,206`)으로 내보내기 완료.
+     - `models/lgb_{bike,bus,subway}_point_share.onnx`(`2.08 MB`, `2.02 MB`, `13.70 MB`) 및 `models/point_share_schema.json` 운영 `models/` 슬롯 배치 완료.
+  2. **Stage 2 추론 엔진 신설 (`point_share_inference.py`) & `main.py` 통합**:
+     - `PointShareEngine`이 기동 시 `point_share_schema.json::stage2_feature_cols`(`16차원`) 순서 정합성을 단언 검증하고 ONNX 3종을 `CPUExecutionProvider`로 인메모리 웜업.
+     - 지하철(환승역 호선 합산 예: 잠실 `2호선_216,8호선_2815`), 버스(`stId` 9자리 정확 매칭 + 미매칭 정류소 `baseCrowd` 백분위 매핑), 따릉이(대여소명·`stationNo`) 2계층 리졸버(`POINT_EXACT_ONNX` / `POINT_PERCENTILE_ONNX`) 구현.
+     - `PredictionRequest.point_id`, `RecommendationItem` 확장 필드(`district_predicted_volume`, `point_share_pct`, `point_p95`, `inference_tier`, `matched_point_id`), `/health`·`/api/v1/admin/status`의 `point_share_models` 상태 노출 추가(기존 `feature_schema.model_input_dims = 32` / `verified` 완벽 유지).
+  3. **프론트엔드 PC(`App.tsx`) · 모바일(`AppM.tsx`) · 지도 팝업(`TransitMap.tsx`) 1:1 연동**:
+     - 거점 클릭 시 `point_id: stop.stId || stop.stationNo || stop.id` 전달, AI 카드·팝업에 `🎯 지점 AI · 구 내 X.XX%` 배지 및 `구 전체 N명/시 중 X.XX% 점유 · 피크용량(P95)` 표출.
+  4. **Docker 빌드 최적화(`.dockerignore`) 및 통합 검증**:
+     - `.dockerignore`에 `data/통합데이터`(`18.69GB`)·학습 캐시(`cache_point_share_v3`, `*.parquet`, `*.pkl`) 제외 규칙 추가하여 백엔드 빌드 컨텍스트를 `~19GB → 95.25MB`로 단축(기존 `data/*.json`, `data/*.csv`는 온전히 보존).
+     - `tests/test_point_share_inference.py` 신설 및 8종 회귀 테스트 전수 통과; 라이브 Docker 실측(`http://localhost:8100/api/v1/predict/recommendation`) 결과 동일 강남구 내 `강남역(6,760명/시 · 점유 13.88% · 91% 혼잡)` vs `학여울역(149명/시 · 점유 0.31% · 29% 여유)` 변별 확인.
+
+---
+
 ## [2026-11-12]
 
 ### 🐛 버스·따릉이 모드에서 베이스맵 전환 시 지하철 케이싱 선 검게 변하는 현상 수정 (이슈 #113)

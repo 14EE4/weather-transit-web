@@ -11,6 +11,7 @@
 benchmarks/
 ├── README.md                     # (이 문서) 자산 구조 및 평가 규약
 ├── CastTransit.ipynb             # LightGBM 학습/튜닝/ONNX export 노트북 (v2.1: 2023~2025 3개년 28열 통합데이터)
+├── CastTransit_PointShare_v3.ipynb # [신규·Colab] 지점 단위(역·정류소·대여소) 수요 분배 & v3 학습·평가·ONNX 변환 노트북 (이슈 #116)
 ├── evaluate_models.py            # 공정 비교 평가 스크립트 (32차원 실피처 + 스키마 SSoT 검증)
 ├── retrain_25d.py                # [실험] 동일 v2 파라미터 + 25차원 서브셋 재학습 (차원 vs 튜닝 분리)
 ├── retrain_25d_colab.ipynb       # [실험·Colab] 25차원 재학습 Colab 재현 노트북
@@ -20,7 +21,11 @@ benchmarks/
 │   ├── lgb_subway_demand.onnx
 │   ├── feature_schema.json       # 피처 순서·다년도 분할·하이퍼파라미터 메타 (SSoT)
 │   └── README.md                 # 산출물 사양 및 메트릭
-├── results/                      # 평가 결과 (comparison_<timestamp>.json / .md)
+├── point_share_v3_2026-11-16/    # [후보·검증완료] 지점 점유율 16d + 자치구 v3 32d ONNX 및 스키마 (이슈 #116)
+│   ├── lgb_{bike,bus,subway}_point_share.onnx   # 16차원 지점 점유율 모델
+│   ├── lgb_{bike,bus,subway}_demand_v3.onnx     # 32차원 자치구 모델 (버스 미관측일 마스킹 포함)
+│   └── point_share_schema.json   # 16d 피처 규격, 누수가드 및 2025 전수 평가 메트릭
+├── results/                      # 평가 결과 (comparison_*, point_share_audit_*, point_share_eval_*)
 └── archive/                      # [레거시 자산 보관소] 과거 세대 모델 및 실험 보관
     ├── README.md                 # 아카이브 안내
     ├── original/                 # [기준선] 초기 배포본 스냅샷 (25차원)

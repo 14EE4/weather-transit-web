@@ -911,6 +911,7 @@ export default function AppM() {
     setActiveRoute(null)
     setSubwaySearchQuery(station.name)
     setShowSearchResults(false)
+    setSelectedBusStation(null)
     setMapTransport('subway')
     setFocusedCoords(station.coords)
   }
@@ -986,11 +987,12 @@ export default function AppM() {
           weatherJson
         )
 
-        // 2. 해당 역의 실시간 기상 관측값을 투입하여 AI 모델(ONNX 32차원 피처) 추론 실행
+        // 2. 해당 역의 실시간 기상 관측값을 투입하여 AI 모델(2단계 32d×16d) 추론 실행
         const currentHour = liveWeather ? parseInt(liveWeather.base_time.slice(0, 2), 10) : new Date().getHours()
         const aiPayload = {
           district,
           station: stop.name,
+          point_id: stop.stId || stop.stationNo || stop.id,
           stop_type: stop.type,
           base_crowd: stop.baseCrowd,
           hour: currentHour,
@@ -2423,54 +2425,6 @@ export default function AppM() {
                   </button>
                 )}
               </div>
-
-              {/* 자주 찾는 경로 */}
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: 'var(--app-text)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em', marginBottom: 10 }}>
-                  자주 찾는 경로
-                </div>
-                {[
-                  { from: '강남역', to: '서울역', icon: '🚇' },
-                  { from: '홍대입구역', to: '이태원역', icon: '🚇' },
-                  { from: '잠실역', to: '강동구청역', icon: '🚇' },
-                  { from: '여의도역', to: '시청역', icon: '🚇' },
-                ].map(item => {
-                  const r = findSubwayRoute(item.from, item.to)
-                  // [이슈 #97] 노선망에서 경로를 찾지 못했을 때 임의의 소요시간·요금을 표시하지 않는다.
-                  const timeStr = r ? formatDurationMinutes(r.estimatedMinutes) : '—'
-                  const fareStr = r ? `${r.fareKrw.toLocaleString()}원` : '—'
-                  const distStr = r ? `(${r.distanceKm}km)` : ''
-                  return (
-                    <button
-                      key={item.from + item.to}
-                      onClick={() => {
-                        setDeparture(item.from)
-                        setDestination(item.to)
-                        handleSearchRoute(item.from, item.to)
-                      }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '10px 14px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
-                        background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                        textAlign: 'left', transition: 'all 0.15s',
-                      }}
-                    >
-                      <span style={{ fontSize: 18 }}>{item.icon}</span>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--app-text)' }}>{item.from}</span>
-                        <span style={{ fontSize: 12, color: 'var(--app-text)', margin: '0 6px' }}>→</span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--app-text)' }}>{item.to}</span>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>{timeStr}</div>
-                        <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }} title={r?.fareBreakdown}>
-                          {fareStr} <span style={{ fontSize: 9, color: 'rgba(56,189,248,0.7)' }}>{distStr}</span>
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
             </div>
 
             {/* 추천 결과 (LangGraph × FactChat 멀티모달 경로 + 수단별 추천 점수) */}
@@ -2653,6 +2607,7 @@ export default function AppM() {
               }}
               onSelectBike={station => {
                 setActiveRoute(null)
+                setSelectedBusStation(null)
                 setMapTransport('bike')
                 setFocusedCoords(station.coords)
               }}
@@ -2668,7 +2623,16 @@ export default function AppM() {
               ].map(t => (
                 <button
                   key={t.id}
-                  onClick={() => setMapTransport(t.id as any)}
+                  onClick={() => {
+                    const next = t.id as 'all' | 'subway' | 'bus' | 'bike'
+                    setMapTransport(next)
+                    if (next !== 'all' && next !== 'bus') {
+                      setSelectedBusStation(null)
+                    }
+                    if (selectedStop && next !== 'all' && selectedStop.type !== 'gps' && selectedStop.type !== next) {
+                      handleSelectStop(null)
+                    }
+                  }}
                   style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                     padding: '8px 4px', borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',
@@ -3036,8 +3000,8 @@ export default function AppM() {
                   {/* 2. AI 수요 추론 및 혼잡도 예측 카드 */}
                   {stopDataLoading && !stopAIData ? (
                     <div style={{ background: 'rgba(124, 58, 237, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 10, padding: 10, marginBottom: 10, textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, color: '#C084FC', fontWeight: 700, marginBottom: 2 }}>⚡ AI 모델 32차원 피처 추론 연산 중...</div>
-                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 및 기상 차분 반영 LightGBM AI 추론</div>
+                      <div style={{ fontSize: 11, color: '#C084FC', fontWeight: 700, marginBottom: 2 }}>⚡ AI 모델 2단계 지점 정밀(32d×16d) 추론 연산 중...</div>
+                      <div style={{ fontSize: 9, color: 'var(--app-text)' }}>시계열 래그 · 기상 차분 · 지점 점유율 반영 LightGBM AI 추론</div>
                     </div>
                   ) : stopAIData ? (() => {
                     const rec = stopAIData.recommendations?.find((r: any) => r.id === selectedStop.type) || stopAIData.recommendations?.[0]
@@ -3048,7 +3012,7 @@ export default function AppM() {
                             <span>🤖</span> AI 수요 추론 ({rec.name})
                           </span>
                           <span style={{ fontSize: 9, fontWeight: 700, color: '#C084FC', background: 'rgba(168,85,247,0.2)', padding: '1px 6px', borderRadius: 4 }}>
-                            ⚡ LightGBM AI
+                            {rec.point_share_pct != null ? `🎯 지점 AI · 구 내 ${Number(rec.point_share_pct).toFixed(2)}%` : '⚡ LightGBM AI'}
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
@@ -3059,9 +3023,17 @@ export default function AppM() {
                             시간당 {rec.predicted_volume?.toLocaleString()}명
                           </span>
                         </div>
-                        <div style={{ height: 6, background: 'var(--color-card)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+                        <div style={{ height: 6, background: 'var(--color-card)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
                           <div style={{ width: `${rec.crowd}%`, height: '100%', background: rec.crowdColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
                         </div>
+                        {rec.district_predicted_volume != null && rec.point_share_pct != null && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 9.5, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono', marginBottom: 6 }}>
+                            <span>구 전체 {Number(rec.district_predicted_volume).toLocaleString()}명/시 중 {Number(rec.point_share_pct).toFixed(2)}% 점유</span>
+                            {rec.point_p95 != null && (
+                              <span>피크용량(P95) {Math.round(Number(rec.point_p95)).toLocaleString()}명</span>
+                            )}
+                          </div>
+                        )}
                         <div style={{ fontSize: 10, color: '#DDD6FE', background: 'var(--color-card2)', padding: '6px 8px', borderRadius: 6, borderLeft: '2px solid #A855F7', lineHeight: 1.4 }}>
                           {rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석 완료'}
                         </div>

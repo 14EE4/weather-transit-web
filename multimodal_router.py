@@ -2775,8 +2775,8 @@ class MultimodalRoutingEngine:
 
                             segments.append({
                                 "mode": "bus",
-                                "label": f"🚌 {b_cat} {b_num}번",
-                                "line_name": f"{b_num}번",
+                                "label": f"🚌 {b_cat} {b_num}",
+                                "line_name": f"{b_num}",
                                 "from_name": leg["from_name"],
                                 "to_name": leg["to_name"],
                                 "detail": f"{leg['from_name']} 승차 ➔ {leg['to_name']} 하차 ({leg_dist_km}km)",
@@ -2917,8 +2917,8 @@ class MultimodalRoutingEngine:
                     })
 
                     bus_dep_train = {
-                        "line": f"{main_bus}번",
-                        "trainLineNm": f"{main_bus}번 ({first_l['from_name']})",
+                        "line": f"{main_bus}",
+                        "trainLineNm": f"{main_bus} ({first_l['from_name']})",
                         "destinationOrNext": f"{first_l['to_name']} 방면",
                         "arrivalMessage": first_bus_badge,
                         "remainingMinutes": 3 if is_peak_hour else 4,
@@ -2929,7 +2929,7 @@ class MultimodalRoutingEngine:
                         self._pack_route_candidate(
                             route_id="route-bus-subway-hybrid",
                             category="버스+지하철 환승" if is_hybrid_multimodal else "버스 연계 경로",
-                            title=f"{main_bus}번 + 지하철 복합 환승" if is_hybrid_multimodal else f"{main_bus}번 버스 환승 경로",
+                            title=f"{main_bus} + 지하철 복합 환승" if is_hybrid_multimodal else f"{main_bus} 버스 환승 경로",
                             badge="서울시 실시간 환승 API 연동",
                             badge_color="#FB923C",
                             is_ai_recommended=False,
@@ -2942,7 +2942,7 @@ class MultimodalRoutingEngine:
                             comfort_score=max(62, 90 - int(hybrid_crowd * 0.28)),
                             modes_used=list(dict.fromkeys(s["mode"] for s in segments)),
                             highlights=[
-                                f"🚌 {first_l['from_name']}에서 {main_bus}번 탑승 ({first_bus_badge})",
+                                f"🚌 {first_l['from_name']}에서 {main_bus} 탑승 ({first_bus_badge})",
                                 f"🔄 서울시 공식 실시간 대중교통 환승망 기반 최적 분기",
                                 f"💳 수도권 통합환승할인 적용 ({fare_krw:,}원)",
                             ],

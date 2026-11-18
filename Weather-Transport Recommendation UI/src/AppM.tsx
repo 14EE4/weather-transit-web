@@ -911,6 +911,7 @@ export default function AppM() {
     setActiveRoute(null)
     setSubwaySearchQuery(station.name)
     setShowSearchResults(false)
+    setSelectedBusStation(null)
     setMapTransport('subway')
     setFocusedCoords(station.coords)
   }
@@ -2424,54 +2425,6 @@ export default function AppM() {
                   </button>
                 )}
               </div>
-
-              {/* 자주 찾는 경로 */}
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: 'var(--app-text)', fontFamily: 'JetBrains Mono', letterSpacing: '0.06em', marginBottom: 10 }}>
-                  자주 찾는 경로
-                </div>
-                {[
-                  { from: '강남역', to: '서울역', icon: '🚇' },
-                  { from: '홍대입구역', to: '이태원역', icon: '🚇' },
-                  { from: '잠실역', to: '강동구청역', icon: '🚇' },
-                  { from: '여의도역', to: '시청역', icon: '🚇' },
-                ].map(item => {
-                  const r = findSubwayRoute(item.from, item.to)
-                  // [이슈 #97] 노선망에서 경로를 찾지 못했을 때 임의의 소요시간·요금을 표시하지 않는다.
-                  const timeStr = r ? formatDurationMinutes(r.estimatedMinutes) : '—'
-                  const fareStr = r ? `${r.fareKrw.toLocaleString()}원` : '—'
-                  const distStr = r ? `(${r.distanceKm}km)` : ''
-                  return (
-                    <button
-                      key={item.from + item.to}
-                      onClick={() => {
-                        setDeparture(item.from)
-                        setDestination(item.to)
-                        handleSearchRoute(item.from, item.to)
-                      }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '10px 14px', marginBottom: 6, borderRadius: 12, cursor: 'pointer',
-                        background: 'var(--color-card)', border: '1px solid var(--color-border)',
-                        textAlign: 'left', transition: 'all 0.15s',
-                      }}
-                    >
-                      <span style={{ fontSize: 18 }}>{item.icon}</span>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--app-text)' }}>{item.from}</span>
-                        <span style={{ fontSize: 12, color: 'var(--app-text)', margin: '0 6px' }}>→</span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--app-text)' }}>{item.to}</span>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#38BDF8', fontFamily: 'JetBrains Mono' }}>{timeStr}</div>
-                        <div style={{ fontSize: 10, color: 'var(--color-muted)', fontFamily: 'JetBrains Mono' }} title={r?.fareBreakdown}>
-                          {fareStr} <span style={{ fontSize: 9, color: 'rgba(56,189,248,0.7)' }}>{distStr}</span>
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
             </div>
 
             {/* 추천 결과 (LangGraph × FactChat 멀티모달 경로 + 수단별 추천 점수) */}
@@ -2654,6 +2607,7 @@ export default function AppM() {
               }}
               onSelectBike={station => {
                 setActiveRoute(null)
+                setSelectedBusStation(null)
                 setMapTransport('bike')
                 setFocusedCoords(station.coords)
               }}
@@ -2669,7 +2623,16 @@ export default function AppM() {
               ].map(t => (
                 <button
                   key={t.id}
-                  onClick={() => setMapTransport(t.id as any)}
+                  onClick={() => {
+                    const next = t.id as 'all' | 'subway' | 'bus' | 'bike'
+                    setMapTransport(next)
+                    if (next !== 'all' && next !== 'bus') {
+                      setSelectedBusStation(null)
+                    }
+                    if (selectedStop && next !== 'all' && selectedStop.type !== 'gps' && selectedStop.type !== next) {
+                      handleSelectStop(null)
+                    }
+                  }}
                   style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                     padding: '8px 4px', borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',

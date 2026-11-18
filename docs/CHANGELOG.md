@@ -8,6 +8,22 @@
 
 ## [2026-11-18]
 
+### 🐛 지도 점 마커 AI 혼잡도 색상 동기화, 탭 전환 시 버스 마커 잔류 해결 및 모바일 자주 찾는 경로 제거 (이슈 #122)
+- **배경/문제**:
+  1. `전체` 보기 또는 평시 낮 시간대에서 초기 휴리스틱 혼잡도가 `보통`(`#38BDF8` 파란색)으로 표시되는 주요 거점(강남역·교대역 등)을 클릭하면 팝업·사이드바·알약 배지는 2단계 ONNX AI 추론 결과(`혼잡`, `#F43F5E` 빨간색)로 갱신되지만, 선택 해제·축소 시 드러나는 점 마커(`.marker-dot-circle`, `.marker-dot-tooltip`)는 계속 파란색으로 남고 `updateCollisions()` 재호출 시 알약 테두리 색상도 파란색으로 덮어써지는 현상 확인.
+  2. 버스 정류장 선택/검색 상태에서 `따릉이` 또는 `지하철` 필터 탭으로 전환할 때 `searchedBusMarkerRef`(`selectedBusStation`), `activePopupRef`, `selectedBusRoute`(노선선·`🚌 첫차`/`🚌 다음 차` 차량 마커)가 지도에 잔류하는 현상 확인.
+  3. 모바일 경로 탐색 화면(`AppM.tsx`)의 세로 가용 공간 확보를 위해 `자주 찾는 경로` 블록 제거 필요.
+- **조치 내역**:
+  1. **점 마커·알약 마커 AI 혼잡도 색상 동기화 (`TransitMap.tsx`)**:
+     - `aiCrowdCacheRef`(시간대 `selectedTime`·강수량 `rainMm` 변경 시 자동 초기화) 및 `getStopCrowdInfo(stop)` / `applyMarkerCrowdStyle(el, crowdInfo, isSelected)` 헬퍼 도입.
+     - `onCrowdUpdate` 시 알약 배지·테두리·화살표뿐 아니라 `.marker-dot-circle`, `.marker-dot-tooltip`, `.marker-dot-tooltip-badge`까지 동시 갱신하고, `updateCollisions()`, `mouseenter`/`mouseleave` 호버, 탭 전환 마커 재생성, 실시간 버스 원형 레이어(`live-bus-stations`) 클릭까지 캐시된 AI 혼잡도·색상을 일관 유지하도록 보완.
+  2. **탭 전환 시 비호환 선택 마커·팝업·버스 노선 정리 (`TransitMap.tsx`, `App.tsx`, `AppM.tsx`)**:
+     - `selectedBusStation` 마커 효과를 `[mapLoaded, selectedBusStation, filterType]`로 연동해 `'all'`/`'bus'` 모드에서만 표출하고, `[filterType]` 전환 `useEffect`에서 타 수단 팝업(`activePopupRef`)·`activeStop`·`STORAGE_SELECTED_STOP_KEY`·`selectedBusRoute`·`searchedBusMarkerRef`를 즉시 정리.
+     - `openStationDetail` 비동기 응답 완료 시 `detailRequestIdRef` 및 `filterTypeRef` 가드를 적용해 탭 전환 후 뒤늦게 완료된 요청이 상태를 덮어쓰지 않도록 차단.
+     - `App.tsx`·`AppM.tsx` 교통수단 탭 클릭 및 비(非)버스 거점 검색 시 `setSelectedBusStation(null)`·`handleSelectStop(null)` 동기화 호출 추가.
+  3. **모바일 "자주 찾는 경로" 제거 (`AppM.tsx`)**:
+     - 모바일 경로 추천 화면(`AppM.tsx`)에서 `자주 찾는 경로` 프리셋 목록 블록을 제거해 출발·도착 검색창 및 멀티모달 추천 결과 가독성 개선(PC `App.tsx`는 현행 유지).
+
 ### 📘 AI 모델 통합 상위 가이드 문서(`docs/AI_MODEL_OVERVIEW.md`) 신설 (이슈 #120)
 - **배경/목적**:
   - `AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `MODEL_RETRAINING_PLAN.md`, `CURRENT_DATA_SPEC.md`, `BACKEND_INFERENCE_SERVER.md` 등으로 분산되어 있던 AI 모델 관련 내용을 한눈에 조망할 수 있는 최상위 마스터 가이드 요구 반영.

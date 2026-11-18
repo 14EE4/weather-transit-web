@@ -38,6 +38,10 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (핵심 기능 개발 완료)
+- [x] **[UI-15] 지도 점 마커 AI 혼잡도 색상 동기화, 탭 전환 시 버스 마커 잔류 해결 및 모바일 자주 찾는 경로 제거 (완료 · 2026-11-18 · 이슈 #122)**:
+  - `TransitMap.tsx`에 `aiCrowdCacheRef` 및 `getStopCrowdInfo` / `applyMarkerCrowdStyle` 헬퍼를 도입하여 `onCrowdUpdate`, `updateCollisions()`, 호버 툴팁, 점 마커(`.marker-dot-circle`), 실시간 버스 레이어(`live-bus-stations`)까지 AI 추론 혼잡도 색상 1:1 동기화.
+  - `[filterType]` 전환 및 `App.tsx`·`AppM.tsx` 탭 클릭 시 `searchedBusMarkerRef`(`selectedBusStation`), 비호환 `activePopupRef`/`activeStop`, `selectedBusRoute`를 즉시 정리하고 `openStationDetail` 비동기 가드(`detailRequestIdRef`) 적용.
+  - 모바일(`AppM.tsx`) 경로 추천 화면의 `자주 찾는 경로` 블록 제거(PC `App.tsx` 유지).
 - [x] **[UI-11] 지도 보기 기상 실황을 지도 뷰포트(중심 좌표) 기준 국지 날씨로 전환 (완료 · 2026-11-03 · 이슈 #98)**:
   - `TransitMap.tsx`에 `onViewportChange` 콜백 신설 — `moveend` 디바운스 `500ms` + `isMoving/isRotating` 가드 + `zoom < 10` 생략, 최초 진입 1회 통지.
   - `resolveDistrict('', [lng, lat])` 기반 자치구 해석 후 `GET /api/v1/weather/current?district=..&lat=..&lng=..`(좌표 → KMA 격자) 호출. 자치구 + 좌표 0.01° 캐시 키로 과호출 억제.

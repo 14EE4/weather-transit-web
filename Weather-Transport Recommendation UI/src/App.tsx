@@ -908,6 +908,7 @@ export default function App() {
     setActiveRoute(null)
     setSubwaySearchQuery(station.name)
     setShowSearchResults(false)
+    setSelectedBusStation(null)
     setMapTransport('subway')
     setFocusedCoords(station.coords)
   }
@@ -2646,6 +2647,7 @@ export default function App() {
               }}
               onSelectBike={station => {
                 setActiveRoute(null)
+                setSelectedBusStation(null)
                 setMapTransport('bike')
                 setFocusedCoords(station.coords)
               }}
@@ -2661,7 +2663,16 @@ export default function App() {
               ].map(t => (
                 <button
                   key={t.id}
-                  onClick={() => setMapTransport(t.id as any)}
+                  onClick={() => {
+                    const next = t.id as 'all' | 'subway' | 'bus' | 'bike'
+                    setMapTransport(next)
+                    if (next !== 'all' && next !== 'bus') {
+                      setSelectedBusStation(null)
+                    }
+                    if (selectedStop && next !== 'all' && selectedStop.type !== 'gps' && selectedStop.type !== next) {
+                      handleSelectStop(null)
+                    }
+                  }}
                   style={{
                     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                     padding: '8px 4px', borderRadius: 12, cursor: 'pointer', transition: 'all 0.15s',

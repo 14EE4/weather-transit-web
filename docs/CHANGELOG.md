@@ -8,6 +8,18 @@
 
 ## [2026-11-18]
 
+### 🚀 지도 초기 로드 100% 2단계 ONNX AI 배치 추론 & 시간대 서버 공용 캐싱 구축 (이슈 #124)
+- **배경/목적**:
+  - 지도 초기 로드 시 클릭 전 마커 색상을 클라이언트 휴리스틱(`calculateCrowd`)으로 띄워 평시 낮 시간대 강남역·교대역 등이 클릭 전(파란색 `보통`)과 클릭 후(빨간색 `혼잡`) 간 차이를 보이던 구조적 위화감을 해소하고, 첫 사용자 로드 시 계산한 결과를 동일 시간대 다른 사용자들과 서버에서 공유해 `1ms` 미만으로 즉시 응답하도록 고도화.
+- **조치 내역**:
+  1. **Stage 2 수단별 단일 ONNX 배치 추론 (`point_share_inference.py`)**:
+     - `PointShareEngine.predict_points_batch()` 및 공용 피처/점수화 헬퍼(`_build_temporal_weather_prefix`, `_build_point_feature_vector`, `_score_point_result`) 구현으로 `subway`·`bus`·`bike` 수단별 `(N_mode, 16)` 행렬을 단 1회 `InferenceSession.run()`으로 일괄 추론(`predict_point`와 수치 100% 일치).
+  2. **지도 일괄 AI 추론 & 시간대 공용 캐시 API (`main.py`)**:
+     - `POST /api/v1/predict/map-crowds` 엔드포인트 및 `_map_crowds_cache`(TTL `15분`, 최대 `24`슬롯, 키 `{date}|h{hour}|r{rain_0.1mm}|t{temp_2deg}`) 신설, `POST /api/v1/admin/cache/clear` 초기화 연동.
+  3. **프론트엔드 지도 자동 연동 & 회귀 검증 (`TransitMap.tsx`, `tests/test_point_share_inference.py`)**:
+     - `requestBatchAiCrowds()`로 지도 마커 초기 로드 직후 및 주변 실시간 버스(`live-bus-stations`)·따릉이(`liveBikeStops`) 추가 시 일괄 AI 혼잡도·색상을 즉시 반영해 클릭 전 점(Dot)·알약 마커부터 100% AI 예측값으로 일치.
+     - `tests/test_point_share_inference.py` 배치 일치성 및 서버 공용 캐시 적중 테스트(`Test 5~6`) 추가, `README.md`, `AI_MODEL_OVERVIEW.md`, `BACKEND_INFERENCE_SERVER.md`, `CACHING_POLICY.md` 동기화.
+
 ### 🐛 지도 점 마커 AI 혼잡도 색상 동기화, 탭 전환 시 버스 마커 잔류 해결 및 모바일 자주 찾는 경로 제거 (이슈 #122)
 - **배경/문제**:
   1. `전체` 보기 또는 평시 낮 시간대에서 초기 휴리스틱 혼잡도가 `보통`(`#38BDF8` 파란색)으로 표시되는 주요 거점(강남역·교대역 등)을 클릭하면 팝업·사이드바·알약 배지는 2단계 ONNX AI 추론 결과(`혼잡`, `#F43F5E` 빨간색)로 갱신되지만, 선택 해제·축소 시 드러나는 점 마커(`.marker-dot-circle`, `.marker-dot-tooltip`)는 계속 파란색으로 남고 `updateCollisions()` 재호출 시 알약 테두리 색상도 파란색으로 덮어써지는 현상 확인.

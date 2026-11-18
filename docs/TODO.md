@@ -38,6 +38,8 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (핵심 기능 개발 완료)
+- [x] **[AI-03] 지도 초기 로드 100% 2단계 ONNX AI 배치 추론 및 시간대 서버 공용 캐시 구축 (완료 · 2026-11-18 · 이슈 #124)**:
+  - `PointShareEngine.predict_points_batch()` + `POST /api/v1/predict/map-crowds` 서버 배치 추론 및 `(날짜 · 시간대 · 강수 · 2°C 버킷)` 15분 공용 캐시(`_map_crowds_cache`) 구축으로 초기 지도 진입 시점부터 전 마커를 100% 2단계 ONNX AI 예측 혼잡도로 일괄 표출하고 타 사용자와 결과 공유(`tests/test_point_share_inference.py` 6종 전수 PASS).
 - [x] **[UI-15] 지도 점 마커 AI 혼잡도 색상 동기화, 탭 전환 시 버스 마커 잔류 해결 및 모바일 자주 찾는 경로 제거 (완료 · 2026-11-18 · 이슈 #122)**:
   - `TransitMap.tsx`에 `aiCrowdCacheRef` 및 `getStopCrowdInfo` / `applyMarkerCrowdStyle` 헬퍼를 도입하여 `onCrowdUpdate`, `updateCollisions()`, 호버 툴팁, 점 마커(`.marker-dot-circle`), 실시간 버스 레이어(`live-bus-stations`)까지 AI 추론 혼잡도 색상 1:1 동기화.
   - `[filterType]` 전환 및 `App.tsx`·`AppM.tsx` 탭 클릭 시 `searchedBusMarkerRef`(`selectedBusStation`), 비호환 `activePopupRef`/`activeStop`, `selectedBusRoute`를 즉시 정리하고 `openStationDetail` 비동기 가드(`detailRequestIdRef`) 적용.

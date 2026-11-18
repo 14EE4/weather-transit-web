@@ -63,8 +63,35 @@ flowchart LR
 ```
 
 - **왜 수천 개 지점을 직접 회귀하지 않고 2단계로 나누었는가?**
-  - 개별 정류소·따릉이 대여소는 이용량이 `0~5`명 수준인 희소 셀이 많아 직접 회귀 시 분산과 과적합이 크게 증가하며, 구 전체 수량 합 보존(`Σ 지점 예측 ≈ 자치구 예측`)이 깨집니다.
-  - 반면 **자치구 총량(`Stage 1`)과 구 내 상대 점유율(`Stage 2`)을 분리**하면 검증된 `v2.1` 자치구 모델을 그대로 재사용하면서, 오차 원천을 분리·검증하고 지점 추가/결측에도 안정적으로 대처할 수 있습니다.
+  - **서비스 기능 구조와의 1:1 정합성 (거시 예측 + 미시 분해 동시 지원)**: 본 서비스는 개별 역·정류소 팝업(미시)뿐 아니라 **자치구별 수단 추천 카드, 24시간 자치구 수요 차트, 서울 `25`개 자치구 혼잡도 비교, B2B `25`개 자치구 따릉이 재배치·버스 증차 관제, 멀티모달 경로 효용 점수**처럼 **자치구 총수요(`Stage 1`) 자체를 소비하는 거시 기능**을 다수 제공합니다. 따라서 자치구 총량 모델을 별도로 폐기하지 않고 그대로 메인 백본(`Stage 1`)으로 유지하면서, 지도·지점 단위 기능이 필요할 때만 점유율(`Stage 2`)을 곱해 분해하는 구조가 제품 아키텍처와 가장 자연스럽게 맞아떨어집니다.
+  - **희소 지점 분산 억제 및 총량 보존**: 개별 정류소·따릉이 대여소는 이용량이 `0~5`명 수준인 희소 셀이 많아 직접 회귀 시 분산과 과적합이 크게 증가하며, 구 전체 수량 합 보존(`Σ 지점 예측 ≈ 자치구 예측`)이 깨집니다.
+  - **시계열 DB 경량화**: `8,432`개 모든 지점마다 `11차원` 실시간 시계열 래그(`1시간 전`, `3시간 평균`, `1주 전 동시간`) DB를 관리할 필요 없이, **시계열 변동은 `25`개 자치구(`Stage 1`)에서만 추적**하고 **지점 분배(`Stage 2`)는 `16차원` 경량 모델**로 분리해 전체 지도(`600+` 지점)를 **`10~20ms`** 내에 일괄 추론합니다.
+  - 또한 검증된 `v2.1` 자치구 모델을 그대로 재사용하면서 오차 원천(`총량 오차` vs `점유율 오차`)을 분리·검증하고, 지점 추가/결측에도 안정적으로 대처할 수 있습니다.
+
+### 2.1 단계별 동작 흐름 및 실측 계산 예시 (`강남구 18시`: 강남역 vs 학여울역)
+
+1. **1단계 — Stage 1: 자치구 전체 총수요 예측 (`main.py`, `32차원 ONNX`)**
+   - *"이 날씨·시간대에 강남구 전체에서 각 교통수단을 총 몇 명이 탈까?"*
+   - 캘린더(`8`) + 기상(`8`) + 구 인프라(`5`) + `data/timeseries_cache.db` 시계열 래그(`11`) 총 `32`개 피처를 입력해 구 전체 수요를 산출합니다 *(예: 강남구 18시 지하철 전체 `48,716명/시` · 버스 `20,395명/시` · 따릉이 `182대/시`)*.
+2. **2단계 — Stage 2: 구 내 개별 지점 점유율(%) 예측 (`point_share_inference.py`, `16차원 ONNX`)**
+   - *"강남구 지하철 승객 `48,716명` 중 강남역과 학여울역은 각각 몇 `%`를 차지할까?"*
+   - 캘린더(`8`) + 기상(`4`) + `models/point_share_priors.json.gz`의 지점 고유 프로필(`4`: 평시 점유율, 요일×시간대 곡선, 출퇴근 집중도, 우천 탄력계수) 총 `16`개 피처를 입력합니다 *(환승역은 호선별 점유율을 각각 추론해 합산)*.
+   - **출력**: **강남역 (`2호선_222`) = `13.88%`**, **학여울역 (`3호선_336`) = `0.31%`**.
+3. **3단계 — 결합 수요($\hat{y}$) 및 최종 혼잡도(`0~100%`) 환산**
+   - **지점 예측 이용량 ($\hat{y} = \hat{Y} \times \hat{s}/100$)**: 강남역 **`6,760명/시`**, 학여울역 **`149명/시`**.
+   - **체감 혼잡도 (`0~100%`)**: 해당 지점 자체 피크 용량(`point_p95`) 대비 비율(`65%`)과 구 내 중앙값 역 용량(`median_p95`) 대비 절대 규모(`35%`)를 조합해 산출합니다 *(상한 `99%`, 하한 `5%`)*:
+     $$\text{혼잡도}(\%) = \text{clip}_{5}^{99}\!\left(\left[0.65 \cdot \min\!\left(1.0, \frac{\hat{y}}{\text{point\_p95}}\right) + 0.35 \cdot \min\!\left(1.35, \frac{\hat{y}}{\text{median\_p95}}\right)\right] \times 100\right)$$
+   - **최종 UI 표시**: 강남역 **`91% (혼잡, #F43F5E)`** vs 학여울역 **`29% (여유, #10B981)`**.
+
+### 2.2 Stage 1(자치구 총수요) 및 Stage 2(지점 점유율)의 서비스 내 실제 활용처
+
+| 서비스 화면 / 모듈 | 사용 모델 | 주요 엔드포인트 | 구체적 역할 및 데이터 소비 방식 |
+| :--- | :---: | :--- | :--- |
+| **📊 메인 대시보드**<br>*(날씨 기반 교통 현황)* | **Stage 1** (`32d`) | `POST /api/v1/predict/recommendation`<br>`GET /api/v1/transit/hourly-forecast`<br>`GET /api/v1/districts/live-congestion`<br>`POST /api/v1/simulate/weather-impact` | • 선택 자치구 3대 수단 예상 이용량·혼잡도·추천 순위<br>• `00시~23시` 자치구 시간대별 수요 곡선 차트<br>• 서울 `25`개 자치구 실시간 혼잡 랭킹 및 우천 모달 시프트 비교 |
+| **🏢 B2B 기업 관제**<br>*(모빌리티 재배치)* | **Stage 1** (`32d`) | `POST /api/v1/b2b/fleet-rebalance` | • 서울 `25`개 자치구 전체 수요를 일괄 예측해 보유량 대비 잉여(Recall)·부족(Deploy) 따릉이 대수 및 시내버스 증차 권고 산출 |
+| **🗺️ 지도 보기**<br>*(초기 마커 & 상세 팝업)* | **Stage 1 × Stage 2**<br>(`32d × 16d`) | `POST /api/v1/predict/map-crowds`<br>`POST /api/v1/predict/recommendation` | • `Stage 1` 자치구 총수요를 모수($\hat{Y}$)로 삼아 `Stage 2` 지점 점유율($\hat{s}\%$)을 곱해 `8,432`개 거점별 수요·혼잡도 산출<br>• 사이드바·팝업에 `"강남구 전체 48,716명 중 13.88% 점유"` 상세 표출 |
+| **🧭 경로 추천**<br>*(LangGraph 멀티모달)* | **Stage 1** (`32d`) | `POST /api/v1/routes/multimodal-search` | • 출발·도착 권역의 수단별 AI 예측 혼잡도(`ai_cong`)를 멀티모달 효용 점수(혼잡 페널티) 및 FactChat XAI 브리핑에 반영 |
+| **🗄️ 시계열 래그 DB**<br>*(자기회귀 입력 순환)* | **Stage 1** (`32d`) | `timeseries_cache.py`<br>(`data/timeseries_cache.db`) | • 추론된 자치구 총수요 스냅샷을 저장해 다음 시간대 Stage 1 입력의 `1시간 전(lag_1h)`·`3시간 평균(roll_3h)` 피처로 공급 |
 
 ---
 
@@ -208,6 +235,17 @@ flowchart LR
    - Stage 1 (`32d`): `lgb_bike_demand.onnx` (`6.61 MB`), `lgb_bus_demand.onnx` (`10.58 MB`), `lgb_subway_demand.onnx` (`12.73 MB`), `feature_schema.json`
    - Stage 2 (`16d`): `lgb_bike_point_share.onnx` (`1.98 MB`), `lgb_bus_point_share.onnx` (`1.92 MB`), `lgb_subway_point_share.onnx` (`13.06 MB`), `point_share_schema.json`, `point_share_priors.json.gz` (`1.64 MB`, `8,432`개 지점 사전통계, 기동 로드 `527.0 ms`)
 2. **백엔드 & 프론트엔드 연동**:
-   - `main.py` + `point_share_inference.py` (`POST /api/v1/predict/recommendation`, `/health.point_share_models`)
+   - `main.py` + `point_share_inference.py` (`POST /api/v1/predict/recommendation`, `POST /api/v1/predict/map-crowds`, `/health.point_share_models`)
+   - `TransitMap.tsx`: 지도 진입 시 `POST /api/v1/predict/map-crowds`를 통해 서울 전체 지도 거점을 **Stage 1(32d) × Stage 2(16d) 단일 ONNX 배치(`predict_points_batch`)**로 일괄 추론하고 `(날짜 · 시간대 · 강수 · 2°C 기온 버킷)` 키로 **서버 인메모리 공용 캐시(TTL `15분`)**에 저장하여 클릭 전 점(Dot)·알약 마커와 클릭 후 팝업 수치가 처음부터 100% AI 예측값으로 일치하며, 동일 시간대 타 사용자 접속 시 `1ms` 미만으로 재사용 *(백엔드 미응답 시에만 `calculateCrowd()` 휴리스틱 폴백)*
    - `TransitMap.tsx`, `App.tsx`, `AppM.tsx`: 지도 마커 팝업·PC/모바일 사이드바 AI 카드에 `🎯 지점 AI · 구 내 X.XX%` 및 구 전체 대비 지점 수요·피크(P95) 표출
    - 전체 검증 스위트(`test_point_share_inference.py`, `test_feature_schema.py` 등 9종) 및 Docker 컨테이너 실기동 헬스체크 PASS
+
+### 8.2 지도 전체 거점 배치 추론 및 시간대 서버 공용 캐싱 메커니즘 ([상세 명세: CACHING_POLICY.md §3.1](./CACHING_POLICY.md))
+
+| 구성 요소 | 적용 기술 | 핵심 동작 원리 |
+| :--- | :--- | :--- |
+| **양자화 캐시 키** | `{YYYY-MM-DD}\|h{hour}\|r{rain:.1f}\|t{2deg}` | 기온(`2°C` 단위) · 강수(`0.1mm`) 정규화로 같은 시간대 다수 사용자가 단일 서버 메모리 슬롯 공유 |
+| **부분 증분 적재(Delta Fill)** | `bucket = {district_volumes, items}` | 이미 캐시된 거점·자치구는 건너뛰고 `missing_items`만 계산 후 병합(후속 접속 시 **`cache_hit=True`, `0.06~0.07ms`**) |
+| **벡터화 ONNX 배치** | `(N_mode, 16)` `float32` 2D 텐서 | 수단(`subway`, `bus`, `bike`)당 단 1회 `sess.run()` 호출로 수백 개 지점 동시 예측 |
+| **서버 메모리 보호** | TTL `900초`(`15분`) + 최대 `24`슬롯 FIFO | 만료 슬롯 자동 파기 및 상한 초과 시 최장 미사용 버킷 축출(`admin/cache/clear` 수동 초기화 지원) |
+| **클라이언트 L1 보호** | `aiCrowdCacheRef` + `inFlightBatchIdsRef` | 시간대·강수 고정 상태에서 `전체/지하철/버스/따릉이` 탭 전환 시 네트워크 재호출 `0`건 (`{selectedTime}\|{rainMm}` 변경 시 자동 리셋) |

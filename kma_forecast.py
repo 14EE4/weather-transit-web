@@ -28,6 +28,8 @@ def get_kst_now() -> datetime:
 from typing import Dict, List, Optional, Tuple
 from pydantic import BaseModel
 
+from logging_utils import sanitize_exception
+
 logger = logging.getLogger("weather_transit_api.kma_forecast")
 
 # 기상청 격자 규격 (한반도 5km x 5km 격자)
@@ -199,9 +201,11 @@ class KMAForecastManager:
                 vals = [float(x.strip()) for x in raw if x.strip()]
                 if len(vals) == TOTAL_GRID_POINTS:
                     return vals
-            logger.warning(f"KMA Grid [{var}] {tmef} status {res.status_code}, len={len(res.text)}")
+            logger.warning(
+                f"KMA Grid [{var}] {tmef} status {res.status_code}, len={len(res.text)} (기존 예보 폴백)"
+            )
         except Exception as e:
-            logger.warning(f"KMA Grid [{var}] {tmef} error: {e}")
+            logger.warning(f"KMA Grid [{var}] {tmef} error: {sanitize_exception(e)} (기존 예보 폴백)")
         return None
 
     async def refresh_forecast_cache(self, auth_key: Optional[str] = None) -> bool:

@@ -31,6 +31,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
 import requests
 
+from logging_utils import sanitize_exception
+
 try:
     from point_share_inference import point_share_engine
 except Exception:
@@ -714,7 +716,10 @@ class MultimodalRoutingEngine:
             return parsed_routes
 
         except Exception as exc:
-            logger.warning("fetch_public_transit_transfer_routes error: %s", exc)
+            logger.warning(
+                "fetch_public_transit_transfer_routes error: %s (다익스트라 폴백)",
+                sanitize_exception(exc),
+            )
             return []
 
     def _load_network(self) -> None:

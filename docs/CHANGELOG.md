@@ -6,6 +6,18 @@
 
 ---
 
+## [2026-11-18]
+
+### 📘 AI 모델 통합 상위 가이드 문서(`docs/AI_MODEL_OVERVIEW.md`) 신설 (이슈 #120)
+- **배경/목적**:
+  - `AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `MODEL_RETRAINING_PLAN.md`, `CURRENT_DATA_SPEC.md`, `BACKEND_INFERENCE_SERVER.md` 등으로 분산되어 있던 AI 모델 관련 내용을 한눈에 조망할 수 있는 최상위 마스터 가이드 요구 반영.
+- **조치 내역**:
+  1. `docs/AI_MODEL_OVERVIEW.md` 신설:
+     - 하위 문서 네비게이션 맵, 모델 세대 진화(`v1 ➔ v2.1 ➔ v3.0`), `Stage 1 (32d) × Stage 2 (16d)` 2단계 아키텍처 다이어그램 및 수식, `2023~2025` 데이터셋(`62.9만 행` + `2억 1,791만 행` / `18.69 GB`) 및 누수 차단 원칙, CPU 학습 근거, 2025년 전수 성적표, 프로덕션 서빙 자산 통합 정리.
+  2. `README.md` 문서 색인 및 `AI_MODEL_SPEC.md`, `CURRENT_MODEL_PERFORMANCE.md`, `MODEL_RETRAINING_PLAN.md` 상단에 상위 가이드 링크 연결.
+
+---
+
 ## [2026-11-16]
 
 ### 🧠 지점 단위(정류소·대여소·역) 수요 분배 모델 재학습 계획 수립 및 Phase 0 데이터 감사 완료 (이슈 #116)

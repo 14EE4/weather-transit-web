@@ -149,6 +149,7 @@
 | **아키텍처** | 🏛️ **시스템 아키텍처 명세서** | 5-Tier 계층형 구조, C4 컨텍스트, 엔드투엔드 파이프라인 플로우차트 | [`SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md) |
 | **현행 데이터** | 📋 **현행 데이터 규격서 (v2.1)** | 2023~2025 3개년 28열 통합 정제 데이터셋 및 32차원 피처 생성 규격 | [`CURRENT_DATA_SPEC.md`](docs/CURRENT_DATA_SPEC.md) |
 | **현행 성능** | 📈 **현행 모델 성능 리포트 (`v2.1` + `v3.0`)** | 32d Stage 1 자치구 모델($R^2 \ge 0.989$) 및 16d Stage 2 지점 점유율 분해 모델(`WAPE 7.88%`) 성능 | [`CURRENT_MODEL_PERFORMANCE.md`](docs/CURRENT_MODEL_PERFORMANCE.md) |
+| **AI 모델** | 📘 **AI 모델 통합 상위 가이드 (Master Guide)** | 모델 진화(`v1 ➔ v2.1 ➔ v3.0`), 2단계 아키텍처(`32d × 16d`), CPU 학습 근거, 성능·서빙 총괄 및 하위 문서 맵 | [`AI_MODEL_OVERVIEW.md`](docs/AI_MODEL_OVERVIEW.md) |
 | **AI 모델** | 🧩 **AI 모델 사양서 (단일 기준)** | Stage 1(`32d`) + Stage 2(`16d`) 입력 스키마, CPU 학습 사유, AHP 추천 스코어링 및 서빙 자산 규격 | [`AI_MODEL_SPEC.md`](docs/AI_MODEL_SPEC.md) |
 | **AI 모델** | 🧠 **모델 재학습 계획서 (지점 단위 수요 분배)** | 신규 지점 점유율(`18.69GB`) 기반 Stage 2 분배 구축, 6대 평가 지표, Gate G0~G4 완료 (이슈 #116) | [`MODEL_RETRAINING_PLAN.md`](docs/MODEL_RETRAINING_PLAN.md) |
 | **에이전트** | 🤖 **ONNX 모델 × LangGraph 연동 명세서** | ONNX 실시간 혼잡도 추론 결과의 LangGraph 5단계 노드 및 다목적 효용 연동 규격 | [`ONNX_LANGGRAPH_INTEGRATION.md`](docs/ONNX_LANGGRAPH_INTEGRATION.md) |

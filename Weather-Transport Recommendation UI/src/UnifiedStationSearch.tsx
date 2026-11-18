@@ -296,67 +296,71 @@ export default function UnifiedStationSearch({
             fontWeight: isRouteVariant ? 500 : 400,
           }}
         />
-        {allowCurrentLocation && (
-          <button
-            type="button"
-            onClick={handleUseCurrentLocation}
-            disabled={isLocating}
-            title="현재 내 위치(GPS)를 출발지로 설정"
-            style={{
-              background: 'rgba(56, 189, 248, 0.15)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              borderRadius: 6,
-              padding: '3px 8px',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#38BDF8',
-              cursor: isLocating ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 3,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            <span>{isLocating ? '⏳' : '📍'}</span>
-            <span>{isLocating ? '확인 중' : '내 위치'}</span>
-          </button>
-        )}
-        {allowMapPick && onPickOnMap && (
-          <button
-            type="button"
-            onClick={onPickOnMap}
-            title="지도에서 위치 직접 찍기"
-            style={{
-              background: 'rgba(52, 211, 153, 0.15)',
-              border: '1px solid rgba(52, 211, 153, 0.35)',
-              borderRadius: 6,
-              padding: '3px 8px',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#34D399',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 3,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            <span>🎯</span>
-            <span>지도에서 찍기</span>
-          </button>
-        )}
         {query && (
           <button
             type="button"
             onClick={handleClear}
-            style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12 }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}
           >
             ✕
           </button>
         )}
       </div>
+
+      {/* 위치 지정 퀵 액션 바 (입력창 가림 방지를 위해 입력창 하단으로 분리) */}
+      {(allowCurrentLocation || (allowMapPick && onPickOnMap)) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          {allowCurrentLocation && (
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={isLocating}
+              title="현재 내 위치(GPS)를 출발지로 설정"
+              style={{
+                background: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: 8,
+                padding: '5px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#38BDF8',
+                cursor: isLocating ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>{isLocating ? '⏳' : '📍'}</span>
+              <span>{isLocating ? '위치 확인 중' : '내 위치'}</span>
+            </button>
+          )}
+          {allowMapPick && onPickOnMap && (
+            <button
+              type="button"
+              onClick={onPickOnMap}
+              title="지도에서 위치 직접 찍기"
+              style={{
+                background: 'rgba(52, 211, 153, 0.14)',
+                border: '1px solid rgba(52, 211, 153, 0.35)',
+                borderRadius: 8,
+                padding: '5px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#34D399',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>🎯</span>
+              <span>지도에서 찍기</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 드롭다운 자동완성 리스트 */}
       {showDropdown && (

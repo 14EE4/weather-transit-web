@@ -4,7 +4,7 @@ import { resolveDistrict } from './districtResolver'
 
 
 const MULTIMODAL_MEMORY_CACHE = new Map<string, MultimodalSearchResponse>()
-const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v6'
+const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v7'
 
 function getCachedMultimodalResult(key: string): MultimodalSearchResponse | null {
   if (!key) return null
@@ -911,6 +911,24 @@ export default function MultimodalRoutePanel({
                               {seg.weather.rain > 0
                                 ? `🌧️ ${seg.weather.district} ${seg.weather.temp}°C·${seg.weather.rain}mm`
                                 : `☀️ ${seg.weather.district} ${seg.weather.temp}°C`}
+                            </span>
+                          )}
+                          {seg.point_crowd && (
+                            <span
+                              style={{
+                                fontSize: 9.5,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: `${seg.point_crowd.crowd_color}1A`,
+                                border: `1px solid ${seg.point_crowd.crowd_color}55`,
+                                color: seg.point_crowd.crowd_color,
+                                fontFamily: 'JetBrains Mono',
+                                fontWeight: 800,
+                              }}
+                              title={`2단계 지점 AI 추론(${seg.point_crowd.inference_tier || 'POINT_EXACT_ONNX'}): ${seg.point_crowd.from_station || seg.from_name} (${seg.point_crowd.from_crowd ?? seg.point_crowd.crowd_percent}%) · 구 내 점유 ${seg.point_crowd.from_share_pct ?? '-'}%`}
+                            >
+                              🎯 {seg.point_crowd.crowd_label} {seg.point_crowd.crowd_percent}%
+                              {typeof seg.point_crowd.from_share_pct === 'number' ? ` · 점유 ${seg.point_crowd.from_share_pct}%` : ''}
                             </span>
                           )}
                         </div>

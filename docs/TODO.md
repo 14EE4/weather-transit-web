@@ -38,6 +38,9 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (핵심 기능 개발 완료)
+- [x] **[ROUTE-06] 멀티모달 경로 탐색 시 승·하차 역·정류소·대여소별 Stage 1 × Stage 2 AI 혼잡도 연동 (완료 · 2026-11-18 · 이슈 #126)**:
+  - `main.py::_execute_multimodal_search`에 권역별 Stage 1(`32d`) `district_volume_resolver`를 추가하고, `multimodal_router.py::_annotate_segments_and_route_with_point_crowd()`가 각 `subway`/`bus`/`bike` 세그먼트 승·하차 지점의 `point_share_engine.predict_point()` 결과를 산출해 경로 혼잡도(소요시간 가중 평균)와 `utility_score`에 반영.
+  - `MultimodalRoutePanel.tsx`에 구간별 지점 AI 혼잡도·점유율 배지 표출 (`weather_transit_multimodal_cache_v7`).
 - [x] **[AI-03] 지도 초기 로드 100% 2단계 ONNX AI 배치 추론 및 시간대 서버 공용 캐시 구축 (완료 · 2026-11-18 · 이슈 #124)**:
   - `PointShareEngine.predict_points_batch()` + `POST /api/v1/predict/map-crowds` 서버 배치 추론 및 `(날짜 · 시간대 · 강수 · 2°C 버킷)` 15분 공용 캐시(`_map_crowds_cache`) 구축으로 초기 지도 진입 시점부터 전 마커를 100% 2단계 ONNX AI 예측 혼잡도로 일괄 표출하고 타 사용자와 결과 공유(`tests/test_point_share_inference.py` 6종 전수 PASS).
 - [x] **[UI-15] 지도 점 마커 AI 혼잡도 색상 동기화, 탭 전환 시 버스 마커 잔류 해결 및 모바일 자주 찾는 경로 제거 (완료 · 2026-11-18 · 이슈 #122)**:

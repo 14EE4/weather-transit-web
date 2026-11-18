@@ -2696,6 +2696,19 @@ export interface SegmentLocalWeather {
   weather_gate: 'CLEAR_MULTIMODAL' | 'RAIN_SAFE_ONLY' | string
 }
 
+export interface SegmentPointCrowd {
+  crowd_percent: number
+  crowd_label: string
+  crowd_color: string
+  from_station?: string
+  from_crowd?: number
+  from_share_pct?: number
+  from_predicted_volume?: number
+  to_station?: string
+  to_crowd?: number
+  inference_tier?: string
+}
+
 export interface MultimodalSegment {
   mode: 'walk' | 'bike' | 'bus' | 'subway'
   label: string
@@ -2712,6 +2725,7 @@ export interface MultimodalSegment {
   live_badge?: string
   weather?: SegmentLocalWeather
   to_weather?: SegmentLocalWeather
+  point_crowd?: SegmentPointCrowd
 }
 
 export interface TransitRouteResult {

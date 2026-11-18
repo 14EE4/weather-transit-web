@@ -8,6 +8,17 @@
 
 ## [2026-11-18]
 
+### 🧭 멀티모달 경로 탐색 시 승·하차 역·정류소·대여소별 Stage 1×Stage 2 AI 혼잡도 연동 (이슈 #126)
+- **배경/목적**:
+  - 기존 멀티모달 경로 탐색(`POST /api/v1/routes/multimodal-search`)은 물리 좌표·국지 날씨·환승 거리 등은 정류장 단위로 계산했으나, 경로 혼잡도(`crowd_percent`) 및 효용 페널티에는 Stage 1(`32d`) 자치구 평균 혼잡도만 적용되어 동일 자치구 내 `강남역➔역삼역`과 `학여울역➔대치역`의 경로 혼잡도가 같게 계산되는 한계가 있었음.
+- **조치 내역**:
+  1. **백엔드 경로 구간별 Stage 1 × Stage 2 혼잡도 통합 (`main.py`, `multimodal_router.py`)**:
+     - `_execute_multimodal_search`에서 출발·도착 권역 Stage 1(`32d`) 수요 맵(`district_volumes`) 및 구간별 권역 수요 리졸버(`district_volume_resolver`) 전달.
+     - `MultimodalRoutingEngine._annotate_segments_and_route_with_point_crowd()` 신설: 각 `subway`/`bus`/`bike` 세그먼트의 승·하차 역/정류소(`st_id`, `station_no` 포함)와 구간별 국지 기상(`weather`, `to_weather`)을 기준으로 `point_share_engine.predict_point()`를 호출해 `seg["point_crowd"]`를 부착하고, 소요시간 가중 평균으로 경로 `crowd_percent`·`crowd_label`·`crowd_color`를 갱신해 다목적 효용 평가(`utility_score`)에 직접 반영.
+  2. **프론트엔드 UI & 캐시 버전 동기화 (`subwayGraph.ts`, `MultimodalRoutePanel.tsx`)**:
+     - `MultimodalSegment.point_crowd` 타입 추가 및 경로 상세 세그먼트 카드 내 `🎯 혼잡/보통/여유 XX% · 점유 X.XX%` 배지 표출 (`LOCAL_STORAGE_CACHE_KEY` `v6 ➔ v7` 상향).
+  3. **문서 동기화**: `docs/AI_MODEL_OVERVIEW.md` (`§2.2` 표 갱신), `README.md`, `docs/TODO.md` 동기화.
+
 ### 🚀 지도 초기 로드 100% 2단계 ONNX AI 배치 추론 & 시간대 서버 공용 캐싱 구축 (이슈 #124)
 - **배경/목적**:
   - 지도 초기 로드 시 클릭 전 마커 색상을 클라이언트 휴리스틱(`calculateCrowd`)으로 띄워 평시 낮 시간대 강남역·교대역 등이 클릭 전(파란색 `보통`)과 클릭 후(빨간색 `혼잡`) 간 차이를 보이던 구조적 위화감을 해소하고, 첫 사용자 로드 시 계산한 결과를 동일 시간대 다른 사용자들과 서버에서 공유해 `1ms` 미만으로 즉시 응답하도록 고도화.

@@ -32,6 +32,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 import requests
 
 try:
+    from point_share_inference import point_share_engine
+except Exception:
+    point_share_engine = None  # type: ignore
+
+try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception as exc:
@@ -564,6 +569,7 @@ class MultimodalRouteState(TypedDict, total=False):
     destination: Dict[str, Any]
     weather_context: Dict[str, Any]
     ai_congestion: Dict[str, Any]
+    district_volume_resolver: Optional[Callable[[str, int, Optional[Dict[str, Any]]], Dict[str, float]]]
     weather_gate: str  # "CLEAR_MULTIMODAL" | "RAIN_SAFE_ONLY"
     subway_candidates: Dict[str, Any]
     bus_candidates: Dict[str, Any]
@@ -1830,6 +1836,141 @@ class MultimodalRoutingEngine:
             seg["weather"] = seg_from_w
             seg["to_weather"] = seg_to_w
 
+    @staticmethod
+    def _get_route_crowd_meta(crowd_percent: int) -> Tuple[str, str]:
+        """혼잡도(%) 수치에 대응하는 `(라벨, 컬러 hex)` 반환."""
+        if crowd_percent >= 75:
+            return "혼잡", "#F43F5E"
+        if crowd_percent >= 45:
+            return "보통", "#FBBF24"
+        return "여유", "#34D399"
+
+    def _annotate_segments_and_route_with_point_crowd(
+        self,
+        route: Dict[str, Any],
+        state: MultimodalRouteState,
+    ) -> None:
+        """경로의 승·하차 역·정류소·대여소별 Stage 1 × Stage 2 지점 혼잡도를 계산해 세그먼트와 경로 총 혼잡도에 반영."""
+        if point_share_engine is None:
+            return
+        if not point_share_engine.is_loaded:
+            try:
+                point_share_engine.load()
+            except Exception as exc:
+                logger.debug("경로 Stage 2 엔진 지연 로드 스킵: %s", exc)
+                return
+        if not point_share_engine.is_loaded:
+            return
+
+        w_ctx = state.get("weather_context") or {}
+        ai_cong = state.get("ai_congestion") or {}
+        district_vols_map = ai_cong.get("district_volumes") or {}
+        volume_resolver = state.get("district_volume_resolver")
+        hour = int(state.get("hour", 14))
+        default_vols = {
+            "subway": float(ai_cong.get("subway_volume", 28500.0)),
+            "bus": float(ai_cong.get("bus_volume", 19200.0)),
+            "bike": float(ai_cong.get("bike_volume", 340.0)),
+        }
+
+        def _get_stage1_vol(d_name: str, mode_name: str, w_dict: Dict[str, Any]) -> float:
+            cached = district_vols_map.get(d_name)
+            if cached and cached.get(mode_name) is not None:
+                return float(cached[mode_name])
+            if callable(volume_resolver):
+                try:
+                    resolved = volume_resolver(d_name, hour, w_dict)
+                    if resolved and resolved.get(mode_name) is not None:
+                        return float(resolved[mode_name])
+                except Exception as exc:
+                    logger.debug("권역 Stage 1 수요 조회 폴백 (%s/%s): %s", d_name, mode_name, exc)
+            fallback_d = str(state.get("district") or "강남구")
+            if district_vols_map.get(fallback_d, {}).get(mode_name) is not None:
+                return float(district_vols_map[fallback_d][mode_name])
+            return default_vols.get(mode_name, 1000.0)
+
+        weighted_sum = 0.0
+        weight_total = 0
+
+        for seg in route.get("segments") or []:
+            mode = str(seg.get("mode") or "")
+            if mode not in ("subway", "bus", "bike"):
+                continue
+
+            from_name = str(seg.get("from_name") or "").strip()
+            to_name = str(seg.get("to_name") or "").strip()
+            from_w = seg.get("weather") or w_ctx
+            to_w = seg.get("to_weather") or from_w
+            from_d = str(from_w.get("district") or state.get("district") or "강남구")
+            to_d = str(to_w.get("district") or from_d)
+
+            from_pt = point_share_engine.predict_point(
+                mode=mode,
+                district=from_d,
+                hour=hour,
+                temp=float(from_w.get("temp", w_ctx.get("temp", 15.0))),
+                rain=float(from_w.get("rain", w_ctx.get("rain", 0.0))),
+                wind=float(from_w.get("wind", w_ctx.get("wind", 2.0))),
+                humidity=float(from_w.get("humidity", w_ctx.get("humidity", 55.0))),
+                district_volume=_get_stage1_vol(from_d, mode, from_w),
+                station_name=from_name,
+                point_id=str(seg.get("st_id") or seg.get("station_no")) if (seg.get("st_id") or seg.get("station_no")) else None,
+                base_crowd=55 if mode == "bus" else 50,
+            )
+
+            to_pt = None
+            if mode in ("subway", "bus") and to_name and to_name != from_name:
+                to_pid = seg.get("to_st_id")
+                to_pt = point_share_engine.predict_point(
+                    mode=mode,
+                    district=to_d,
+                    hour=hour,
+                    temp=float(to_w.get("temp", w_ctx.get("temp", 15.0))),
+                    rain=float(to_w.get("rain", w_ctx.get("rain", 0.0))),
+                    wind=float(to_w.get("wind", w_ctx.get("wind", 2.0))),
+                    humidity=float(to_w.get("humidity", w_ctx.get("humidity", 55.0))),
+                    district_volume=_get_stage1_vol(to_d, mode, to_w),
+                    station_name=to_name,
+                    point_id=str(to_pid) if to_pid else None,
+                    base_crowd=55 if mode == "bus" else 50,
+                )
+
+            if from_pt and to_pt:
+                seg_crowd = int(round(0.65 * int(from_pt["crowd"]) + 0.35 * int(to_pt["crowd"])))
+            elif from_pt:
+                seg_crowd = int(from_pt["crowd"])
+            elif to_pt:
+                seg_crowd = int(to_pt["crowd"])
+            else:
+                continue
+
+            primary_pt = from_pt or to_pt
+            seg_lbl, seg_col = self._get_route_crowd_meta(seg_crowd)
+            seg["point_crowd"] = {
+                "crowd_percent": seg_crowd,
+                "crowd_label": seg_lbl,
+                "crowd_color": seg_col,
+                "from_station": from_name,
+                "from_crowd": int(primary_pt["crowd"]),
+                "from_share_pct": float(primary_pt["point_share_pct"]),
+                "from_predicted_volume": int(primary_pt["predicted_volume"]),
+                "to_station": to_name,
+                "to_crowd": int(to_pt["crowd"]) if to_pt else int(primary_pt["crowd"]),
+                "inference_tier": str(primary_pt["inference_tier"]),
+            }
+
+            seg_mins = max(1, int(seg.get("minutes") or 1))
+            weighted_sum += seg_crowd * seg_mins
+            weight_total += seg_mins
+
+        if weight_total > 0:
+            route_crowd = max(5, min(99, int(round(weighted_sum / weight_total))))
+            r_lbl, r_col = self._get_route_crowd_meta(route_crowd)
+            route["crowd_percent"] = route_crowd
+            route["crowd_label"] = r_lbl
+            route["crowd_color"] = r_col
+            route["point_crowd_applied"] = True
+
     def _node_parse_context(self, state: MultimodalRouteState) -> Dict[str, Any]:
         t0 = time.perf_counter()
         trace = list(state.get("langgraph_trace") or [])
@@ -2316,6 +2457,7 @@ class MultimodalRoutingEngine:
                         "color": "#10B981",
                         "coords": [bike_stop["coords"], dest["coords"]],
                         "live_badge": f"실시간 잔여 {avail_cnt}대 · 쾌적",
+                        "station_no": bike_stop.get("stationNo") or bike_stop.get("station_no") or bike_stop.get("id"),
                     },
                 ]
                 routes.append(
@@ -2376,6 +2518,7 @@ class MultimodalRoutingEngine:
                         "color": "#10B981",
                         "coords": [bike_stop["coords"], target_st["coords"]],
                         "live_badge": f"실시간 {avail_cnt}대 대여 가능",
+                        "station_no": bike_stop.get("stationNo") or bike_stop.get("station_no") or bike_stop.get("id"),
                     },
                 ] + list(sub_rt.get("lineSegments") or [])
 
@@ -2600,6 +2743,7 @@ class MultimodalRoutingEngine:
                                 "coords": corridor_coords,
                                 "live_badge": bus_badge,
                                 "st_id": leg.get("from_id"),
+                                "to_st_id": leg.get("to_id"),
                             })
                         else:  # subway
                             s_line = leg["route_name"]
@@ -2852,6 +2996,7 @@ class MultimodalRoutingEngine:
                             "color": "#FB923C",
                             "coords": bus_coords,
                             "live_badge": bus_badge,
+                            "st_id": bus_stop.get("stId") or bus_stop.get("id"),
                         },
                         {
                             "mode": "walk",
@@ -3013,6 +3158,11 @@ class MultimodalRoutingEngine:
                 )
             )
 
+        # [Issue #91 Phase 2 & Issue #126] 효용 평가 전에 세그먼트별 국지 기상 + Stage 1×Stage 2 거점 혼잡도 반영
+        for r in routes:
+            self._annotate_segments_with_local_weather(r.get("segments") or [], state)
+            self._annotate_segments_and_route_with_point_crowd(r, state)
+
         # ── 5) 다목적 효용 함수(Multi-Objective Utility Score) 기반 합리적 순위 정렬 ──
         # 소요시간(Time), 환승횟수(Transfer), 요금(Fare), 혼잡도(Congestion), 기상적합도(Weather)를 종합 평가하여
         # 무환승 직통 지하철이 훨씬 빠르고 저렴한 경우(예: 서울역➔홍대입구역 공항철도 7분 vs 따릉이 복합 19분)
@@ -3076,10 +3226,6 @@ class MultimodalRoutingEngine:
                         r["badge"] = "정시성 우수 · 철도 중심"
                         r["badge_color"] = "#38BDF8"
 
-        # [Issue #91 Phase 2] 모든 후보 경로의 개별 세그먼트에 승차/하차 거점 국지 날씨 및 구간 게이트 매핑
-        for r in routes:
-            self._annotate_segments_with_local_weather(r.get("segments") or [], state)
-
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         trace.append(
             {
@@ -3127,15 +3273,7 @@ class MultimodalRoutingEngine:
         custom_transfer_trains: Optional[List[Dict[str, Any]]] = None,
         custom_departure_train: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        if crowd_percent >= 75:
-            crowd_label = "혼잡"
-            crowd_color = "#F43F5E"
-        elif crowd_percent >= 50:
-            crowd_label = "보통"
-            crowd_color = "#FBBF24"
-        else:
-            crowd_label = "여유"
-            crowd_color = "#34D399"
+        crowd_label, crowd_color = self._get_route_crowd_meta(crowd_percent)
 
         # 전체 폴리라인 좌표 결합
         all_coords: List[List[float]] = []
@@ -3544,6 +3682,7 @@ class MultimodalRoutingEngine:
         to_district: Optional[str] = None,
         district_weather_map: Optional[Dict[str, Dict[str, Any]]] = None,
         allow_bike: bool = True,
+        district_volume_resolver: Optional[Callable[[str, int, Optional[Dict[str, Any]]], Dict[str, float]]] = None,
     ) -> Dict[str, Any]:
         t_start = time.perf_counter()
         initial_state: MultimodalRouteState = {
@@ -3561,6 +3700,7 @@ class MultimodalRoutingEngine:
             "allow_bike": allow_bike,
             "weather_context": weather_context or {},
             "ai_congestion": ai_congestion or {},
+            "district_volume_resolver": district_volume_resolver,
             "bike_candidates": {"live_snapshot": live_bike_snapshot or []},
             "live_subway_arrivals": live_subway_arrivals or [],
             "live_bus_arrivals": live_bus_arrivals or [],

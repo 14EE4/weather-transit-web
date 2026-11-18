@@ -90,7 +90,7 @@ flowchart LR
 | **📊 메인 대시보드**<br>*(날씨 기반 교통 현황)* | **Stage 1** (`32d`) | `POST /api/v1/predict/recommendation`<br>`GET /api/v1/transit/hourly-forecast`<br>`GET /api/v1/districts/live-congestion`<br>`POST /api/v1/simulate/weather-impact` | • 선택 자치구 3대 수단 예상 이용량·혼잡도·추천 순위<br>• `00시~23시` 자치구 시간대별 수요 곡선 차트<br>• 서울 `25`개 자치구 실시간 혼잡 랭킹 및 우천 모달 시프트 비교 |
 | **🏢 B2B 기업 관제**<br>*(모빌리티 재배치)* | **Stage 1** (`32d`) | `POST /api/v1/b2b/fleet-rebalance` | • 서울 `25`개 자치구 전체 수요를 일괄 예측해 보유량 대비 잉여(Recall)·부족(Deploy) 따릉이 대수 및 시내버스 증차 권고 산출 |
 | **🗺️ 지도 보기**<br>*(초기 마커 & 상세 팝업)* | **Stage 1 × Stage 2**<br>(`32d × 16d`) | `POST /api/v1/predict/map-crowds`<br>`POST /api/v1/predict/recommendation` | • `Stage 1` 자치구 총수요를 모수($\hat{Y}$)로 삼아 `Stage 2` 지점 점유율($\hat{s}\%$)을 곱해 `8,432`개 거점별 수요·혼잡도 산출<br>• 사이드바·팝업에 `"강남구 전체 48,716명 중 13.88% 점유"` 상세 표출 |
-| **🧭 경로 추천**<br>*(LangGraph 멀티모달)* | **Stage 1** (`32d`) | `POST /api/v1/routes/multimodal-search` | • 출발·도착 권역의 수단별 AI 예측 혼잡도(`ai_cong`)를 멀티모달 효용 점수(혼잡 페널티) 및 FactChat XAI 브리핑에 반영 |
+| **🧭 경로 추천**<br>*(LangGraph 멀티모달)* | **Stage 1 × Stage 2**<br>(`32d × 16d`) | `POST /api/v1/routes/multimodal-search` | • 구간(`subway`·`bus`·`bike`)별 승·하차 역·정류소·대여소에 대해 `Stage 1` 권역 총수요 × `Stage 2` 지점 혼잡도(`point_crowd`)를 산출·가중 평균<br>• 산출된 경로별 정밀 혼잡도를 다목적 효용 점수(`utility_score`)와 UI 세그먼트 배지에 반영 |
 | **🗄️ 시계열 래그 DB**<br>*(자기회귀 입력 순환)* | **Stage 1** (`32d`) | `timeseries_cache.py`<br>(`data/timeseries_cache.db`) | • 추론된 자치구 총수요 스냅샷을 저장해 다음 시간대 Stage 1 입력의 `1시간 전(lag_1h)`·`3시간 평균(roll_3h)` 피처로 공급 |
 
 ---

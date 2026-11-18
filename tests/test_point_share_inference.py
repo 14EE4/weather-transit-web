@@ -264,6 +264,50 @@ def test_map_crowds_batch_endpoint_and_shared_cache():
         )
 
 
+def test_multimodal_route_uses_point_share_crowd():
+    with TestClient(app_main.app) as client:
+        r_gangnam = client.post(
+            "/api/v1/routes/multimodal-search",
+            json={
+                "from_station": "강남역",
+                "to_station": "역삼역",
+                "district": "강남구",
+                "hour": 18,
+                "allow_bike": False,
+                "weather": {"temp": 16.0, "rain": 0.0, "humidity": 50.0, "wind": 2.0},
+            },
+        )
+        r_hak = client.post(
+            "/api/v1/routes/multimodal-search",
+            json={
+                "from_station": "학여울역",
+                "to_station": "대치역",
+                "district": "강남구",
+                "hour": 18,
+                "allow_bike": False,
+                "weather": {"temp": 16.0, "rain": 0.0, "humidity": 50.0, "wind": 2.0},
+            },
+        )
+        assert r_gangnam.status_code == 200 and r_hak.status_code == 200
+        d_gn = r_gangnam.json()["routes"][0]
+        d_hy = r_hak.json()["routes"][0]
+
+        assert d_gn.get("point_crowd_applied") is True
+        assert d_hy.get("point_crowd_applied") is True
+        assert d_gn["crowd_percent"] > d_hy["crowd_percent"] + 20
+
+        seg_gn = next(s for s in d_gn["segments"] if s["mode"] == "subway")
+        seg_hy = next(s for s in d_hy["segments"] if s["mode"] == "subway")
+        assert seg_gn["point_crowd"]["inference_tier"] == "POINT_EXACT_ONNX"
+        assert seg_hy["point_crowd"]["inference_tier"] == "POINT_EXACT_ONNX"
+        assert seg_gn["point_crowd"]["from_share_pct"] > seg_hy["point_crowd"]["from_share_pct"]
+        print(
+            f"[Test 7] 멀티모달 경로 Stage 1×Stage 2 지점 혼잡도 차별화 PASS: "
+            f"강남➔역삼={d_gn['crowd_percent']}% ({d_gn['crowd_label']}, 점유 {seg_gn['point_crowd']['from_share_pct']}%) vs "
+            f"학여울➔대치={d_hy['crowd_percent']}% ({d_hy['crowd_label']}, 점유 {seg_hy['point_crowd']['from_share_pct']}%)"
+        )
+
+
 def main():
     test_engine_load_and_status()
     test_same_district_differentiation()
@@ -271,6 +315,7 @@ def main():
     test_fastapi_endpoints()
     test_predict_points_batch_matches_single_point()
     test_map_crowds_batch_endpoint_and_shared_cache()
+    test_multimodal_route_uses_point_share_crowd()
     print("\nALL STAGE 2 POINT-SHARE SERVING TESTS PASSED!")
 
 

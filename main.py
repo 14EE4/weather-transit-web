@@ -3736,16 +3736,55 @@ async def _execute_multimodal_search(
         "bus_volume": 19200,
         "bike_volume": 340,
     }
+    district_volumes_cache: dict[str, dict[str, float]] = {}
+
+    def _resolve_district_volumes(
+        target_district: str,
+        target_h: int,
+        w_dict: Optional[dict[str, Any]] = None,
+    ) -> dict[str, float]:
+        nd = normalize_district_name(target_district or norm_d)
+        if nd in district_volumes_cache:
+            return district_volumes_cache[nd]
+        if not registry.is_loaded:
+            return {}
+        w_src = w_dict or district_w_map.get(nd) or w_ctx
+        w_local = WeatherInput(
+            temp=float(w_src.get("temp", eff_temp)),
+            rain=float(w_src.get("rain", eff_rain)),
+            humidity=float(w_src.get("humidity", eff_humidity)),
+            wind=float(w_src.get("wind", eff_wind)),
+        )
+        now_dt = get_kst_now()
+        try:
+            bi_v, bu_v, su_v = _predict_stage1_district_volumes(
+                norm_district=nd,
+                hour=target_h,
+                weather=w_local,
+                now_dt=now_dt,
+                record_timeseries=False,
+            )
+            vols = {
+                "subway": max(0.0, su_v),
+                "bus": max(0.0, bu_v),
+                "bike": max(0.0, bi_v),
+            }
+            district_volumes_cache[nd] = vols
+            return vols
+        except Exception as exc:
+            logger.debug("멀티모달 권역 Stage 1 추론 폴백 (%s): %s", nd, exc)
+            return {}
+
     if registry.is_loaded:
         try:
-            f_vec = build_feature_vector(norm_d, target_hour, w_in)
-            sub_t = prepare_session_input(f_vec, registry.subway_session)
-            bus_t = prepare_session_input(f_vec, registry.bus_session)
-            bike_t = prepare_session_input(f_vec, registry.bike_session)
+            orig_vols = _resolve_district_volumes(norm_d, target_hour, from_w_ctx)
+            norm_to_d = normalize_district_name(resolved_to_d or norm_d)
+            if norm_to_d != norm_d:
+                _resolve_district_volumes(norm_to_d, target_hour, to_w_ctx)
 
-            s_v = max(0.0, float(registry.subway_session.run(None, {"float_input": sub_t})[0].flatten()[0]))
-            bu_v = max(0.0, float(registry.bus_session.run(None, {"float_input": bus_t})[0].flatten()[0]))
-            bi_v = max(0.0, float(registry.bike_session.run(None, {"float_input": bike_t})[0].flatten()[0]))
+            s_v = float(orig_vols.get("subway", 28500.0))
+            bu_v = float(orig_vols.get("bus", 19200.0))
+            bi_v = float(orig_vols.get("bike", 340.0))
 
             s_c, s_sc, _ = evaluate_subway(s_v, w_in.rain, norm_d)
             bu_c, bu_sc, _ = evaluate_bus(bu_v, w_in.rain, norm_d)
@@ -3761,6 +3800,7 @@ async def _execute_multimodal_search(
                 "subway_volume": int(round(s_v)),
                 "bus_volume": int(round(bu_v)),
                 "bike_volume": int(round(bi_v)),
+                "district_volumes": district_volumes_cache,
             }
         except Exception as exc:
             logger.warning(f"멀티모달 ONNX 추론 폴백: {exc}")
@@ -3816,6 +3856,7 @@ async def _execute_multimodal_search(
         to_district=resolved_to_d,
         district_weather_map=district_w_map,
         allow_bike=allow_bike,
+        district_volume_resolver=_resolve_district_volumes,
     )
     result["district"] = norm_d
     result["from_district"] = resolved_from_d

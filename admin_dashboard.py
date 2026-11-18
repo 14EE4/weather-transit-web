@@ -4,12 +4,12 @@ FastAPI의 /health/dashboard 엔드포인트에서 단독 웹 페이지로 렌�
 """
 
 import os
-import sqlite3
 import time
 from datetime import datetime
 from typing import Any, Dict
 
 from in_memory_log_handler import in_memory_log_handler
+from timeseries_cache import timeseries_cache
 
 SERVER_START_TIME = time.time()
 
@@ -27,33 +27,8 @@ def get_system_uptime_str() -> str:
 
 
 def get_cache_stats() -> Dict[str, Any]:
-    """timeseries_cache.db 통계 조회"""
-    db_candidates = [
-        os.path.join(os.getcwd(), "timeseries_cache.db"),
-        os.path.join(os.getcwd(), "data", "timeseries_cache.db"),
-        "/app/data/timeseries_cache.db",
-        "/app/timeseries_cache.db",
-    ]
-    db_path = None
-    for p in db_candidates:
-        if os.path.exists(p):
-            db_path = p
-            break
-
-    if not db_path:
-        return {"exists": False, "count": 0, "size_kb": 0, "path": "미생성"}
-
-    try:
-        size_kb = round(os.path.getsize(db_path) / 1024, 1)
-        conn = sqlite3.connect(db_path, timeout=1.0)
-        cur = conn.cursor()
-        cur.execute("SELECT count(*) FROM timeseries_cache")
-        row = cur.fetchone()
-        count = row[0] if row else 0
-        conn.close()
-        return {"exists": True, "count": count, "size_kb": size_kb, "path": db_path}
-    except Exception as exc:
-        return {"exists": True, "count": 0, "size_kb": 0, "error": str(exc)}
+    """timeseries_cache.db 통계 조회 (TimeseriesCacheManager 위임)"""
+    return timeseries_cache.get_cache_stats()
 
 
 def render_dashboard_html() -> str:

@@ -8,6 +8,26 @@
 
 ## [2026-11-18]
 
+### 🧱 전사 코드베이스 SOLID 원칙 전수 검토·Phase 1~4 리팩토링 및 UX/라우팅 보완 (이슈 #138)
+- **배경/목적**:
+  - 캡스톤 발표 대비 코드 유지보수성·확장성·테스트 용이성을 확보하기 위해 백엔드(`*.py`, `scripts/`, `tests/`) 및 프론트엔드(`src/*.ts, *.tsx`) 전체에 대한 SOLID 5대 원칙(SRP·OCP·LSP·ISP·DIP) 전수 감사를 수행하고 4단계(Phase `1~4`)로 순차 리팩토링 진행.
+- **SOLID 리팩토링 조치 내역**:
+  1. **Phase 1 (캐시 DIP 복원 & SSoT 통합)**:
+     - `timeseries_cache.py`에 `get_cache_stats()` / `clear_cache()`를 신설하고, `admin_dashboard.py` 및 `main.py::clear_admin_cache()`가 잘못된 테이블명(`timeseries_cache`)을 직접 SQL 조회·삭제하던 결합 버그 제거.
+     - `main.py`의 중복 `DISTRICT_KMA_GRID` 제거(`kma_forecast.DISTRICT_GRID_MAP` SSoT 통합) 및 `scripts/export_point_share_serving_bundle.py` 정규화 함수를 `point_share_inference`에서 임포트하도록 단일화 (`tests/test_solid_phase1.py` 검증).
+  2. **Phase 2 (프론트엔드 API 단일화 & PC·모바일 공통 훅·차트 분리)**:
+     - `src/api/client.ts` 신설로 6개 파일에 중복되었던 `getApiBaseUrl()` 단일화.
+     - `src/constants/districts.ts`, `src/utils/storage.ts`, `src/components/AnalyticsCharts.tsx`, `src/hooks/{useTheme,useGeoDistrict,useWeatherAndAI,useStopDetailPipeline}.ts` 추출로 `App.tsx`·`AppM.tsx` 상단 중복 로직 제거.
+  3. **Phase 3 (백엔드 서비스 분리 & `TransitMap.tsx` 순수 유틸 분리)**:
+     - `services/circuit_breaker.py`, `services/mcda_evaluator.py`(`ModeEvaluator`·`MODE_EVALUATORS` 전략 패턴), `services/factchat_briefing.py`(HTTP 콜백/설정 주입 DIP) 분리 및 `Dockerfile.backend` `COPY services/` 반영 (`tests/test_solid_phase3.py` 검증).
+     - `src/utils/geo.ts`, `src/utils/mapCrowd.ts` 추출.
+  4. **Phase 4 (패널/뷰 유틸 분리)**:
+     - `src/utils/multimodalCache.ts`, `src/utils/csvExport.ts` 추출 (`MultimodalRoutePanel.tsx`, `EnterpriseView.tsx`).
+- **사용자 검증 기반 UX·라우팅 추가 보완**:
+  - **버스+지하철 복합 환승 선형 좌표 연동 (`multimodal_router.py`)**: 서울시 환승 API 결과의 `subway` 구간 조립 시 `search_subway_route()`의 경유 역 목록(`path`) 좌표를 채워 직선 표출 해소; 버스 구간(`generate_bus_corridor_coords`)은 `_fetch_and_cache_bus_route_stations()` 실측 조회·정방향 슬라이스 적용 및 타원 지그재그 폴백 제거; 버스 노선명 강제 `번` 접미사 제거.
+  - **지도 검색 알약 잔류 및 GPS 출발 좌표 유실 수정 (`App.tsx`, `AppM.tsx`, `storage.ts`)**: 팝업 닫기(`onSelectStop(null)`) 시 `focusedCoords` 함께 초기화; `departureCoords`·`destinationCoords`·타입 `localStorage` 영속화 및 `myLocation` 자동 보완.
+  - **경로 검색 입력·시간 슬라이더 UX 개선 (`UnifiedStationSearch.tsx`, `App.tsx`, `AppM.tsx`)**: `📍 내 위치`·`🎯 지도에서 찍기` 버튼을 입력창 하단으로 분리; 출발역 선택 후 `Tab` 키로 도착지 입력창 직행; 시간 슬라이더 변경 시 스냅샷 기반 수동 검색 유지 및 복귀 버튼 고정 렌더링으로 레이아웃 시프트 제거.
+
 ### 🐛 자주 찾는 경로 선택 및 수동 입력 시 이전 지도·GPS 좌표(`departureCoords`) 잔류 버그 수정 (이슈 #135)
 - **배경/원인**:
   - 지도에서 찍기(Pick on Map) 또는 내 위치(GPS)로 임의 좌표(예: 인천 간석역 부근)를 출발지로 설정한 뒤 `자주 찾는 경로`(예: `강남역 → 서울역`)를 클릭하거나 입력창을 수동 수정(`onChange`/`onClear`)하면, 텍스트(`departure`)는 바뀌지만 이전 `departureCoords`·`departureType('gps')` 상태가 초기화되지 않아 백엔드 `resolve_station()`이 이전 좌표를 우선 해석해 여전히 이전 역(간석역)에서 출발하는 문제가 발생.

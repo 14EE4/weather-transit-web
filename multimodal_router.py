@@ -32,6 +32,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, TypedDict
 import requests
 
 from logging_utils import sanitize_exception
+from services.factchat_briefing import FactChatBriefingService
 
 try:
     from point_share_inference import point_share_engine
@@ -600,6 +601,7 @@ class MultimodalRoutingEngine:
         self.bus_route_stations_cache: Dict[str, List[Dict[str, Any]]] = {}
         self._llm_cache: Dict[Tuple[str, str, float, float, str], Tuple[float, Dict[str, Any]]] = {}
         self._transit_transfer_cache: Dict[Tuple[float, float, float, float], Tuple[float, List[Dict[str, Any]]]] = {}
+        self._briefing_service = FactChatBriefingService()
 
         self._load_network()
         self.graph_app = self._build_langgraph()
@@ -1089,6 +1091,62 @@ class MultimodalRoutingEngine:
             )
         return scored[:limit]
 
+    def _fetch_and_cache_bus_route_stations(self, bus_route_id: str) -> List[Dict[str, Any]]:
+        """서울시 버스 노선 경유 정류장 목록(getStaionByRoute)을 조회해 캐시에 저장."""
+        if not bus_route_id:
+            return []
+        if bus_route_id in self.bus_route_stations_cache:
+            return self.bus_route_stations_cache[bus_route_id]
+
+        api_key = (os.getenv("DATA_GO_KR_API_KEY") or "").strip()
+        if not api_key:
+            self.bus_route_stations_cache[bus_route_id] = []
+            return []
+
+        try:
+            url = (
+                "http://ws.bus.go.kr/api/rest/busRouteInfo/getStaionByRoute"
+                f"?serviceKey={urllib.parse.quote(api_key, safe='')}"
+                f"&busRouteId={urllib.parse.quote(str(bus_route_id), safe='')}&resultType=json"
+            )
+            resp = requests.get(url, timeout=3.0)
+            if resp.status_code != 200:
+                self.bus_route_stations_cache[bus_route_id] = []
+                return []
+            data = resp.json()
+            header = data.get("msgHeader") or {}
+            if str(header.get("headerCd")) != "0":
+                self.bus_route_stations_cache[bus_route_id] = []
+                return []
+            items = (data.get("msgBody") or {}).get("itemList") or []
+            if isinstance(items, dict):
+                items = [items]
+
+            stations: List[Dict[str, Any]] = []
+            for item in items:
+                try:
+                    lon = float(item["gpsX"])
+                    lat = float(item["gpsY"])
+                    seq = int(item.get("seq"))
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if not (126.0 <= lon <= 128.0 and 36.5 <= lat <= 38.2):
+                    continue
+                stations.append({
+                    "sequence": seq,
+                    "name": item.get("stationNm") or "",
+                    "stId": str(item.get("station") or item.get("stId") or ""),
+                    "arsId": str(item.get("arsId") or ""),
+                    "coords": [lon, lat],
+                })
+            stations.sort(key=lambda s: s["sequence"])
+            self.bus_route_stations_cache[bus_route_id] = stations
+            return stations
+        except Exception as exc:
+            logger.debug("Bus route stations fetch skipped (%s): %s", bus_route_id, sanitize_exception(exc))
+            self.bus_route_stations_cache[bus_route_id] = []
+            return []
+
     def generate_bus_corridor_coords(
         self,
         start_coords: List[float],
@@ -1096,72 +1154,53 @@ class MultimodalRoutingEngine:
         bus_route_id: Optional[str] = None,
     ) -> List[List[float]]:
         """
-        버스 이동 구간에 대한 도로망·정류소 기반 현실적 폴리라인 좌표열 생성.
-        1. bus_route_id가 제공되고 경유 정류장 캐시 정보가 있으면 실제 정류소 구간 슬라이스 반환
-        2. 폴백: 수도권 정류소/역사 네트워크 복도(corridor) 분석 및 도로망 보간으로 자연스러운 도로 주행 경로 생성
+        버스 이동 구간 폴리라인 좌표열 생성.
+        1. bus_route_id가 제공되면 캐시 또는 실시간 API에서 실제 경유 정류장 순서를 조회해 정방향 슬라이스 반환
+        2. 정류장 데이터가 없는 경우 무작위 타원 지그재그 폴백 대신 깔끔한 구간 연결([start, end]) 반환
         """
-        if bus_route_id and bus_route_id in self.bus_route_stations_cache:
-            st_list = self.bus_route_stations_cache[bus_route_id]
+        if bus_route_id:
+            st_list = self._fetch_and_cache_bus_route_stations(str(bus_route_id))
             if len(st_list) >= 2:
-                idx_start = min(
+                # 왕복 노선(상행/하행)에서 정방향(idx_start < idx_end)을 우선 선택해 유턴/지그재그 방지
+                start_ranked = sorted(
                     range(len(st_list)),
                     key=lambda i: haversine_km(
                         start_coords[1], start_coords[0], st_list[i]["coords"][1], st_list[i]["coords"][0]
                     ),
-                )
-                idx_end = min(
+                )[:3]
+                end_ranked = sorted(
                     range(len(st_list)),
                     key=lambda i: haversine_km(
                         end_coords[1], end_coords[0], st_list[i]["coords"][1], st_list[i]["coords"][0]
                     ),
-                )
-                if abs(idx_end - idx_start) >= 1:
+                )[:3]
+
+                best_pair: Optional[Tuple[int, int]] = None
+                best_cost = float("inf")
+                for i_s in start_ranked:
+                    for i_e in end_ranked:
+                        if i_s < i_e:
+                            d_s = haversine_km(start_coords[1], start_coords[0], st_list[i_s]["coords"][1], st_list[i_s]["coords"][0])
+                            d_e = haversine_km(end_coords[1], end_coords[0], st_list[i_e]["coords"][1], st_list[i_e]["coords"][0])
+                            cost = d_s + d_e
+                            if cost < best_cost:
+                                best_cost = cost
+                                best_pair = (i_s, i_e)
+
+                if best_pair is not None:
+                    idx_start, idx_end = best_pair
+                    sliced = [st_list[i]["coords"] for i in range(idx_start, idx_end + 1)]
+                else:
+                    idx_start = start_ranked[0]
+                    idx_end = end_ranked[0]
                     step = 1 if idx_end >= idx_start else -1
                     sliced = [st_list[i]["coords"] for i in range(idx_start, idx_end + step, step)]
-                    res_coords = [start_coords] + [c for c in sliced if c != start_coords and c != end_coords] + [end_coords]
-                    if len(res_coords) >= 2:
-                        return res_coords
 
-        d_total = haversine_km(start_coords[1], start_coords[0], end_coords[1], end_coords[0])
-        if d_total < 0.35:
-            return [start_coords, end_coords]
+                res_coords = [start_coords] + [c for c in sliced if c != start_coords and c != end_coords] + [end_coords]
+                if len(res_coords) >= 2:
+                    return res_coords
 
-        candidates = []
-        for st in self.subway_stations + self.bus_stops:
-            c = st.get("coords")
-            if not c or len(c) < 2:
-                continue
-            d1 = haversine_km(start_coords[1], start_coords[0], c[1], c[0])
-            d2 = haversine_km(c[1], c[0], end_coords[1], end_coords[0])
-            if 0.4 < d1 < d_total - 0.4 and (d1 + d2) <= d_total * 1.25:
-                ratio = d1 / (d1 + d2)
-                candidates.append((ratio, c))
-
-        candidates.sort(key=lambda x: x[0])
-
-        selected = [start_coords]
-        last_ratio = 0.0
-        for ratio, c in candidates:
-            if ratio - last_ratio >= 0.08:
-                selected.append(c)
-                last_ratio = ratio
-        selected.append(end_coords)
-
-        dense_path: List[List[float]] = []
-        for i in range(len(selected) - 1):
-            pt_a = selected[i]
-            pt_b = selected[i + 1]
-            dense_path.append(pt_a)
-            leg_dist = haversine_km(pt_a[1], pt_a[0], pt_b[1], pt_b[0])
-            if leg_dist > 1.2:
-                num_sub = min(4, int(leg_dist // 0.8))
-                for k in range(1, num_sub + 1):
-                    t = k / (num_sub + 1)
-                    mid_lng = pt_a[0] + (pt_b[0] - pt_a[0]) * t
-                    mid_lat = pt_a[1] + (pt_b[1] - pt_a[1]) * t
-                    dense_path.append([round(mid_lng, 6), round(mid_lat, 6)])
-        dense_path.append(end_coords)
-        return dense_path
+        return [start_coords, end_coords]
 
     def find_nearby_bike_stations(
         self,
@@ -2736,8 +2775,8 @@ class MultimodalRoutingEngine:
 
                             segments.append({
                                 "mode": "bus",
-                                "label": f"🚌 {b_cat} {b_num}번",
-                                "line_name": f"{b_num}번",
+                                "label": f"🚌 {b_cat} {b_num}",
+                                "line_name": f"{b_num}",
                                 "from_name": leg["from_name"],
                                 "to_name": leg["to_name"],
                                 "detail": f"{leg['from_name']} 승차 ➔ {leg['to_name']} 하차 ({leg_dist_km}km)",
@@ -2756,6 +2795,21 @@ class MultimodalRoutingEngine:
                             st_cnt = leg.get("station_count") or max(2, round(leg_dist_km / 1.1))
                             sub_mins = max(3, round(st_cnt * 2.2))
 
+                            # 실제 지하철 노선 역간 좌표 조회 (직선 연결 방지)
+                            sub_coords = [leg["from_coords"], leg["to_coords"]]
+                            sub_from_clean = re.sub(r"역$", "", re.sub(r"\(.*?\)", "", str(leg["from_name"] or "")).strip())
+                            sub_to_clean = re.sub(r"역$", "", re.sub(r"\(.*?\)", "", str(leg["to_name"] or "")).strip())
+                            if sub_from_clean and sub_to_clean and sub_from_clean != sub_to_clean:
+                                sub_route = self.search_subway_route(sub_from_clean, sub_to_clean)
+                                if sub_route and isinstance(sub_route.get("path"), list):
+                                    path_coords = [
+                                        p["coords"]
+                                        for p in sub_route["path"]
+                                        if isinstance(p, dict) and isinstance(p.get("coords"), list) and len(p["coords"]) >= 2
+                                    ]
+                                    if len(path_coords) >= 2:
+                                        sub_coords = path_coords
+
                             segments.append({
                                 "mode": "subway",
                                 "label": f"🚇 {s_line}",
@@ -2767,7 +2821,7 @@ class MultimodalRoutingEngine:
                                 "distance_km": leg_dist_km,
                                 "fare_krw": 1400,
                                 "color": s_color,
-                                "coords": [leg["from_coords"], leg["to_coords"]],
+                                "coords": sub_coords,
                                 "live_badge": f"{s_line} 정시 운행",
                             })
                             transfer_step_names.append(leg["from_name"])
@@ -2863,8 +2917,8 @@ class MultimodalRoutingEngine:
                     })
 
                     bus_dep_train = {
-                        "line": f"{main_bus}번",
-                        "trainLineNm": f"{main_bus}번 ({first_l['from_name']})",
+                        "line": f"{main_bus}",
+                        "trainLineNm": f"{main_bus} ({first_l['from_name']})",
                         "destinationOrNext": f"{first_l['to_name']} 방면",
                         "arrivalMessage": first_bus_badge,
                         "remainingMinutes": 3 if is_peak_hour else 4,
@@ -2875,7 +2929,7 @@ class MultimodalRoutingEngine:
                         self._pack_route_candidate(
                             route_id="route-bus-subway-hybrid",
                             category="버스+지하철 환승" if is_hybrid_multimodal else "버스 연계 경로",
-                            title=f"{main_bus}번 + 지하철 복합 환승" if is_hybrid_multimodal else f"{main_bus}번 버스 환승 경로",
+                            title=f"{main_bus} + 지하철 복합 환승" if is_hybrid_multimodal else f"{main_bus} 버스 환승 경로",
                             badge="서울시 실시간 환승 API 연동",
                             badge_color="#FB923C",
                             is_ai_recommended=False,
@@ -2888,7 +2942,7 @@ class MultimodalRoutingEngine:
                             comfort_score=max(62, 90 - int(hybrid_crowd * 0.28)),
                             modes_used=list(dict.fromkeys(s["mode"] for s in segments)),
                             highlights=[
-                                f"🚌 {first_l['from_name']}에서 {main_bus}번 탑승 ({first_bus_badge})",
+                                f"🚌 {first_l['from_name']}에서 {main_bus} 탑승 ({first_bus_badge})",
                                 f"🔄 서울시 공식 실시간 대중교통 환승망 기반 최적 분기",
                                 f"💳 수도권 통합환승할인 적용 ({fare_krw:,}원)",
                             ],
@@ -3443,203 +3497,16 @@ class MultimodalRoutingEngine:
         """FactChat / BAZE LLM 추론 브리핑 노드 (API 키 미설정/오류 시 규칙 기반 XAI 브리핑 생성)"""
         t0 = time.perf_counter()
         trace = list(state.get("langgraph_trace") or [])
-
-        origin = state["origin"]
-        dest = state["destination"]
-        w_ctx = state.get("weather_context", {})
-        ai_cong = state.get("ai_congestion", {})
         routes = state.get("routes") or []
-        top_route = routes[0] if routes else {}
-
-        base_url = (
-            os.getenv("FACTCHAT_BASE_URL")
-            or os.getenv("BAZE_BASE_URL")
-            or "https://api.baze.co/v1/gateway"
-        ).rstrip("/")
-        api_key = (
-            os.getenv("FACTCHAT_API_KEY") or os.getenv("BAZE_API_KEY") or ""
-        ).strip()
-        model_name = (
-            os.getenv("FACTCHAT_MODEL_NAME") or "gpt-6-luna"
-        ).strip()
-
-        has_real_key = bool(
-            api_key
-            and not api_key.startswith("여기에_")
-            and not api_key.startswith("your_")
-            and len(api_key) > 10
+        briefing, llm_status, model_name = self._briefing_service.generate_briefing(
+            origin=state["origin"],
+            dest=state["destination"],
+            w_ctx=state.get("weather_context", {}),
+            ai_cong=state.get("ai_congestion", {}),
+            routes=routes,
+            district=state.get("district", "강남구"),
+            external_cache=self._llm_cache,
         )
-
-        from_w = w_ctx.get("from_weather") or {}
-        to_w = w_ctx.get("to_weather") or {}
-        from_d = str(w_ctx.get("from_district") or from_w.get("district") or state.get("district", "강남구"))
-        to_d = str(w_ctx.get("to_district") or to_w.get("district") or state.get("district", "강남구"))
-        from_rain = float(from_w.get("rain", w_ctx.get("rain", 0.0)))
-        to_rain = float(to_w.get("rain", w_ctx.get("rain", 0.0)))
-        from_temp = float(from_w.get("temp", w_ctx.get("temp", 15.0)))
-        to_temp = float(to_w.get("temp", w_ctx.get("temp", 15.0)))
-
-        briefing: Optional[Dict[str, Any]] = None
-        llm_status = "XAI_RULE_ENGINE"
-        cache_key = (
-            origin["name"],
-            dest["name"],
-            f"{from_d}:{round(from_rain, 1)}->{to_d}:{round(to_rain, 1)}",
-            round(float(w_ctx.get("temp", 15.0)), 0),
-            top_route.get("id", ""),
-        )
-        now_ts = time.time()
-        if cache_key in self._llm_cache:
-            c_ts, c_brief = self._llm_cache[cache_key]
-            if now_ts - c_ts < 300.0:
-                briefing = dict(c_brief)
-                llm_status = briefing.get("source", "FACTCHAT_CACHED")
-
-        fallback_reason: Optional[str] = None
-        if briefing is None:
-            if not has_real_key:
-                fallback_reason = "API_KEY_NOT_CONFIGURED"
-                logger.warning(
-                    "[FactChat] 유효한 FACTCHAT_API_KEY(또는 BAZE_API_KEY)가 .env에 설정되지 않았습니다 (더미/누락). "
-                    "내장 XAI 규칙 엔진(LANGGRAPH_XAI_ENGINE)으로 대체 브리핑을 생성합니다."
-                )
-            elif not routes:
-                fallback_reason = "NO_CANDIDATE_ROUTES"
-                logger.warning("[FactChat] 추천 후보 경로가 없어 LLM 프롬프트를 구성할 수 없습니다.")
-            else:
-                try:
-                    cand_lines = "\n".join(
-                        f"- {idx+1}순위 [{r.get('badge')}]: {r.get('title')} (소요 {r.get('total_minutes')}분, 요금 {r.get('total_fare_krw'):,}원, 환승 {r.get('transfer_count')}회, 혼잡도 {r.get('crowd_percent')}%, 종합점수 {r.get('comfort_score')}점)"
-                        for idx, r in enumerate(routes[:3])
-                    )
-                    prompt_text = (
-                        f"출발지: {origin['name']}({from_d}: {from_temp}°C, 강수 {from_rain}mm/h), "
-                        f"도착지: {dest['name']}({to_d}: {to_temp}°C, 강수 {to_rain}mm/h)\n"
-                        f"기상 게이트 판정: {w_ctx.get('weather_gate_reason')} (따릉이 허용여부={w_ctx.get('bike_enabled')})\n"
-                        f"ONNX 혼잡도 예측: 지하철 {ai_cong.get('subway_crowd')}%, 버스 {ai_cong.get('bus_crowd')}%, 따릉이 {ai_cong.get('bike_crowd')}%\n"
-                        f"후보 경로 비교:\n{cand_lines}\n"
-                        "출발지와 도착지의 국지 기상 차이 및 소요시간·환승횟수·요금·혼잡도를 비교하여 왜 1순위 경로가 가장 합리적인 선택인지(대안 경로 대비 장점 포함) 2~3문장으로 간결하고 친절하게 한국어로 브리핑해주세요."
-                    )
-                    endpoint = (
-                        f"{base_url}/chat/completions"
-                        if not base_url.endswith("/chat/completions")
-                        else base_url
-                    )
-                    resp = requests.post(
-                        endpoint,
-                        headers={
-                            "Authorization": f"Bearer {api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "model": model_name,
-                            "messages": [
-                                {
-                                    "role": "system",
-                                    "content": "당신은 서울시 기상-대중교통 멀티모달 경로 추천 AI 에이전트입니다.",
-                                },
-                                {"role": "user", "content": prompt_text},
-                            ],
-                            "max_tokens": 700,
-                            "temperature": 0.3,
-                        },
-                        timeout=8.0,
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        content = (
-                            data.get("choices", [{}])[0]
-                            .get("message", {})
-                            .get("content", "")
-                            .strip()
-                        )
-                        if content:
-                            llm_status = "FACTCHAT_LLM_LIVE"
-                            briefing = {
-                                "headline": f"🤖 FactChat LLM ({model_name}) 멀티모달 경로 브리핑",
-                                "summary": content,
-                                "weather_advice": w_ctx.get("weather_gate_reason", ""),
-                                "recommended_route_id": top_route.get("id", ""),
-                                "model": model_name,
-                                "source": "FACTCHAT_BAZE_GATEWAY",
-                                "bullets": top_route.get("highlights", []),
-                                "fallback_reason": None,
-                            }
-                            self._llm_cache[cache_key] = (now_ts, briefing)
-                        else:
-                            fallback_reason = "EMPTY_LLM_RESPONSE"
-                            logger.warning("[FactChat] LLM Gateway 응답 본문이 비어 있어 XAI 규칙 엔진으로 Fallback합니다.")
-                    else:
-                        fallback_reason = f"HTTP_{resp.status_code}"
-                        err_snippet = resp.text[:180].replace("\n", " ")
-                        logger.warning(
-                            "[FactChat] LLM Gateway 호출 실패 (HTTP %d, endpoint=%s): %s -> XAI 규칙 엔진으로 Fallback합니다.",
-                            resp.status_code,
-                            endpoint,
-                            err_snippet,
-                        )
-                except Exception as exc:
-                    fallback_reason = f"EXCEPTION_{type(exc).__name__}"
-                    logger.warning(
-                        "[FactChat] LLM Gateway 호출 중 네트워크/시스템 예외 발생 (%s: %s) -> XAI 규칙 엔진으로 Fallback합니다.",
-                        type(exc).__name__,
-                        exc,
-                    )
-
-        if briefing is None:
-            rain = float(w_ctx.get("rain", 0.0))
-            temp = float(w_ctx.get("temp", 15.0))
-            sub_crowd = int(ai_cong.get("subway_crowd", 52))
-            bus_crowd = int(ai_cong.get("bus_crowd", 58))
-            is_cross = bool(w_ctx.get("is_cross_district", False))
-
-            if from_rain <= 0.0 and to_rain > 0.0:
-                summary_text = (
-                    f"출발지({from_d} {origin['name']})는 현재 {from_temp:.1f}°C로 맑으나, "
-                    f"도착지({to_d} {dest['name']}) 권역에 시간당 {to_rain:.1f}mm의 국지성 비가 예보되어 있어 "
-                    f"LangGraph 기상 게이트가 도착 후 우천 위험이 있는 따릉이(PM) 경로를 배제하고 안전 모드로 전환했습니다. "
-                    f"32차원 ONNX 예측 기준 우천으로 인한 버스 혼잡도({bus_crowd}%) 상승이 예상되므로, "
-                    f"정시성이 보장되는 '{top_route.get('title', '지하철 최소환승 경로')}'(약 {top_route.get('total_minutes', 20)}분 소요)를 1순위로 추천합니다."
-                )
-            elif from_rain > 0.0 and to_rain <= 0.0 and is_cross:
-                summary_text = (
-                    f"도착지({to_d} {dest['name']})는 {to_temp:.1f}°C로 맑으나, "
-                    f"출발지({from_d} {origin['name']}) 권역에 시간당 {from_rain:.1f}mm의 강수가 감지되어 "
-                    f"LangGraph 기상 게이트가 출발지 따릉이(PM) First-Mile 대여를 자동 차단했습니다. "
-                    f"32차원 ONNX 모델 예측 결과 도로 정체로 인한 버스 혼잡도({bus_crowd}%) 상승이 예상되므로, "
-                    f"우천 지연 영향이 없는 '{top_route.get('title', '지하철 최소환승 경로')}'(약 {top_route.get('total_minutes', 20)}분 소요)를 1순위로 추천합니다."
-                )
-            elif rain > 0.0:
-                region_label = f"{from_d} ➔ {to_d}" if is_cross else f"{from_d}"
-                summary_text = (
-                    f"현재 {region_label} 이동 권역에 시간당 {rain:.1f}mm의 강수가 감지되어 "
-                    f"LangGraph 기상 게이트가 따릉이(PM) First/Last-Mile 구간을 자동 차단했습니다. "
-                    f"32차원 ONNX 모델 예측 결과 도로 정체로 인한 버스 혼잡도({bus_crowd}%) 상승이 예상되므로, "
-                    f"우천 지연 영향이 없는 '{top_route.get('title', '지하철 최소환승 경로')}'(약 {top_route.get('total_minutes', 20)}분 소요)를 1순위로 추천합니다."
-                )
-            else:
-                weather_label = (
-                    f"출발지({from_d} {from_temp:.1f}°C) 및 도착지({to_d} {to_temp:.1f}°C) 모두 강수 0.0mm의 쾌적한 날씨"
-                    if is_cross
-                    else f"현재 기온 {temp:.1f}°C, 강수 0.0mm의 쾌적한 날씨"
-                )
-                summary_text = (
-                    f"{weather_label}로 따릉이 First-Mile 연계가 활성화되었습니다. "
-                    f"ONNX 수요 예측 기준 지하철 혼잡도는 {sub_crowd}%, 버스 혼잡도는 {bus_crowd}% 수준이며, "
-                    f"실시간 교통 여건을 반영한 '{top_route.get('title', 'AI 멀티모달 최적 경로')}' 이용 시 "
-                    f"약 {top_route.get('total_minutes', 20)}분 만에 가장 쾌적하게 이동할 수 있습니다."
-                )
-
-            briefing = {
-                "headline": f"🧠 LangGraph × FactChat ({model_name}) 멀티모달 AI 브리핑",
-                "summary": summary_text,
-                "weather_advice": w_ctx.get("weather_gate_reason", ""),
-                "recommended_route_id": top_route.get("id", ""),
-                "model": model_name,
-                "source": "LANGGRAPH_XAI_ENGINE",
-                "bullets": top_route.get("highlights", []),
-                "fallback_reason": fallback_reason or "XAI_DEFAULT",
-            }
 
         elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
         fb_reason = briefing.get("fallback_reason")

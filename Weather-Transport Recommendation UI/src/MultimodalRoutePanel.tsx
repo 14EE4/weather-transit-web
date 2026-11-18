@@ -1,47 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { MultimodalSegment, SegmentLocalWeather, TransitRouteResult, formatDurationMinutes } from './subwayGraph'
 import { resolveDistrict } from './districtResolver'
-
-
-const MULTIMODAL_MEMORY_CACHE = new Map<string, MultimodalSearchResponse>()
-const LOCAL_STORAGE_CACHE_KEY = 'weather_transit_multimodal_cache_v7'
-
-function getCachedMultimodalResult(key: string): MultimodalSearchResponse | null {
-  if (!key) return null
-  const mem = MULTIMODAL_MEMORY_CACHE.get(key)
-  if (mem) return mem
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_CACHE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, MultimodalSearchResponse>
-        if (parsed && parsed[key]) {
-          MULTIMODAL_MEMORY_CACHE.set(key, parsed[key])
-          return parsed[key]
-        }
-      }
-    } catch {}
-  }
-  return null
-}
-
-function setCachedMultimodalResult(key: string, value: MultimodalSearchResponse): void {
-  if (!key) return
-  MULTIMODAL_MEMORY_CACHE.set(key, value)
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_CACHE_KEY)
-      const parsed: Record<string, MultimodalSearchResponse> = raw ? JSON.parse(raw) : {}
-      parsed[key] = value
-      // 최근 12개 검색 기록까지만 유지 (용량 관리)
-      const keys = Object.keys(parsed)
-      if (keys.length > 12) {
-        delete parsed[keys[0]]
-      }
-      localStorage.setItem(LOCAL_STORAGE_CACHE_KEY, JSON.stringify(parsed))
-    } catch {}
-  }
-}
+import { getCachedMultimodalResult, setCachedMultimodalResult } from './utils/multimodalCache'
 
 export interface MultimodalBriefing {
   headline: string
@@ -227,7 +187,7 @@ export default function MultimodalRoutePanel({
       return
     }
 
-    const cached = getCachedMultimodalResult(cacheKey)
+    const cached = getCachedMultimodalResult<MultimodalSearchResponse>(cacheKey)
     if (cached) {
       setData(cached)
       setLoading(false)

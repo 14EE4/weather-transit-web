@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { downloadCsv } from './utils/csvExport';
 
 export interface B2BDistrictItem {
   district: string;
@@ -137,16 +138,7 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
       d.urgency,
       `"${d.actionable_guidance.replace(/"/g, '""')}"`,
     ]);
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `b2b_fleet_rebalance_${data.weather_condition.hour}h.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsv(headers, rows, `b2b_fleet_rebalance_${data.weather_condition.hour}h.csv`);
   };
 
   return (

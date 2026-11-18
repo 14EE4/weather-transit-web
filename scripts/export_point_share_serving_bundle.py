@@ -19,6 +19,11 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from point_share_inference import normalize_bike_name, normalize_subway_name  # noqa: E402
+
 CACHE_PKL = ROOT_DIR / "benchmarks" / "cache_point_share_v3" / "stage2_priors_cache.pkl"
 OUT_GZ = ROOT_DIR / "models" / "point_share_priors.json.gz"
 
@@ -27,16 +32,6 @@ MODE_KO_TO_EN = {
     "버스": "bus",
     "따릉이": "bike",
 }
-
-
-def normalize_subway_name(raw: str) -> str:
-    """역명에서 괄호 부제·선두/후행 공백·접미어 '역'을 제거해 정규화."""
-    s = str(raw or "").strip()
-    s = re.sub(r"\(.*?\)", "", s).strip()
-    s = re.sub(r"\s+", "", s)
-    if s.endswith("역") and len(s) > 1:
-        s = s[:-1]
-    return s
 
 
 def extract_paren_aliases(raw: str) -> list[str]:
@@ -50,15 +45,6 @@ def extract_paren_aliases(raw: str) -> list[str]:
                     tok = tok[:-1]
                 aliases.append(tok)
     return aliases
-
-
-def normalize_bike_name(raw: str) -> str:
-    """따릉이 대여소명에서 접두어 '따릉이:' 및 공백·특수구분자 정규화."""
-    s = str(raw or "").strip()
-    s = re.sub(r"^따릉이\s*:\s*", "", s)
-    s = re.sub(r"\(.*?\)", "", s)
-    s = re.sub(r"\s+", "", s)
-    return s.lower()
 
 
 def _safe_float(val, default: float) -> float:

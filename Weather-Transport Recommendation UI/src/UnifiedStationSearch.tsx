@@ -31,9 +31,7 @@ type Item =
   | { kind: 'bus'; key: string; name: string; sub: string; data: BusStationResult }
   | { kind: 'bike'; key: string; name: string; sub: string; data: BikeStationResult }
 
-// 빈 문자열("")은 Docker/Nginx 리버스 프록시용 유효값이므로 `||` 대신 typeof 로 판별한다.
-const envApiBase = import.meta.env.VITE_API_BASE_URL
-const API_BASE: string = typeof envApiBase === 'string' ? envApiBase : 'http://127.0.0.1:8000'
+import { API_BASE_URL as API_BASE } from './api/client'
 
 const META = {
   subway: { icon: '🚇', label: '지하철역', color: 'var(--color-primary)', placeholder: '지하철역 이름 입력 (예: 강남, 시청)' },
@@ -70,6 +68,7 @@ export default function UnifiedStationSearch({
   const [isLocating, setIsLocating] = useState(false)
   const [error, setError] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const handleUseCurrentLocation = () => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
@@ -204,6 +203,9 @@ export default function UnifiedStationSearch({
     if (item.kind === 'subway') onSelectSubway?.(item.data)
     else if (item.kind === 'bus') onSelectBus?.(item.data)
     else onSelectBike?.(item.data)
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
   }
 
   const handleClear = () => {
@@ -215,11 +217,12 @@ export default function UnifiedStationSearch({
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { setOpen(false); return }
-    if (items.length === 0) return
-    if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+    if (e.key === 'Tab') { setOpen(false); return }
+    if (!showDropdown || items.length === 0) return
+    if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActiveIdx(i => (i + 1) % items.length)
-    } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+    } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActiveIdx(i => (i - 1 + items.length) % items.length)
     } else if (e.key === 'Enter') {
@@ -256,6 +259,7 @@ export default function UnifiedStationSearch({
           {query && (
             <button
               type="button"
+              tabIndex={-1}
               onClick={handleClear}
               title="지우기"
               style={{
@@ -282,6 +286,7 @@ export default function UnifiedStationSearch({
       }}>
         <span style={{ fontSize: 14 }}>{headerMeta?.icon ?? '🔎'}</span>
         <input
+          ref={inputRef}
           value={query}
           onChange={e => {
             const next = e.target.value
@@ -298,67 +303,74 @@ export default function UnifiedStationSearch({
             fontWeight: isRouteVariant ? 500 : 400,
           }}
         />
-        {allowCurrentLocation && (
-          <button
-            type="button"
-            onClick={handleUseCurrentLocation}
-            disabled={isLocating}
-            title="현재 내 위치(GPS)를 출발지로 설정"
-            style={{
-              background: 'rgba(56, 189, 248, 0.15)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              borderRadius: 6,
-              padding: '3px 8px',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#38BDF8',
-              cursor: isLocating ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 3,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            <span>{isLocating ? '⏳' : '📍'}</span>
-            <span>{isLocating ? '확인 중' : '내 위치'}</span>
-          </button>
-        )}
-        {allowMapPick && onPickOnMap && (
-          <button
-            type="button"
-            onClick={onPickOnMap}
-            title="지도에서 위치 직접 찍기"
-            style={{
-              background: 'rgba(52, 211, 153, 0.15)',
-              border: '1px solid rgba(52, 211, 153, 0.35)',
-              borderRadius: 6,
-              padding: '3px 8px',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#34D399',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 3,
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            <span>🎯</span>
-            <span>지도에서 찍기</span>
-          </button>
-        )}
         {query && (
           <button
             type="button"
+            tabIndex={-1}
             onClick={handleClear}
-            style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12 }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--color-muted)', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}
           >
             ✕
           </button>
         )}
       </div>
+
+      {/* 위치 지정 퀵 액션 바 (입력창 가림 방지를 위해 입력창 하단으로 분리) */}
+      {(allowCurrentLocation || (allowMapPick && onPickOnMap)) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          {allowCurrentLocation && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={handleUseCurrentLocation}
+              disabled={isLocating}
+              title="현재 내 위치(GPS)를 출발지로 설정"
+              style={{
+                background: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: 8,
+                padding: '5px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#38BDF8',
+                cursor: isLocating ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>{isLocating ? '⏳' : '📍'}</span>
+              <span>{isLocating ? '위치 확인 중' : '내 위치'}</span>
+            </button>
+          )}
+          {allowMapPick && onPickOnMap && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={onPickOnMap}
+              title="지도에서 위치 직접 찍기"
+              style={{
+                background: 'rgba(52, 211, 153, 0.14)',
+                border: '1px solid rgba(52, 211, 153, 0.35)',
+                borderRadius: 8,
+                padding: '5px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#34D399',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>🎯</span>
+              <span>지도에서 찍기</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 드롭다운 자동완성 리스트 */}
       {showDropdown && (

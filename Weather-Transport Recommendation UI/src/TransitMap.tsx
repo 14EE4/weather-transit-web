@@ -5,19 +5,21 @@ import { BUS_STOPS } from './busStopData'
 import { BIKE_STATIONS } from './bikeStopData'
 import { TransitRouteResult } from './subwayGraph'
 import { resolveDistrict, resolveDistrictNameFromPoint } from './districtResolver'
+import { API_BASE_URL } from './api/client'
 import { SUBWAY_NETWORK_GEOJSON } from './subwayNetworkLayer'
+import {
+  KOREA_BOUNDS,
+  getDistanceFromLatLonInMeters,
+  getNearestSubwayStation,
+  isDesktopDevice,
+  createGeoJsonCircle,
+} from './utils/geo'
+import {
+  calculateStopCrowd,
+  getCrowdLevel,
+  applyMarkerCrowdStyle,
+} from './utils/mapCrowd'
 
-const getApiBaseUrl = (): string => {
-  const envVal = (import.meta as any).env?.VITE_API_BASE_URL
-  if (typeof envVal === 'string') return envVal
-  if (typeof window !== 'undefined' && window.location) {
-    const proto = window.location.protocol || 'http:'
-    const host = window.location.hostname || 'localhost'
-    return `${proto}//${host}:8000`
-  }
-  return 'http://localhost:8000'
-}
-const API_BASE_URL = getApiBaseUrl()
 // API Base URL: Docker Nginx 환경에서는 동일 오리진("") 리버스 프록시 적용
 if (import.meta.env.DEV) {
   console.log('[API 환경변수]', import.meta.env.VITE_API_BASE_URL || '(동일 오리진 프록시)')
@@ -53,77 +55,6 @@ const DEFAULT_MAP_BEARING = 0 // 방위각 0° = 정북 방향
 interface SavedMapView {
   center: [number, number]
   zoom: number
-}
-
-// ── 대한민국 영역 경계 (전 세계 타일 로딩 방지 및 한국 영토 내 이동 제한) ──
-const KOREA_BOUNDS: [[number, number], [number, number]] = [
-  [124.0, 32.8], // 서남단 (서해 격렬비열도/마라도 남단)
-  [132.0, 39.2], // 동북단 (동해 독도 동단/휴전선 북방)
-]
-
-/** [이슈 #90] 두 위경도 좌표 간 Haversine 거리 계산 (미터 단위) */
-function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3
-  const phi1 = (lat1 * Math.PI) / 180
-  const phi2 = (lat2 * Math.PI) / 180
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return Math.round(R * c)
-}
-
-/** [이슈 #90] 좌표 기준 가장 가까운 수도권 지하철역 검색 */
-function getNearestSubwayStation(coords: [number, number]): { name: string; distanceMeters: number; lines: string[] } | null {
-  if (!coords || !SUBWAY_STATIONS || SUBWAY_STATIONS.length === 0) return null
-  let nearest: { name: string; distanceMeters: number; lines: string[] } | null = null
-  let minDistance = Infinity
-
-  for (const s of SUBWAY_STATIONS) {
-    const dist = getDistanceFromLatLonInMeters(coords[1], coords[0], s.coords[1], s.coords[0])
-    if (dist < minDistance) {
-      minDistance = dist
-      nearest = { name: s.name, distanceMeters: dist, lines: s.lines || [] }
-    }
-  }
-  return nearest
-}
-
-/** [이슈 #90] 데스크톱(PC) 브라우저 환경 판별 (터치/모바일 UA 배제) */
-const isDesktopDevice = () => {
-  if (typeof window === 'undefined') return true
-  const isTouch = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0)
-  const isMobileUa = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-  return !isTouch && !isMobileUa
-}
-
-/** [이슈 #90] GPS 오차 반경 원형 GeoJSON 폴리곤 생성 헬퍼 */
-function createGeoJsonCircle(center: [number, number], radiusInMeters: number, points = 64) {
-  const [lng, lat] = center
-  const coords: [number, number][] = []
-  const km = Math.max(0.005, radiusInMeters / 1000)
-  const distanceX = km / (111.32 * Math.cos((lat * Math.PI) / 180))
-  const distanceY = km / 110.574
-
-  for (let i = 0; i < points; i++) {
-    const theta = (i / points) * (2 * Math.PI)
-    const x = distanceX * Math.cos(theta)
-    const y = distanceY * Math.sin(theta)
-    coords.push([lng + x, lat + y])
-  }
-  coords.push(coords[0])
-
-  return {
-    type: 'Feature' as const,
-    geometry: {
-      type: 'Polygon' as const,
-      coordinates: [coords],
-    },
-    properties: {},
-  }
 }
 
 const getSavedMapView = (): SavedMapView | null => {
@@ -519,57 +450,16 @@ export default function TransitMap({
 
   const updateCollisionsRef = useRef<() => void>(() => {})
 
-  // 혼잡도 계산 헬퍼 (AI 시계열 예측 시뮬레이션: 역별 위계, 시간대별 출퇴근 첨두곡선, 날씨 강수 민감도 반영)
-  const calculateCrowd = (stop: TransitStop) => {
-    const base = stop.baseCrowd || 55
-
-    // 1. 시간대(selectedTime) 승하차 계수 반영 (출퇴근 피크 / 낮 시간 완화 / 심야 급감)
-    const hour = parseInt(selectedTime.replace(/[^0-9]/g, ''), 10) || 8
-    let timeMultiplier = 1.0
-    if (hour >= 8 && hour <= 9) {
-      timeMultiplier = 1.25 // 오전 출근 첨두시간 (Peak)
-    } else if (hour === 7) {
-      timeMultiplier = 1.15 // 출근 초입
-    } else if (hour >= 18 && hour <= 19) {
-      timeMultiplier = 1.22 // 퇴근 첨두시간 (Peak)
-    } else if (hour === 17) {
-      timeMultiplier = 1.15 // 퇴근 초입 (17시)
-    } else if (hour === 20) {
-      timeMultiplier = 1.12 // 퇴근 후반
-    } else if (hour >= 12 && hour <= 13) {
-      timeMultiplier = 1.02 // 점심시간 이동
-    } else if (hour >= 10 && hour <= 16) {
-      timeMultiplier = 0.78 // 평시 낮 시간대 (Off-peak)
-    } else if (hour >= 21 && hour <= 22) {
-      timeMultiplier = 0.70 // 늦은 저녁
-    } else {
-      timeMultiplier = 0.42 // 심야 및 첫차 전 (23시~06시)
-    }
-
-    // 2. 고유 역 해시 미세 편차 (±3% 결정론적 분산으로 인접 역간 자연스러운 편차 부여)
-    const hash = stop.name.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)
-    const hashOffset = (Math.abs(hash) % 7) - 3
-
-    // 3. 기상(강수량 rainMm) 영향 반영
-    if (stop.type === 'bike') {
-      // 비가 오면 자전거(따릉이) 이용 급격히 감소
-      const bikeRainPenalty = Math.round(stop.rainSensitivity * rainMm * 7.5)
-      const crowd = Math.round(base * (hour >= 23 || hour <= 5 ? 0.35 : 1.0)) + bikeRainPenalty
-      return Math.max(5, Math.min(95, crowd))
-    } else {
-      // 비가 오면 대중교통(지하철/버스) 집중 및 환승 혼잡 증가
-      const rainBonus = Math.min(15, Math.round(stop.rainSensitivity * rainMm * 2.2))
-      const crowd = Math.round(base * timeMultiplier) + hashOffset + rainBonus
-      return Math.max(10, Math.min(99, crowd))
-    }
-  }
-
-  // 혼잡도 색상 및 라벨 헬퍼
-  const getCrowdLevel = (crowd: number) => {
-    if (crowd < 45) return { label: '여유', color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' }
-    if (crowd < 75) return { label: '보통', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.15)' }
-    return { label: '혼잡', color: '#F43F5E', bg: 'rgba(244, 63, 94, 0.15)' }
-  }
+  // 혼잡도 계산 헬퍼 (순수 함수: utils/mapCrowd.ts 위임)
+  const calculateCrowd = (stop: TransitStop) =>
+    calculateStopCrowd(
+      stop.baseCrowd,
+      stop.rainSensitivity,
+      stop.name,
+      stop.type,
+      selectedTime,
+      rainMm
+    )
 
   // 거점별 AI 추론 캐시 우선 혼잡도 조회 (미조회 거점은 휴리스틱 폴백)
   const getStopCrowdInfo = (stop: TransitStop): { crowd: number; label: string; color: string } => {
@@ -578,43 +468,6 @@ export default function TransitMap({
     const crowd = calculateCrowd(stop)
     const { label, color } = getCrowdLevel(crowd)
     return { crowd, label, color }
-  }
-
-  // 알약·점 마커 DOM 전체(배지, 테두리, 화살표, 원형 점, 툴팁)에 혼잡도 색상·수치 일괄 반영
-  const applyMarkerCrowdStyle = (
-    el: HTMLElement,
-    crowdInfo: { crowd: number; label: string; color: string },
-    isSelected = false,
-  ) => {
-    const pillBadge = el.querySelector('.marker-crowd-badge') as HTMLElement | null
-    const pillBox = el.querySelector('.marker-pill') as HTMLElement | null
-    const pillArrow = el.querySelector('.marker-pill-arrow') as HTMLElement | null
-    const dotCircle = el.querySelector('.marker-dot-circle') as HTMLElement | null
-    const dotTooltip = el.querySelector('.marker-dot-tooltip') as HTMLElement | null
-    const dotTooltipBadge = el.querySelector('.marker-dot-tooltip-badge') as HTMLElement | null
-
-    if (pillBadge) {
-      pillBadge.textContent = `${crowdInfo.crowd}%`
-      pillBadge.style.background = crowdInfo.color
-    }
-    if (pillBox) {
-      pillBox.style.borderColor = crowdInfo.color
-      pillBox.style.boxShadow = isSelected ? `0 0 20px ${crowdInfo.color}` : '0 4px 14px var(--app-shadow)'
-    }
-    if (pillArrow) {
-      pillArrow.style.borderTopColor = crowdInfo.color
-    }
-    if (dotCircle) {
-      dotCircle.style.background = crowdInfo.color
-      dotCircle.style.boxShadow = `0 2px 8px var(--app-shadow), 0 0 10px ${crowdInfo.color}bb`
-    }
-    if (dotTooltip) {
-      dotTooltip.style.borderColor = crowdInfo.color
-    }
-    if (dotTooltipBadge) {
-      dotTooltipBadge.textContent = `${crowdInfo.crowd}% (${crowdInfo.label})`
-      dotTooltipBadge.style.color = crowdInfo.color
-    }
   }
 
   // 지도 전체/주변 거점에 대해 Stage 1(32d) × Stage 2(16d) 일괄 ONNX AI 혼잡도 조회 및 캐시 동기화

@@ -492,6 +492,67 @@ class TimeseriesCacheManager:
             "db_path": self.db_path
         }
 
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """SQLite 시계열 캐시 DB 파일 및 실제 테이블 레코드 통계 조회"""
+        if not os.path.exists(self.db_path):
+            return {"exists": False, "count": 0, "size_kb": 0, "path": self.db_path}
+
+        try:
+            size_kb = round(os.path.getsize(self.db_path) / 1024, 1)
+            conn = sqlite3.connect(self.db_path, timeout=1.0)
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT count(*) FROM weather_observations")
+                w_row = cur.fetchone()
+                cur.execute("SELECT count(*) FROM transit_snapshots")
+                t_row = cur.fetchone()
+            finally:
+                conn.close()
+            weather_count = int(w_row[0]) if w_row else 0
+            transit_count = int(t_row[0]) if t_row else 0
+            return {
+                "exists": True,
+                "count": weather_count + transit_count,
+                "weather_count": weather_count,
+                "transit_count": transit_count,
+                "size_kb": size_kb,
+                "path": self.db_path,
+            }
+        except Exception as exc:
+            return {"exists": True, "count": 0, "size_kb": 0, "path": self.db_path, "error": str(exc)}
+
+    def clear_cache(self) -> Dict[str, Any]:
+        """인메모리 링버퍼 및 SQLite 시계열 테이블(weather_observations, transit_snapshots) 초기화"""
+        with self._lock:
+            self._weather_cache.clear()
+            self._transit_cache.clear()
+
+        cleared_db = False
+        weather_deleted = 0
+        transit_deleted = 0
+        if os.path.exists(self.db_path):
+            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT count(*) FROM weather_observations")
+                weather_deleted = int((cur.fetchone() or [0])[0])
+                cur.execute("SELECT count(*) FROM transit_snapshots")
+                transit_deleted = int((cur.fetchone() or [0])[0])
+                cur.execute("DELETE FROM weather_observations")
+                cur.execute("DELETE FROM transit_snapshots")
+                conn.commit()
+                conn.execute("VACUUM")
+            finally:
+                conn.close()
+            cleared_db = True
+
+        return {
+            "cleared_sqlite": cleared_db,
+            "weather_deleted": weather_deleted,
+            "transit_deleted": transit_deleted,
+            "db_path": self.db_path,
+        }
+
 
 # 전역 싱글톤 인스턴스
 timeseries_cache = TimeseriesCacheManager()

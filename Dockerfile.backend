@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 애플리케이션 소스, AI 모델 파일, 데이터셋 복사
 #  - *.py: main.py, timeseries_cache.py, feature_schema.py, logging_utils.py 등 신규 파이썬 스크립트 일괄 복사
 COPY *.py ./
+COPY services/ ./services/
 COPY models/ ./models/
 COPY data/ ./data/
 # 피처 스키마(SSoT) — 컨테이너에서도 기동 시 차원·순서 검증을 수행합니다.

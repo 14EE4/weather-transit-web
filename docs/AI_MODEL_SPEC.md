@@ -1,5 +1,6 @@
 # 🧩 AI 모델 사양서 (AI Model Specification)
 
+> **상위 가이드**: **[AI 모델 통합 상위 가이드 (AI_MODEL_OVERVIEW.md)](./AI_MODEL_OVERVIEW.md)**  
 > **문서 버전**: v2.2-multiyear-32d-lgb-deepdive  
 > **최종 수정일**: 2026-11-12  
 > **적용 모델**: LightGBM ONNX 3종 (`models/lgb_{bike,bus,subway}_demand.onnx`)  

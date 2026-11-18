@@ -1,5 +1,6 @@
 # 📈 CURRENT MODEL PERFORMANCE REPORT (현행 모델 성능 리포트)
 
+> **상위 가이드**: **[AI 모델 통합 상위 가이드 (AI_MODEL_OVERVIEW.md)](./AI_MODEL_OVERVIEW.md)**  
 > **평가 일시**: 2026-10-29  
 > **모델 버전**: v2.1-multiyear-32d (2023~2025 3개년 28열 통합 정제 데이터 기반)  
 > **적용 모델**: LightGBM Regressor → ONNX Export (`models/lgb_*.onnx`)

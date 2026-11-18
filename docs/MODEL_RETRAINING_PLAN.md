@@ -1,5 +1,6 @@
 # 🧠 모델 재학습 계획서 — 지점 단위(역·정류소·대여소) 수요 분배 모델 및 자치구 모델 v3 (`MODEL_RETRAINING_PLAN`)
 
+> **상위 가이드**: **[AI 모델 통합 상위 가이드 (AI_MODEL_OVERVIEW.md)](./AI_MODEL_OVERVIEW.md)**  
 > **상태**: **Phase 0~5 전 단계 완료 (`2026-11-16` · PR #118 + 서빙/UI 통합 완료)**  
 > **대상 모델**: Stage 1 LightGBM 회귀 3종(`v2.1-multiyear-32d`, 32d) × Stage 2 지점 점유율 ONNX 3종(`v3.0-point-share-16d`, 16d)  
 > **신규 데이터**: `data/통합데이터/{23,24,25}_통합데이터/정류장_대여소_역_별_퍼센트데이터/` (팀원 추가분, 약 `18.69GB`)  

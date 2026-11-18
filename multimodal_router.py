@@ -2758,6 +2758,21 @@ class MultimodalRoutingEngine:
                             st_cnt = leg.get("station_count") or max(2, round(leg_dist_km / 1.1))
                             sub_mins = max(3, round(st_cnt * 2.2))
 
+                            # 실제 지하철 노선 역간 좌표 조회 (직선 연결 방지)
+                            sub_coords = [leg["from_coords"], leg["to_coords"]]
+                            sub_from_clean = re.sub(r"역$", "", re.sub(r"\(.*?\)", "", str(leg["from_name"] or "")).strip())
+                            sub_to_clean = re.sub(r"역$", "", re.sub(r"\(.*?\)", "", str(leg["to_name"] or "")).strip())
+                            if sub_from_clean and sub_to_clean and sub_from_clean != sub_to_clean:
+                                sub_route = self.search_subway_route(sub_from_clean, sub_to_clean)
+                                if sub_route and isinstance(sub_route.get("path"), list):
+                                    path_coords = [
+                                        p["coords"]
+                                        for p in sub_route["path"]
+                                        if isinstance(p, dict) and isinstance(p.get("coords"), list) and len(p["coords"]) >= 2
+                                    ]
+                                    if len(path_coords) >= 2:
+                                        sub_coords = path_coords
+
                             segments.append({
                                 "mode": "subway",
                                 "label": f"🚇 {s_line}",
@@ -2769,7 +2784,7 @@ class MultimodalRoutingEngine:
                                 "distance_km": leg_dist_km,
                                 "fare_krw": 1400,
                                 "color": s_color,
-                                "coords": [leg["from_coords"], leg["to_coords"]],
+                                "coords": sub_coords,
                                 "live_badge": f"{s_line} 정시 운행",
                             })
                             transfer_step_names.append(leg["from_name"])

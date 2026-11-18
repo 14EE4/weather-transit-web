@@ -2429,7 +2429,12 @@ export default function AppM() {
               focusedCoords={focusedCoords}
               selectedBusStation={selectedBusStation}
               selectedStop={selectedStop}
-              onSelectStop={handleSelectStop}
+              onSelectStop={(stop, details) => {
+                handleSelectStop(stop, details)
+                if (!stop) {
+                  setFocusedCoords(null)
+                }
+              }}
               activeRoute={activeRoute}
               onClearRoute={() => {
                 setActiveRoute(null)

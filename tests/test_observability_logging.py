@@ -1,5 +1,6 @@
 import unittest
 import logging
+import httpx
 from in_memory_log_handler import InMemoryLogHandler
 from logging_utils import mask_sensitive_text, sanitize_exception
 from fastapi.testclient import TestClient
@@ -64,6 +65,46 @@ class TestObservabilityAndGracefulDegradation(unittest.TestCase):
         last_entry = self.handler.buffer[-1]
         self.assertNotIn("184d553816a7f8e4356e4552548603dd2d51d356797890e549b515f518e8c2b9", last_entry["message"])
         self.assertIn("serviceKey=184d****", last_entry["message"])
+
+    def test_sanitize_exception_empty_and_domain(self):
+        """빈 메시지 예외(httpx.ReadTimeout 등) 클래스명 보존 및 도메인 분류 검증"""
+        self.assertEqual(sanitize_exception(httpx.ReadTimeout("")), "ReadTimeout")
+        self.assertEqual(sanitize_exception(httpx.ConnectTimeout("")), "ConnectTimeout")
+
+        val_msg = sanitize_exception(ValueError("bad url serviceKey=184d553816a7f8e4secret"))
+        self.assertIn("ValueError", val_msg)
+        self.assertIn("serviceKey=184d****", val_msg)
+        self.assertNotIn("184d553816a7f8e4secret", val_msg)
+
+        # 새 간결 로그 문자열이 의도한 도메인 배지로 분류되는지 확인
+        self.assertEqual(
+            self.handler._detect_domain(
+                "weather_transit_api.kma_forecast",
+                "KMA Grid [PCP] 2026111823 error: ReadTimeout (기존 예보 폴백)",
+            ),
+            "기상청",
+        )
+        self.assertEqual(
+            self.handler._detect_domain(
+                "weather_transit_api",
+                "Seoul Bus API error: ReadTimeout (스냅샷/배차 폴백)",
+            ),
+            "버스",
+        )
+        self.assertEqual(
+            self.handler._detect_domain(
+                "weather_transit_api",
+                "Seoul Subway API error: ReadTimeout (배차 폴백)",
+            ),
+            "지하철",
+        )
+        self.assertEqual(
+            self.handler._detect_domain(
+                "weather_transit_api",
+                "Seoul bike API error: ReadTimeout (스냅샷 폴백)",
+            ),
+            "따릉이",
+        )
 
     def test_nearby_bus_stations_graceful_degradation(self):
         """서울시 버스 API 일시 장애/서킷 오픈 시 502 에러가 아닌 200 OK 빈 목록 Fallback 검증"""

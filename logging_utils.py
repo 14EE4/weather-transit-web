@@ -40,8 +40,16 @@ def mask_sensitive_text(text: Any) -> str:
     return s
 
 
-def sanitize_exception(exc: Exception) -> str:
+def sanitize_exception(exc: Optional[Exception]) -> str:
     """
-    예외 객체의 문자열 표현에서 민감정보(URL 쿼리스트링 API 키 등)를 마스킹한 안전한 텍스트 반환
+    예외 객체의 문자열 표현에서 민감정보(URL 쿼리스트링 API 키 등)를 마스킹한 안전한 텍스트 반환.
+    `httpx.ReadTimeout("")` 처럼 str(exc)가 빈 문자열인 경우에도 예외 클래스명(`ReadTimeout` 등)이 남도록 보강합니다.
     """
-    return mask_sensitive_text(str(exc))
+    if exc is None:
+        return ""
+    cls_name = type(exc).__name__
+    raw_msg = str(exc).strip()
+    if not raw_msg:
+        return cls_name
+    masked = mask_sensitive_text(raw_msg)
+    return masked if cls_name in masked else f"{cls_name}: {masked}"

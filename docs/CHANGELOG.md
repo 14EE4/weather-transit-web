@@ -8,6 +8,20 @@
 
 ## [2026-11-18]
 
+### 📜 빈 예외 메시지(`ReadTimeout`) 보강 및 주요 경고/폴백 로그 트러블슈팅 가이드 문서화 (이슈 #129)
+- **배경/목적**:
+  - `httpx.ReadTimeout("")` 처럼 기본 문자열이 비어 있는 예외 발생 시 서버 로그에 `KMA Grid [PCP] 2026111823 error: ` 처럼 에러명이 비어 보이는 문제와, 기상청·서울시 버스 OpenAPI·FactChat LLM 경고(`WARNING`) 로그의 원인과 무중단 폴백 동작을 쉽게 파악할 수 있도록 문서화할 필요성 확인.
+  - 로그 콘솔 가독성을 유지하기 위해 로그 자체는 핵심 예외명과 짧은 폴백 표시(`1줄`)만 남기고, 상세 원인 및 대응 가이드는 공식 로깅 정책 문서(`docs/LOGGING_POLICY.md`)로 통합 정리.
+- **조치 내역**:
+  1. **빈 예외 메시지 클래스명 보강 (`logging_utils.py`)**:
+     - `sanitize_exception(exc)`가 `str(exc).strip()`이 비어 있는 경우 예외 클래스명(`ReadTimeout`, `ConnectTimeout` 등)을 반환하고, 메시지가 있는 경우 민감정보 마스킹 후 클래스명 프리픽스를 보존하도록 개선.
+  2. **핵심 API 경고 로그 `1줄` 간결화 (`kma_forecast.py`, `main.py`, `multimodal_router.py`)**:
+     - 기상청 단기예보(`KMA Grid ... (기존 예보 폴백)`), 지하철(`(배차 폴백)`), 버스(`(스냅샷/배차 폴백)`), 따릉이(`(스냅샷 폴백)`), 환승경로(`(다익스트라 폴백)`) 경고 로그에 `sanitize_exception()` 적용 및 짧은 폴백 표기 추가.
+  3. **트러블슈팅 가이드 신설 (`docs/LOGGING_POLICY.md` `§8`)**:
+     - 한눈에 보는 경고 로그 요약표(`§8.1`), 기상청 격자 타임아웃 원리(`§8.2`), 서울시 버스 OpenAPI 장애 진단 4대 케이스(`§8.3` — 서버 지연/5종 API 활용신청 누락/정상 0건·운행종료/트래픽 한도), FactChat LLM 빈 본문 응답 폴백(`§8.4`) 정리.
+  4. **테스트 & 문서 동기화 (`tests/test_observability_logging.py`, `README.md`, `docs/TODO.md`)**:
+     - `test_sanitize_exception_empty_and_domain` 추가(빈 `httpx.ReadTimeout`/`ConnectTimeout`, 마스킹+클래스명, 도메인 배지 분류 검증).
+
 ### 🧭 멀티모달 경로 탐색 시 승·하차 역·정류소·대여소별 Stage 1×Stage 2 AI 혼잡도 연동 (이슈 #126)
 - **배경/목적**:
   - 기존 멀티모달 경로 탐색(`POST /api/v1/routes/multimodal-search`)은 물리 좌표·국지 날씨·환승 거리 등은 정류장 단위로 계산했으나, 경로 혼잡도(`crowd_percent`) 및 효용 페널티에는 Stage 1(`32d`) 자치구 평균 혼잡도만 적용되어 동일 자치구 내 `강남역➔역삼역`과 `학여울역➔대치역`의 경로 혼잡도가 같게 계산되는 한계가 있었음.

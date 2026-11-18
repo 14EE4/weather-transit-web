@@ -76,47 +76,6 @@ SEOUL_SUBWAY_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")
 SEOUL_BIKE_KEY = os.getenv("SEOUL_BIKE_API_KEY") or os.getenv("SEOUL_DATA_API_KEY")
 DATA_GO_KR_BUS_KEY = os.getenv("DATA_GO_KR_API_KEY")
 
-# 서울시 25개 자치구 및 수도권 주요 인접 도시 기상청 격자좌표 (nx, ny) 매핑
-DISTRICT_KMA_GRID = {
-    # 서울시 25개 자치구
-    "강남구": {"nx": 61, "ny": 126},
-    "강동구": {"nx": 62, "ny": 126},
-    "강북구": {"nx": 61, "ny": 128},
-    "강서구": {"nx": 58, "ny": 126},
-    "관악구": {"nx": 59, "ny": 125},
-    "광진구": {"nx": 62, "ny": 126},
-    "구로구": {"nx": 58, "ny": 125},
-    "금천구": {"nx": 59, "ny": 124},
-    "노원구": {"nx": 61, "ny": 129},
-    "도봉구": {"nx": 61, "ny": 129},
-    "동대문구": {"nx": 61, "ny": 127},
-    "동작구": {"nx": 59, "ny": 125},
-    "마포구": {"nx": 59, "ny": 127},
-    "서대문구": {"nx": 59, "ny": 127},
-    "서초구": {"nx": 61, "ny": 125},
-    "성동구": {"nx": 61, "ny": 127},
-    "성북구": {"nx": 61, "ny": 127},
-    "송파구": {"nx": 62, "ny": 126},
-    "양천구": {"nx": 58, "ny": 126},
-    "영등포구": {"nx": 58, "ny": 126},
-    "용산구": {"nx": 60, "ny": 126},
-    "은평구": {"nx": 59, "ny": 127},
-    "종로구": {"nx": 60, "ny": 127},
-    "중구": {"nx": 60, "ny": 127},
-    "중랑구": {"nx": 62, "ny": 128},
-
-    # 수도권 주요 인접 광역 관문 도시 (출퇴근 연계축)
-    "성남시": {"nx": 62, "ny": 123},  # 분당구 / 판교 테크노밸리
-    "광명시": {"nx": 58, "ny": 125},  # 철산 / 광명역
-    "부천시": {"nx": 57, "ny": 125},  # 부천역 / 중동
-    "고양시": {"nx": 57, "ny": 128},  # 일산 / 삼송
-    "하남시": {"nx": 64, "ny": 126},  # 미사강변도시
-    "수원시": {"nx": 60, "ny": 121},  # 수원역 / 광교
-    "안양시": {"nx": 59, "ny": 123},  # 평촌 / 인덕원
-    "남양주시": {"nx": 64, "ny": 128}, # 다산 / 별내
-    "인천시": {"nx": 55, "ny": 124},  # 인천광역시 (부평·송도·구월)
-}
-
 # ==============================================================================
 # 공공 API 서킷 브레이커 (Circuit Breaker) 및 장애 대비 복원력(Resilience) 계층
 # ==============================================================================
@@ -507,10 +466,10 @@ def resolve_weather_target(
         if key in name_to_check or key in d_clean:
             return city_name, (calc_nx or nx), (calc_ny or ny)
 
-    # 서울 25개 자치구 정규화
+    # 서울 25개 자치구 정규화 (SSoT: kma_forecast.DISTRICT_GRID_MAP)
     norm_d = normalize_district_name(name_to_check if name_to_check != "강남구" else d_clean)
-    grid = DISTRICT_KMA_GRID.get(norm_d, {"nx": 61, "ny": 126})
-    return norm_d, (calc_nx or grid["nx"]), (calc_ny or grid["ny"])
+    grid_nx, grid_ny = DISTRICT_GRID_MAP.get(norm_d, (61, 126))
+    return norm_d, (calc_nx or grid_nx), (calc_ny or grid_ny)
 
 # ==============================================================================
 # 2. ONNX 세션 관리 및 Cold Start 방지 인메모리 로더
@@ -1341,24 +1300,7 @@ async def clear_admin_cache():
     시계열 캐시(SQLite timeseries_cache.db) 및 인메모리 단기 캐시를 즉시 비우고 외부 API 강제 재호출을 준비
     """
     try:
-        # SQLite DB 레코드 삭제
-        db_candidates = [
-            os.path.join(os.getcwd(), "timeseries_cache.db"),
-            os.path.join(os.getcwd(), "data", "timeseries_cache.db"),
-            "/app/data/timeseries_cache.db",
-            "/app/timeseries_cache.db",
-        ]
-        cleared_db = False
-        for p in db_candidates:
-            if os.path.exists(p):
-                import sqlite3
-                conn = sqlite3.connect(p)
-                cur = conn.cursor()
-                cur.execute("DELETE FROM timeseries_cache")
-                cur.execute("VACUUM")
-                conn.commit()
-                conn.close()
-                cleared_db = True
+        cache_result = timeseries_cache.clear_cache()
 
         # 인메모리 단기 캐시 클리어
         global _weather_cache, _subway_cache, _bus_cache, _bike_snapshot_cache, _map_crowds_cache
@@ -1372,7 +1314,9 @@ async def clear_admin_cache():
         return {
             "status": "ok",
             "message": "시계열 캐시 및 인메모리 스냅샷이 성공적으로 초기화되었습니다.",
-            "cleared_sqlite": cleared_db,
+            "cleared_sqlite": cache_result["cleared_sqlite"],
+            "weather_deleted": cache_result["weather_deleted"],
+            "transit_deleted": cache_result["transit_deleted"],
             "timestamp": get_kst_now().isoformat()
         }
     except Exception as exc:

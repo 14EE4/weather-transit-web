@@ -3,7 +3,7 @@
 > **상위 프로젝트**: [Weather & Transit Web](../README.md)  
 > **시스템 아키텍처**: [SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)  
 > **백엔드 서버 명세**: [BACKEND_INFERENCE_SERVER.md](./BACKEND_INFERENCE_SERVER.md)  
-> **최종 개정일**: `2026-11-03` | **문서 버전**: `v1.0`
+> **최종 개정일**: `2026-11-18` | **문서 버전**: `v1.1`
 
 ---
 
@@ -31,7 +31,7 @@ flowchart TD
     Client["브라우저 클라이언트 (React SPA)"]
     
     subgraph L1["Layer 1: 클라이언트 로컬 캐시"]
-        LocalStorage["LocalStorage<br>• 멀티모달 경로 캐시 (최근 12개)<br>• 출발/도착지 및 뷰포트 상태"]
+        LocalStorage["LocalStorage · React Ref<br>• 멀티모달 경로 캐시 (최근 12개)<br>• AI 마커 캐시 (aiCrowdCacheRef)<br>• 중복 요청 방지 Lock (inFlightBatchIdsRef)"]
     end
     
     subgraph L2["Layer 2: 백엔드 인메모리 캐시 (FastAPI RAM)"]
@@ -39,6 +39,7 @@ flowchart TD
         BikeCache["따릉이 전역 스냅샷 (TTL 60초)"]
         SubwayCache["지하철 실시간 도착 (TTL 15초)"]
         BusCache["버스 실시간 도착 (TTL 15초)"]
+        MapCrowdCache["지도 AI 배치 공용 캐시 (_map_crowds_cache · TTL 15분)"]
         RingBuffer["시계열 Deque 링 버퍼 (초저지연 0.1ms)"]
         CB["서킷 브레이커 & Last-Known-Good"]
     end
@@ -79,6 +80,35 @@ flowchart TD
 | **🧠 32차원 시계열 피처** | L2 + L3 | `{district}_{hour}` | **`영속 + 100μs`** | `timeseries_cache.py`: 인메모리 Deque + SQLite WAL 저장소 연동. 1시간 래그 및 3시간 이동평균 실시간 공급 |
 | **🎯 지도 전체 AI 배치 혼잡도** | L2 (RAM) + L1 Ref | `{date}\|h{hour}\|r{rain}\|t{2deg}` | **`15분`** (`900초`) | `POST /api/v1/predict/map-crowds`: 최초 접속자가 시간대별 전 거점(`Stage 1 × Stage 2`) 배치를 계산·저장하면 동일 시간대 후속 사용자에게 `<1ms` 즉시 공유(`POST /api/v1/admin/cache/clear`로 초기화 가능) |
 | **🗺️ 멀티모달 경로 검색** | L1 (브라우저) | `{from}\|{to}\|{coords}\|{hour}\|{temp}\|{rain}` | **`최근 12개`** | `weather_transit_multimodal_cache_v5`: 동일 시간대·날씨 재검색 시 네트워크 트래픽 0 건 |
+
+### 3.1 지도 전체 거점 AI 배치 추론 & 다중 사용자 공용 캐싱 메커니즘 (`_map_crowds_cache`)
+
+지도 진입 시 수백 개의 역·정류소·대여소 마커를 매번 개별 추론하거나 클라이언트 휴리스틱(`calculateCrowd`)으로 띄우지 않고, **L1(브라우저 Ref) + L2(FastAPI 서버 RAM 공용 버킷)** 2계층 인메모리 해시 캐시와 **부분 증분 계산(Delta Fill)** 을 결합해 전 사용자가 동일한 AI 예측치를 `1ms` 미만으로 공유합니다.
+
+```mermaid
+flowchart LR
+    U1["사용자 A 접속<br>(17시, 8.1°C)"] -->|"1. 미캐싱 거점 요청"| KEY["양자화 캐시 키 생성<br>2026-11-18|h17|r0.0|t8"]
+    U2["사용자 B 접속<br>(17시, 8.4°C)"] -->|"3. 동일 키 매칭"| KEY
+    KEY --> BUCKET{"서버 RAM 버킷 조회<br>(_map_crowds_cache)"}
+    BUCKET -->|"2. Miss (신규 거점만 추출)"| ONNX["Stage 1 (필요 자치구) +<br>Stage 2 (수단별 N×16 배치 1회)"]
+    ONNX -->|"버킷에 병합 저장"| BUCKET
+    BUCKET -->|"4. Hit (연산 0회 · 0.06~0.07ms)"| U2
+```
+
+1. **기온·강수 양자화(Quantization) 복합 캐시 키 (`main.py::_build_map_crowds_cache_key`)**:
+   - 사용자별 미세 기온 차이(`8.1°C` vs `8.4°C`)로 인해 캐시가 쪼개지는 문제를 방지하기 위해 **기온은 `2°C` 단위 버킷**, **강수량은 `0.1mm` 단위**로 정규화합니다.
+   - 키 형식: `{YYYY-MM-DD}|h{hour}|r{rain:.1f}|t{round(temp/2)*2}` (예: `2026-11-18|h17|r0.0|t8`). 같은 시간대에 `7.1°C~8.9°C` 구간의 모든 사용자가 하나의 슬롯을 공유합니다.
+2. **2계층 버킷 구조와 부분 증분 적재 (Delta Fill, `main.py::predict_map_crowds`)**:
+   - 서버 버킷 내부는 `[1층] district_volumes` (자치구별 `Stage 1 32d` 총수요)와 `[2층] items` (거점 ID별 `Stage 2 16d` 최종 `{crowd, label, color}`) 두 개의 해시맵으로 구성됩니다.
+   - 요청 수신 시 이미 `items`에 존재하는 거점은 건너뛰고 `missing_items`만 계산해 기존 버킷에 병합합니다. 따라서 줌인 중 주변 실시간 버스정류장이 추가되어도 신규 정류장만 증분 계산(이때 `district_volumes`는 이미 캐시되어 있으므로 `Stage 1` 생략)되며, 동일 시간대 후속 사용자 접속 시에는 **`missing_items = 0` (`cache_hit: true`, 실측 `0.06~0.07ms`)** 로 즉시 응답합니다.
+   - 응답 페이로드 역시 버킷 전체가 아니라 해당 클라이언트가 요청한 `req.items` 부분집합만 직렬화해 반환합니다.
+3. **벡터화 행렬 배치 추론 (`point_share_inference.py::predict_points_batch`)**:
+   - 캐시 미스 시에도 `for` 루프 단건 추론 대신 `subway`·`bus`·`bike` 수단별 `(N_mode, 16)` `float32` 2차원 행렬을 조립해 `InferenceSession.run()`을 **수단당 단 1회(최대 3회)** 만 실행합니다.
+4. **메모리 보호 장치 (TTL 만료 정리 + FIFO 상한 축출, `main.py::_get_or_create_map_crowds_bucket`)**:
+   - **`MAP_CROWDS_CACHE_TTL_SEC = 900.0` (`15분`)**: 조회 시마다 `15분`이 경과한 오래된 시간대 슬롯을 즉시 메모리에서 파기합니다.
+   - **`MAP_CROWDS_MAX_BUCKETS = 24`**: 최대 `24개` 슬롯 상한을 유지하며 초과 시 가장 오래된(`ts` 최소) 슬롯을 자동 축출해 서버 RAM 고갈을 원천 방지합니다. (`POST /api/v1/admin/cache/clear`로 즉시 수동 초기화 가능)
+5. **클라이언트 L1 캐시 & 중복 요청 방지 Lock (`TransitMap.tsx`)**:
+   - 브라우저 내부에 `aiCrowdCacheRef`(조회 완료 거점)와 `inFlightBatchIdsRef`(요청 진행 중 Lock Set)를 유지하고, `crowdCacheKey = "{selectedTime}|{rainMm}"` 변경 시 자동 리셋합니다. 덕분에 `전체 ➔ 지하철 ➔ 버스 ➔ 따릉이` 탭 전환 시 이미 받아온 거점은 서버 재요청 없이 브라우저 메모리(`0ms`)에서 즉시 복원됩니다.
 
 ---
 

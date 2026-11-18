@@ -212,3 +212,13 @@ flowchart LR
    - `TransitMap.tsx`: 지도 진입 시 `POST /api/v1/predict/map-crowds`를 통해 서울 전체 지도 거점을 **Stage 1(32d) × Stage 2(16d) 단일 ONNX 배치(`predict_points_batch`)**로 일괄 추론하고 `(날짜 · 시간대 · 강수 · 2°C 기온 버킷)` 키로 **서버 인메모리 공용 캐시(TTL `15분`)**에 저장하여 클릭 전 점(Dot)·알약 마커와 클릭 후 팝업 수치가 처음부터 100% AI 예측값으로 일치하며, 동일 시간대 타 사용자 접속 시 `1ms` 미만으로 재사용 *(백엔드 미응답 시에만 `calculateCrowd()` 휴리스틱 폴백)*
    - `TransitMap.tsx`, `App.tsx`, `AppM.tsx`: 지도 마커 팝업·PC/모바일 사이드바 AI 카드에 `🎯 지점 AI · 구 내 X.XX%` 및 구 전체 대비 지점 수요·피크(P95) 표출
    - 전체 검증 스위트(`test_point_share_inference.py`, `test_feature_schema.py` 등 9종) 및 Docker 컨테이너 실기동 헬스체크 PASS
+
+### 8.2 지도 전체 거점 배치 추론 및 시간대 서버 공용 캐싱 메커니즘 ([상세 명세: CACHING_POLICY.md §3.1](./CACHING_POLICY.md))
+
+| 구성 요소 | 적용 기술 | 핵심 동작 원리 |
+| :--- | :--- | :--- |
+| **양자화 캐시 키** | `{YYYY-MM-DD}\|h{hour}\|r{rain:.1f}\|t{2deg}` | 기온(`2°C` 단위) · 강수(`0.1mm`) 정규화로 같은 시간대 다수 사용자가 단일 서버 메모리 슬롯 공유 |
+| **부분 증분 적재(Delta Fill)** | `bucket = {district_volumes, items}` | 이미 캐시된 거점·자치구는 건너뛰고 `missing_items`만 계산 후 병합(후속 접속 시 **`cache_hit=True`, `0.06~0.07ms`**) |
+| **벡터화 ONNX 배치** | `(N_mode, 16)` `float32` 2D 텐서 | 수단(`subway`, `bus`, `bike`)당 단 1회 `sess.run()` 호출로 수백 개 지점 동시 예측 |
+| **서버 메모리 보호** | TTL `900초`(`15분`) + 최대 `24`슬롯 FIFO | 만료 슬롯 자동 파기 및 상한 초과 시 최장 미사용 버킷 축출(`admin/cache/clear` 수동 초기화 지원) |
+| **클라이언트 L1 보호** | `aiCrowdCacheRef` + `inFlightBatchIdsRef` | 시간대·강수 고정 상태에서 `전체/지하철/버스/따릉이` 탭 전환 시 네트워크 재호출 `0`건 (`{selectedTime}\|{rainMm}` 변경 시 자동 리셋) |

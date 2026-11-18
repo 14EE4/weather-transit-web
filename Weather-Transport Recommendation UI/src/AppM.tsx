@@ -4,6 +4,8 @@ import { DISTRICT_GROUPS, DISTRICTS } from './constants/districts'
 import {
   getInitialDistrict,
   getInitialPage,
+  getSavedRouteCoords,
+  getSavedRouteType,
   type Page,
 } from './utils/storage'
 import {
@@ -62,10 +64,18 @@ export default function AppM() {
     }
     return ''
   })
-  const [departureCoords, setDepartureCoords] = useState<[number, number] | undefined>(undefined)
-  const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>(undefined)
-  const [departureType, setDepartureType] = useState<string | undefined>(undefined)
-  const [destinationType, setDestinationType] = useState<string | undefined>(undefined)
+  const [departureCoords, setDepartureCoords] = useState<[number, number] | undefined>(() =>
+    getSavedRouteCoords('weather_transit_route_departure_coords')
+  )
+  const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>(() =>
+    getSavedRouteCoords('weather_transit_route_destination_coords')
+  )
+  const [departureType, setDepartureType] = useState<string | undefined>(() =>
+    getSavedRouteType('weather_transit_route_departure_type')
+  )
+  const [destinationType, setDestinationType] = useState<string | undefined>(() =>
+    getSavedRouteType('weather_transit_route_destination_type')
+  )
   const [myLocation, setMyLocation] = useState<MyLocationState | null>(null)
   const [searchedRoute, setSearchedRoute] = useState<{
     from: string
@@ -246,13 +256,20 @@ export default function AppM() {
     setDeparture(from.trim())
     setDestination(to.trim())
     // null = '좌표/타입 없음(명시적 초기화)', undefined = '현재 입력 상태값 사용(기본 파라미터)'
+    const isFromGps = from.trim().includes('내 위치') || fromType === 'gps'
+    const resolvedFromCoords = (fromCoords ?? (isFromGps ? myLocation?.coords : undefined)) ?? undefined
+    const resolvedFromType = (fromType ?? (isFromGps && resolvedFromCoords ? 'gps' : undefined)) ?? undefined
+    const isToGps = to.trim().includes('내 위치') || toType === 'gps'
+    const resolvedToCoords = (toCoords ?? (isToGps ? myLocation?.coords : undefined)) ?? undefined
+    const resolvedToType = (toType ?? (isToGps && resolvedToCoords ? 'gps' : undefined)) ?? undefined
+
     setSearchedRoute({
       from: from.trim(),
       to: to.trim(),
-      fromCoords: fromCoords ?? undefined,
-      toCoords: toCoords ?? undefined,
-      fromType: fromType ?? undefined,
-      toType: toType ?? undefined,
+      fromCoords: resolvedFromCoords,
+      toCoords: resolvedToCoords,
+      fromType: resolvedFromType,
+      toType: resolvedToType,
     })
     const route = findSubwayRoute(from, to)
     if (route) {
@@ -320,6 +337,10 @@ export default function AppM() {
       try {
         localStorage.removeItem('weather_transit_route_departure')
         localStorage.removeItem('weather_transit_route_destination')
+        localStorage.removeItem('weather_transit_route_departure_coords')
+        localStorage.removeItem('weather_transit_route_destination_coords')
+        localStorage.removeItem('weather_transit_route_departure_type')
+        localStorage.removeItem('weather_transit_route_destination_type')
       } catch {}
     }
   }
@@ -375,13 +396,33 @@ export default function AppM() {
     } catch { }
   }, [mapTransport])
 
-  // 이전 경로 검색 기록(출발지/도착지) 로컬 스토리지 동기화 (탭 전환 및 재방문 시 유지)
+  // 이전 경로 검색 기록(출발지/도착지 및 좌표/타입) 로컬 스토리지 동기화 (탭 전환 및 재방문 시 유지)
   useEffect(() => {
     try {
       localStorage.setItem('weather_transit_route_departure', departure)
       localStorage.setItem('weather_transit_route_destination', destination)
+      if (departureCoords) {
+        localStorage.setItem('weather_transit_route_departure_coords', JSON.stringify(departureCoords))
+      } else {
+        localStorage.removeItem('weather_transit_route_departure_coords')
+      }
+      if (destinationCoords) {
+        localStorage.setItem('weather_transit_route_destination_coords', JSON.stringify(destinationCoords))
+      } else {
+        localStorage.removeItem('weather_transit_route_destination_coords')
+      }
+      if (departureType) {
+        localStorage.setItem('weather_transit_route_departure_type', departureType)
+      } else {
+        localStorage.removeItem('weather_transit_route_departure_type')
+      }
+      if (destinationType) {
+        localStorage.setItem('weather_transit_route_destination_type', destinationType)
+      } else {
+        localStorage.removeItem('weather_transit_route_destination_type')
+      }
     } catch {}
-  }, [departure, destination])
+  }, [departure, destination, departureCoords, destinationCoords, departureType, destinationType])
 
   useEffect(() => {
     const handleHash = () => {

@@ -59,3 +59,27 @@ export function getInitialDistrict(): number {
   }
   return 0
 }
+
+export function getSavedRouteCoords(key: string): [number, number] | undefined {
+  const raw = safeGetStorage(key)
+  if (!raw) return undefined
+  try {
+    const parsed = JSON.parse(raw)
+    if (
+      Array.isArray(parsed) &&
+      parsed.length === 2 &&
+      typeof parsed[0] === 'number' &&
+      typeof parsed[1] === 'number' &&
+      !isNaN(parsed[0]) &&
+      !isNaN(parsed[1])
+    ) {
+      return [parsed[0], parsed[1]]
+    }
+  } catch {}
+  return undefined
+}
+
+export function getSavedRouteType(key: string): string | undefined {
+  const val = safeGetStorage(key)
+  return val || undefined
+}

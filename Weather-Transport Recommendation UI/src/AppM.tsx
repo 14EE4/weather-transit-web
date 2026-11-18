@@ -84,6 +84,11 @@ export default function AppM() {
     toCoords?: [number, number]
     fromType?: string
     toType?: string
+    hour?: number
+    temp?: number
+    rain?: number
+    humidity?: number
+    wind?: number
   } | null>(null)
   const [mapTransport, setMapTransport] = useState<'all' | 'subway' | 'bus' | 'bike'>(() => {
     if (typeof window !== 'undefined') {
@@ -270,6 +275,11 @@ export default function AppM() {
       toCoords: resolvedToCoords,
       fromType: resolvedFromType,
       toType: resolvedToType,
+      hour: selectedHour,
+      temp: displayTemp,
+      rain: displayRain,
+      humidity: displayHumidity,
+      wind: displayWind,
     })
     const route = findSubwayRoute(from, to)
     if (route) {
@@ -1625,11 +1635,11 @@ export default function AppM() {
                 fromType={searchedRoute?.fromType}
                 toType={searchedRoute?.toType}
                 district={DISTRICTS[selectedDistrict] || '강남구'}
-                selectedHour={selectedHour}
-                temp={displayTemp}
-                rain={displayRain}
-                humidity={displayHumidity}
-                wind={displayWind}
+                selectedHour={searchedRoute?.hour ?? selectedHour}
+                temp={searchedRoute?.temp ?? displayTemp}
+                rain={searchedRoute?.rain ?? displayRain}
+                humidity={searchedRoute?.humidity ?? displayHumidity}
+                wind={searchedRoute?.wind ?? displayWind}
                 onSelectRouteForMap={mmRoute => {
                   setFocusedCoords(null)
                   setSelectedStop(null)

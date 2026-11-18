@@ -1091,6 +1091,62 @@ class MultimodalRoutingEngine:
             )
         return scored[:limit]
 
+    def _fetch_and_cache_bus_route_stations(self, bus_route_id: str) -> List[Dict[str, Any]]:
+        """서울시 버스 노선 경유 정류장 목록(getStaionByRoute)을 조회해 캐시에 저장."""
+        if not bus_route_id:
+            return []
+        if bus_route_id in self.bus_route_stations_cache:
+            return self.bus_route_stations_cache[bus_route_id]
+
+        api_key = (os.getenv("DATA_GO_KR_API_KEY") or "").strip()
+        if not api_key:
+            self.bus_route_stations_cache[bus_route_id] = []
+            return []
+
+        try:
+            url = (
+                "http://ws.bus.go.kr/api/rest/busRouteInfo/getStaionByRoute"
+                f"?serviceKey={urllib.parse.quote(api_key, safe='')}"
+                f"&busRouteId={urllib.parse.quote(str(bus_route_id), safe='')}&resultType=json"
+            )
+            resp = requests.get(url, timeout=3.0)
+            if resp.status_code != 200:
+                self.bus_route_stations_cache[bus_route_id] = []
+                return []
+            data = resp.json()
+            header = data.get("msgHeader") or {}
+            if str(header.get("headerCd")) != "0":
+                self.bus_route_stations_cache[bus_route_id] = []
+                return []
+            items = (data.get("msgBody") or {}).get("itemList") or []
+            if isinstance(items, dict):
+                items = [items]
+
+            stations: List[Dict[str, Any]] = []
+            for item in items:
+                try:
+                    lon = float(item["gpsX"])
+                    lat = float(item["gpsY"])
+                    seq = int(item.get("seq"))
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if not (126.0 <= lon <= 128.0 and 36.5 <= lat <= 38.2):
+                    continue
+                stations.append({
+                    "sequence": seq,
+                    "name": item.get("stationNm") or "",
+                    "stId": str(item.get("station") or item.get("stId") or ""),
+                    "arsId": str(item.get("arsId") or ""),
+                    "coords": [lon, lat],
+                })
+            stations.sort(key=lambda s: s["sequence"])
+            self.bus_route_stations_cache[bus_route_id] = stations
+            return stations
+        except Exception as exc:
+            logger.debug("Bus route stations fetch skipped (%s): %s", bus_route_id, sanitize_exception(exc))
+            self.bus_route_stations_cache[bus_route_id] = []
+            return []
+
     def generate_bus_corridor_coords(
         self,
         start_coords: List[float],
@@ -1098,72 +1154,53 @@ class MultimodalRoutingEngine:
         bus_route_id: Optional[str] = None,
     ) -> List[List[float]]:
         """
-        버스 이동 구간에 대한 도로망·정류소 기반 현실적 폴리라인 좌표열 생성.
-        1. bus_route_id가 제공되고 경유 정류장 캐시 정보가 있으면 실제 정류소 구간 슬라이스 반환
-        2. 폴백: 수도권 정류소/역사 네트워크 복도(corridor) 분석 및 도로망 보간으로 자연스러운 도로 주행 경로 생성
+        버스 이동 구간 폴리라인 좌표열 생성.
+        1. bus_route_id가 제공되면 캐시 또는 실시간 API에서 실제 경유 정류장 순서를 조회해 정방향 슬라이스 반환
+        2. 정류장 데이터가 없는 경우 무작위 타원 지그재그 폴백 대신 깔끔한 구간 연결([start, end]) 반환
         """
-        if bus_route_id and bus_route_id in self.bus_route_stations_cache:
-            st_list = self.bus_route_stations_cache[bus_route_id]
+        if bus_route_id:
+            st_list = self._fetch_and_cache_bus_route_stations(str(bus_route_id))
             if len(st_list) >= 2:
-                idx_start = min(
+                # 왕복 노선(상행/하행)에서 정방향(idx_start < idx_end)을 우선 선택해 유턴/지그재그 방지
+                start_ranked = sorted(
                     range(len(st_list)),
                     key=lambda i: haversine_km(
                         start_coords[1], start_coords[0], st_list[i]["coords"][1], st_list[i]["coords"][0]
                     ),
-                )
-                idx_end = min(
+                )[:3]
+                end_ranked = sorted(
                     range(len(st_list)),
                     key=lambda i: haversine_km(
                         end_coords[1], end_coords[0], st_list[i]["coords"][1], st_list[i]["coords"][0]
                     ),
-                )
-                if abs(idx_end - idx_start) >= 1:
+                )[:3]
+
+                best_pair: Optional[Tuple[int, int]] = None
+                best_cost = float("inf")
+                for i_s in start_ranked:
+                    for i_e in end_ranked:
+                        if i_s < i_e:
+                            d_s = haversine_km(start_coords[1], start_coords[0], st_list[i_s]["coords"][1], st_list[i_s]["coords"][0])
+                            d_e = haversine_km(end_coords[1], end_coords[0], st_list[i_e]["coords"][1], st_list[i_e]["coords"][0])
+                            cost = d_s + d_e
+                            if cost < best_cost:
+                                best_cost = cost
+                                best_pair = (i_s, i_e)
+
+                if best_pair is not None:
+                    idx_start, idx_end = best_pair
+                    sliced = [st_list[i]["coords"] for i in range(idx_start, idx_end + 1)]
+                else:
+                    idx_start = start_ranked[0]
+                    idx_end = end_ranked[0]
                     step = 1 if idx_end >= idx_start else -1
                     sliced = [st_list[i]["coords"] for i in range(idx_start, idx_end + step, step)]
-                    res_coords = [start_coords] + [c for c in sliced if c != start_coords and c != end_coords] + [end_coords]
-                    if len(res_coords) >= 2:
-                        return res_coords
 
-        d_total = haversine_km(start_coords[1], start_coords[0], end_coords[1], end_coords[0])
-        if d_total < 0.35:
-            return [start_coords, end_coords]
+                res_coords = [start_coords] + [c for c in sliced if c != start_coords and c != end_coords] + [end_coords]
+                if len(res_coords) >= 2:
+                    return res_coords
 
-        candidates = []
-        for st in self.subway_stations + self.bus_stops:
-            c = st.get("coords")
-            if not c or len(c) < 2:
-                continue
-            d1 = haversine_km(start_coords[1], start_coords[0], c[1], c[0])
-            d2 = haversine_km(c[1], c[0], end_coords[1], end_coords[0])
-            if 0.4 < d1 < d_total - 0.4 and (d1 + d2) <= d_total * 1.25:
-                ratio = d1 / (d1 + d2)
-                candidates.append((ratio, c))
-
-        candidates.sort(key=lambda x: x[0])
-
-        selected = [start_coords]
-        last_ratio = 0.0
-        for ratio, c in candidates:
-            if ratio - last_ratio >= 0.08:
-                selected.append(c)
-                last_ratio = ratio
-        selected.append(end_coords)
-
-        dense_path: List[List[float]] = []
-        for i in range(len(selected) - 1):
-            pt_a = selected[i]
-            pt_b = selected[i + 1]
-            dense_path.append(pt_a)
-            leg_dist = haversine_km(pt_a[1], pt_a[0], pt_b[1], pt_b[0])
-            if leg_dist > 1.2:
-                num_sub = min(4, int(leg_dist // 0.8))
-                for k in range(1, num_sub + 1):
-                    t = k / (num_sub + 1)
-                    mid_lng = pt_a[0] + (pt_b[0] - pt_a[0]) * t
-                    mid_lat = pt_a[1] + (pt_b[1] - pt_a[1]) * t
-                    dense_path.append([round(mid_lng, 6), round(mid_lat, 6)])
-        dense_path.append(end_coords)
-        return dense_path
+        return [start_coords, end_coords]
 
     def find_nearby_bike_stations(
         self,

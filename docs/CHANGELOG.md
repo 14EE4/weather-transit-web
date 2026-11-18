@@ -8,6 +8,20 @@
 
 ## [2026-11-18]
 
+### 🐛 자주 찾는 경로 선택 및 수동 입력 시 이전 지도·GPS 좌표(`departureCoords`) 잔류 버그 수정 (이슈 #135)
+- **배경/원인**:
+  - 지도에서 찍기(Pick on Map) 또는 내 위치(GPS)로 임의 좌표(예: 인천 간석역 부근)를 출발지로 설정한 뒤 `자주 찾는 경로`(예: `강남역 → 서울역`)를 클릭하거나 입력창을 수동 수정(`onChange`/`onClear`)하면, 텍스트(`departure`)는 바뀌지만 이전 `departureCoords`·`departureType('gps')` 상태가 초기화되지 않아 백엔드 `resolve_station()`이 이전 좌표를 우선 해석해 여전히 이전 역(간석역)에서 출발하는 문제가 발생.
+- **조치 내역**:
+  1. **`App.tsx` 자주 찾는 경로 프리셋 좌표·타입 초기화**:
+     - `자주 찾는 경로` 버튼 클릭 시 즉시 검색하던 방식을 폐기하고, **사용자가 통합 검색창에서 역을 직접 선택할 때(`onSelectSubway`)와 동일하게** 출발·도착 역명, `SUBWAY_STATIONS` 기반 좌표(`departureCoords`/`destinationCoords`), 타입(`'subway'`)만 입력창에 채우고 `searchedRoute`/`activeRoute`를 초기화하도록 변경 (안내 토스트 `[경로 검색]을 눌러 주세요`). 실제 검색은 `경로 검색` 버튼으로 실행되어 이전 GPS/지도 좌표가 잔류할 여지가 없음.
+  2. **`App.tsx` · `AppM.tsx` 통합 검색 입력·지우기 시 좌표 초기화 동기화**:
+     - 출발지/도착지 `UnifiedStationSearch`의 `onChange` 및 `onClear`에서 `departureCoords`/`departureType`, `destinationCoords`/`destinationType`을 함께 초기화하여 PC·모바일 양쪽에서 수동 입력/지우기 시에도 이전 좌표가 남지 않도록 차단.
+  3. **(후속 보완) `handleSearchRoute` 기본 파라미터 함정 해소 (`App.tsx`, `AppM.tsx`)**:
+     - `fromCoords = departureCoords` 형태의 기본 파라미터는 `undefined`를 넘겨도 기본값(이전 인천 좌표)이 다시 적용되어 `자주 찾는 경로`·맞바꾸기 후에도 `간석역` 출발과 `따릉이 자동 차단`이 남던 문제 확인. `null`을 `좌표/타입 없음(명시적 초기화)`으로 사용하도록 시그니처(`[number, number] | null | undefined`)를 확장하고 `setSearchedRoute`에서 `?? undefined`로 정규화, 프리셋 클릭·`handleSwapRoute`에서 `null` 전달.
+  4. **`MultimodalRoutePanel.tsx` 이전 결과 잔류 방지 및 배지 정정**:
+     - 캐시 미스로 새 탐색을 시작할 때 `data`를 즉시 비워 이전 경로의 `따릉이 자동 차단` 배지·결과가 로딩 중 남지 않도록 수정.
+     - 서울 외 출발(`weather_context.origin_in_seoul === false`)은 `🌧️ RAIN_SAFE_ONLY` 대신 `📍 NON_SEOUL_ORIGIN · 서울 외 출발 · 따릉이 대여 불가`로 표기하여 강수로 오인되지 않도록 개선.
+
 ### 🧠 대시보드(`/health/dashboard`) Stage 2 모델 현황 표시 및 FactChat LLM `max_tokens` 상향 (이슈 #132)
 - **배경/목적**:
   1. `/health/dashboard` 관리자 관제 화면의 `🧠 AI ONNX & 시계열 캐시` 카드가 기존 Stage 1 (`32d`) 로드 현황(`3종 완료` / `32차원 Verified`)만 정적으로 표시하여, 신규 배포된 Stage 2 (`16d`, `8,432`개 거점) 모델 로드 여부를 대시보드에서 확인할 수 없었던 누락 보완.

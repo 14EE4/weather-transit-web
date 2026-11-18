@@ -45,6 +45,9 @@
 
 
 ### 🗺️ 0. 지도 인터랙션 및 시각화 고도화 (핵심 기능 개발 완료)
+- [x] **[UI-16] 자주 찾는 경로 선택 및 수동 입력 시 이전 지도·GPS 좌표(`departureCoords`) 잔류 버그 수정 (완료 · 2026-11-18 · 이슈 #135)**:
+  - `App.tsx` `자주 찾는 경로` 클릭 시 `departureCoords`/`destinationCoords` 초기화 및 `'subway'` 타입 명시 전달.
+  - `App.tsx`·`AppM.tsx` `UnifiedStationSearch` `onChange`·`onClear` 시 이전 GPS/지도 좌표·타입 즉시 초기화.
 - [x] **[ROUTE-06] 멀티모달 경로 탐색 시 승·하차 역·정류소·대여소별 Stage 1 × Stage 2 AI 혼잡도 연동 (완료 · 2026-11-18 · 이슈 #126)**:
   - `main.py::_execute_multimodal_search`에 권역별 Stage 1(`32d`) `district_volume_resolver`를 추가하고, `multimodal_router.py::_annotate_segments_and_route_with_point_crowd()`가 각 `subway`/`bus`/`bike` 세그먼트 승·하차 지점의 `point_share_engine.predict_point()` 결과를 산출해 경로 혼잡도(소요시간 가중 평균)와 `utility_score`에 반영.
   - `MultimodalRoutePanel.tsx`에 구간별 지점 AI 혼잡도·점유율 배지 표출 (`weather_transit_multimodal_cache_v7`).

@@ -771,19 +771,21 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {!isCurrentHour && (
-                  <button
-                    onClick={() => setSelectedHour(nowHour)}
-                    style={{
-                      padding: '5px 12px', borderRadius: 8,
-                      background: 'rgba(56,189,248,0.15)', border: '1px solid #38BDF8',
-                      color: '#38BDF8', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      fontFamily: 'JetBrains Mono', display: 'flex', alignItems: 'center', gap: 4
-                    }}
-                  >
-                    🔄 현재 시각({nowHour}시)으로 복귀
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={isCurrentHour}
+                  onClick={() => setSelectedHour(nowHour)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 8,
+                    background: 'rgba(56,189,248,0.15)', border: '1px solid #38BDF8',
+                    color: '#38BDF8', fontSize: 12, fontWeight: 700,
+                    cursor: isCurrentHour ? 'default' : 'pointer',
+                    opacity: isCurrentHour ? 0.45 : 1,
+                    fontFamily: 'JetBrains Mono', display: 'flex', alignItems: 'center', gap: 4
+                  }}
+                >
+                  🔄 현재 시각({nowHour}시)으로 복귀
+                </button>
                 <div style={{
                   background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.3)',
                   padding: '4px 14px', borderRadius: 10, color: '#38BDF8',
@@ -1434,31 +1436,32 @@ export default function App() {
                     onChange={e => setSelectedHour(Number(e.target.value))}
                     style={{ flex: 1, accentColor: 'var(--color-primary)', cursor: 'pointer', height: 5 }}
                   />
-                  {!isCurrentHour && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedHour(nowHour)}
-                      title={`현재 시각(${nowHour}시)으로 재설정`}
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: 6,
-                        background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)',
-                        border: '1px solid var(--color-primary)',
-                        color: 'var(--color-primary)',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        fontFamily: 'JetBrains Mono',
-                        whiteSpace: 'nowrap',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 3,
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      🔄 현재 시각
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    disabled={isCurrentHour}
+                    onClick={() => setSelectedHour(nowHour)}
+                    title={`현재 시각(${nowHour}시)으로 재설정`}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      background: 'color-mix(in srgb, var(--color-primary) 15%, transparent)',
+                      border: '1px solid var(--color-primary)',
+                      color: 'var(--color-primary)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: isCurrentHour ? 'default' : 'pointer',
+                      opacity: isCurrentHour ? 0.45 : 1,
+                      fontFamily: 'JetBrains Mono',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      transition: 'opacity 0.15s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    🔄 현재 시각
+                  </button>
                 </div>
               </div>
 

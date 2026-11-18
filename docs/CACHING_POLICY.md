@@ -67,6 +67,18 @@ flowchart TD
     CB -.->|장애 시 Stale 반환| L2
 ```
 
+### 2.1 저장 매체별 구분 (순수 서버 RAM vs 실제 디스크 파일)
+
+서비스 내 모든 캐시가 디스크 파일로 저장되는 것은 아니며, **단기 실시간 캐시·지도 AI 배치 캐시는 순수 서버 메모리(RAM)에만** 보관되고 **시계열 래그 이력과 사전통계 번들만 디스크 파일**을 사용합니다.
+
+| 구분 | 변수 / 모듈명 | 디스크 파일 존재 | 실제 저장 위치 | 선정 이유 |
+| :--- | :--- | :---: | :--- | :--- |
+| **🎯 지도 전체 AI 혼잡도 캐시** | `_map_crowds_cache`<br>(`main.py`) | **파일 없음 ❌**<br>*(순수 서버 RAM)* | FastAPI 프로세스 메모리 (`dict`) | `15분` 뒤 기상 변동 시 폐기되는 단기 결과이며, 파일 I/O 없이 **`0.06~0.07ms`** 초고속 응답 보장 |
+| **🌦️ 실시간 공공 API 단기 캐시** | `_weather_cache`<br>`_subway_cache`<br>`_bus_cache`<br>`_bike_snapshot_cache` | **파일 없음 ❌**<br>*(순수 서버 RAM)* | FastAPI 프로세스 메모리 (`dict`) | `15초~30분` 주기로 갱신되는 실시간 도착·기상 스냅샷 (서버 재기동 시 자동 초기화) |
+| **🧠 32차원 시계열 래그 캐시** | `timeseries_cache`<br>(`timeseries_cache.py`) | **파일 있음 ✅** | **`data/timeseries_cache.db`**<br>(`SQLite WAL` + RAM 링버퍼) | `1시간 전`·`3시간 평균`·`1주 전` 수요/기온 차분은 컨테이너 재기동 후에도 연속되어야 함 (`./data` 볼륨 마운트, Git 제외) |
+| **📊 8,432개 지점 사전통계 번들** | `point_share_engine.points`<br>(`point_share_inference.py`) | **파일 있음 ✅** | **`models/point_share_priors.json.gz`**<br>(`1.64 MB` 압축 JSON) | `2억 1,791만 행`에서 추출한 읽기 전용 프로필(기동 시 1회 RAM 적재) |
+| **💻 브라우저 캐시** | `aiCrowdCacheRef` · `localStorage` | **서버 파일 없음 ❌** | 사용자 브라우저 RAM / 로컬 저장소 | 탭 전환 시 재호출 차단(`aiCrowdCacheRef`) 및 최근 검색 경로 `12개` 영속화(`localStorage`) |
+
 ---
 
 ## 3. 데이터 도메인별 캐시 정책 및 생명주기 (TTL)

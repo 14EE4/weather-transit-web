@@ -12,6 +12,11 @@
 ## 📌 우선순위별 개발 백로그
 
 
+### 🧱 0-1. 코드베이스 SOLID 원칙 전수 검토 및 4단계 리팩토링 (완료 · 2026-11-18 · 이슈 #138)
+- [x] **[ARCH-01] 백엔드·프론트엔드 전수 SOLID 감사 및 Phase `1~4` 리팩토링 + UX 보완 (완료 · 2026-11-18 · 이슈 #138)**:
+  - `timeseries_cache` DIP 복원, KMA 격자·정규화 SSoT 통합, `services/{circuit_breaker,mcda_evaluator,factchat_briefing}.py` 분리, `src/{api/client,constants/districts,utils/*,components/AnalyticsCharts,hooks/*}` 추출.
+  - 버스+지하철 복합 환승 역간·버스 노선 정방향 좌표 보완, 팝업 닫기 시 `focusedCoords` 초기화, GPS 좌표 영속화, 모바일 입력창·`Tab` 이동·슬라이더 레이아웃 시프트 개선.
+
 ### 🛡️ 0-0. 관측성(Observability) 및 외부 API 장애 격리 (완료 · 2026-11-02 · 이슈 #80)
 - [x] **[LOG-05] `/health/dashboard` Stage 2(`16d`) 모델 로드 현황 연동 및 FactChat LLM `max_tokens` 상향 (완료 · 2026-11-18 · 이슈 #132)**:
   - `admin_dashboard.py` 카드 4(`🧠 AI ONNX & 시계열 캐시`)에 `Stage 1 (자치구): 3종 완료 (32d)`와 `Stage 2 (지점별): 3종 · 8,432개 (16d)` 동적 상태 및 `32d×16d Verified` 배지 연동.

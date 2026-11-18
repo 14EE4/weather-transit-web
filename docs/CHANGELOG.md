@@ -8,6 +8,19 @@
 
 ## [2026-11-18]
 
+### 🧠 대시보드(`/health/dashboard`) Stage 2 모델 현황 표시 및 FactChat LLM `max_tokens` 상향 (이슈 #132)
+- **배경/목적**:
+  1. `/health/dashboard` 관리자 관제 화면의 `🧠 AI ONNX & 시계열 캐시` 카드가 기존 Stage 1 (`32d`) 로드 현황(`3종 완료` / `32차원 Verified`)만 정적으로 표시하여, 신규 배포된 Stage 2 (`16d`, `8,432`개 거점) 모델 로드 여부를 대시보드에서 확인할 수 없었던 누락 보완.
+  2. FactChat 추론형 LLM(`gpt-6-luna`)이 호출당 평균 `150~350`개의 내부 `reasoning_tokens`를 사용함에도 기존 제한이 `max_tokens=240`, `timeout=5.0s`로 작게 잡혀 있어, 답변 본문(`content`)이 잘려 `EMPTY_LLM_RESPONSE` 폴백이 빈번하던 비효율 해소.
+- **조치 내역**:
+  1. **관리자 대시보드 Stage 1 × Stage 2 실시간 현황 연동 (`admin_dashboard.py`)**:
+     - 카드 4 상단 배지를 `32d×16d Verified`로 갱신하고, `Stage 1 (자치구): 3종 완료 (32d)`와 `Stage 2 (지점별): 3종 · 8,432개 (16d)`를 분리 표출.
+     - `fetchSystemStatus()`가 `/api/v1/admin/status`의 `models_loaded`, `feature_schema`, `point_share_models`(`loaded`, `schema_status`, `point_counts`)를 읽어 배지 및 상태를 실시간 갱신하도록 연동.
+  2. **FactChat LLM 호출 토큰·타임아웃 여유 확보 (`multimodal_router.py`)**:
+     - `_node_factchat_llm_briefing()`의 `"max_tokens": 240` ➔ **`700`**, `timeout=5.0` ➔ **`8.0`**으로 상향하여 실제 `FACTCHAT_BAZE_GATEWAY` 자연어 브리핑 정상 반환 보장.
+  3. **테스트 & 문서 동기화 (`tests/test_observability_logging.py`, `docs/LOGGING_POLICY.md`, `README.md`, `docs/TODO.md`)**:
+     - `test_admin_dashboard_and_status_stage2` 검증 테스트 추가 및 `LOGGING_POLICY.md` `§8.1`/`§8.4` 갱신.
+
 ### 📜 빈 예외 메시지(`ReadTimeout`) 보강 및 주요 경고/폴백 로그 트러블슈팅 가이드 문서화 (이슈 #129)
 - **배경/목적**:
   - `httpx.ReadTimeout("")` 처럼 기본 문자열이 비어 있는 예외 발생 시 서버 로그에 `KMA Grid [PCP] 2026111823 error: ` 처럼 에러명이 비어 보이는 문제와, 기상청·서울시 버스 OpenAPI·FactChat LLM 경고(`WARNING`) 로그의 원인과 무중단 폴백 동작을 쉽게 파악할 수 있도록 문서화할 필요성 확인.

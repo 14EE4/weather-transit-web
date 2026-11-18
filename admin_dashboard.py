@@ -246,13 +246,17 @@ def render_dashboard_html() -> str:
             <span class="text-base">🧠</span> AI ONNX & 시계열 캐시
           </div>
           <span id="model-status-badge" class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20">
-            32차원 Verified
+            32d×16d Verified
           </span>
         </div>
         <div class="space-y-1.5 text-xs">
           <div class="flex justify-between text-slate-400">
-            <span>모델 로드 현황:</span>
-            <span class="text-emerald-400 font-semibold font-mono" id="models-loaded-text">3종 완료</span>
+            <span>Stage 1 (자치구):</span>
+            <span class="text-emerald-400 font-semibold font-mono" id="models-loaded-text">3종 완료 (32d)</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Stage 2 (지점별):</span>
+            <span class="text-emerald-400 font-semibold font-mono" id="point-share-loaded-text">3종 · 8,432개 (16d)</span>
           </div>
           <div class="flex justify-between items-center text-slate-400">
             <span>캐시 레코드 / 용량:</span>
@@ -410,6 +414,44 @@ def render_dashboard_html() -> str:
         document.getElementById('cb-bike-state').textContent = bikeState;
         document.getElementById('cb-bike-totals').textContent = `${cb.seoul_bike?.total_success || 0} / ${cb.seoul_bike?.total_fallback || 0}`;
         updateCircuitBadge('cb-bike-badge', bikeState);
+
+        // AI ONNX Models (Stage 1: 32d + Stage 2: 16d)
+        const s1Ok = Boolean(data.models_loaded);
+        const s1Dim = data.feature_schema?.feature_dim || 32;
+        const s2 = data.point_share_models || {};
+        const s2Ok = Boolean(s2.loaded);
+        const s2Dim = s2.feature_dim || 16;
+        const s2Counts = s2.point_counts || {};
+        const s2Total = (s2Counts.subway || 0) + (s2Counts.bus || 0) + (s2Counts.bike || 0);
+        const s2ModelsCnt = Object.keys(s2.model_input_dims || {}).length || (s2Ok ? 3 : 0);
+
+        const s1El = document.getElementById('models-loaded-text');
+        if (s1El) {
+          s1El.textContent = s1Ok ? `3종 완료 (${s1Dim}d)` : '미로드';
+          s1El.className = s1Ok ? 'text-emerald-400 font-semibold font-mono' : 'text-rose-400 font-semibold font-mono';
+        }
+        const s2El = document.getElementById('point-share-loaded-text');
+        if (s2El) {
+          s2El.textContent = s2Ok
+            ? `${s2ModelsCnt}종 · ${s2Total.toLocaleString()}개 (${s2Dim}d)`
+            : '미로드';
+          s2El.className = s2Ok ? 'text-emerald-400 font-semibold font-mono' : 'text-amber-400 font-semibold font-mono';
+        }
+        const badgeEl = document.getElementById('model-status-badge');
+        if (badgeEl) {
+          const s1Verified = data.feature_schema?.status === 'verified';
+          const s2Verified = s2.schema_status === 'verified';
+          if (s1Ok && s2Ok && s1Verified && s2Verified) {
+            badgeEl.textContent = `${s1Dim}d×${s2Dim}d Verified`;
+            badgeEl.className = 'px-2 py-0.5 text-[11px] font-bold rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20';
+          } else if (s1Ok && s1Verified) {
+            badgeEl.textContent = `${s1Dim}d Only`;
+            badgeEl.className = 'px-2 py-0.5 text-[11px] font-bold rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20';
+          } else {
+            badgeEl.textContent = 'Check Schema';
+            badgeEl.className = 'px-2 py-0.5 text-[11px] font-bold rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/20';
+          }
+        }
 
         // Cache Stats
         const cs = data.cache_stats || {};

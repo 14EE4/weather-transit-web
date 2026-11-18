@@ -709,10 +709,10 @@ export default function App() {
     from = departure,
     to = destination,
     navigateToMap = false,
-    fromCoords = departureCoords,
-    toCoords = destinationCoords,
-    fromType = departureType,
-    toType = destinationType,
+    fromCoords: [number, number] | null | undefined = departureCoords,
+    toCoords: [number, number] | null | undefined = destinationCoords,
+    fromType: typeof departureType | null | undefined = departureType,
+    toType: typeof destinationType | null | undefined = destinationType,
   ) => {
     if (!from.trim() || !to.trim()) {
       alert('출발지와 도착지를 입력해주세요.')
@@ -726,13 +726,14 @@ export default function App() {
     setShowDestinationList(false)
     setDeparture(from.trim())
     setDestination(to.trim())
+    // null = '좌표/타입 없음(명시적 초기화)', undefined = '현재 입력 상태값 사용(기본 파라미터)'
     setSearchedRoute({
       from: from.trim(),
       to: to.trim(),
-      fromCoords,
-      toCoords,
-      fromType,
-      toType,
+      fromCoords: fromCoords ?? undefined,
+      toCoords: toCoords ?? undefined,
+      fromType: fromType ?? undefined,
+      toType: toType ?? undefined,
     })
     const route = findSubwayRoute(from, to)
     if (route) {
@@ -825,7 +826,7 @@ export default function App() {
       localStorage.setItem('weather_transit_route_destination', prevDep)
     } catch {}
         if (prevDest && prevDep) {
-      handleSearchRoute(prevDest, prevDep, false, prevDestCoords, prevDepCoords, prevDestType, prevDepType)
+      handleSearchRoute(prevDest, prevDep, false, prevDestCoords ?? null, prevDepCoords ?? null, prevDestType ?? null, prevDepType ?? null)
     }
   }
 
@@ -2452,7 +2453,7 @@ export default function App() {
                         setDestinationCoords(undefined)
                         setDepartureType('subway')
                         setDestinationType('subway')
-                        handleSearchRoute(item.from, item.to, false, undefined, undefined, 'subway', 'subway')
+                        handleSearchRoute(item.from, item.to, false, null, null, 'subway', 'subway')
                       }}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 12,

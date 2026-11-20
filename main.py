@@ -2253,7 +2253,7 @@ async def get_current_weather(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with httpx.AsyncClient(timeout=7.0) as client:
             res = await client.get(url, params=params)
             if res.status_code == 200:
                 data = res.json()
@@ -2319,8 +2319,9 @@ async def get_current_weather(
             else:
                 kma_circuit_breaker.record_failure(f"HTTP {res.status_code}")
     except Exception as e:
-        logger.warning(f"KMA API call failed: {sanitize_exception(e)}, activating circuit breaker & fallback.")
-        kma_circuit_breaker.record_failure(str(e))
+        err_msg = sanitize_exception(e)
+        logger.warning(f"KMA API call failed: {err_msg}, activating circuit breaker & fallback.")
+        kma_circuit_breaker.record_failure(err_msg)
 
     # 실패 시: 1순위 직전 정상 스냅샷 반환, 2순위 지능형 폴백
     if nx_ny_key in _weather_last_good:
@@ -2757,9 +2758,22 @@ async def get_nearby_bus_stations(
 
         data = response.json()
         header = data.get("msgHeader") or {}
+        header_cd = str(header.get("headerCd", ""))
 
-        if str(header.get("headerCd")) != "0":
-            logger.warning("[서울 버스] getStationByPos API 헤더 오류 (%s: %s) -> 빈 목록 Fallback", header.get("headerCd"), header.get("headerMsg"))
+        if header_cd in ("4", "7"):
+            logger.info("[서울 버스] getStationByPos 결과 없음 (%s: %s) -> 빈 목록 반환", header_cd, header.get("headerMsg"))
+            return {
+                "status": "success",
+                "count": 0,
+                "center": [lng, lat],
+                "radius": radius,
+                "stations": [],
+                "source": "SEOUL_BUS_NO_DATA",
+                "message": str(header.get("headerMsg", ""))
+            }
+
+        if header_cd != "0":
+            logger.warning("[서울 버스] getStationByPos API 헤더 오류 (%s: %s) -> 빈 목록 Fallback", header_cd, header.get("headerMsg"))
             return {
                 "status": "fallback",
                 "count": 0,

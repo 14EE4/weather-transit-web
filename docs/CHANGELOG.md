@@ -25,6 +25,10 @@
      - `filterType === 'all' | 'bus'` 모두 `zoom >= 10.5`부터 대형 환승센터 점(Dot) 마커(`priority >= 250`), `zoom >= 12.0`부터 전체 거점 버스정류소(`61`개) 표출로 완화 (`filterType === 'bus'`는 `zoom >= 11.5`부터 공간 확보 시 알약 마커 표출).
      - 실시간 주변 버스정류장 레이어(`live-bus-stations-circle`) 최소 줌 기준을 `all`/`bus` 모두 `13`으로 통일하고 축소 단계(`13~15`)에 따라 조회 반경을 `600~1,500m`로 동적 확장하며 줌 배너 안내 동기화.
      - 지도 이동 시 기존 정류장이 사라지지 않도록 `liveBusStationCacheRef`(최대 `3,000`개소 누적 캐시)와 `15%` 패딩 뷰포트 동기화(`syncVisibleStationsFromCache`)를 도입하고, 동일 영역 중복 요청 방지 및 일시적 조회 오류 시 기존 캐시 유지 처리.
+  4. **대시보드 `WARNING` 로그 `4`종 정교화 및 타임아웃 완화 (`main.py`, `services/circuit_breaker.py`, `services/factchat_briefing.py`, `TransitMap.tsx`)**:
+     - `get_nearby_bus_stations()`: 서울시 버스 `headerCd` `4`·`7`(`결과가 없습니다.`)을 장애 경고가 아닌 정상 `0`건 검색(`INFO` 로그, `status="success"`, `source="SEOUL_BUS_NO_DATA"`)으로 분리하고, 프론트엔드 `TransitMap.tsx`가 서울 버스 좌표 범위(`lat 37.0~38.0`, `lng 126.0~128.0`) 밖에서는 불필요한 호출을 스킵하도록 개선.
+     - `CircuitBreaker.record_failure()` 빈 원인 문자열(`원인 미상`) 방어 및 `get_realtime_weather()`에서 `sanitize_exception(e)`를 `record_failure()`에도 전달해 `원인: ReadTimeout` 보존.
+     - KMA 실황 HTTP 타임아웃(`4.0초` ➔ `7.0초`) 및 FactChat LLM 게이트웨이 타임아웃(`8.0초` ➔ `12.0초`) 상향으로 일시적 지연에 따른 조기 폴백·서킷 차단 완화.
 
 ---
 

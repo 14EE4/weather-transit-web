@@ -2338,6 +2338,9 @@ export default function TransitMap({
       }
 
       const center = map.getCenter()
+      if (center.lat < 37.0 || center.lat > 38.0 || center.lng < 126.0 || center.lng > 128.0) {
+        return
+      }
       const searchRadius = currentZoom < 14.5 ? 1500 : (currentZoom < 15.5 ? 1000 : 600)
 
       const last = lastBusFetchRef.current

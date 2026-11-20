@@ -51,11 +51,12 @@ class CircuitBreaker:
         self.failure_count += 1
         self.last_failure_time = time.time()
         self.fallback_count += 1
+        reason = (error_msg or "").strip() or "원인 미상"
         if self.state == "HALF_OPEN" or self.failure_count >= self.failure_threshold:
             if self.state != "OPEN":
                 logger.warning(
                     f"[CircuitBreaker:{self.name}] 연속 실패 {self.failure_count}회 발생! "
-                    f"서킷을 OPEN 상태로 차단합니다 (쿨다운: {self.recovery_timeout}초). 원인: {error_msg}"
+                    f"서킷을 OPEN 상태로 차단합니다 (쿨다운: {self.recovery_timeout}초). 원인: {reason}"
                 )
             self.state = "OPEN"
             self.last_state_change = time.time()

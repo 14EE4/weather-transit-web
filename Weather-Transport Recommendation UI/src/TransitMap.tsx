@@ -2110,11 +2110,11 @@ export default function TransitMap({
       }
 
       // [규칙 1] 중간 광역 뷰 (10.5 <= Zoom < 11.5):
-      // - 전체 보기에서는 버스/따릉이 숨김; 버스 전용 탭에서는 대형 환승센터(priority >= 250)도 지하철 허브와 동일한 점(Dot) 마커로 표출
-      // - 지하철/버스 허브는 점끼리 충돌 검사하여 뭉침 방지
+      // - 따릉이는 숨기고, 지하철 허브 및 대형 버스 환승센터(priority >= 250)는 전체/버스 탭 모두 점(Dot) 마커로 표출
+      // - 점끼리 충돌 검사하여 뭉침 방지
       const isBusOnlyMode = filterType === 'bus'
       if (isWideAreaZoom) {
-        if ((item.stop.type === 'bus' && !isBusOnlyMode) || item.stop.type === 'bike') {
+        if (item.stop.type === 'bike') {
           item.el.style.display = 'none'
           continue
         }
@@ -2154,11 +2154,11 @@ export default function TransitMap({
       }
 
       // [규칙 2] 중거리 도심 원경 (11.5 <= Zoom < 12.5):
-      // - 전체 보기 버스: 대형 광역환승센터(isHub)만 점(Dot) 마커로 표출; 버스 전용 탭에서는 지하철과 동일하게 12.0부터 전체 정류장 표출
+      // - 버스: 전체/버스 탭 모두 12.0 미만에서는 대형 광역환승센터(isHub)만 표출, 12.0 이상부터 전체 거점 정류소 표출
       // - 따릉이: 대형공원 인기 거점(isPopularSpot)만 점(Dot) 마커로 표출, 일반 대여소 숨김
       // - 지하철: 환승역(priority >= 180)만 표출, 12.0 이상부터 일반 역 표출
       if (isMidRangeFar) {
-        if (item.stop.type === 'bus' && !item.stop.isHub && (!isBusOnlyMode || currentZoom < 12.0)) {
+        if (item.stop.type === 'bus' && !item.stop.isHub && currentZoom < 12.0) {
           item.el.style.display = 'none'
           continue
         }
@@ -2243,7 +2243,7 @@ export default function TransitMap({
     let timer: ReturnType<typeof setTimeout> | null = null
     let disposed = false
 
-    const liveBusMinZoom = filterType === 'bus' ? 13 : 15
+    const liveBusMinZoom = 13
 
     // 주변 정류장 표시용 GeoJSON 소스
     map.addSource(sourceId, {
@@ -2254,7 +2254,7 @@ export default function TransitMap({
       }
     })
 
-    // 정류장을 혼잡도 색상 원으로 표시 (버스 전용 탭에서는 zoom 13부터 조기 노출)
+    // 정류장을 혼잡도 색상 원으로 표시 (전체/버스 탭 모두 zoom 13부터 조기 노출)
     map.addLayer({
       id: layerId,
       type: 'circle',
@@ -2338,9 +2338,7 @@ export default function TransitMap({
       }
 
       const center = map.getCenter()
-      const searchRadius = filterType === 'bus'
-        ? (currentZoom < 14.5 ? 1500 : (currentZoom < 15.5 ? 1000 : 600))
-        : 700
+      const searchRadius = currentZoom < 14.5 ? 1500 : (currentZoom < 15.5 ? 1000 : 600)
 
       const last = lastBusFetchRef.current
       if (last && searchRadius <= last.radius && Date.now() - last.ts < 60_000) {

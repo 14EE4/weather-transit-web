@@ -16,7 +16,7 @@
 - [x] **[REGION-01] 천안시 등 수도권 전철 운행 `24`개 시·군 추가 및 서울·서울 경유 광역버스 지원 표기 (완료 · 2026-11-20 · 이슈 #141)**:
   - `districts.ts`, `kma_forecast.py`, `main.py`, `multimodal_router.py`, `districtResolver.ts`에 천안·아산·평택·오산·화성·용인·안산·시흥·군포·의왕·과천·광주·이천·여주·김포·파주·의정부·양주·동두천·연천·구리·양평·가평·춘천 추가 및 기상청 격자·24시간 예보 정규화(`normalize_kma_district`)·역지오코딩 동기화.
   - `App.tsx`, `AppM.tsx`, `UnifiedStationSearch.tsx`, `MultimodalRoutePanel.tsx`, `multimodal_router.py`에 버스 `서울·광역` 배지(서울시 및 서울 경유 광역버스 지원) 및 비서울 전철권 안내 문구 반영.
-  - `TransitMap.tsx` 버스 전용 탭(`filterType === 'bus'`) 축소 시 가시성 기준을 지하철 수준(`zoom 10.5+` 허브 점 마커, `11.5+` 알약/점 전환, `12.0+` 전체 거점, `13.0+` 실시간 주변 정류장 `radius 1200m` 연동)으로 확대.
+  - `TransitMap.tsx` 버스 전용 탭(`filterType === 'bus'`) 축소 시 가시성 기준을 지하철 수준(`zoom 10.5+` 허브 점 마커, `11.5+` 알약/점 전환, `12.0+` 전체 거점, `13.0+` 실시간 주변 정류장 `radius 1500m` 연동)으로 확대하고 `liveBusStationCacheRef`(최대 `3,000`개소)로 화면 내 정류장 지속 유지.
 
 ### 🧱 0-1. 코드베이스 SOLID 원칙 전수 검토 및 4단계 리팩토링 (완료 · 2026-11-18 · 이슈 #138)
 - [x] **[ARCH-01] 백엔드·프론트엔드 전수 SOLID 감사 및 Phase `1~4` 리팩토링 + UX 보완 (완료 · 2026-11-18 · 이슈 #138)**:

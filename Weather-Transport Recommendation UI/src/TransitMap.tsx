@@ -283,6 +283,8 @@ export default function TransitMap({
   const activePopupRef = useRef<any>(null)
   // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
   const busStopPopupRef = useRef<any>(null)
+  const liveBusStationCacheRef = useRef<Map<string, { stop: TransitStop; feature: any }>>(new Map())
+  const lastBusFetchRef = useRef<{ lat: number; lng: number; radius: number; ts: number } | null>(null)
   const searchedBusMarkerRef = useRef<any>(null)
   const prevSearchedBusIdRef = useRef<string | null>(null)
   const myLocationMarkerRef = useRef<any>(null)
@@ -2273,9 +2275,7 @@ export default function TransitMap({
       }
     })
 
-    let latestFeatures: any[] = []
     const setStations = (features: any[]) => {
-      latestFeatures = features
       const source = map.getSource(sourceId) as any
       source?.setData({
         type: 'FeatureCollection',
@@ -2283,12 +2283,49 @@ export default function TransitMap({
       })
     }
 
+    const syncVisibleStationsFromCache = () => {
+      if (disposed) return
+      if (map.getZoom() < liveBusMinZoom) {
+        setStations([])
+        return
+      }
+      const bounds = map.getBounds()
+      const west = bounds.getWest()
+      const east = bounds.getEast()
+      const south = bounds.getSouth()
+      const north = bounds.getNorth()
+      const lngPad = (east - west) * 0.15
+      const latPad = (north - south) * 0.15
+      const minLng = west - lngPad
+      const maxLng = east + lngPad
+      const minLat = south - latPad
+      const maxLat = north + latPad
+
+      const visible: any[] = []
+      for (const entry of liveBusStationCacheRef.current.values()) {
+        const [sLng, sLat] = entry.stop.coords
+        if (sLng < minLng || sLng > maxLng || sLat < minLat || sLat > maxLat) continue
+        const cached = aiCrowdCacheRef.current[entry.stop.id]
+        const info = cached || getStopCrowdInfo(entry.stop)
+        visible.push({
+          ...entry.feature,
+          properties: {
+            ...entry.feature.properties,
+            crowd: info.crowd,
+            label: info.label,
+            color: info.color,
+          }
+        })
+      }
+      setStations(visible)
+    }
+
     const loadNearbyStations = async () => {
       controller?.abort()
       controller = new AbortController()
 
       const currentZoom = map.getZoom()
-      // 너무 멀리 축소한 상태에서는 표시하지 않음
+      // 너무 멀리 축소한 상태에서는 표시하지 않음 (누적 캐시는 보존)
       if (currentZoom < liveBusMinZoom) {
         setStations([])
         return
@@ -2301,10 +2338,17 @@ export default function TransitMap({
       }
 
       const center = map.getCenter()
-      const bounds = map.getBounds()
       const searchRadius = filterType === 'bus'
-        ? (currentZoom < 14 ? 1200 : (currentZoom < 15 ? 800 : 500))
-        : 500
+        ? (currentZoom < 14.5 ? 1500 : (currentZoom < 15.5 ? 1000 : 600))
+        : 700
+
+      const last = lastBusFetchRef.current
+      if (last && searchRadius <= last.radius && Date.now() - last.ts < 60_000) {
+        const movedMeters = Math.hypot((center.lat - last.lat) * 111000, (center.lng - last.lng) * 88000)
+        if (movedMeters < searchRadius * 0.25) {
+          return
+        }
+      }
 
       try {
         const params = new URLSearchParams({
@@ -2326,16 +2370,17 @@ export default function TransitMap({
 
         if (disposed) return
 
+        lastBusFetchRef.current = { lat: center.lat, lng: center.lng, radius: searchRadius, ts: Date.now() }
+
         const stations = (data.stations || []).filter(
           (station: any) =>
             station.id &&
             station.coords &&
-            !station.name.includes('(미정차)') &&
-            bounds.contains(station.coords)
+            !station.name.includes('(미정차)')
         )
 
         const batchBusStops: TransitStop[] = []
-        const features = stations.map((station: any) => {
+        for (const station of stations) {
           const stationKey = `bus-dyn-${station.stId || station.id || station.arsId || `${station.coords[0]}_${station.coords[1]}`}`
           const tempStop: TransitStop = {
             id: stationKey,
@@ -2348,10 +2393,11 @@ export default function TransitMap({
             stId: station.stId,
             arsId: station.arsId,
           }
-          batchBusStops.push(tempStop)
+          if (!aiCrowdCacheRef.current[stationKey]) {
+            batchBusStops.push(tempStop)
+          }
           const { crowd, label, color } = getStopCrowdInfo(tempStop)
-
-          return {
+          const feature = {
             type: 'Feature',
             geometry: {
               type: 'Point',
@@ -2367,33 +2413,29 @@ export default function TransitMap({
               color,
             }
           }
-        })
+          if (liveBusStationCacheRef.current.has(stationKey)) {
+            liveBusStationCacheRef.current.delete(stationKey)
+          }
+          liveBusStationCacheRef.current.set(stationKey, { stop: tempStop, feature })
+        }
 
-        setStations(features)
+        while (liveBusStationCacheRef.current.size > 3000) {
+          const oldestKey = liveBusStationCacheRef.current.keys().next().value
+          if (oldestKey === undefined) break
+          liveBusStationCacheRef.current.delete(oldestKey)
+        }
+
+        syncVisibleStationsFromCache()
         console.log(
-          `[서울 버스] 주변 정류장 ${features.length}개 표시`
+          `[서울 버스] 주변 정류장 ${stations.length}개 병합 (누적 캐시 ${liveBusStationCacheRef.current.size}개)`
         )
 
         if (batchBusStops.length > 0) {
           requestBatchAiCrowds(
             batchBusStops,
-            (cacheMap) => {
-              if (disposed || latestFeatures.length === 0) return
-              const refreshed = latestFeatures.map(f => {
-                const cached = cacheMap[f.properties?.stationKey]
-                return cached
-                  ? {
-                      ...f,
-                      properties: {
-                        ...f.properties,
-                        crowd: cached.crowd,
-                        label: cached.label,
-                        color: cached.color,
-                      }
-                    }
-                  : f
-              })
-              setStations(refreshed)
+            () => {
+              if (disposed) return
+              syncVisibleStationsFromCache()
             },
             controller.signal,
           )
@@ -2401,9 +2443,8 @@ export default function TransitMap({
       } catch (error) {
         if (controller?.signal.aborted || disposed) return
 
-        // 외부 API 지연/점검 시 과도한 에러 로그 대신 warning 수준으로 조용히 완충
-        console.warn('[서울 버스] 주변 버스정류장 조회 지연/Fallback (서버 점검/오프라인):', error)
-        setStations([])
+        // 외부 API 지연/점검 시 기존 화면 내 누적 정류장을 유지하고 warning으로 완충
+        console.warn('[서울 버스] 주변 버스정류장 조회 지연/Fallback (기존 캐시 유지):', error)
       }
     }
 
@@ -2416,6 +2457,11 @@ export default function TransitMap({
       timer = setTimeout(() => {
         loadNearbyStations()
       }, delay)
+    }
+
+    const onMoveEnd = () => {
+      syncVisibleStationsFromCache()
+      scheduleUpdate(350)
     }
 
     // 정류장 원 클릭 시 풀 스펙 상세 팝업 표시 (기상 실황 + AI 추론 + 실시간 도착정보 + 노선 보기)
@@ -2445,21 +2491,20 @@ export default function TransitMap({
       openStationDetail(stop, {
         popupOffset: 12,
         onCrowdUpdate: (targetRec) => {
-          if (disposed || latestFeatures.length === 0) return
-          const updated = latestFeatures.map(f =>
-            f.properties?.stationKey === stationKey
-              ? {
-                  ...f,
-                  properties: {
-                    ...f.properties,
-                    crowd: targetRec.crowd,
-                    label: targetRec.crowdLabel,
-                    color: targetRec.crowdColor,
-                  }
-                }
-              : f
-          )
-          setStations(updated)
+          if (disposed) return
+          const existing = liveBusStationCacheRef.current.get(stationKey)
+          if (existing) {
+            existing.feature = {
+              ...existing.feature,
+              properties: {
+                ...existing.feature.properties,
+                crowd: targetRec.crowd,
+                label: targetRec.crowdLabel,
+                color: targetRec.crowdColor,
+              }
+            }
+          }
+          syncVisibleStationsFromCache()
         }
       })
     }
@@ -2491,20 +2536,21 @@ export default function TransitMap({
       busHoverPopup.remove()
     }
 
-    map.on('moveend', scheduleUpdate)
+    map.on('moveend', onMoveEnd)
     map.on('click', layerId, handleStationClick)
     map.on('mouseenter', layerId, onMouseEnter)
     map.on('mouseleave', layerId, onMouseLeave)
 
-    // 지도 로드 직후 최초 조회
-    scheduleUpdate()
+    // 지도 로드 직후 캐시 즉시 표출 및 주변 조회
+    syncVisibleStationsFromCache()
+    scheduleUpdate(150)
 
     return () => {
       disposed = true
       controller?.abort()
       if (timer) clearTimeout(timer)
 
-      map.off('moveend', scheduleUpdate)
+      map.off('moveend', onMoveEnd)
       map.off('click', layerId, handleStationClick)
       map.off('mouseenter', layerId, onMouseEnter)
       map.off('mouseleave', layerId, onMouseLeave)

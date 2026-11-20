@@ -478,7 +478,7 @@ export default function MultimodalRoutePanel({
                 : (!allowBike
                   ? '🚫 USER_TRANSIT_ONLY · 따릉이 제외 모드'
                   : (data?.weather_context?.origin_in_seoul === false
-                    ? '📍 NON_SEOUL_ORIGIN · 서울 외 출발 · 버스·따릉이는 서울 구간만 지원'
+                    ? '📍 NON_SEOUL_ORIGIN · 서울 외 출발 · 따릉이 불가 (버스는 서울·서울 경유 광역 지원)'
                     : '🌧️ RAIN_SAFE_ONLY · 따릉이 자동 차단'))}
             </span>
           </div>

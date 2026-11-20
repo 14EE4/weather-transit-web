@@ -60,6 +60,21 @@ DISTRICT_GRID_MAP: Dict[str, Tuple[int, int]] = {
 }
 
 
+def normalize_kma_district(district: str) -> str:
+    """기상청 단기예보 격자 매핑용 시·군·구 표준 명칭 정규화."""
+    d_clean = (district or "").replace("서울특별시", "").replace("서울시", "").strip()
+    if not d_clean:
+        return "강남구"
+    head = d_clean.split()[0]
+    if head in DISTRICT_GRID_MAP or head.endswith(("구", "시", "군")):
+        return head
+    for suffix in ("구", "시", "군"):
+        candidate = f"{head}{suffix}"
+        if candidate in DISTRICT_GRID_MAP:
+            return candidate
+    return f"{head}구"
+
+
 class HourlyForecastItem(BaseModel):
     """시간대별 예보 항목"""
     hour: int
@@ -185,13 +200,8 @@ class KMAForecastManager:
         self._lock = asyncio.Lock()
 
     def _get_district_grid(self, district: str) -> Tuple[int, int]:
-        # 구/시/군 이름 정규화
-        d_clean = district.replace("서울특별시", "").replace("서울시", "").strip()
-        if d_clean.endswith(("구", "시", "군")):
-            norm = d_clean
-        else:
-            norm = f"{d_clean}구"
-        return DISTRICT_GRID_MAP.get(norm, DISTRICT_GRID_MAP.get(d_clean, (60, 127)))
+        norm = normalize_kma_district(district)
+        return DISTRICT_GRID_MAP.get(norm, (60, 127))
 
     async def _fetch_grid_var(self, client, auth_key: str, tmfc: str, tmef: str, var: str) -> Optional[List[float]]:
         """1개 시간대(tmef) 1개 변수(TMP, PCP, SKY, PTY)의 37,697개 격자 다운로드"""
@@ -335,9 +345,7 @@ class KMAForecastManager:
         자치구의 24시간 예보 반환 (캐시 유효 시간: 30분)
         캐시 미스 시 비동기 갱신 후 반환, 실패 시 지능형 폴백 반환
         """
-        norm_d = district.replace("서울특별시", "").replace("서울시", "").strip()
-        if not norm_d.endswith("구") and not norm_d.endswith("시"):
-            norm_d = f"{norm_d}구"
+        norm_d = normalize_kma_district(district)
 
         now_ts = time.time()
         # 캐시가 30분(1800초) 이상 지났거나 없는 경우 갱신 시도

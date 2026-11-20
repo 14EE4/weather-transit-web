@@ -675,7 +675,7 @@ export default function App() {
                 날씨 기반 교통 현황
               </h1>
               <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
-                수도권 전철권 날씨 + 지하철·버스·따릉이 이용 데이터를 실시간으로 분석합니다 (버스·따릉이는 서울시만 지원)
+                수도권 전철권 날씨 + 지하철·버스·따릉이 이용 데이터를 실시간으로 분석합니다 (버스는 서울·서울 경유 광역버스, 따릉이는 서울 지원)
               </p>
             </div>
 
@@ -951,8 +951,11 @@ export default function App() {
                             <span style={{ fontSize: 18 }}>{t.icon}</span>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--app-text)' }}>{t.name}</span>
                             {t.name === '버스' && (
-                              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}>
-                                서울 전용
+                              <span
+                                title="서울시 버스 및 서울 경유 광역버스 실시간 지원"
+                                style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}
+                              >
+                                서울·광역
                               </span>
                             )}
                             <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${t.crowdColor}22`, color: t.crowdColor, fontWeight: 700, fontFamily: 'JetBrains Mono' }}>
@@ -976,7 +979,7 @@ export default function App() {
                       </div>
                       {!isSeoulDistrict(DISTRICTS[selectedDistrict] || '') && (
                         <div style={{ fontSize: 10.5, color: 'var(--color-muted)', marginTop: 5 }}>
-                          ℹ️ 서울 외 전철권은 국지 날씨 및 수도권 전철이 제공되며, 실시간 버스·따릉이는 현재 서울시만 지원됩니다.
+                          ℹ️ 서울 외 전철권은 국지 날씨·수도권 전철을 제공하며, 실시간 버스는 서울시 및 서울 경유 광역버스(따릉이는 서울 전용)를 지원합니다.
                         </div>
                       )}
                     </div>
@@ -1750,8 +1753,11 @@ export default function App() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--app-text)' }}>{t.name}</span>
                           {t.id === 'bus' && (
-                            <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 999, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}>
-                              서울 전용
+                            <span
+                              title="서울시 버스 및 서울 경유 광역버스 지원"
+                              style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 999, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}
+                            >
+                              서울·광역
                             </span>
                           )}
                           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: `${t.scoreColor}22`, color: t.scoreColor, fontWeight: 700 }}>
@@ -1889,12 +1895,12 @@ export default function App() {
               {[
                 { id: 'all', icon: '🌐', label: '전체' },
                 { id: 'subway', icon: '🚇', label: '지하철' },
-                { id: 'bus', icon: '🚌', label: '버스(서울)' },
+                { id: 'bus', icon: '🚌', label: '버스(서울권)' },
                 { id: 'bike', icon: '🚲', label: '따릉이' },
               ].map(t => (
                 <button
                   key={t.id}
-                  title={t.id === 'bus' ? '실시간 버스 정보는 현재 서울시만 지원됩니다' : undefined}
+                  title={t.id === 'bus' ? '서울시 버스 및 서울 경유 광역버스 지원' : undefined}
                   onClick={() => {
                     const next = t.id as 'all' | 'subway' | 'bus' | 'bike'
                     setMapTransport(next)
@@ -1917,6 +1923,11 @@ export default function App() {
                 </button>
               ))}
             </div>
+            {mapTransport === 'bus' && (
+              <div style={{ padding: '7px 20px', borderBottom: '1px solid var(--color-border)', background: 'rgba(251,146,60,0.08)', fontSize: 11, color: '#FB923C', fontWeight: 600 }}>
+                🚌 서울시 버스 및 서울 경유 광역버스 정류장·도착 정보를 지원합니다.
+              </div>
+            )}
 
             {/* 기상청 실시간 관측 실황 카드 (100% 공공데이터 실측 실황 연동) */}
             <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--color-border)', background: 'color-mix(in srgb, var(--color-primary) 3%, transparent)' }}>

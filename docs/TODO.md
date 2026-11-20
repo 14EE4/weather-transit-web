@@ -12,10 +12,10 @@
 ## 📌 우선순위별 개발 백로그
 
 
-### 🚆 0-2. 수도권 전철 운행 전 지역 선택 확대 및 버스 서울 전용 표기 (완료 · 2026-11-20 · 이슈 #141)
-- [x] **[REGION-01] 천안시 등 수도권 전철 운행 `24`개 시·군 추가 및 버스 서울 전용 안내 표기 (완료 · 2026-11-20 · 이슈 #141)**:
-  - `districts.ts`, `kma_forecast.py`, `main.py`, `multimodal_router.py`, `districtResolver.ts`에 천안·아산·평택·오산·화성·용인·안산·시흥·군포·의왕·과천·광주·이천·여주·김포·파주·의정부·양주·동두천·연천·구리·양평·가평·춘천 추가 및 기상청 격자·역지오코딩 동기화.
-  - `App.tsx`, `AppM.tsx`, `UnifiedStationSearch.tsx`, `MultimodalRoutePanel.tsx`에 버스 `서울 전용` 배지 및 비서울 전철권 안내 문구 반영.
+### 🚆 0-2. 수도권 전철 운행 전 지역 선택 확대 및 서울·서울 경유 광역버스 지원 표기 (완료 · 2026-11-20 · 이슈 #141)
+- [x] **[REGION-01] 천안시 등 수도권 전철 운행 `24`개 시·군 추가 및 서울·서울 경유 광역버스 지원 표기 (완료 · 2026-11-20 · 이슈 #141)**:
+  - `districts.ts`, `kma_forecast.py`, `main.py`, `multimodal_router.py`, `districtResolver.ts`에 천안·아산·평택·오산·화성·용인·안산·시흥·군포·의왕·과천·광주·이천·여주·김포·파주·의정부·양주·동두천·연천·구리·양평·가평·춘천 추가 및 기상청 격자·24시간 예보 정규화(`normalize_kma_district`)·역지오코딩 동기화.
+  - `App.tsx`, `AppM.tsx`, `UnifiedStationSearch.tsx`, `MultimodalRoutePanel.tsx`, `multimodal_router.py`에 버스 `서울·광역` 배지(서울시 및 서울 경유 광역버스 지원) 및 비서울 전철권 안내 문구 반영.
 
 ### 🧱 0-1. 코드베이스 SOLID 원칙 전수 검토 및 4단계 리팩토링 (완료 · 2026-11-18 · 이슈 #138)
 - [x] **[ARCH-01] 백엔드·프론트엔드 전수 SOLID 감사 및 Phase `1~4` 리팩토링 + UX 보완 (완료 · 2026-11-18 · 이슈 #138)**:

@@ -1330,7 +1330,8 @@ async def predict_recommendation(req: PredictionRequest):
     t_start = time.perf_counter()
 
     norm_district = normalize_district_name(req.district)
-    weather = await _resolve_weather_for_hour(norm_district, req.hour, req.weather)
+    weather_district, _, _ = resolve_weather_target(req.district)
+    weather = await _resolve_weather_for_hour(weather_district, req.hour, req.weather)
 
     now_dt = get_kst_now()
     try:
@@ -2000,6 +2001,7 @@ async def get_hourly_transit_forecast(
 
     t_start = time.perf_counter()
     norm_d = normalize_district_name(district)
+    weather_district, _, _ = resolve_weather_target(district)
     now = get_kst_now()
     cur_hour = now.hour
     base_temp = temp if temp is not None else 19.4
@@ -2009,11 +2011,11 @@ async def get_hourly_transit_forecast(
     kma_fcst_data = None
     if rain is None and temp is None:
         try:
-            kma_fcst_data = await kma_forecast_manager.get_district_forecast(norm_d, auth_key=KMA_AUTH_KEY)
+            kma_fcst_data = await kma_forecast_manager.get_district_forecast(weather_district, auth_key=KMA_AUTH_KEY)
         except Exception as e:
             logger.warning(f"단기예보 시계열 조회 폴백: {e}")
 
-    cache_key = (norm_d, round(base_rain, 1), round(base_temp, 1), cur_hour, kma_fcst_data is not None)
+    cache_key = (norm_d, weather_district, round(base_rain, 1), round(base_temp, 1), cur_hour, kma_fcst_data is not None)
     now_ts = time.time()
     if cache_key in HOURLY_FORECAST_CACHE:
         cached_time, cached_resp = HOURLY_FORECAST_CACHE[cache_key]

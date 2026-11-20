@@ -35,7 +35,7 @@ import { API_BASE_URL as API_BASE } from './api/client'
 
 const META = {
   subway: { icon: '🚇', label: '지하철역', color: 'var(--color-primary)', placeholder: '지하철역 이름 입력 (예: 강남, 시청)' },
-  bus: { icon: '🚌', label: '버스정류장 (서울)', color: '#FB923C', placeholder: '서울 버스정류장 입력 (현재 서울시만 지원)' },
+  bus: { icon: '🚌', label: '버스정류장 (서울·광역)', color: '#FB923C', placeholder: '버스정류장 입력 (서울·서울 경유 광역버스 지원)' },
   bike: { icon: '🚲', label: '따릉이 대여소', color: '#34D399', placeholder: '대여소 이름 입력 (예: 강남역)' },
 } as const
 

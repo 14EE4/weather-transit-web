@@ -222,7 +222,7 @@ class FactChatBriefingService:
                         "max_tokens": 700,
                         "temperature": 0.3,
                     },
-                    timeout=8.0,
+                    timeout=12.0,
                 )
                 if resp.status_code == 200:
                     data = resp.json()

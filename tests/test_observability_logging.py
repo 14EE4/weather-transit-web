@@ -1,5 +1,6 @@
 import unittest
 import logging
+from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 from in_memory_log_handler import InMemoryLogHandler
 from logging_utils import mask_sensitive_text, sanitize_exception
@@ -153,6 +154,33 @@ class TestObservabilityAndGracefulDegradation(unittest.TestCase):
         self.assertIn("models_loaded", st)
         self.assertIn("point_share_models", st)
         self.assertIn("point_counts", st["point_share_models"])
+
+    def test_nearby_bus_header_4_returns_info_no_warning(self):
+        """서울 버스 getStationByPos 결과 없음(headerCd=4) 시 WARNING 대신 INFO 및 status=success 반환 검증"""
+        mock_res = MagicMock()
+        mock_res.raise_for_status = MagicMock()
+        mock_res.json.return_value = {
+            "msgHeader": {"headerCd": "4", "headerMsg": "결과가 없습니다."},
+            "msgBody": {"itemList": None},
+        }
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.get.return_value = mock_res
+
+        with patch.object(main, "DATA_GO_KR_BUS_KEY", "test-dummy-bus-key"), \
+             patch("httpx.AsyncClient", return_value=mock_client), \
+             self.assertLogs("weather_transit_api", level="INFO") as cm:
+            resp = self.client.get(
+                "/api/v1/transit/bus/stations/nearby?lat=37.4000&lng=127.1000&radius=600"
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["source"], "SEOUL_BUS_NO_DATA")
+        self.assertEqual(data["stations"], [])
+        self.assertFalse(any("WARNING" in msg for msg in cm.output))
+        self.assertTrue(any("getStationByPos 결과 없음 (4:" in msg for msg in cm.output))
 
 
 if __name__ == "__main__":

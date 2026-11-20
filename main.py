@@ -235,6 +235,31 @@ DISTRICT_INFRA: dict[str, dict[str, float]] = {
     "광명시": {"subway_stations": 5.0,  "bus_stops": 290.0, "bike_racks": 85.0,  "commercial_density": 0.95},
     "하남시": {"subway_stations": 4.0,  "bus_stops": 260.0, "bike_racks": 80.0,  "commercial_density": 0.90},
     "남양주시": {"subway_stations": 9.0,  "bus_stops": 450.0, "bike_racks": 90.0,  "commercial_density": 0.85},
+    # ── 수도권 전철 연계 확대 시·군 (경기 외곽·충남·강원) ──
+    "용인시": {"subway_stations": 22.0, "bus_stops": 600.0, "bike_racks": 130.0, "commercial_density": 1.15},
+    "화성시": {"subway_stations": 6.0,  "bus_stops": 520.0, "bike_racks": 110.0, "commercial_density": 1.05},
+    "오산시": {"subway_stations": 3.0,  "bus_stops": 240.0, "bike_racks": 60.0,  "commercial_density": 0.90},
+    "평택시": {"subway_stations": 5.0,  "bus_stops": 380.0, "bike_racks": 75.0,  "commercial_density": 0.95},
+    "안산시": {"subway_stations": 13.0, "bus_stops": 460.0, "bike_racks": 115.0, "commercial_density": 1.00},
+    "시흥시": {"subway_stations": 9.0,  "bus_stops": 350.0, "bike_racks": 85.0,  "commercial_density": 0.92},
+    "군포시": {"subway_stations": 5.0,  "bus_stops": 250.0, "bike_racks": 70.0,  "commercial_density": 0.98},
+    "의왕시": {"subway_stations": 2.0,  "bus_stops": 190.0, "bike_racks": 55.0,  "commercial_density": 0.88},
+    "과천시": {"subway_stations": 5.0,  "bus_stops": 160.0, "bike_racks": 65.0,  "commercial_density": 1.02},
+    "광주시": {"subway_stations": 4.0,  "bus_stops": 280.0, "bike_racks": 60.0,  "commercial_density": 0.85},
+    "이천시": {"subway_stations": 3.0,  "bus_stops": 210.0, "bike_racks": 50.0,  "commercial_density": 0.82},
+    "여주시": {"subway_stations": 2.0,  "bus_stops": 160.0, "bike_racks": 40.0,  "commercial_density": 0.78},
+    "김포시": {"subway_stations": 10.0, "bus_stops": 340.0, "bike_racks": 95.0,  "commercial_density": 0.95},
+    "파주시": {"subway_stations": 8.0,  "bus_stops": 360.0, "bike_racks": 85.0,  "commercial_density": 0.90},
+    "의정부시": {"subway_stations": 16.0, "bus_stops": 370.0, "bike_racks": 90.0, "commercial_density": 1.00},
+    "양주시": {"subway_stations": 3.0,  "bus_stops": 240.0, "bike_racks": 55.0,  "commercial_density": 0.82},
+    "동두천시": {"subway_stations": 5.0, "bus_stops": 150.0, "bike_racks": 45.0, "commercial_density": 0.78},
+    "연천군": {"subway_stations": 3.0,  "bus_stops": 110.0, "bike_racks": 30.0,  "commercial_density": 0.65},
+    "구리시": {"subway_stations": 4.0,  "bus_stops": 220.0, "bike_racks": 75.0,  "commercial_density": 0.98},
+    "양평군": {"subway_stations": 9.0,  "bus_stops": 170.0, "bike_racks": 45.0,  "commercial_density": 0.70},
+    "가평군": {"subway_stations": 4.0,  "bus_stops": 130.0, "bike_racks": 35.0,  "commercial_density": 0.72},
+    "춘천시": {"subway_stations": 4.0,  "bus_stops": 260.0, "bike_racks": 60.0,  "commercial_density": 0.88},
+    "천안시": {"subway_stations": 6.0,  "bus_stops": 480.0, "bike_racks": 95.0,  "commercial_density": 1.08},
+    "아산시": {"subway_stations": 5.0,  "bus_stops": 320.0, "bike_racks": 70.0,  "commercial_density": 0.92},
 }
 
 # 2025 서울시 25개 자치구 시간대별 통합 데이터셋(20.9만건) 분석 기반 기준 통계치
@@ -311,12 +336,16 @@ def normalize_district_name(district: str) -> str:
         "판교": "강남구", "분당": "강남구", "성남": "강남구",
         "광명": "금천구", "철산": "금천구",
         "부천": "구로구", "부평": "구로구", "인천": "구로구", "송도": "구로구", "구월": "구로구", "청라": "구로구",
-        "일산": "은평구", "고양": "은평구", "삼송": "은평구", "파주": "은평구",
+        "안산": "금천구", "시흥": "금천구", "오이도": "금천구",
+        "일산": "은평구", "고양": "은평구", "삼송": "은평구", "파주": "은평구", "운정": "은평구", "문산": "은평구",
         "하남": "강동구", "미사": "강동구", "위례": "강동구",
-        "수원": "서초구", "광교": "서초구", "동탄": "서초구", "안양": "서초구", "평촌": "서초구", "과천": "서초구",
-        "다산": "중랑구", "별내": "중랑구", "남양주": "중랑구", "구리": "중랑구",
-        "의정부": "노원구", "양주": "노원구",
-        "김포": "강서구",
+        "광주": "송파구", "이천": "송파구", "여주": "송파구",
+        "수원": "서초구", "광교": "서초구", "동탄": "서초구", "화성": "서초구", "안양": "서초구", "평촌": "서초구",
+        "과천": "서초구", "군포": "금천구", "산본": "금천구", "의왕": "서초구", "용인": "강남구", "기흥": "강남구", "죽전": "강남구",
+        "오산": "금천구", "평택": "금천구", "천안": "영등포구", "두정": "영등포구", "쌍용": "영등포구", "아산": "영등포구", "온양": "영등포구", "신창": "영등포구",
+        "다산": "중랑구", "별내": "중랑구", "남양주": "중랑구", "구리": "중랑구", "양평": "강동구", "가평": "중랑구", "춘천": "중랑구",
+        "의정부": "노원구", "양주": "노원구", "동두천": "노원구", "소요산": "노원구", "연천": "노원구",
+        "김포": "강서구", "구래": "강서구",
     }
     for dong_key, d_name in dong_map.items():
         if dong_key in district:
@@ -409,6 +438,44 @@ def resolve_weather_target(
         "송도": ("인천시", 55, 123),
         "구월": ("인천시", 55, 124),
         "청라": ("인천시", 54, 125),
+        "용인": ("용인시", 62, 120),
+        "기흥": ("용인시", 62, 120),
+        "죽전": ("용인시", 62, 121),
+        "화성": ("화성시", 62, 119),
+        "동탄": ("화성시", 62, 119),
+        "병점": ("화성시", 61, 120),
+        "오산": ("오산시", 61, 118),
+        "평택": ("평택시", 62, 114),
+        "안산": ("안산시", 57, 121),
+        "시흥": ("시흥시", 57, 123),
+        "오이도": ("시흥시", 56, 122),
+        "군포": ("군포시", 59, 122),
+        "산본": ("군포시", 59, 122),
+        "의왕": ("의왕시", 60, 122),
+        "과천": ("과천시", 60, 124),
+        "경기광주": ("광주시", 65, 123),
+        "광주시": ("광주시", 65, 123),
+        "이천": ("이천시", 68, 120),
+        "여주": ("여주시", 71, 121),
+        "김포": ("김포시", 55, 128),
+        "파주": ("파주시", 56, 131),
+        "운정": ("파주시", 56, 130),
+        "문산": ("파주시", 55, 133),
+        "의정부": ("의정부시", 61, 130),
+        "양주": ("양주시", 61, 131),
+        "동두천": ("동두천시", 61, 134),
+        "소요산": ("동두천시", 61, 135),
+        "연천": ("연천군", 61, 138),
+        "구리": ("구리시", 62, 127),
+        "양평": ("양평군", 69, 125),
+        "가평": ("가평군", 69, 133),
+        "춘천": ("춘천시", 73, 134),
+        "천안": ("천안시", 63, 110),
+        "두정": ("천안시", 63, 110),
+        "쌍용": ("천안시", 63, 110),
+        "아산": ("아산시", 60, 110),
+        "온양": ("아산시", 60, 110),
+        "신창": ("아산시", 59, 109),
     }
 
     for key, (city_name, nx, ny) in satellite_cities.items():
@@ -1263,7 +1330,8 @@ async def predict_recommendation(req: PredictionRequest):
     t_start = time.perf_counter()
 
     norm_district = normalize_district_name(req.district)
-    weather = await _resolve_weather_for_hour(norm_district, req.hour, req.weather)
+    weather_district, _, _ = resolve_weather_target(req.district)
+    weather = await _resolve_weather_for_hour(weather_district, req.hour, req.weather)
 
     now_dt = get_kst_now()
     try:
@@ -1933,6 +2001,7 @@ async def get_hourly_transit_forecast(
 
     t_start = time.perf_counter()
     norm_d = normalize_district_name(district)
+    weather_district, _, _ = resolve_weather_target(district)
     now = get_kst_now()
     cur_hour = now.hour
     base_temp = temp if temp is not None else 19.4
@@ -1942,11 +2011,11 @@ async def get_hourly_transit_forecast(
     kma_fcst_data = None
     if rain is None and temp is None:
         try:
-            kma_fcst_data = await kma_forecast_manager.get_district_forecast(norm_d, auth_key=KMA_AUTH_KEY)
+            kma_fcst_data = await kma_forecast_manager.get_district_forecast(weather_district, auth_key=KMA_AUTH_KEY)
         except Exception as e:
             logger.warning(f"단기예보 시계열 조회 폴백: {e}")
 
-    cache_key = (norm_d, round(base_rain, 1), round(base_temp, 1), cur_hour, kma_fcst_data is not None)
+    cache_key = (norm_d, weather_district, round(base_rain, 1), round(base_temp, 1), cur_hour, kma_fcst_data is not None)
     now_ts = time.time()
     if cache_key in HOURLY_FORECAST_CACHE:
         cached_time, cached_resp = HOURLY_FORECAST_CACHE[cache_key]
@@ -2184,7 +2253,7 @@ async def get_current_weather(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with httpx.AsyncClient(timeout=7.0) as client:
             res = await client.get(url, params=params)
             if res.status_code == 200:
                 data = res.json()
@@ -2250,8 +2319,9 @@ async def get_current_weather(
             else:
                 kma_circuit_breaker.record_failure(f"HTTP {res.status_code}")
     except Exception as e:
-        logger.warning(f"KMA API call failed: {sanitize_exception(e)}, activating circuit breaker & fallback.")
-        kma_circuit_breaker.record_failure(str(e))
+        err_msg = sanitize_exception(e)
+        logger.warning(f"KMA API call failed: {err_msg}, activating circuit breaker & fallback.")
+        kma_circuit_breaker.record_failure(err_msg)
 
     # 실패 시: 1순위 직전 정상 스냅샷 반환, 2순위 지능형 폴백
     if nx_ny_key in _weather_last_good:
@@ -2688,9 +2758,22 @@ async def get_nearby_bus_stations(
 
         data = response.json()
         header = data.get("msgHeader") or {}
+        header_cd = str(header.get("headerCd", ""))
 
-        if str(header.get("headerCd")) != "0":
-            logger.warning("[서울 버스] getStationByPos API 헤더 오류 (%s: %s) -> 빈 목록 Fallback", header.get("headerCd"), header.get("headerMsg"))
+        if header_cd in ("4", "7"):
+            logger.info("[서울 버스] getStationByPos 결과 없음 (%s: %s) -> 빈 목록 반환", header_cd, header.get("headerMsg"))
+            return {
+                "status": "success",
+                "count": 0,
+                "center": [lng, lat],
+                "radius": radius,
+                "stations": [],
+                "source": "SEOUL_BUS_NO_DATA",
+                "message": str(header.get("headerMsg", ""))
+            }
+
+        if header_cd != "0":
+            logger.warning("[서울 버스] getStationByPos API 헤더 오류 (%s: %s) -> 빈 목록 Fallback", header_cd, header.get("headerMsg"))
             return {
                 "status": "fallback",
                 "count": 0,

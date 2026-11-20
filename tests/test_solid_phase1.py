@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 import admin_dashboard
 import main
 import point_share_inference
+import kma_forecast
 from kma_forecast import DISTRICT_GRID_MAP
 from scripts import export_point_share_serving_bundle
 from timeseries_cache import TimeseriesCacheManager
@@ -58,6 +59,21 @@ class TestSolidPhase1(unittest.TestCase):
         dist_sn, sn_nx, sn_ny = main.resolve_weather_target("성남시")
         self.assertEqual(dist_sn, "성남시")
         self.assertEqual((sn_nx, sn_ny), DISTRICT_GRID_MAP["성남시"])
+
+        dist_ca, ca_nx, ca_ny = main.resolve_weather_target("천안시 두정·천안역·쌍용")
+        self.assertEqual(dist_ca, "천안시")
+        self.assertEqual((ca_nx, ca_ny), DISTRICT_GRID_MAP["천안시"])
+
+        dist_yc, yc_nx, yc_ny = main.resolve_weather_target("연천군 연천·전곡")
+        self.assertEqual(dist_yc, "연천군")
+        self.assertEqual((yc_nx, yc_ny), DISTRICT_GRID_MAP["연천군"])
+
+        mgr = kma_forecast.kma_forecast_manager
+        self.assertEqual(mgr._get_district_grid("천안시 두정·천안역·쌍용"), (63, 110))
+        self.assertEqual(mgr._get_district_grid("연천군 연천·전곡"), (61, 138))
+        self.assertEqual(mgr._get_district_grid("천안"), (63, 110))
+        self.assertEqual(kma_forecast.normalize_kma_district("천안시 두정·천안역·쌍용"), "천안시")
+        self.assertEqual(kma_forecast.normalize_kma_district("연천군 연천·전곡"), "연천군")
 
     def test_normalization_ssot_with_export_script(self):
         self.assertIs(

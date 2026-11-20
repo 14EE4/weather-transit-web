@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { API_BASE_URL } from './api/client'
-import { DISTRICT_GROUPS, DISTRICTS } from './constants/districts'
+import { DISTRICT_GROUPS, DISTRICTS, isSeoulDistrict } from './constants/districts'
 import {
   getInitialDistrict,
   getInitialPage,
@@ -687,7 +687,7 @@ export default function AppM() {
                 날씨 기반 교통 현황
               </h1>
               <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
-                서울시 날씨 + 버스·지하철·따릉이 이용 데이터를 실시간으로 분석합니다
+                수도권 전철권 날씨 + 지하철·버스·따릉이 이용 데이터를 실시간으로 분석합니다 (버스는 서울·서울 경유 광역버스, 따릉이는 서울 지원)
               </p>
             </div>
 
@@ -963,6 +963,14 @@ export default function AppM() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 18 }}>{t.icon}</span>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--app-text)' }}>{t.name}</span>
+                            {t.name === '버스' && (
+                              <span
+                                title="서울시 버스 및 서울 경유 광역버스 실시간 지원"
+                                style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}
+                              >
+                                서울·광역
+                              </span>
+                            )}
                             <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${t.crowdColor}22`, color: t.crowdColor, fontWeight: 700, fontFamily: 'JetBrains Mono' }}>
                               {t.crowdLabel} {t.crowd}%
                             </span>
@@ -982,6 +990,11 @@ export default function AppM() {
                           ? `⚠️ 강수 ${activeRain}mm — 지하철 혼잡도 ${subItem?.crowd ?? 39}% (${(subItem?.predicted_volume ?? 0).toLocaleString()}명) 집중 · 따릉이(${(bikeItem?.predicted_volume ?? 0).toLocaleString()}건) 급감`
                           : `✅ 맑은 날씨 — ${DISTRICTS[selectedDistrict]} 지하철 ${(subItem?.predicted_volume ?? 0).toLocaleString()}명 / 버스 ${(busItem?.predicted_volume ?? 0).toLocaleString()}명 정상 소통`}
                       </div>
+                      {!isSeoulDistrict(DISTRICTS[selectedDistrict] || '') && (
+                        <div style={{ fontSize: 10.5, color: 'var(--color-muted)', marginTop: 5 }}>
+                          ℹ️ 서울 외 전철권은 국지 날씨·수도권 전철을 제공하며, 실시간 버스는 서울시 및 서울 경유 광역버스(따릉이는 서울 전용)를 지원합니다.
+                        </div>
+                      )}
                     </div>
                   </>
                 )
@@ -1683,6 +1696,14 @@ export default function AppM() {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--app-text)' }}>{t.name}</span>
+                          {t.id === 'bus' && (
+                            <span
+                              title="서울시 버스 및 서울 경유 광역버스 지원"
+                              style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 999, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}
+                            >
+                              서울·광역
+                            </span>
+                          )}
                           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: `${t.scoreColor}22`, color: t.scoreColor, fontWeight: 700 }}>
                             {t.scoreLabel}
                           </span>
@@ -1818,11 +1839,12 @@ export default function AppM() {
               {[
                 { id: 'all', icon: '🌐', label: '전체' },
                 { id: 'subway', icon: '🚇', label: '지하철' },
-                { id: 'bus', icon: '🚌', label: '버스' },
+                { id: 'bus', icon: '🚌', label: '버스(서울권)' },
                 { id: 'bike', icon: '🚲', label: '따릉이' },
               ].map(t => (
                 <button
                   key={t.id}
+                  title={t.id === 'bus' ? '서울시 버스 및 서울 경유 광역버스 지원' : undefined}
                   onClick={() => {
                     const next = t.id as 'all' | 'subway' | 'bus' | 'bike'
                     setMapTransport(next)
@@ -1845,6 +1867,11 @@ export default function AppM() {
                 </button>
               ))}
             </div>
+            {mapTransport === 'bus' && (
+              <div style={{ padding: '7px 20px', borderBottom: '1px solid var(--color-border)', background: 'rgba(251,146,60,0.08)', fontSize: 11, color: '#FB923C', fontWeight: 600 }}>
+                🚌 서울시 버스 및 서울 경유 광역버스 정류장·도착 정보를 지원합니다.
+              </div>
+            )}
 
             {/* [이슈 #98] 지도 뷰포트(중심 좌표) 기준 국지 기상 요약 */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 20px', borderBottom: '1px solid var(--color-border)', background: 'rgba(56,189,248,0.06)' }}>

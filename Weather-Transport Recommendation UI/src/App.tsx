@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { API_BASE_URL } from './api/client'
-import { DISTRICT_GROUPS, DISTRICTS } from './constants/districts'
+import { DISTRICT_GROUPS, DISTRICTS, isSeoulDistrict } from './constants/districts'
 import {
   getInitialDistrict,
   getInitialPage,
@@ -675,7 +675,7 @@ export default function App() {
                 날씨 기반 교통 현황
               </h1>
               <p style={{ fontSize: 14, color: 'var(--color-muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
-                서울시 날씨 + 버스·지하철·따릉이 이용 데이터를 실시간으로 분석합니다
+                수도권 전철권 날씨 + 지하철·버스·따릉이 이용 데이터를 실시간으로 분석합니다 (버스·따릉이는 서울시만 지원)
               </p>
             </div>
 
@@ -950,6 +950,11 @@ export default function App() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 18 }}>{t.icon}</span>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--app-text)' }}>{t.name}</span>
+                            {t.name === '버스' && (
+                              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}>
+                                서울 전용
+                              </span>
+                            )}
                             <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${t.crowdColor}22`, color: t.crowdColor, fontWeight: 700, fontFamily: 'JetBrains Mono' }}>
                               {t.crowdLabel} {t.crowd}%
                             </span>
@@ -969,6 +974,11 @@ export default function App() {
                           ? `⚠️ 강수 ${activeRain}mm — 지하철 혼잡도 ${subItem?.crowd ?? 39}% (${(subItem?.predicted_volume ?? 0).toLocaleString()}명) 집중 · 따릉이(${(bikeItem?.predicted_volume ?? 0).toLocaleString()}건) 급감`
                           : `✅ 맑은 날씨 — ${DISTRICTS[selectedDistrict]} 지하철 ${(subItem?.predicted_volume ?? 0).toLocaleString()}명 / 버스 ${(busItem?.predicted_volume ?? 0).toLocaleString()}명 정상 소통`}
                       </div>
+                      {!isSeoulDistrict(DISTRICTS[selectedDistrict] || '') && (
+                        <div style={{ fontSize: 10.5, color: 'var(--color-muted)', marginTop: 5 }}>
+                          ℹ️ 서울 외 전철권은 국지 날씨 및 수도권 전철이 제공되며, 실시간 버스·따릉이는 현재 서울시만 지원됩니다.
+                        </div>
+                      )}
                     </div>
                   </>
                 )
@@ -1739,6 +1749,11 @@ export default function App() {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--app-text)' }}>{t.name}</span>
+                          {t.id === 'bus' && (
+                            <span style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 999, background: 'rgba(251,146,60,0.14)', color: '#FB923C', border: '1px solid rgba(251,146,60,0.3)', fontWeight: 700 }}>
+                              서울 전용
+                            </span>
+                          )}
                           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: `${t.scoreColor}22`, color: t.scoreColor, fontWeight: 700 }}>
                             {t.scoreLabel}
                           </span>
@@ -1874,11 +1889,12 @@ export default function App() {
               {[
                 { id: 'all', icon: '🌐', label: '전체' },
                 { id: 'subway', icon: '🚇', label: '지하철' },
-                { id: 'bus', icon: '🚌', label: '버스' },
+                { id: 'bus', icon: '🚌', label: '버스(서울)' },
                 { id: 'bike', icon: '🚲', label: '따릉이' },
               ].map(t => (
                 <button
                   key={t.id}
+                  title={t.id === 'bus' ? '실시간 버스 정보는 현재 서울시만 지원됩니다' : undefined}
                   onClick={() => {
                     const next = t.id as 'all' | 'subway' | 'bus' | 'bike'
                     setMapTransport(next)

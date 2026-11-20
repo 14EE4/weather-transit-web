@@ -6,6 +6,24 @@
 
 ---
 
+## [2026-11-20]
+
+### 🚆 천안 등 수도권 전철 운행 전 지역 선택 추가 및 버스 서울 전용 지원 표기 (이슈 #141)
+- **배경/목적**:
+  - 기존 지역 선택(`DISTRICT_GROUPS`, `DISTRICT_GRID_MAP`, `DISTRICT_CENTERS`)이 서울 25개 자치구 및 9개 인접 도시만 지원하여 **천안시**를 비롯한 수도권 전철 연계 외곽 시·군(아산·평택·오산·화성·용인·안산·시흥·군포·의왕·과천·광주·이천·여주·김포·파주·의정부·양주·동두천·연천·구리·양평·가평·춘천)의 지역 선택이 불가능했습니다.
+  - 또한 실시간 버스(정류장·도착정보·노선)는 현재 **서울시 버스 OpenAPI**만 지원하므로, UI 전반에 서울 전용 지원 범위를 명확히 표기해 사용자 혼동을 방지했습니다.
+- **조치 내역**:
+  1. **수도권 전철 운행 `24`개 시·군 추가 및 백엔드·프론트엔드 동기화**:
+     - `Weather-Transport Recommendation UI/src/constants/districts.ts`: `경기 남부·인천`, `경기 북부·동부·김포`, `충남·강원 광역 전철` 권역으로 재구성하여 천안시·아산시 등 `24`개 시·군 추가 및 `isSeoulDistrict()` SSoT 헬퍼 신설.
+     - `kma_forecast.py`: `DISTRICT_GRID_MAP`에 `24`개 시·군 기상청 격자 `(nx, ny)` 추가 및 `_get_district_grid()` `군` 접미사 정규화 보완.
+     - `main.py`: `DISTRICT_INFRA`, `normalize_district_name()` 광역 연계축 매핑, `resolve_weather_target()` `satellite_cities` 매핑 보완.
+     - `multimodal_router.py` · `districtResolver.ts`: `DISTRICT_CENTERS` 및 `STATION_DONG_MAP` 동기화.
+  2. **버스 서울 전용 지원 표기 (`App.tsx`, `AppM.tsx`, `UnifiedStationSearch.tsx`, `MultimodalRoutePanel.tsx`)**:
+     - 메인 현황·추천 카드에 `서울 전용` 배지 및 비서울 전철권 선택 시 안내 문구(`실시간 버스·따릉이는 현재 서울시만 지원`) 추가.
+     - 지도 교통수단 필터 탭 `버스(서울)` 표기, 통합 검색창 placeholder(`서울 버스정류장 입력 (현재 서울시만 지원)`), `NON_SEOUL_ORIGIN` 배지 안내 보완.
+
+---
+
 ## [2026-11-18]
 
 ### 🧱 전사 코드베이스 SOLID 원칙 전수 검토·Phase 1~4 리팩토링 및 UX/라우팅 보완 (이슈 #138)

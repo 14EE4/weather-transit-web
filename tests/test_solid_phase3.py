@@ -38,6 +38,11 @@ class TestSolidPhase3(unittest.TestCase):
         cb.record_success()
         self.assertEqual(cb.state, "CLOSED")
 
+        cb_empty = CircuitBreaker("EMPTY_ERR", failure_threshold=1, recovery_timeout=10.0)
+        with self.assertLogs("weather_transit_api.circuit_breaker", level="WARNING") as cm:
+            cb_empty.record_failure("")
+        self.assertTrue(any("원인: 원인 미상" in msg for msg in cm.output))
+
     def test_mcda_evaluator_registry_ocp(self):
         self.assertEqual(set(MODE_EVALUATORS.keys()), {"subway", "bus", "bike"})
         import main  # ensure configure_mcda_context has been called

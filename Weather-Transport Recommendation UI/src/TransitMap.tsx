@@ -283,6 +283,8 @@ export default function TransitMap({
   const activePopupRef = useRef<any>(null)
   // 주변 정류장·노선 경유 정류장 클릭 팝업은 한 번에 하나만 유지 (겹침 방지)
   const busStopPopupRef = useRef<any>(null)
+  const liveBusStationCacheRef = useRef<Map<string, { stop: TransitStop; feature: any }>>(new Map())
+  const lastBusFetchRef = useRef<{ lat: number; lng: number; radius: number; ts: number } | null>(null)
   const searchedBusMarkerRef = useRef<any>(null)
   const prevSearchedBusIdRef = useRef<string | null>(null)
   const myLocationMarkerRef = useRef<any>(null)
@@ -2108,10 +2110,11 @@ export default function TransitMap({
       }
 
       // [규칙 1] 중간 광역 뷰 (10.5 <= Zoom < 11.5):
-      // - 버스와 따릉이는 100% 완전히 숨김 (화면 난잡함 방지)
-      // - 지하철도 Tier 1 메이저 허브(priority >= 250)만 점(Dot) 마커로 표출하되, 점끼리도 충돌 검사하여 뭉침 방지
+      // - 따릉이는 숨기고, 지하철 허브 및 대형 버스 환승센터(priority >= 250)는 전체/버스 탭 모두 점(Dot) 마커로 표출
+      // - 점끼리 충돌 검사하여 뭉침 방지
+      const isBusOnlyMode = filterType === 'bus'
       if (isWideAreaZoom) {
-        if (item.stop.type === 'bus' || item.stop.type === 'bike') {
+        if (item.stop.type === 'bike') {
           item.el.style.display = 'none'
           continue
         }
@@ -2151,11 +2154,11 @@ export default function TransitMap({
       }
 
       // [규칙 2] 중거리 도심 원경 (11.5 <= Zoom < 12.5):
-      // - 버스: 대형 광역환승센터(isHub)만 점(Dot) 마커로 표출, 일반 정류소 숨김
+      // - 버스: 전체/버스 탭 모두 12.0 미만에서는 대형 광역환승센터(isHub)만 표출, 12.0 이상부터 전체 거점 정류소 표출
       // - 따릉이: 대형공원 인기 거점(isPopularSpot)만 점(Dot) 마커로 표출, 일반 대여소 숨김
-      // - 지하철: 환승역(priority >= 180)만 표출, 일반 지엽 역은 숨김
+      // - 지하철: 환승역(priority >= 180)만 표출, 12.0 이상부터 일반 역 표출
       if (isMidRangeFar) {
-        if (item.stop.type === 'bus' && !item.stop.isHub) {
+        if (item.stop.type === 'bus' && !item.stop.isHub && currentZoom < 12.0) {
           item.el.style.display = 'none'
           continue
         }
@@ -2169,11 +2172,10 @@ export default function TransitMap({
         }
       }
 
-      // [규칙 3] 중거리 뷰 (11.5 <= Zoom < 13.5)에서 버스와 따릉이는 거대한 알약 마커 금지!
-      // 전체 보기(all)에서는 모든 수단(지하철·버스·따릉이)을 혼잡도 원형 점(Dot) 마커로 표출하여 역/정류소 이름 텍스트로 인한 화면 복잡도를 원천 방지.
-      // 역/정류소 이름(알약 배지)은 사용자가 해당 교통수단 전용 보기(subway, bus, bike)를 선택했을 때만 표출!
+      // [규칙 3] 중거리 뷰 (11.5 <= Zoom < 13.5)에서 전체 보기 버스/따릉이는 점 마커로 고정!
+      // 버스 전용 탭에서는 지하철 전용 탭과 동일하게 11.5 이상에서 공간 확보 시 알약 마커로 표출.
       // (단, 검색된 역, 클릭된 역, 활성 경로 경유역은 위 4번 규칙에 의해 항상 알약 배지로 우선 표시됨)
-      const forceDot = filterType === 'all' || ((isMidRangeFar || isMidRangeNear) && (item.stop.type === 'bus' || item.stop.type === 'bike'))
+      const forceDot = filterType === 'all' || ((isMidRangeFar || isMidRangeNear) && ((item.stop.type === 'bus' && !isBusOnlyMode) || item.stop.type === 'bike'))
 
       item.el.style.zIndex = '1'
 
@@ -2241,6 +2243,8 @@ export default function TransitMap({
     let timer: ReturnType<typeof setTimeout> | null = null
     let disposed = false
 
+    const liveBusMinZoom = 13
+
     // 주변 정류장 표시용 GeoJSON 소스
     map.addSource(sourceId, {
       type: 'geojson',
@@ -2250,16 +2254,17 @@ export default function TransitMap({
       }
     })
 
-    // 정류장을 초록색 원으로 표시
+    // 정류장을 혼잡도 색상 원으로 표시 (전체/버스 탭 모두 zoom 13부터 조기 노출)
     map.addLayer({
       id: layerId,
       type: 'circle',
       source: sourceId,
-      minzoom: 15,
+      minzoom: liveBusMinZoom,
       paint: {
         'circle-radius': [
           'interpolate', ['linear'], ['zoom'],
-          14, 4,
+          13, 3.5,
+          14, 4.5,
           16, 7,
           18, 10
         ],
@@ -2270,9 +2275,7 @@ export default function TransitMap({
       }
     })
 
-    let latestFeatures: any[] = []
     const setStations = (features: any[]) => {
-      latestFeatures = features
       const source = map.getSource(sourceId) as any
       source?.setData({
         type: 'FeatureCollection',
@@ -2280,12 +2283,50 @@ export default function TransitMap({
       })
     }
 
+    const syncVisibleStationsFromCache = () => {
+      if (disposed) return
+      if (map.getZoom() < liveBusMinZoom) {
+        setStations([])
+        return
+      }
+      const bounds = map.getBounds()
+      const west = bounds.getWest()
+      const east = bounds.getEast()
+      const south = bounds.getSouth()
+      const north = bounds.getNorth()
+      const lngPad = (east - west) * 0.15
+      const latPad = (north - south) * 0.15
+      const minLng = west - lngPad
+      const maxLng = east + lngPad
+      const minLat = south - latPad
+      const maxLat = north + latPad
+
+      const visible: any[] = []
+      for (const entry of liveBusStationCacheRef.current.values()) {
+        const [sLng, sLat] = entry.stop.coords
+        if (sLng < minLng || sLng > maxLng || sLat < minLat || sLat > maxLat) continue
+        const cached = aiCrowdCacheRef.current[entry.stop.id]
+        const info = cached || getStopCrowdInfo(entry.stop)
+        visible.push({
+          ...entry.feature,
+          properties: {
+            ...entry.feature.properties,
+            crowd: info.crowd,
+            label: info.label,
+            color: info.color,
+          }
+        })
+      }
+      setStations(visible)
+    }
+
     const loadNearbyStations = async () => {
       controller?.abort()
       controller = new AbortController()
 
-      // 너무 멀리 축소한 상태에서는 표시하지 않음
-      if (map.getZoom() < 15) {
+      const currentZoom = map.getZoom()
+      // 너무 멀리 축소한 상태에서는 표시하지 않음 (누적 캐시는 보존)
+      if (currentZoom < liveBusMinZoom) {
         setStations([])
         return
       }
@@ -2297,13 +2338,24 @@ export default function TransitMap({
       }
 
       const center = map.getCenter()
-      const bounds = map.getBounds()
+      if (center.lat < 37.0 || center.lat > 38.0 || center.lng < 126.0 || center.lng > 128.0) {
+        return
+      }
+      const searchRadius = currentZoom < 14.5 ? 1500 : (currentZoom < 15.5 ? 1000 : 600)
+
+      const last = lastBusFetchRef.current
+      if (last && searchRadius <= last.radius && Date.now() - last.ts < 60_000) {
+        const movedMeters = Math.hypot((center.lat - last.lat) * 111000, (center.lng - last.lng) * 88000)
+        if (movedMeters < searchRadius * 0.25) {
+          return
+        }
+      }
 
       try {
         const params = new URLSearchParams({
           lat: String(center.lat),
           lng: String(center.lng),
-          radius: '500'
+          radius: String(searchRadius)
         })
         const reqUrl = `${API_BASE_URL || ''}/api/v1/transit/bus/stations/nearby?${params.toString()}`
 
@@ -2319,16 +2371,17 @@ export default function TransitMap({
 
         if (disposed) return
 
+        lastBusFetchRef.current = { lat: center.lat, lng: center.lng, radius: searchRadius, ts: Date.now() }
+
         const stations = (data.stations || []).filter(
           (station: any) =>
             station.id &&
             station.coords &&
-            !station.name.includes('(미정차)') &&
-            bounds.contains(station.coords)
+            !station.name.includes('(미정차)')
         )
 
         const batchBusStops: TransitStop[] = []
-        const features = stations.map((station: any) => {
+        for (const station of stations) {
           const stationKey = `bus-dyn-${station.stId || station.id || station.arsId || `${station.coords[0]}_${station.coords[1]}`}`
           const tempStop: TransitStop = {
             id: stationKey,
@@ -2341,10 +2394,11 @@ export default function TransitMap({
             stId: station.stId,
             arsId: station.arsId,
           }
-          batchBusStops.push(tempStop)
+          if (!aiCrowdCacheRef.current[stationKey]) {
+            batchBusStops.push(tempStop)
+          }
           const { crowd, label, color } = getStopCrowdInfo(tempStop)
-
-          return {
+          const feature = {
             type: 'Feature',
             geometry: {
               type: 'Point',
@@ -2360,33 +2414,29 @@ export default function TransitMap({
               color,
             }
           }
-        })
+          if (liveBusStationCacheRef.current.has(stationKey)) {
+            liveBusStationCacheRef.current.delete(stationKey)
+          }
+          liveBusStationCacheRef.current.set(stationKey, { stop: tempStop, feature })
+        }
 
-        setStations(features)
+        while (liveBusStationCacheRef.current.size > 3000) {
+          const oldestKey = liveBusStationCacheRef.current.keys().next().value
+          if (oldestKey === undefined) break
+          liveBusStationCacheRef.current.delete(oldestKey)
+        }
+
+        syncVisibleStationsFromCache()
         console.log(
-          `[서울 버스] 주변 정류장 ${features.length}개 표시`
+          `[서울 버스] 주변 정류장 ${stations.length}개 병합 (누적 캐시 ${liveBusStationCacheRef.current.size}개)`
         )
 
         if (batchBusStops.length > 0) {
           requestBatchAiCrowds(
             batchBusStops,
-            (cacheMap) => {
-              if (disposed || latestFeatures.length === 0) return
-              const refreshed = latestFeatures.map(f => {
-                const cached = cacheMap[f.properties?.stationKey]
-                return cached
-                  ? {
-                      ...f,
-                      properties: {
-                        ...f.properties,
-                        crowd: cached.crowd,
-                        label: cached.label,
-                        color: cached.color,
-                      }
-                    }
-                  : f
-              })
-              setStations(refreshed)
+            () => {
+              if (disposed) return
+              syncVisibleStationsFromCache()
             },
             controller.signal,
           )
@@ -2394,9 +2444,8 @@ export default function TransitMap({
       } catch (error) {
         if (controller?.signal.aborted || disposed) return
 
-        // 외부 API 지연/점검 시 과도한 에러 로그 대신 warning 수준으로 조용히 완충
-        console.warn('[서울 버스] 주변 버스정류장 조회 지연/Fallback (서버 점검/오프라인):', error)
-        setStations([])
+        // 외부 API 지연/점검 시 기존 화면 내 누적 정류장을 유지하고 warning으로 완충
+        console.warn('[서울 버스] 주변 버스정류장 조회 지연/Fallback (기존 캐시 유지):', error)
       }
     }
 
@@ -2409,6 +2458,11 @@ export default function TransitMap({
       timer = setTimeout(() => {
         loadNearbyStations()
       }, delay)
+    }
+
+    const onMoveEnd = () => {
+      syncVisibleStationsFromCache()
+      scheduleUpdate(350)
     }
 
     // 정류장 원 클릭 시 풀 스펙 상세 팝업 표시 (기상 실황 + AI 추론 + 실시간 도착정보 + 노선 보기)
@@ -2438,21 +2492,20 @@ export default function TransitMap({
       openStationDetail(stop, {
         popupOffset: 12,
         onCrowdUpdate: (targetRec) => {
-          if (disposed || latestFeatures.length === 0) return
-          const updated = latestFeatures.map(f =>
-            f.properties?.stationKey === stationKey
-              ? {
-                  ...f,
-                  properties: {
-                    ...f.properties,
-                    crowd: targetRec.crowd,
-                    label: targetRec.crowdLabel,
-                    color: targetRec.crowdColor,
-                  }
-                }
-              : f
-          )
-          setStations(updated)
+          if (disposed) return
+          const existing = liveBusStationCacheRef.current.get(stationKey)
+          if (existing) {
+            existing.feature = {
+              ...existing.feature,
+              properties: {
+                ...existing.feature.properties,
+                crowd: targetRec.crowd,
+                label: targetRec.crowdLabel,
+                color: targetRec.crowdColor,
+              }
+            }
+          }
+          syncVisibleStationsFromCache()
         }
       })
     }
@@ -2484,20 +2537,21 @@ export default function TransitMap({
       busHoverPopup.remove()
     }
 
-    map.on('moveend', scheduleUpdate)
+    map.on('moveend', onMoveEnd)
     map.on('click', layerId, handleStationClick)
     map.on('mouseenter', layerId, onMouseEnter)
     map.on('mouseleave', layerId, onMouseLeave)
 
-    // 지도 로드 직후 최초 조회
-    scheduleUpdate()
+    // 지도 로드 직후 캐시 즉시 표출 및 주변 조회
+    syncVisibleStationsFromCache()
+    scheduleUpdate(150)
 
     return () => {
       disposed = true
       controller?.abort()
       if (timer) clearTimeout(timer)
 
-      map.off('moveend', scheduleUpdate)
+      map.off('moveend', onMoveEnd)
       map.off('click', layerId, handleStationClick)
       map.off('mouseenter', layerId, onMouseEnter)
       map.off('mouseleave', layerId, onMouseLeave)
@@ -4406,11 +4460,17 @@ export default function TransitMap({
               ? `최소 환승 경로 집중 모드: ${activeRoute.transferCount === 0 ? '직통' : `${activeRoute.transferCount}회 환승`} 경로상의 역만 표시 중입니다 (닫기 클릭 시 전체 역 복원)`
               : (zoomLevel < 10.5
                   ? '광역 지도 (마커 숨김): 지도를 확대하면 주요 거점이 표시됩니다'
-                  : (zoomLevel < 11.5
-                      ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
-                      : (zoomLevel < 13.5
-                          ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
-                          : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다')))}
+                  : (filterType === 'bus'
+                      ? (zoomLevel < 11.5
+                          ? '광역 버스 모드: 주요 버스 환승센터 위주 표시 (확대하면 일반·주변 정류장 표출)'
+                          : (zoomLevel < 13.0
+                              ? '도심 버스 모드: 주요 버스정류장 표시 중 (더 확대하면 주변 전체 실시간 정류장 연동)'
+                              : '상세 버스 모드: 주변 실시간 버스정류장 및 AI 혼잡도가 연동 표시됩니다'))
+                      : (zoomLevel < 11.5
+                          ? '광역 지도 모드: 수도권 핵심 거점 위주 표시 (지도를 확대하면 버스 환승센터 및 따릉이 거점 표출)'
+                          : (zoomLevel < 13.5
+                              ? '도심 지도 모드: 버스 및 따릉이 거점이 점(Dot) 마커로 표시 중입니다 (더 확대하면 상세 이름 표출)'
+                              : '상세 지도 모드: 주변 세부 버스 정류소와 따릉이 거점 대여소가 실시간 연동 표시됩니다'))))}
           </span>
         </div>
       )}

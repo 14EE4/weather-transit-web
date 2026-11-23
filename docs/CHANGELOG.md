@@ -6,6 +6,32 @@
 
 ---
 
+## [2026-11-20]
+
+### 🚆 천안 등 수도권 전철 운행 전 지역 선택 추가 및 서울·서울 경유 광역버스 지원 표기 (이슈 #141)
+- **배경/목적**:
+  - 기존 지역 선택(`DISTRICT_GROUPS`, `DISTRICT_GRID_MAP`, `DISTRICT_CENTERS`)이 서울 25개 자치구 및 9개 인접 도시만 지원하여 **천안시**를 비롯한 수도권 전철 연계 외곽 시·군(아산·평택·오산·화성·용인·안산·시흥·군포·의왕·과천·광주·이천·여주·김포·파주·의정부·양주·동두천·연천·구리·양평·가평·춘천)의 지역 선택이 불가능했습니다.
+  - 또한 실시간 버스(정류장·도착정보·노선)는 현재 **서울시 버스 OpenAPI**를 통해 서울시 버스 및 **서울 경유 경기·인천 광역버스**까지 지원하므로, UI 전반에 지원 범위를 명확히 표기해 사용자 혼동을 방지했습니다.
+- **조치 내역**:
+  1. **수도권 전철 운행 `24`개 시·군 추가 및 백엔드·프론트엔드 동기화**:
+     - `Weather-Transport Recommendation UI/src/constants/districts.ts`: `경기 남부·인천`, `경기 북부·동부·김포`, `충남·강원 광역 전철` 권역으로 재구성하여 천안시·아산시 등 `24`개 시·군 추가 및 `isSeoulDistrict()` SSoT 헬퍼 신설.
+     - `kma_forecast.py`: `DISTRICT_GRID_MAP`에 `24`개 시·군 기상청 격자 `(nx, ny)` 추가 및 `normalize_kma_district()` 신설로 공백 포함 복합 지역명(`천안시 두정·천안역·쌍용`) 및 `군` 접미사(`연천군` 등)의 24시간 단기예보 정규화 보완.
+     - `main.py`: `DISTRICT_INFRA`, `normalize_district_name()` 광역 연계축 매핑, `resolve_weather_target()` `satellite_cities` 매핑 보완 및 `predict_transit()`·`get_hourly_transit_forecast()`에서 `resolve_weather_target()` 기반 비서울 지역 실제 KMA 단기예보 연동.
+     - `multimodal_router.py` · `districtResolver.ts`: `DISTRICT_CENTERS` 및 `STATION_DONG_MAP` 동기화.
+  2. **서울시·서울 경유 광역버스 지원 표기 (`App.tsx`, `AppM.tsx`, `UnifiedStationSearch.tsx`, `MultimodalRoutePanel.tsx`, `multimodal_router.py`)**:
+     - 메인 현황·추천 카드에 `서울·광역` 배지 및 비서울 전철권 선택 시 안내 문구(`실시간 버스는 서울시 및 서울 경유 광역버스·따릉이는 서울 전용 지원`) 추가.
+     - 지도 교통수단 필터 탭 `버스(서울권)` 표기 및 버스 탭 선택 시 안내 배너, 통합 검색창 placeholder(`버스정류장 입력 (서울·서울 경유 광역버스 지원)`), `NON_SEOUL_ORIGIN` 배지 안내 보완.
+  3. **전체·버스 탭 축소 시 정류장 가시성 기준 지하철 수준 확대 (`TransitMap.tsx`)**:
+     - `filterType === 'all' | 'bus'` 모두 `zoom >= 10.5`부터 대형 환승센터 점(Dot) 마커(`priority >= 250`), `zoom >= 12.0`부터 전체 거점 버스정류소(`61`개) 표출로 완화 (`filterType === 'bus'`는 `zoom >= 11.5`부터 공간 확보 시 알약 마커 표출).
+     - 실시간 주변 버스정류장 레이어(`live-bus-stations-circle`) 최소 줌 기준을 `all`/`bus` 모두 `13`으로 통일하고 축소 단계(`13~15`)에 따라 조회 반경을 `600~1,500m`로 동적 확장하며 줌 배너 안내 동기화.
+     - 지도 이동 시 기존 정류장이 사라지지 않도록 `liveBusStationCacheRef`(최대 `3,000`개소 누적 캐시)와 `15%` 패딩 뷰포트 동기화(`syncVisibleStationsFromCache`)를 도입하고, 동일 영역 중복 요청 방지 및 일시적 조회 오류 시 기존 캐시 유지 처리.
+  4. **대시보드 `WARNING` 로그 `4`종 정교화 및 타임아웃 완화 (`main.py`, `services/circuit_breaker.py`, `services/factchat_briefing.py`, `TransitMap.tsx`)**:
+     - `get_nearby_bus_stations()`: 서울시 버스 `headerCd` `4`·`7`(`결과가 없습니다.`)을 장애 경고가 아닌 정상 `0`건 검색(`INFO` 로그, `status="success"`, `source="SEOUL_BUS_NO_DATA"`)으로 분리하고, 프론트엔드 `TransitMap.tsx`가 서울 버스 좌표 범위(`lat 37.0~38.0`, `lng 126.0~128.0`) 밖에서는 불필요한 호출을 스킵하도록 개선.
+     - `CircuitBreaker.record_failure()` 빈 원인 문자열(`원인 미상`) 방어 및 `get_realtime_weather()`에서 `sanitize_exception(e)`를 `record_failure()`에도 전달해 `원인: ReadTimeout` 보존.
+     - KMA 실황 HTTP 타임아웃(`4.0초` ➔ `7.0초`) 및 FactChat LLM 게이트웨이 타임아웃(`8.0초` ➔ `12.0초`) 상향으로 일시적 지연에 따른 조기 폴백·서킷 차단 완화.
+
+---
+
 ## [2026-11-18]
 
 ### 🧱 전사 코드베이스 SOLID 원칙 전수 검토·Phase 1~4 리팩토링 및 UX/라우팅 보완 (이슈 #138)

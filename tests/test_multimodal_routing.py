@@ -362,15 +362,17 @@ class TestMultimodalRoutingEngine(unittest.TestCase):
         self.assertNotIn("구로역", path_names)
         self.assertNotIn("가산디지털단지역", path_names)
 
-        # 4. 버스 세그먼트 좌표 검증: 단순 2점 직선이 아닌 15개 이상의 도로 복도(Corridor) 좌표열이어야 함
+        # 4. 버스 세그먼트 좌표 검증: 이슈 #138 이후 실측 노선 미존재 시 타원 지그재그 대신 최소 2점([start, end]) 직선 폴백 반환
         bus_segs = [s for s in hybrid.get("segments", []) if s.get("mode") == "bus"]
         self.assertTrue(len(bus_segs) > 0)
         bus_coords = bus_segs[0].get("coords", [])
-        self.assertGreaterEqual(len(bus_coords), 15, "버스 경로는 도로형 복도 좌표열(15개 이상)로 생성되어야 함")
+        self.assertGreaterEqual(len(bus_coords), 2, "버스 경로는 최소 시작·종료 좌표 2점 이상이어야 함")
+        self.assertEqual(len(bus_coords[0]), 2)
+        self.assertEqual(len(bus_coords[-1]), 2)
 
         # 5. 전체 지오메트리 연결성 검증
         geom = hybrid.get("geometry", [])
-        self.assertGreaterEqual(len(geom), 30)
+        self.assertGreaterEqual(len(geom), len(hybrid["path"]))
         self.assertEqual(geom[0], hybrid["path"][0]["coords"])
         self.assertEqual(geom[-1], hybrid["path"][-1]["coords"])
 

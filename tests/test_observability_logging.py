@@ -207,6 +207,30 @@ class TestObservabilityAndGracefulDegradation(unittest.TestCase):
         self.assertFalse(any("WARNING" in msg for msg in cm.output))
         self.assertTrue(any("getStationByPos 결과 없음 (4:" in msg for msg in cm.output))
 
+    def test_phase2a_bounded_cache_and_input_validation(self):
+        """Phase 2-A 인메모리 캐시 상한(LRU/FIFO 퇴거) 및 Pydantic 입력 상한 검증"""
+        store = {}
+        main._bounded_cache_set(store, "k1", 1, max_size=2)
+        main._bounded_cache_set(store, "k2", 2, max_size=2)
+        main._bounded_cache_set(store, "k3", 3, max_size=2)
+        self.assertEqual(list(store.keys()), ["k2", "k3"])
+
+        r_dist = self.client.post(
+            "/api/v1/predict/recommendation",
+            json={"district": "가" * 100, "hour": 8},
+        )
+        self.assertEqual(r_dist.status_code, 422)
+
+        huge_items = [
+            {"id": f"s{i}", "name": "강남역", "stop_type": "subway", "district": "강남구"}
+            for i in range(3001)
+        ]
+        r_batch = self.client.post(
+            "/api/v1/predict/map-crowds",
+            json={"hour": 8, "items": huge_items},
+        )
+        self.assertEqual(r_batch.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()

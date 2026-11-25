@@ -26,6 +26,12 @@
      - `[SEC-11]` `requirements.txt` 중복 `langgraph` 제거 및 프론트엔드 `npm audit fix` 적용(`npm audit` `0` 취약점, Vite 프로덕션 빌드·백엔드 테스트·Docker `/health` `32d×16d` 검증 통과).
   4. **전사 보안 정책 통합 문서 신설 (`docs/SECURITY_POLICY.md`, `README.md`)**:
      - 다계층 보안 아키텍처, 미니 PC NPM 엣지 하드닝 표준, 전사 보안 감사(`SEC-01~SEC-14`) 조치 현황 매트릭스, 개발자 보안 체크리스트 및 `Phase 2~3` 로드맵을 단일 문서로 통합하고 `README.md` 문서 색인에 등록.
+  5. **Phase 2-A 시연 무영향 백엔드·컨테이너·Nginx 하드닝 적용 (브랜치 `144-security-phase2a-hardening`)**:
+     - `[SEC-06]` `main.py` `_bounded_cache_set(max_size=500)` 및 `services/factchat_briefing.py` 캐시 상한(`300`), Pydantic 입력 길이·범위·배열 상한(`items<=3000`) 적용.
+     - `[SEC-07]` `services/factchat_briefing.py` `_sanitize_prompt_field()` 및 `<route_data>` 태그 경계 격리·시스템 프롬프트 방어 지침 추가.
+     - `[SEC-08]` `docker-compose.yml` 컨테이너 메모리/CPU 상한(`backend 2g/2.0`, `frontend 256m/0.5`) 및 `BACKEND_BIND_HOST` 환경변수화(`.env.example` 동기화).
+     - `[SEC-09]` 컨테이너 `nginx.conf` `server_tokens off;`, `client_max_body_size 1m;` 및 보안 응답 헤더(`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`) 적용.
+     - `[SEC-12]` `main.py` `500` 오류 응답 상세 메시지 일반화 및 `timeseries_cache.py` 오류 문자열 일반화.
 
 ---
 

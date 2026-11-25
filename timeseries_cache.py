@@ -519,7 +519,8 @@ class TimeseriesCacheManager:
                 "path": self.db_path,
             }
         except Exception as exc:
-            return {"exists": True, "count": 0, "size_kb": 0, "path": self.db_path, "error": str(exc)}
+            logger.warning("[TimeseriesCache] 캐시 통계 조회 실패: %s", type(exc).__name__)
+            return {"exists": True, "count": 0, "size_kb": 0, "path": self.db_path, "error": "cache_stats_unavailable"}
 
     def clear_cache(self) -> Dict[str, Any]:
         """인메모리 링버퍼 및 SQLite 시계열 테이블(weather_observations, transit_snapshots) 초기화"""

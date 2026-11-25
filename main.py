@@ -108,6 +108,18 @@ _weather_last_good: dict[str, dict] = {}
 _subway_last_good: dict[str, dict] = {}
 _bus_last_good: dict[str, dict] = {}
 
+_MAX_API_CACHE_ENTRIES = 500
+
+
+def _bounded_cache_set(store: dict, key: Any, value: Any, max_size: int = _MAX_API_CACHE_ENTRIES) -> None:
+    """인메모리 딕셔너리 캐시의 무한 증가(OOM) 방지를 위해 최대 엔트리 수를 초과하면 가장 오래된 항목부터 제거합니다."""
+    if key in store:
+        store.pop(key, None)
+    while len(store) >= max_size:
+        oldest_key = next(iter(store))
+        store.pop(oldest_key, None)
+    store[key] = value
+
 # 따릉이 전체 대여소 스냅샷 (단일 캐시: (수집시각, 대여소 목록))
 _bike_snapshot_cache: Optional[tuple[float, list[dict]]] = None
 _bike_snapshot_last_good: Optional[list[dict]] = None
@@ -664,19 +676,19 @@ app.add_middleware(
 # 4. Pydantic 요청/응답 스키마 정의
 # ==============================================================================
 class WeatherInput(BaseModel):
-    temp: float = Field(default=14.0, description="기온 (°C)", example=14.0)
-    rain: float = Field(default=0.0, ge=0.0, description="1시간 누적 강수량 (mm)", example=2.8)
+    temp: float = Field(default=14.0, ge=-60.0, le=60.0, description="기온 (°C)", example=14.0)
+    rain: float = Field(default=0.0, ge=0.0, le=500.0, description="1시간 누적 강수량 (mm)", example=2.8)
     humidity: float = Field(default=60.0, ge=0.0, le=100.0, description="습도 (%)", example=86.0)
-    wind: float = Field(default=2.0, ge=0.0, description="풍속 (m/s)", example=3.8)
+    wind: float = Field(default=2.0, ge=0.0, le=100.0, description="풍속 (m/s)", example=3.8)
 
 class PredictionRequest(BaseModel):
-    district: str = Field(default="강남구", description="서울시 자치구 명칭", example="강남구")
+    district: str = Field(default="강남구", max_length=60, description="서울시 자치구 명칭", example="강남구")
     hour: int = Field(default=8, ge=0, le=24, description="시간대 (0~24시)", example=8)
     weather: Optional[WeatherInput] = Field(default=None, description="기상 관측 데이터")
-    station: Optional[str] = Field(default=None, description="특정 역사 또는 정류소 명칭", example="강남역")
-    stop_type: Optional[str] = Field(default=None, description="교통수단 유형 (subway, bus, bike)", example="subway")
-    base_crowd: Optional[int] = Field(default=None, description="역/정류소 기준 혼잡도 (0~100)", example=88)
-    point_id: Optional[str] = Field(default=None, description="정류소/대여소/역 고유 지점 ID (stId, stationNo 등)", example="2호선_222")
+    station: Optional[str] = Field(default=None, max_length=100, description="특정 역사 또는 정류소 명칭", example="강남역")
+    stop_type: Optional[str] = Field(default=None, max_length=20, description="교통수단 유형 (subway, bus, bike)", example="subway")
+    base_crowd: Optional[int] = Field(default=None, ge=0, le=100, description="역/정류소 기준 혼잡도 (0~100)", example=88)
+    point_id: Optional[str] = Field(default=None, max_length=60, description="정류소/대여소/역 고유 지점 ID (stId, stationNo 등)", example="2호선_222")
 
 class RecommendationItem(BaseModel):
     id: str
@@ -714,17 +726,17 @@ class PredictionResponse(BaseModel):
     recommendations: list[RecommendationItem]
 
 class MapCrowdStopInput(BaseModel):
-    id: str = Field(..., description="지도 거점 고유 ID")
-    name: str = Field(..., description="역/정류소/대여소 명칭")
-    stop_type: str = Field(default="subway", description="교통수단 유형 (subway, bus, bike)")
-    district: str = Field(default="강남구", description="자치구 명칭")
-    point_id: Optional[str] = Field(default=None, description="고유 지점 ID (stId, stationNo 등)")
-    base_crowd: Optional[int] = Field(default=55, description="기본 혼잡도 (0~100)")
+    id: str = Field(..., max_length=100, description="지도 거점 고유 ID")
+    name: str = Field(..., max_length=100, description="역/정류소/대여소 명칭")
+    stop_type: str = Field(default="subway", max_length=20, description="교통수단 유형 (subway, bus, bike)")
+    district: str = Field(default="강남구", max_length=60, description="자치구 명칭")
+    point_id: Optional[str] = Field(default=None, max_length=60, description="고유 지점 ID (stId, stationNo 등)")
+    base_crowd: Optional[int] = Field(default=55, ge=0, le=100, description="기본 혼잡도 (0~100)")
 
 class MapCrowdBatchRequest(BaseModel):
     hour: int = Field(default=8, ge=0, le=24, description="시간대 (0~24시)")
     weather: Optional[WeatherInput] = Field(default=None, description="기상 관측 데이터 (생략 시 실시간 단기예보 자동 반영)")
-    items: list[MapCrowdStopInput] = Field(..., description="일괄 추론할 지도 거점 목록")
+    items: list[MapCrowdStopInput] = Field(..., max_length=3000, description="일괄 추론할 지도 거점 목록")
 
 class MapCrowdItemResult(BaseModel):
     crowd: int
@@ -1159,8 +1171,8 @@ async def clear_admin_cache():
             "timestamp": get_kst_now().isoformat()
         }
     except Exception as exc:
-        logger.error(f"[Admin] 캐시 초기화 중 오류: {exc}")
-        raise HTTPException(status_code=500, detail=f"캐시 초기화 실패: {exc}")
+        logger.error(f"[Admin] 캐시 초기화 중 오류: {sanitize_exception(exc)}")
+        raise HTTPException(status_code=500, detail="캐시 초기화 중 내부 오류가 발생했습니다.")
 
 @app.get("/health", tags=["System"])
 async def health_check():
@@ -1344,8 +1356,8 @@ async def predict_recommendation(req: PredictionRequest):
             record_timeseries=True,
         )
     except Exception as e:
-        logger.error(f"ONNX 추론 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"ONNX Model Inference Error: {str(e)}")
+        logger.error(f"ONNX 추론 실패: {sanitize_exception(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI 추론 처리 중 내부 오류가 발생했습니다.")
 
     # 3. 혼잡도 지수 및 MCDA 추천 스코어링 계산
     subway_crowd, subway_score, subway_reasons = evaluate_subway(subway_demand, weather.rain, norm_district)
@@ -1567,8 +1579,8 @@ async def predict_map_crowds(req: MapCrowdBatchRequest):
                         "subway": s_vol,
                     }
         except Exception as e:
-            logger.error(f"지도 일괄 Stage 1 ONNX 추론 실패: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"ONNX Model Inference Error: {str(e)}")
+            logger.error(f"지도 일괄 Stage 1 ONNX 추론 실패: {sanitize_exception(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail="지도 AI 일괄 추론 처리 중 내부 오류가 발생했습니다.")
 
         batch_payload = [
             {
@@ -2305,8 +2317,8 @@ async def get_current_weather(
                         "source": "KMA_APIHUB_LIVE"
                     }
                     kma_circuit_breaker.record_success()
-                    _weather_cache[cache_key] = (curr_time, resp_data)
-                    _weather_last_good[nx_ny_key] = resp_data
+                    _bounded_cache_set(_weather_cache, cache_key, (curr_time, resp_data))
+                    _bounded_cache_set(_weather_last_good, nx_ny_key, resp_data)
                     timeseries_cache.record_weather(
                         target_name,
                         temp=resp_data["temp"],
@@ -2452,8 +2464,8 @@ async def get_subway_arrival(station: str = "강남"):
             "arrivals": arrivals,
             "source": "SEOUL_SUBWAY_LIVE"
         }
-        _subway_cache[clean_st] = (curr_time, resp_data)
-        _subway_last_good[clean_st] = resp_data
+        _bounded_cache_set(_subway_cache, clean_st, (curr_time, resp_data))
+        _bounded_cache_set(_subway_last_good, clean_st, resp_data)
         return SubwayArrivalResponse(**resp_data)
 
     # API 장애 또는 도착 정보 부재 시: 스냅샷 캐시 우선, 그 후 지능형 Fallback
@@ -2550,8 +2562,8 @@ async def get_bus_arrival(stId: str = "111000299", busRouteId: Optional[str] = N
             "arrivals": arrivals,
             "source": "SEOUL_BUS_LIVE"
         }
-        _bus_cache[cache_key] = (curr_time, resp_data)
-        _bus_last_good[cache_key] = resp_data
+        _bounded_cache_set(_bus_cache, cache_key, (curr_time, resp_data))
+        _bounded_cache_set(_bus_last_good, cache_key, resp_data)
         return BusArrivalResponse(**resp_data)
 
     # API 장애 또는 도착 정보 부재 시: 스냅샷 캐시 우선, 그 후 지능형 Fallback
@@ -3375,15 +3387,15 @@ async def get_bike_station(station_id: str):
 # ==============================================================================
 
 class MultimodalRouteRequest(BaseModel):
-    from_station: str = Field("강남역", description="출발역 또는 출발 거점명")
-    to_station: str = Field("서울역", description="도착역 또는 도착 거점명")
-    from_coords: Optional[List[float]] = Field(None, description="출발지 [lng, lat] 좌표 (선택)")
-    to_coords: Optional[List[float]] = Field(None, description="도착지 [lng, lat] 좌표 (선택)")
-    from_type: Optional[str] = Field(None, description="출발 거점 유형: subway | bus | bike | gps")
-    to_type: Optional[str] = Field(None, description="도착 거점 유형: subway | bus | bike | gps")
-    district: str = Field("강남구", description="기준 자치구명")
-    from_district: Optional[str] = Field(None, description="출발지 소속 자치구명 (선택, 미지정 시 자동 판별)")
-    to_district: Optional[str] = Field(None, description="도착지 소속 자치구명 (선택, 미지정 시 자동 판별)")
+    from_station: str = Field("강남역", max_length=100, description="출발역 또는 출발 거점명")
+    to_station: str = Field("서울역", max_length=100, description="도착역 또는 도착 거점명")
+    from_coords: Optional[List[float]] = Field(None, max_length=2, description="출발지 [lng, lat] 좌표 (선택)")
+    to_coords: Optional[List[float]] = Field(None, max_length=2, description="도착지 [lng, lat] 좌표 (선택)")
+    from_type: Optional[str] = Field(None, max_length=20, description="출발 거점 유형: subway | bus | bike | gps")
+    to_type: Optional[str] = Field(None, max_length=20, description="도착 거점 유형: subway | bus | bike | gps")
+    district: str = Field("강남구", max_length=60, description="기준 자치구명")
+    from_district: Optional[str] = Field(None, max_length=60, description="출발지 소속 자치구명 (선택, 미지정 시 자동 판별)")
+    to_district: Optional[str] = Field(None, max_length=60, description="도착지 소속 자치구명 (선택, 미지정 시 자동 판별)")
     hour: Optional[int] = Field(None, ge=0, le=23, description="탐색 시간대 (0~23시)")
     weather: Optional[WeatherInput] = Field(None, description="기상 조건 오버라이드 (미지정 시 KMA 단기예보/실황 연동)")
     from_weather: Optional[WeatherInput] = Field(None, description="출발지 국지 기상 오버라이드 (선택)")

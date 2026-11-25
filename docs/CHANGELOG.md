@@ -6,6 +6,27 @@
 
 ---
 
+## [2026-11-25]
+
+### 🔒 프로젝트 전체 보안 검토(Read-Only Audit) 및 미니 PC NPM 엣지 보안 하드닝 문서화 (이슈 #144)
+- **배경/목적**:
+  - 미니 PC + Nginx Proxy Manager(NPM) HTTPS 운영 환경에서 전체 코드베이스·컨테이너·리버스 프록시·의존성에 대한 읽기 전용(Read-Only) 6단계 보안 감사를 수행하고 이슈 `#144`에 결과(High `5`건, Medium `6`건, Low/Info `3`건)를 기록.
+  - 캡스톤 시연 기능 동결을 유지하면서 외부 공개 시 가장 위험한 무인증 관리자·캐시 삭제·진단·Swagger 노출(`[SEC-01]`)을 NPM 엣지 레벨에서 즉시 차단·인증 보호한 구성을 공식 배포 가이드에 반영.
+- **조치 내역**:
+  1. **미니 PC NPM 리버스 프록시 보안 하드닝 적용 및 문서화 (`docs/SERVER_DEPLOYMENT_GUIDE.md` §4.2)**:
+     - 시연·일반 서비스에 불필요한 `POST /api/v1/admin/cache/clear`, `/api/v1/system/circuit-breakers`, `/api/v1/cache/timeseries-status`, `/docs`, `/openapi.json` 경로 정규식(`location ~ ^...(/|$)`) 기반 `403 Forbidden` 즉시 차단 규칙 명세화.
+     - 시연·운영 중 선택적으로 활용할 수 있는 `/health/dashboard`, `/api/v1/admin/logs`, `/api/v1/admin/status` 경로에 NPM Access List(`auth_basic_user_file /data/access/<ID>`) 기반 Basic Auth 보호 구성 및 `client_max_body_size 1m;`·보안 응답 헤더·공유기 포트 최소화 주의사항 수록.
+  2. **보안 검토 이력 및 후속 백로그 동기화 (`docs/TODO.md`, GitHub 이슈 `#144`)**:
+     - NPM 엣지 접근 통제 적용 현황 및 코드 레벨 Phase `1~3` 하드닝 백로그를 `docs/TODO.md`와 이슈 `#144` 코멘트에 동기화.
+  3. **Phase 1 Quick-Win 애플리케이션·인프라 보안 패치 적용 (브랜치 `144-security-phase1-hardening`)**:
+     - `[SEC-04]` 루트 및 프론트엔드 `.dockerignore`에 `.env`, `**/.env`, `.env.*` 제외 추가(`!.env.example` 유지).
+     - `[SEC-05]` `logging_utils.py`에 서울 지하철(`/api/subway/{KEY}/`)·따릉이(`:8088/{KEY}/json|xml/`) URL 경로 키 마스킹 정규식 및 루트 콘솔·Docker stdout 핸들러용 `SensitiveInfoMaskingFilter`(`install_root_log_masking()`) 추가, `services/factchat_briefing.py` 예외 로깅에 `sanitize_exception()` 적용.
+     - `[SEC-03]` `src/utils/htmlEscape.ts` 신설 및 `TransitMap.tsx` 팝업·마커·경로 핀 HTML 템플릿 전수 이스케이프 적용, `admin_dashboard.py` `escapeHtml()` 따옴표 보강 및 `rel="noopener noreferrer"` 추가.
+     - `[SEC-13]` `src/utils/csvExport.ts` CSV 수식 인젝션(`=`, `+`, `-`, `@`, 탭/CR 시작) 방어 및 `Blob`+RFC 4180 이스케이프 적용(`EnterpriseView.tsx` 중복 따옴표 정리).
+     - `[SEC-11]` `requirements.txt` 중복 `langgraph` 제거 및 프론트엔드 `npm audit fix` 적용(`npm audit` `0` 취약점, Vite 프로덕션 빌드·백엔드 테스트·Docker `/health` `32d×16d` 검증 통과).
+
+---
+
 ## [2026-11-20]
 
 ### 🚆 천안 등 수도권 전철 운행 전 지역 선택 추가 및 서울·서울 경유 광역버스 지원 표기 (이슈 #141)

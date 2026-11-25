@@ -12,6 +12,18 @@
 ## 📌 우선순위별 개발 백로그
 
 
+### 🔒 0-3. 프로젝트 보안 검토 및 미니 PC NPM 엣지 보안 하드닝 (진행 중 · 2026-11-25 · 이슈 #144)
+- [x] **[SEC-AUDIT] 전체 6단계 읽기 전용(Read-Only) 보안 감사 완료 및 이슈 `#144` 보고서 등재 (2026-11-24)**:
+  - 비밀정보·설정 위생, 백엔드 API/CORS/입력검증, AI/LLM 프롬프트 보안, 프론트엔드 DOM XSS/CSV, Docker/Nginx 인프라, SCA(`npm audit`) 전수 점검 완료 (High `5`건, Medium `6`건, Low/Info `3`건 도출).
+- [x] **[SEC-NPM] 미니 PC Nginx Proxy Manager(NPM) 경로 접근 통제 적용 및 배포 가이드 문서화 (2026-11-25)**:
+  - `/api/v1/admin/cache/clear`, `/api/v1/system/circuit-breakers`, `/api/v1/cache/timeseries-status`, `/docs`, `/openapi.json` 즉시 `403` 차단 적용.
+  - `/health/dashboard`, `/api/v1/admin/logs`, `/api/v1/admin/status` NPM Access List Basic Auth(`auth_basic`) 보호 적용 및 `docs/SERVER_DEPLOYMENT_GUIDE.md` §4.2 문서화 완료.
+- [x] **[SEC-PHASE1] Phase 1 Quick-Win 애플리케이션·인프라 보안 패치 완료 (2026-11-25 · 브랜치 `144-security-phase1-hardening`)**:
+  - `[SEC-04]` `.dockerignore` `.env`/`**/.env` 제외 추가, `[SEC-05]` `logging_utils.py` URL 경로 키 마스킹 + 콘솔/stdout `SensitiveInfoMaskingFilter` + `factchat_briefing.py` `sanitize_exception` 적용.
+  - `[SEC-03]` `TransitMap.tsx`·`admin_dashboard.py` DOM XSS HTML 이스케이프, `[SEC-13]` `csvExport.ts` CSV 수식 인젝션 방어, `[SEC-11]` `requirements.txt` 중복 제거·`npm audit fix`(`0` 취약점).
+- [ ] **[SEC-APP] 애플리케이션·컨테이너 레벨 보안 하드닝 Phase `2~3` (캡스톤 발표 이후 또는 승인 시 순차 진행 · 이슈 `#144`)**:
+  - Phase `2~3`: FastAPI Admin 인증/CORS 화이트리스트/입력 상한·캐시 LRU/LLM 입력 정제/컨테이너 비루트 `USER` 및 `mem_limit`/CDN SRI 고정.
+
 ### 🚆 0-2. 수도권 전철 운행 전 지역 선택 확대 및 서울·서울 경유 광역버스 지원 표기 (완료 · 2026-11-20 · 이슈 #141)
 - [x] **[REGION-01] 천안시 등 수도권 전철 운행 `24`개 시·군 추가 및 서울·서울 경유 광역버스 지원 표기 (완료 · 2026-11-20 · 이슈 #141)**:
   - `districts.ts`, `kma_forecast.py`, `main.py`, `multimodal_router.py`, `districtResolver.ts`에 천안·아산·평택·오산·화성·용인·안산·시흥·군포·의왕·과천·광주·이천·여주·김포·파주·의정부·양주·동두천·연천·구리·양평·가평·춘천 추가 및 기상청 격자·24시간 예보 정규화(`normalize_kma_district`)·역지오코딩 동기화.

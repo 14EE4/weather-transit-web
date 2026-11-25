@@ -153,7 +153,7 @@ docker compose logs -f --tail=30
 
 미니 PC에 **Nginx Proxy Manager(NPM)**를 실행 중인 경우, 외부 도메인 및 HTTPS(SSL)를 간편하게 연동할 수 있습니다.
 
-### 도메인 프록시 호스트 등록 가이드
+### 4.1 도메인 프록시 호스트 등록 가이드
 도메인 예시: `weather.yourdomain.com`
 
 1. **NPM 웹 대시보드(포트 81)**에 접속하여 로그인합니다 (`http://<미니PC_IP>:81`).
@@ -175,6 +175,69 @@ docker compose logs -f --tail=30
      - **Force SSL**: 체크 (ON)
      - **HTTP/2 Support**: 체크 (ON)
      - 이용약관 동의 후 **Save** 클릭
+
+### 4.2 NPM 보안 하드닝 설정 (관리자·진단·Swagger 경로 접근 통제 및 요청 제한)
+
+NPM에서 HTTPS(SSL)를 활성화하더라도 통신 구간 암호화만 제공되며, 관리자 API·진단 엔드포인트·Swagger 문서 및 초대형 요청 페이로드는 리버스 프록시 계층에서 별도로 통제해야 합니다 (이슈 `#144` `[SEC-01]`, `[SEC-06]`, `[SEC-09]` 엣지 방어).
+
+#### 경로별 접근 통제 정책
+
+| 구분 | 대상 경로 | 처리 방식 | 사유 |
+| :--- | :--- | :---: | :--- |
+| **즉시 차단 (시연·일반 서비스 불필요)** | `/api/v1/admin/cache/clear`<br>`/api/v1/system/circuit-breakers`<br>`/api/v1/cache/timeseries-status`<br>`/docs`, `/openapi.json` | **`403 Forbidden`** | 외부의 캐시 강제 삭제(SQLite `VACUUM`·API 쿼터 고갈), 내부 진단 정보 및 API 스키마 노출 원천 차단 |
+| **인증 보호 (운영·시연 시 선택 조회)** | `/health/dashboard`<br>`/api/v1/admin/logs`<br>`/api/v1/admin/status` | **Basic Auth (`Access List`)** | 발표자·운영자만 ID/PW 인증 후 실시간 로그·상태 대시보드 열람 허용, 외부 스캐너·봇 차단 |
+| **서비스 API (공개 허용)** | `/api/v1/{weather,predict,districts,transit,routes,b2b}/*` | **허용 (`1MB` 요청 제한)** | 웹/모바일 정상 서비스 및 시연 기능 무영향 |
+
+#### NPM `Access List` 생성 및 `Advanced` 탭 적용 절차
+
+1. NPM 좌측 메뉴 **`Access Lists`** ➔ **`Add Access List`**에서 관리자용 ID/PW(`Authorization` 탭)를 등록하고 저장합니다.
+   - 생성된 Access List의 htpasswd 파일 경로는 NPM 컨테이너 내부 `/data/access/<ID>`(예: 최초 생성 시 `/data/access/1`)입니다. Access List를 삭제 후 재생성하면 번호가 바뀔 수 있으므로 일치 여부를 확인하세요.
+2. 대상 **Proxy Host** ➔ **`⋮` ➔ `Edit`** ➔ **`Advanced` 탭** (`Custom Nginx Configuration`)에 아래 설정을 입력하고 **`Save`** 합니다:
+
+```nginx
+# 0. 요청 크기·타임아웃 제한 및 기본 보안 헤더 (정상 map-crowds 요청 ~200KB 대비 1MB 넉넉)
+client_max_body_size 1m;
+client_body_timeout 10s;
+client_header_timeout 10s;
+
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+# 1. 즉시 403 차단 (시연 불필요 + 내부 진단 + Swagger)
+location ~ ^/api/v1/admin/cache/clear(/|$) {
+    return 403;
+}
+
+location ~ ^/api/v1/system/circuit-breakers(/|$) {
+    return 403;
+}
+
+location ~ ^/api/v1/cache/timeseries-status(/|$) {
+    return 403;
+}
+
+location ~ ^/(docs|openapi\.json)(/|$) {
+    return 403;
+}
+
+# 2. ID/PW(Basic Auth) 보호 (시연 가능성 있는 대시보드 및 로그/상태 API)
+location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
+    auth_basic "Demo Admin Restricted";
+    auth_basic_user_file /data/access/1;
+
+    proxy_pass $forward_scheme://$server:$port;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+> ⚠️ **운영 주의사항**:
+> - **공유기 포트포워딩 최소화**: 외부에는 `443`(및 인증서 갱신용 `80`)만 개방하고 `81`(NPM 관리), `3100`, `8100`, `22`(SSH) 포트는 외부에 절대 개방하지 마세요.
+> - **`limit_req_zone` 입력 금지**: NPM `Advanced` 탭은 Nginx `server { ... }` 컨텍스트이므로 `http` 전용 지시어인 `limit_req_zone`을 넣으면 프록시가 `Offline` 상태가 됩니다. Rate Limiting은 Cloudflare WAF 규칙 또는 NPM `/data/nginx/custom/http_top.conf`에 분리 설정하세요.
+> - **적용 후 검증**: 저장 직후 Proxy Host 상태가 **`Online`**인지 확인하고, 시크릿 창에서 `/api/v1/admin/cache/clear`·`/docs`의 `403` 응답 및 `/health/dashboard`의 ID/PW 인증 창 표출을 점검합니다.
 
 ---
 

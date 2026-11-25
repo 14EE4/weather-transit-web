@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 import numpy as np
 import onnxruntime as ort
 import httpx
-from logging_utils import mask_sensitive_text, sanitize_exception
+from logging_utils import mask_sensitive_text, sanitize_exception, install_root_log_masking
 from services.circuit_breaker import CircuitBreaker
 from services.mcda_evaluator import (
     AHP_CRITERIA_WEIGHTS,
@@ -74,6 +74,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("weather_transit_api")
 attach_in_memory_log_handler()
+install_root_log_masking()
 
 # .env 로드
 load_dotenv()

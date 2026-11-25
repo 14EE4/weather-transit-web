@@ -184,8 +184,8 @@ NPM에서 HTTPS(SSL)를 활성화하더라도 통신 구간 암호화만 제공�
 
 | 구분 | 대상 경로 | 처리 방식 | 사유 |
 | :--- | :--- | :---: | :--- |
-| **즉시 차단 (시연·일반 서비스 불필요)** | `/api/v1/admin/cache/clear`<br>`/api/v1/system/circuit-breakers`<br>`/api/v1/cache/timeseries-status`<br>`/docs`, `/openapi.json` | **`403 Forbidden`** | 외부의 캐시 강제 삭제(SQLite `VACUUM`·API 쿼터 고갈), 내부 진단 정보 및 API 스키마 노출 원천 차단 |
-| **인증 보호 (운영·시연 시 선택 조회)** | `/health/dashboard`<br>`/api/v1/admin/logs`<br>`/api/v1/admin/status` | **Basic Auth (`Access List`)** | 발표자·운영자만 ID/PW 인증 후 실시간 로그·상태 대시보드 열람 허용, 외부 스캐너·봇 차단 |
+| **즉시 차단 (시연·일반 서비스 불필요)** | `/api/v1/system/circuit-breakers`<br>`/api/v1/cache/timeseries-status` | **`403 Forbidden`** | 내부 서킷브레이커 상태 및 시계열 캐시 진단 JSON 노출 원천 차단 |
+| **인증 보호 (운영·시연 시 선택 조회)** | `/health/dashboard`<br>`/api/v1/admin/logs`<br>`/api/v1/admin/status`<br>`/api/v1/admin/cache/clear`<br>`/docs`, `/openapi.json` | **Basic Auth (`Access List`)** | 발표자·운영자만 ID/PW 인증 후 실시간 로그·상태 대시보드, 대시보드 내 `Swagger API Docs`(`/docs`) 및 `캐시 비우기` 사용 허용; 외부 스캐너·봇은 `401` 차단 |
 | **서비스 API (공개 허용)** | `/api/v1/{weather,predict,districts,transit,routes,b2b}/*` | **허용 (`1MB` 요청 제한)** | 웹/모바일 정상 서비스 및 시연 기능 무영향 |
 
 #### NPM `Access List` 생성 및 `Advanced` 탭 적용 절차
@@ -204,11 +204,7 @@ add_header X-Content-Type-Options "nosniff" always;
 add_header X-Frame-Options "SAMEORIGIN" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-# 1. 즉시 403 차단 (시연 불필요 + 내부 진단 + Swagger)
-location ~ ^/api/v1/admin/cache/clear(/|$) {
-    return 403;
-}
-
+# 1. 즉시 403 차단 (내부 진단 API)
 location ~ ^/api/v1/system/circuit-breakers(/|$) {
     return 403;
 }
@@ -217,12 +213,8 @@ location ~ ^/api/v1/cache/timeseries-status(/|$) {
     return 403;
 }
 
-location ~ ^/(docs|openapi\.json)(/|$) {
-    return 403;
-}
-
-# 2. ID/PW(Basic Auth) 보호 (시연 가능성 있는 대시보드 및 로그/상태 API)
-location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
+# 2. ID/PW(Basic Auth) 보호 (대시보드, 로그/상태/캐시 초기화 API 및 Swagger 문서)
+location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status|docs|openapi\.json|api/v1/admin/cache/clear)(/|$) {
     auth_basic "Demo Admin Restricted";
     auth_basic_user_file /data/access/1;
 
@@ -237,7 +229,7 @@ location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
 > ⚠️ **운영 주의사항**:
 > - **공유기 포트포워딩 최소화**: 외부에는 `443`(및 인증서 갱신용 `80`)만 개방하고 `81`(NPM 관리), `3100`, `8100`, `22`(SSH) 포트는 외부에 절대 개방하지 마세요.
 > - **`limit_req_zone` 입력 금지**: NPM `Advanced` 탭은 Nginx `server { ... }` 컨텍스트이므로 `http` 전용 지시어인 `limit_req_zone`을 넣으면 프록시가 `Offline` 상태가 됩니다. Rate Limiting은 Cloudflare WAF 규칙 또는 NPM `/data/nginx/custom/http_top.conf`에 분리 설정하세요.
-> - **적용 후 검증**: 저장 직후 Proxy Host 상태가 **`Online`**인지 확인하고, 시크릿 창에서 `/api/v1/admin/cache/clear`·`/docs`의 `403` 응답 및 `/health/dashboard`의 ID/PW 인증 창 표출을 점검합니다.
+> - **적용 후 검증**: 저장 직후 Proxy Host 상태가 **`Online`**인지 확인하고, 시크릿 창에서 `/api/v1/system/circuit-breakers`의 `403` 응답 및 `/health/dashboard`·`/docs`·`/api/v1/admin/cache/clear`의 ID/PW 인증 창 표출과 대시보드 내 `📖 Swagger API Docs` 버튼 정상 열람을 점검합니다.
 
 ---
 

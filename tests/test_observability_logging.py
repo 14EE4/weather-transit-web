@@ -3,7 +3,7 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 from in_memory_log_handler import InMemoryLogHandler
-from logging_utils import mask_sensitive_text, sanitize_exception
+from logging_utils import mask_sensitive_text, sanitize_exception, SensitiveInfoMaskingFilter
 from fastapi.testclient import TestClient
 import main
 from multimodal_router import multimodal_routing_engine
@@ -66,6 +66,31 @@ class TestObservabilityAndGracefulDegradation(unittest.TestCase):
         last_entry = self.handler.buffer[-1]
         self.assertNotIn("184d553816a7f8e4356e4552548603dd2d51d356797890e549b515f518e8c2b9", last_entry["message"])
         self.assertIn("serviceKey=184d****", last_entry["message"])
+
+        # 4. 서울 열린데이터광장 지하철·따릉이 URL 경로 내 API 키 마스킹 (Issue #144 SEC-05)
+        subway_url = "http://swopenAPI.seoul.go.kr/api/subway/1234567890abcdef/json/realtimeStationArrival/0/16/%EA%B0%95%EB%82%A8"
+        masked_subway = mask_sensitive_text(subway_url)
+        self.assertNotIn("1234567890abcdef", masked_subway)
+        self.assertIn("/api/subway/1234****/json/", masked_subway)
+
+        bike_url = "http://openapi.seoul.go.kr:8088/abcd1234efgh5678/json/bikeList/1/1000/"
+        masked_bike = mask_sensitive_text(bike_url)
+        self.assertNotIn("abcd1234efgh5678", masked_bike)
+        self.assertIn(":8088/abcd****/json/bikeList/", masked_bike)
+
+        # 5. 루트/콘솔 핸들러 필터(SensitiveInfoMaskingFilter) 동작 검증
+        rec = logging.LogRecord(
+            name="httpx",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="HTTP Request: GET %s",
+            args=(subway_url,),
+            exc_info=None,
+        )
+        self.assertTrue(SensitiveInfoMaskingFilter().filter(rec))
+        self.assertNotIn("1234567890abcdef", rec.getMessage())
+        self.assertIn("/api/subway/1234****/json/", rec.getMessage())
 
     def test_sanitize_exception_empty_and_domain(self):
         """빈 메시지 예외(httpx.ReadTimeout 등) 클래스명 보존 및 도메인 분류 검증"""
@@ -181,6 +206,30 @@ class TestObservabilityAndGracefulDegradation(unittest.TestCase):
         self.assertEqual(data["stations"], [])
         self.assertFalse(any("WARNING" in msg for msg in cm.output))
         self.assertTrue(any("getStationByPos 결과 없음 (4:" in msg for msg in cm.output))
+
+    def test_phase2a_bounded_cache_and_input_validation(self):
+        """Phase 2-A 인메모리 캐시 상한(LRU/FIFO 퇴거) 및 Pydantic 입력 상한 검증"""
+        store = {}
+        main._bounded_cache_set(store, "k1", 1, max_size=2)
+        main._bounded_cache_set(store, "k2", 2, max_size=2)
+        main._bounded_cache_set(store, "k3", 3, max_size=2)
+        self.assertEqual(list(store.keys()), ["k2", "k3"])
+
+        r_dist = self.client.post(
+            "/api/v1/predict/recommendation",
+            json={"district": "가" * 100, "hour": 8},
+        )
+        self.assertEqual(r_dist.status_code, 422)
+
+        huge_items = [
+            {"id": f"s{i}", "name": "강남역", "stop_type": "subway", "district": "강남구"}
+            for i in range(3001)
+        ]
+        r_batch = self.client.post(
+            "/api/v1/predict/map-crowds",
+            json={"hour": 8, "items": huge_items},
+        )
+        self.assertEqual(r_batch.status_code, 422)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,11 @@
   - `[SEC-04]` `.dockerignore` `.env`/`**/.env` 제외 추가, `[SEC-05]` `logging_utils.py` URL 경로 키 마스킹 + 콘솔/stdout `SensitiveInfoMaskingFilter` + `factchat_briefing.py` `sanitize_exception` 적용.
   - `[SEC-03]` `TransitMap.tsx`·`admin_dashboard.py` DOM XSS HTML 이스케이프, `[SEC-13]` `csvExport.ts` CSV 수식 인젝션 방어, `[SEC-11]` `requirements.txt` 중복 제거·`npm audit fix`(`0` 취약점).
   - `docs/SECURITY_POLICY.md` 신설 및 `README.md` 색인 등재로 전사 보안 정책·NPM 설정·감사(`SEC-01~SEC-14`) 현황 단일화.
-- [ ] **[SEC-APP] 애플리케이션·컨테이너 레벨 보안 하드닝 Phase `2~3` (캡스톤 발표 이후 또는 승인 시 순차 진행 · 이슈 `#144`)**:
-  - Phase `2~3`: FastAPI Admin 인증/CORS 화이트리스트/입력 상한·캐시 LRU/LLM 입력 정제/컨테이너 비루트 `USER` 및 `mem_limit`/CDN SRI 고정.
+- [x] **[SEC-PHASE2A] Phase 2-A 시연 무영향 보안 하드닝 완료 (2026-11-25 · 브랜치 `144-security-phase2a-hardening`)**:
+  - `[SEC-06]` `main.py` `_bounded_cache_set(500)`·`FactChat(300)` 캐시 상한 및 Pydantic 입력 상한(`items<=3000`), `[SEC-07]` LLM 프롬프트 정제 및 `<route_data>` 경계 격리.
+  - `[SEC-08]` `docker-compose.yml` `mem_limit`/`cpus` 및 `BACKEND_BIND_HOST` 지원, `[SEC-09]` `nginx.conf` `server_tokens off;`·`1m` 제한·보안 헤더 3종, `[SEC-12]` `500` 오류 응답 일반화.
+- [ ] **[SEC-APP] 애플리케이션·컨테이너 레벨 보안 하드닝 Phase `2-B ~ 3` (캡스톤 발표 이후 또는 승인 시 순차 진행 · 이슈 `#144`)**:
+  - Phase `2-B ~ 3`: FastAPI Admin 인증/CORS 화이트리스트/Rate Limit/컨테이너 비루트 `USER` 및 CDN SRI 고정.
 
 ### 🚆 0-2. 수도권 전철 운행 전 지역 선택 확대 및 서울·서울 경유 광역버스 지원 표기 (완료 · 2026-11-20 · 이슈 #141)
 - [x] **[REGION-01] 천안시 등 수도권 전철 운행 `24`개 시·군 추가 및 서울·서울 경유 광역버스 지원 표기 (완료 · 2026-11-20 · 이슈 #141)**:

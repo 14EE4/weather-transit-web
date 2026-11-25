@@ -128,13 +128,13 @@ location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
 | **`SEC-03`** | 🔴 High | `TransitMap.tsx` 다수 `innerHTML`/`setHTML()` DOM XSS | ✅ **코드 패치 완료** | `htmlEscape.ts` 신설 및 팝업·마커·경로 핀 HTML 템플릿 전수 이스케이프, `admin_dashboard.py` `escapeHtml()` 보강 |
 | **`SEC-04`** | 🔴 High | `.dockerignore` `.env` 누락으로 이미지 빌드 컨텍스트 포함 위험 | ✅ **코드 패치 완료** | 루트 및 프론트 `.dockerignore`에 `.env`, `**/.env`, `.env.*` 제외 추가 (`!.env.example` 유지) |
 | **`SEC-05`** | 🔴 High | URL 경로(Path) API 키 로그 마스킹 사각지대 및 HTTP 평문 호출 | ✅ **코드 마스킹 완료** *(HTTPS 전환 검토)* | `logging_utils.py` 지하철·따릉이 경로 마스킹 + 콘솔/stdout `SensitiveInfoMaskingFilter` + `factchat_briefing.py` `sanitize_exception` 적용. 외부 HTTP(`ws.bus.go.kr`, `swopenAPI`, `:8088`) HTTPS 지원 여부는 제공처별 후속 확인 |
-| **`SEC-06`** | 🟠 Medium | 입력 상한·Rate Limit·인메모리 캐시 크기 제한 부재 (DoS/OOM) | 🛡️ **NPM 1MB 완화** *(앱 상한은 Phase 2)* | NPM `client_max_body_size 1m` 적용 완료. Pydantic `Field(max_length)`/`items` 상한 및 캐시 LRU/Rate Limit은 `Phase 2` |
-| **`SEC-07`** | 🟠 Medium | FactChat/BAZE LLM 프롬프트 인젝션 위험 | ⏳ **Phase 2 대기** | `services/factchat_briefing.py` 출발/도착지명 길이 제한·제어문자 제거 및 시스템 프롬프트 격리 예정 |
-| **`SEC-08`** | 🟠 Medium | 컨테이너 `root` 실행 및 백엔드 포트(`8100`) 호스트 개방 | ⏳ **Phase 2 대기** | `Dockerfile.backend` 비루트 `USER`, `docker-compose.yml` `127.0.0.1:8100:8000` 및 `mem_limit`/`cpus` 제한 예정 |
-| **`SEC-09`** | 🟠 Medium | Nginx 보안 HTTP 응답 헤더 및 서버 정보 은닉 미설정 | 🛡️ **NPM 헤더 안내** *(컨테이너 nginx는 Phase 2)* | `SERVER_DEPLOYMENT_GUIDE.md` §4.2에 NPM 보안 헤더 반영, 컨테이너 [`nginx.conf`](../nginx.conf) `server_tokens off;`·CSP/보안 헤더는 `Phase 2` |
+| **`SEC-06`** | 🟠 Medium | 입력 상한·Rate Limit·인메모리 캐시 크기 제한 부재 (DoS/OOM) | ✅ **앱 상한 패치** *(Rate Limit은 Phase 2-B)* | NPM `client_max_body_size 1m` + Pydantic `Field(max_length)`/`items<=3000` + `main._bounded_cache_set(500)`/`FactChat(300)` 적용 완료 (`Phase 2-B`에서 Rate Limiting 보강) |
+| **`SEC-07`** | 🟠 Medium | FactChat/BAZE LLM 프롬프트 인젝션 위험 | ✅ **코드 패치 완료** | `services/factchat_briefing.py` 사용자 입력 길이·제어문자·구분자(`<>`, `` ``` ``) 정제 및 `<route_data>` 데이터 경계 격리 적용 |
+| **`SEC-08`** | 🟠 Medium | 컨테이너 `root` 실행 및 백엔드 포트(`8100`) 호스트 개방 | 🛡️ **리소스·바인딩 적용** *(비루트 USER는 Phase 2-B)* | `docker-compose.yml` `mem_limit`(`2g`/`256m`)·`cpus` 제한 및 `BACKEND_BIND_HOST` 환경변수화 적용 (비루트 컨테이너 `USER`는 SQLite 볼륨 UID 호환성 고려 `Phase 2-B`) |
+| **`SEC-09`** | 🟠 Medium | Nginx 보안 HTTP 응답 헤더 및 서버 정보 은닉 미설정 | ✅ **코드 패치 완료** | 컨테이너 `nginx.conf`에 `server_tokens off;`, `client_max_body_size 1m;`, `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy` 적용 완료 |
 | **`SEC-10`** | 🟠 Medium | 외부 CDN 스크립트 버전 미고정 및 SRI(`integrity`) 누락 | ⏳ **Phase 3 대기** | `index.html`(`maplibre-gl@^4.7.1`), `admin_dashboard.py`(`cdn.tailwindcss.com`) 버전 고정/번들화 및 SRI 적용 예정 |
 | **`SEC-11`** | 🟠 Medium | 프론트 개발 의존성 High CVE 2건(`vite`, `source-map-js`) 및 `requirements.txt` 미고정 | ✅ **패치 완료** *(상한 고정 선택)* | `npm audit fix` 완료(`npm audit` `0` 취약점), `requirements.txt` 중복 `langgraph` 제거 (운영 버전 상한 핀닝은 `Phase 3` 검토) |
-| **`SEC-12`** | 🟡 Low | 내부 예외 메시지·DB 경로 API 응답 노출 (`main.py`, `timeseries_cache.py`) | ⏳ **Phase 3 대기** | 클라이언트 오류 응답 일반화(`500` 상세 예외 제거) 및 DB 경로 노출 축소 예정 |
+| **`SEC-12`** | 🟡 Low | 내부 예외 메시지·DB 경로 API 응답 노출 (`main.py`, `timeseries_cache.py`) | ✅ **코드 패치 완료** | `main.py` `500` 오류 응답 일반화(`sanitize_exception` 서버 로그 유지) 및 `timeseries_cache.py` 오류 문자열 일반화 완료 |
 | **`SEC-13`** | 🟡 Low | CSV 다운로드 수식 인젝션 및 RFC 4180 이스케이프 미처리 | ✅ **코드 패치 완료** | `csvExport.ts` `=`, `+`, `-`, `@`, 탭/CR 시작 셀 무력화 및 `Blob` + RFC 4180 이스케이프 적용 |
 | **`SEC-14`** | ⚪ Info | `admin_dashboard.py` `rel="noopener noreferrer"` 누락 및 부가 파일 정리 | ✅ **링크 패치 완료** *(파일 정리 선택)* | `admin_dashboard.py` 외부 링크 `rel="noopener noreferrer"` 추가 완료 (`package-lock.json`/`pnpm-lock.yaml` 단일화 및 `map.html` 정리는 선택 과제) |
 
@@ -169,15 +169,19 @@ location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
 
 캡스톤 발표 기능 동결 이후 외부 상시 공개 또는 상용 클라우드 확장 시 순차 적용할 백로그입니다.
 
-- **Phase 2 — 외부 상시 공개 전 필수 하드닝**
+- **Phase 2-A (적용 완료 · 브랜치 `144-security-phase2a-hardening`)**
+  - `[SEC-06]` Pydantic 입력 상한(`Field(max_length=...)`, `items<=3000`) 및 인메모리 캐시 최대 엔트리(`500`/`300`) 제한
+  - `[SEC-07]` [`services/factchat_briefing.py`](../services/factchat_briefing.py) 사용자 입력 정제 및 `<route_data>` 프롬프트 경계 격리
+  - `[SEC-08]` [`docker-compose.yml`](../docker-compose.yml) `mem_limit`(`2g`/`256m`)·`cpus` 제한 및 `BACKEND_BIND_HOST` 환경변수화
+  - `[SEC-09]` [`nginx.conf`](../nginx.conf) `server_tokens off;`, `client_max_body_size 1m;` 및 보안 응답 헤더 3종
+  - `[SEC-12]` `main.py` `500` 오류 응답 및 `timeseries_cache.py` 오류 문자열 일반화
+- **Phase 2-B / Phase 3 — 발표 이후 또는 상시 공개 시 추가 하드닝**
   - `[SEC-01]` [`main.py`](../main.py) 관리자/대시보드 앱 레벨 인증 및 컨테이너 [`nginx.conf`](../nginx.conf) `location = /health` 제한·`/docs` 외부 비활성화 옵션
   - `[SEC-02]` [`main.py`](../main.py) `CORSMiddleware` 허용 도메인 화이트리스트(`CORS_ALLOW_ORIGINS`) 전환
-  - `[SEC-06]` Pydantic 입력 상한(`Field(max_length=...)`, `items` 최대 건수), 인메모리 캐시 최대 엔트리(LRU) 제한, Rate Limiting(Cloudflare WAF 또는 Nginx `limit_req`)
-  - `[SEC-07]` [`services/factchat_briefing.py`](../services/factchat_briefing.py) 사용자 입력 정제 및 LLM 프롬프트 경계 격리
-  - `[SEC-08][SEC-09]` `Dockerfile.backend` 비루트 `USER`, [`docker-compose.yml`](../docker-compose.yml) `127.0.0.1:8100:8000` 바인딩 및 `mem_limit`/`cpus` 제한, [`nginx.conf`](../nginx.conf) `server_tokens off;`·CSP/보안 헤더
-- **Phase 3 — 장기 개선**
+  - `[SEC-06]` Rate Limiting(Cloudflare WAF 또는 Nginx `limit_req`)
+  - `[SEC-08]` `Dockerfile.backend` 비루트 `USER` 전환 (호스트 `./data` 볼륨 UID 정렬 포함)
   - `[SEC-10]` `maplibre-gl` npm 로컬 번들 전환 또는 버전 고정 + SRI(`integrity`) 적용
-  - `[SEC-12][SEC-14]` `500` 에러 응답 메시지 일반화, 락파일(`package-lock.json` vs `pnpm-lock.yaml`) 단일화, 프로토타입 `map.html` 정리
+  - `[SEC-14]` 락파일(`package-lock.json` vs `pnpm-lock.yaml`) 단일화, 프로토타입 `map.html` 정리
   - *(인프라 권장)* 도메인 DNS에 **Cloudflare Proxy** 적용으로 홈서버 공인 IP 은닉 및 엣지 봇/Rate Limit 방어
 
 ### 관련 문서 바로가기

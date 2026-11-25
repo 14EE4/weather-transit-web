@@ -16,8 +16,8 @@
 - [x] **[SEC-AUDIT] 전체 6단계 읽기 전용(Read-Only) 보안 감사 완료 및 이슈 `#144` 보고서 등재 (2026-11-24)**:
   - 비밀정보·설정 위생, 백엔드 API/CORS/입력검증, AI/LLM 프롬프트 보안, 프론트엔드 DOM XSS/CSV, Docker/Nginx 인프라, SCA(`npm audit`) 전수 점검 완료 (High `5`건, Medium `6`건, Low/Info `3`건 도출).
 - [x] **[SEC-NPM] 미니 PC Nginx Proxy Manager(NPM) 경로 접근 통제 적용 및 배포 가이드 문서화 (2026-11-25)**:
-  - `/api/v1/admin/cache/clear`, `/api/v1/system/circuit-breakers`, `/api/v1/cache/timeseries-status`, `/docs`, `/openapi.json` 즉시 `403` 차단 적용.
-  - `/health/dashboard`, `/api/v1/admin/logs`, `/api/v1/admin/status` NPM Access List Basic Auth(`auth_basic`) 보호 적용 및 `docs/SERVER_DEPLOYMENT_GUIDE.md` §4.2 문서화 완료.
+  - `/api/v1/system/circuit-breakers`, `/api/v1/cache/timeseries-status` 즉시 `403` 차단 적용.
+  - `/health/dashboard`, `/api/v1/admin/logs`, `/api/v1/admin/status`, `/api/v1/admin/cache/clear`, `/docs`, `/openapi.json` NPM Access List Basic Auth(`auth_basic`) 보호 적용(대시보드 `Swagger API Docs`·`캐시 비우기` 연동 유지) 및 `docs/SERVER_DEPLOYMENT_GUIDE.md` §4.2 문서화 완료.
 - [x] **[SEC-PHASE1] Phase 1 Quick-Win 애플리케이션·인프라 보안 패치 및 통합 보안 문서화 완료 (2026-11-25 · 브랜치 `144-security-phase1-hardening`)**:
   - `[SEC-04]` `.dockerignore` `.env`/`**/.env` 제외 추가, `[SEC-05]` `logging_utils.py` URL 경로 키 마스킹 + 콘솔/stdout `SensitiveInfoMaskingFilter` + `factchat_briefing.py` `sanitize_exception` 적용.
   - `[SEC-03]` `TransitMap.tsx`·`admin_dashboard.py` DOM XSS HTML 이스케이프, `[SEC-13]` `csvExport.ts` CSV 수식 인젝션 방어, `[SEC-11]` `requirements.txt` 중복 제거·`npm audit fix`(`0` 취약점).

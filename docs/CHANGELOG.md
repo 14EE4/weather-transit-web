@@ -14,8 +14,8 @@
   - 캡스톤 시연 기능 동결을 유지하면서 외부 공개 시 가장 위험한 무인증 관리자·캐시 삭제·진단·Swagger 노출(`[SEC-01]`)을 NPM 엣지 레벨에서 즉시 차단·인증 보호한 구성을 공식 배포 가이드에 반영.
 - **조치 내역**:
   1. **미니 PC NPM 리버스 프록시 보안 하드닝 적용 및 문서화 (`docs/SERVER_DEPLOYMENT_GUIDE.md` §4.2)**:
-     - 시연·일반 서비스에 불필요한 `POST /api/v1/admin/cache/clear`, `/api/v1/system/circuit-breakers`, `/api/v1/cache/timeseries-status`, `/docs`, `/openapi.json` 경로 정규식(`location ~ ^...(/|$)`) 기반 `403 Forbidden` 즉시 차단 규칙 명세화.
-     - 시연·운영 중 선택적으로 활용할 수 있는 `/health/dashboard`, `/api/v1/admin/logs`, `/api/v1/admin/status` 경로에 NPM Access List(`auth_basic_user_file /data/access/<ID>`) 기반 Basic Auth 보호 구성 및 `client_max_body_size 1m;`·보안 응답 헤더·공유기 포트 최소화 주의사항 수록.
+     - 내부 진단 API(`/api/v1/system/circuit-breakers`, `/api/v1/cache/timeseries-status`) 경로 정규식(`location ~ ^...(/|$)`) 기반 `403 Forbidden` 즉시 차단 규칙 명세화.
+     - `/health/dashboard`, `/api/v1/admin/logs`, `/api/v1/admin/status`, `/api/v1/admin/cache/clear`, `/docs`, `/openapi.json` 경로에 NPM Access List(`auth_basic_user_file /data/access/<ID>`) 기반 Basic Auth 보호를 적용해 외부 접근은 차단하면서 인증된 관리자 대시보드의 `Swagger API Docs`·`캐시 비우기` 버튼 연동 유지, `client_max_body_size 1m;`·보안 응답 헤더·공유기 포트 최소화 주의사항 수록.
   2. **보안 검토 이력 및 후속 백로그 동기화 (`docs/TODO.md`, GitHub 이슈 `#144`)**:
      - NPM 엣지 접근 통제 적용 현황 및 코드 레벨 Phase `1~3` 하드닝 백로그를 `docs/TODO.md`와 이슈 `#144` 코멘트에 동기화.
   3. **Phase 1 Quick-Win 애플리케이션·인프라 보안 패치 적용 (브랜치 `144-security-phase1-hardening`)**:

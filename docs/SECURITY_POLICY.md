@@ -60,8 +60,8 @@ NPM에서 HTTPS(SSL)를 활성화하면 브라우저 ↔ 미니 PC 구간 암호
 
 | 구분 | 대상 경로 | 처리 방식 | 사유 |
 | :--- | :--- | :---: | :--- |
-| **즉시 차단 (시연·일반 서비스 불필요)** | `/api/v1/admin/cache/clear`<br>`/api/v1/system/circuit-breakers`<br>`/api/v1/cache/timeseries-status`<br>`/docs`, `/openapi.json` | **`403 Forbidden`** | 외부의 캐시 강제 삭제(SQLite `VACUUM`·공공 API 쿼터 고갈), 내부 진단 정보 및 API 스키마 노출 원천 차단 |
-| **인증 보호 (운영·시연 시 선택 조회)** | `/health/dashboard`<br>`/api/v1/admin/logs`<br>`/api/v1/admin/status` | **Basic Auth (`Access List`)** | 발표자·운영자만 ID/PW 인증 후 실시간 로그·상태 대시보드 열람 허용, 외부 스캐너·봇 차단 |
+| **즉시 차단 (시연·일반 서비스 불필요)** | `/api/v1/system/circuit-breakers`<br>`/api/v1/cache/timeseries-status` | **`403 Forbidden`** | 내부 서킷브레이커 상태 및 시계열 캐시 진단 JSON 노출 원천 차단 |
+| **인증 보호 (운영·시연 시 선택 조회)** | `/health/dashboard`<br>`/api/v1/admin/logs`<br>`/api/v1/admin/status`<br>`/api/v1/admin/cache/clear`<br>`/docs`, `/openapi.json` | **Basic Auth (`Access List`)** | 발표자·운영자만 ID/PW 인증 후 실시간 로그·상태 대시보드, 대시보드 내 `Swagger API Docs`(`/docs`) 및 `캐시 비우기` 사용 허용; 외부 스캐너·봇은 `401` 차단 |
 | **서비스 API (공개 허용)** | `/api/v1/{weather,predict,districts,transit,routes,b2b}/*` | **허용 (`1MB` 요청 제한)** | 웹/모바일 정상 서비스 및 시연 기능 무영향 |
 
 ### 3.3 NPM `Advanced` 탭 표준 설정 스니펫
@@ -80,11 +80,7 @@ add_header X-Content-Type-Options "nosniff" always;
 add_header X-Frame-Options "SAMEORIGIN" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-# 3. 즉시 403 차단 (시연 불필요 + 내부 진단 + Swagger)
-location ~ ^/api/v1/admin/cache/clear(/|$) {
-    return 403;
-}
-
+# 3. 즉시 403 차단 (내부 진단 API)
 location ~ ^/api/v1/system/circuit-breakers(/|$) {
     return 403;
 }
@@ -93,12 +89,8 @@ location ~ ^/api/v1/cache/timeseries-status(/|$) {
     return 403;
 }
 
-location ~ ^/(docs|openapi\.json)(/|$) {
-    return 403;
-}
-
-# 4. ID/PW(Basic Auth) 보호 (시연 가능성 있는 대시보드 및 로그/상태 API)
-location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
+# 4. ID/PW(Basic Auth) 보호 (대시보드, 로그/상태/캐시 초기화 API 및 Swagger 문서)
+location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status|docs|openapi\.json|api/v1/admin/cache/clear)(/|$) {
     auth_basic "Demo Admin Restricted";
     auth_basic_user_file /data/access/1;
 
@@ -113,7 +105,7 @@ location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
 > ⚠️ **NPM 운영 주의사항**:
 > - **`limit_req_zone` 금지**: NPM `Advanced` 탭은 Nginx `server { ... }` 블록 내부이므로 `http` 컨텍스트 전용 지시어(`limit_req_zone`)를 넣으면 프록시가 `Offline` 상태가 됩니다. Rate Limiting은 Cloudflare WAF 또는 NPM `/data/nginx/custom/http_top.conf`에서 별도 설정하세요.
 > - **Access List 번호 확인**: Access List를 삭제 후 재생성하면 `/data/access/1`의 숫자가 바뀔 수 있으므로 저장 후 Proxy Host 상태가 **`Online`**인지 반드시 확인하세요.
-> - **시크릿 창 10초 검증**: `/api/v1/admin/cache/clear` 및 `/docs` ➔ `403`, `/health/dashboard` ➔ 로그인 팝업 확인 (`/health/`와 `/api/` 경로 특성상 첫 접속 시 브라우저 인증 창이 `1~2`회 뜰 수 있음).
+> - **시크릿 창 10초 검증**: `/api/v1/system/circuit-breakers` ➔ `403`, `/health/dashboard`·`/docs`·`/api/v1/admin/cache/clear` ➔ 로그인 팝업(`401`) 확인 및 대시보드 로그인 후 `📖 Swagger API Docs` 버튼 정상 열람 확인.
 
 ---
 
@@ -123,7 +115,7 @@ location ~ ^/(health/dashboard|api/v1/admin/logs|api/v1/admin/status)(/|$) {
 
 | ID | 심각도 | 항목 요약 | 상태 | 근거 및 조치 내역 |
 | :---: | :---: | :--- | :---: | :--- |
-| **`SEC-01`** | 🔴 High | 무인증 Admin·대시보드·캐시 삭제·Swagger 노출 | 🛡️ **NPM 엣지 완화** *(앱 인증은 Phase 2)* | 미니 PC NPM에서 `cache/clear`·`docs`·진단 API `403` 차단 및 대시보드·로그/상태 Basic Auth 적용 (`nginx.conf`·FastAPI 앱 레벨 인증은 `Phase 2`) |
+| **`SEC-01`** | 🔴 High | 무인증 Admin·대시보드·캐시 삭제·Swagger 노출 | 🛡️ **NPM 엣지 완화** *(앱 인증은 Phase 2-B)* | 미니 PC NPM에서 내부 진단 API `403` 차단 및 대시보드·로그/상태/캐시 초기화·Swagger(`/docs`, `/openapi.json`) Basic Auth 적용 (`nginx.conf`·FastAPI 앱 레벨 인증은 `Phase 2-B`) |
 | **`SEC-02`** | 🔴 High | `CORSMiddleware` 전체 오리진(`*`) + Credentials 허용 | ⏳ **Phase 2 대기** | `main.py:654-660` (`CORS_ALLOW_ORIGINS` 환경변수 화이트리스트화 및 `allow_credentials=False` 전환 예정) |
 | **`SEC-03`** | 🔴 High | `TransitMap.tsx` 다수 `innerHTML`/`setHTML()` DOM XSS | ✅ **코드 패치 완료** | `htmlEscape.ts` 신설 및 팝업·마커·경로 핀 HTML 템플릿 전수 이스케이프, `admin_dashboard.py` `escapeHtml()` 보강 |
 | **`SEC-04`** | 🔴 High | `.dockerignore` `.env` 누락으로 이미지 빌드 컨텍스트 포함 위험 | ✅ **코드 패치 완료** | 루트 및 프론트 `.dockerignore`에 `.env`, `**/.env`, `.env.*` 제외 추가 (`!.env.example` 유지) |

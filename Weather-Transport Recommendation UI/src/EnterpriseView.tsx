@@ -136,7 +136,7 @@ export const EnterpriseView: React.FC<EnterpriseViewProps> = ({ apiBaseUrl }) =>
       d.bike_rebalance_qty,
       d.bus_recommended_trips,
       d.urgency,
-      `"${d.actionable_guidance.replace(/"/g, '""')}"`,
+      d.actionable_guidance,
     ]);
     downloadCsv(headers, rows, `b2b_fleet_rebalance_${data.weather_condition.hour}h.csv`);
   };

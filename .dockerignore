@@ -10,7 +10,11 @@ __pycache__
 *.pyo
 *.pyd
 venv
-.env.local
+.env
+**/.env
+.env.*
+**/.env.*
+!.env.example
 *.log
 
 # Node & Build artifacts
@@ -39,3 +43,4 @@ raw_data
 *.parquet
 *.pkl
 *.h5
+presentation_assets

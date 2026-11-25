@@ -19,6 +19,7 @@ import {
   getCrowdLevel,
   applyMarkerCrowdStyle,
 } from './utils/mapCrowd'
+import { escapeHtml } from './utils/htmlEscape'
 
 // API Base URL: Docker Nginx 환경에서는 동일 오리진("") 리버스 프록시 적용
 if (import.meta.env.DEV) {
@@ -613,7 +614,7 @@ export default function TransitMap({
         <div style="background: rgba(14, 165, 233, 0.09); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
             <span style="font-size: 10px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 4px;">
-              <span>🌦️</span> ${wDistrict} 국지 기상 실황
+              <span>🌦️</span> ${escapeHtml(wDistrict)} 국지 기상 실황
             </span>
             <span style="font-size: 9px; color: var(--color-muted); font-family: monospace;">
               격자 (${wNx}, ${wNy})
@@ -622,23 +623,23 @@ export default function TransitMap({
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; background: var(--color-card2); border-radius: 6px; padding: 4px 2px; margin-bottom: 5px;">
             <div>
               <div style="font-size: 8px; color: var(--color-muted);">기온</div>
-              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wTemp}°C</div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${escapeHtml(wTemp)}°C</div>
             </div>
             <div>
               <div style="font-size: 8px; color: var(--color-muted);">강수</div>
-              <div style="font-size: 11px; font-weight: 800; color: ${wRain > 0 ? '#60A5FA' : '#34D399'}; font-family: monospace;">${wRain}mm</div>
+              <div style="font-size: 11px; font-weight: 800; color: ${wRain > 0 ? '#60A5FA' : '#34D399'}; font-family: monospace;">${escapeHtml(wRain)}mm</div>
             </div>
             <div>
               <div style="font-size: 8px; color: var(--color-muted);">습도</div>
-              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wHum}%</div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${escapeHtml(wHum)}%</div>
             </div>
             <div>
               <div style="font-size: 8px; color: var(--color-muted);">풍속</div>
-              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${wWind}m/s</div>
+              <div style="font-size: 11px; font-weight: 800; color: var(--app-text); font-family: monospace;">${escapeHtml(wWind)}m/s</div>
             </div>
           </div>
           <div style="font-size: 9px; color: #BAE6FD; display: flex; align-items: center; justify-content: space-between;">
-            <span>${wRain > 0 ? `🌧️ ${weatherData.pty_desc || '비'} (강수 관측)` : '☀️ 맑음 (평시 패턴)'}</span>
+            <span>${wRain > 0 ? `🌧️ ${escapeHtml(weatherData.pty_desc || '비')} (강수 관측)` : '☀️ 맑음 (평시 패턴)'}</span>
             <span style="color: #64748B;">기상청 초단기실황</span>
           </div>
         </div>
@@ -659,14 +660,14 @@ export default function TransitMap({
         <div style="background: rgba(124, 58, 237, 0.1); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 10px; font-weight: 800; color: #C084FC; display: flex; align-items: center; gap: 4px;">
-              <span>🤖</span> AI 수요 추론 (${rec.name})
+              <span>🤖</span> AI 수요 추론 (${escapeHtml(rec.name)})
             </span>
             <span style="font-size: 9px; font-weight: 700; color: #C084FC; background: rgba(168,85,247,0.22); padding: 1px 5px; border-radius: 4px;">
               ${rec.point_share_pct != null ? `🎯 지점 AI · 구 내 ${Number(rec.point_share_pct).toFixed(2)}%` : '⚡ LightGBM AI'}
             </span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; font-size: 10px;">
-            <span style="color: var(--app-text);">예측 혼잡도: <strong style="color: ${displayColor};">${displayCrowd}%</strong> (${displayLabel})</span>
+            <span style="color: var(--app-text);">예측 혼잡도: <strong style="color: ${displayColor};">${displayCrowd}%</strong> (${escapeHtml(displayLabel)})</span>
             <span style="color: var(--color-muted); font-family: monospace;">시간당 ${rec.predicted_volume ? rec.predicted_volume.toLocaleString() : '1,200'}명</span>
           </div>
           <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 5px;">
@@ -679,7 +680,7 @@ export default function TransitMap({
             </div>
           ` : ''}
           <div style="font-size: 9px; color: #DDD6FE; line-height: 1.35; background: var(--color-card2); padding: 4px 6px; border-radius: 4px; border-left: 2px solid #A855F7;">
-            ${rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석'}
+            ${escapeHtml(rec.reasons?.[0] || '기상 관측치 기반 최적 통행 분석')}
           </div>
         </div>
       `
@@ -722,19 +723,19 @@ export default function TransitMap({
                   <div style="min-width: 0; flex: 1; margin-right: 6px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
                       <span style="background: rgba(56,189,248,0.22); color: #38BDF8; font-weight: 800; font-size: 9px; padding: 1px 4px; border-radius: 3px; white-space: nowrap;">
-                        ${arr.line || '전철'}
+                        ${escapeHtml(arr.line || '전철')}
                       </span>
                       <span style="color: var(--app-text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${arr.destination ? arr.destination.split(' - ')[0] : '열차'}
+                        ${escapeHtml(arr.destination ? arr.destination.split(' - ')[0] : '열차')}
                       </span>
                     </div>
-                    ${arr.updn_line ? `<div style="font-size: 9px; color: var(--color-muted); margin-top: 1px;">${arr.updn_line} ${arr.destination && arr.destination.includes(' - ') ? `(${arr.destination.split(' - ')[1]})` : ''}</div>` : ''}
+                    ${arr.updn_line ? `<div style="font-size: 9px; color: var(--color-muted); margin-top: 1px;">${escapeHtml(arr.updn_line)} ${arr.destination && arr.destination.includes(' - ') ? `(${escapeHtml(arr.destination.split(' - ')[1])})` : ''}</div>` : ''}
                   </div>
                   <div style="text-align: right; flex-shrink: 0;">
                     <div style="color: #FCD34D; font-weight: 800; font-family: monospace; font-size: 10px;">
-                      ${arr.message}
+                      ${escapeHtml(arr.message)}
                     </div>
-                    ${arr.remaining_minutes > 0 ? `<div style="font-size: 9px; color: var(--app-text); margin-top: 1px;">약 ${arr.remaining_minutes}분 후</div>` : ''}
+                    ${arr.remaining_minutes > 0 ? `<div style="font-size: 9px; color: var(--app-text); margin-top: 1px;">약 ${escapeHtml(arr.remaining_minutes)}분 후</div>` : ''}
                   </div>
                 </div>
               `).join('')}
@@ -775,8 +776,8 @@ export default function TransitMap({
             <div style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto;">
               ${arrivalsList.slice(0, 6).map((b: any) => `
                 <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 5px 8px; border-radius: 6px; font-size: 10px; border-left: 2px solid #34D399;">
-                  ${(b.bus_route_id && (b.stId || stop.stId)) ? `<button type="button" data-bus-route-id="${b.bus_route_id}" data-bus-route-name="${b.route_name || ''}" data-bus-st-id="${b.stId || stop.stId}" title="노선 보기" style="color: #34D399; font-weight: 800; background: transparent; border: none; padding: 0; cursor: pointer; text-align: left; font-size: 10px;">${b.route_name || b.rtNm || '간선'} · 노선 보기 ↗</button>` : `<span style="color: #34D399; font-weight: 800;">${b.route_name || b.rtNm || '간선'}</span>`}
-                  <span style="color: #FCD34D; font-weight: 700; font-family: monospace;">${b.arrival_msg1 || b.arrmsg1 || '운행중'}</span>
+                  ${(b.bus_route_id && (b.stId || stop.stId)) ? `<button type="button" data-bus-route-id="${escapeHtml(b.bus_route_id)}" data-bus-route-name="${escapeHtml(b.route_name || '')}" data-bus-st-id="${escapeHtml(b.stId || stop.stId)}" title="노선 보기" style="color: #34D399; font-weight: 800; background: transparent; border: none; padding: 0; cursor: pointer; text-align: left; font-size: 10px;">${escapeHtml(b.route_name || b.rtNm || '간선')} · 노선 보기 ↗</button>` : `<span style="color: #34D399; font-weight: 800;">${escapeHtml(b.route_name || b.rtNm || '간선')}</span>`}
+                  <span style="color: #FCD34D; font-weight: 700; font-family: monospace;">${escapeHtml(b.arrival_msg1 || b.arrmsg1 || '운행중')}</span>
                 </div>
               `).join('')}
             </div>
@@ -803,12 +804,12 @@ export default function TransitMap({
               <span>🚲</span> 따릉이 실시간 거치 현황
             </span>
             <span style="font-size: 9px; color: #34D399; background: rgba(52,211,153,0.15); padding: 1px 5px; border-radius: 4px; font-weight: 700;">
-              ${liveBike ? '실시간 API' : (stop.stationNo ? `대여소 #${stop.stationNo} · 추정` : '거점 대여소 · 추정')}
+              ${liveBike ? '실시간 API' : (stop.stationNo ? `대여소 #${escapeHtml(stop.stationNo)} · 추정` : '거점 대여소 · 추정')}
             </span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; background: var(--color-card2); padding: 6px 10px; border-radius: 6px; font-size: 11px; border-left: 2px solid #34D399;">
             <span style="color: var(--app-text);">대여 가능 자전거</span>
-            <span style="color: #34D399; font-weight: 800; font-family: monospace;">${liveBike ? '' : '약 '}${availableBikes}대 / 총 ${rackTotal}대</span>
+            <span style="color: #34D399; font-weight: 800; font-family: monospace;">${liveBike ? '' : '약 '}${escapeHtml(availableBikes)}대 / 총 ${escapeHtml(rackTotal)}대</span>
           </div>
           ${rainMm > 0 ? `
             <div style="margin-top: 4px; font-size: 9px; color: #FCA5A5; text-align: center;">
@@ -826,14 +827,14 @@ export default function TransitMap({
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; padding-right: 36px;">
           <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
             <span style="font-size: 15px; flex-shrink: 0;">${typeIcon}</span>
-            <strong style="font-size: 14px; color: var(--app-text); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${stop.name}</strong>
-            <span style="font-size: 9px; color: var(--color-muted); background: var(--color-card); padding: 1px 5px; border-radius: 4px; flex-shrink: 0;">${resolvedDistrict}</span>
+            <strong style="font-size: 14px; color: var(--app-text); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(stop.name)}</strong>
+            <span style="font-size: 9px; color: var(--color-muted); background: var(--color-card); padding: 1px 5px; border-radius: 4px; flex-shrink: 0;">${escapeHtml(resolvedDistrict)}</span>
           </div>
           <span style="font-size: 10px; font-weight: 800; color: var(--app-text); background: ${displayColor}; padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;">
-            ${displayLabel} (${displayCrowd}%)
+            ${escapeHtml(displayLabel)} (${displayCrowd}%)
           </span>
         </div>
-        <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 6px; font-family: monospace;">${stop.lineInfo}</div>
+        <div style="font-size: 11px; color: var(--color-muted); margin-bottom: 6px; font-family: monospace;">${escapeHtml(stop.lineInfo)}</div>
         ${weatherSection}
         ${aiSection}
         ${arrivalSection}
@@ -841,7 +842,7 @@ export default function TransitMap({
           <button
             type="button"
             data-action="set-origin"
-            title="${stop.name}을(를) 출발지로 설정"
+            title="${escapeHtml(stop.name)}을(를) 출발지로 설정"
             style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-card2); color: var(--app-text); font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
             onmouseover="this.style.background='color-mix(in srgb, var(--color-primary) 15%, var(--color-card2))'; this.style.borderColor='var(--color-primary)';"
             onmouseout="this.style.background='var(--color-card2)'; this.style.borderColor='var(--color-border)';"
@@ -851,7 +852,7 @@ export default function TransitMap({
           <button
             type="button"
             data-action="set-destination"
-            title="${stop.name}을(를) 도착지로 설정"
+            title="${escapeHtml(stop.name)}을(를) 도착지로 설정"
             style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-card2); color: var(--app-text); font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
             onmouseover="this.style.background='color-mix(in srgb, var(--color-primary) 15%, var(--color-card2))'; this.style.borderColor='var(--color-primary)';"
             onmouseout="this.style.background='var(--color-card2)'; this.style.borderColor='var(--color-border)';"
@@ -1269,7 +1270,7 @@ export default function TransitMap({
       ? `
         <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 6px 9px; margin-bottom: 8px; font-size: 10.5px; color: var(--app-text);">
           <div style="color: #38BDF8; font-weight: 700; font-size: 10px; margin-bottom: 2px;">🚇 가장 가까운 지하철역</div>
-          <div><strong>${nearestSubway.name}</strong> <span style="font-size: 9.5px; color: var(--color-muted);">(${nearestSubway.lines.join(', ')})</span> · 약 ${nearestSubway.distanceMeters.toLocaleString()}m</div>
+          <div><strong>${escapeHtml(nearestSubway.name)}</strong> <span style="font-size: 9.5px; color: var(--color-muted);">(${escapeHtml(nearestSubway.lines.join(', '))})</span> · 약 ${nearestSubway.distanceMeters.toLocaleString()}m</div>
         </div>
       `
       : ''
@@ -1280,7 +1281,7 @@ export default function TransitMap({
           <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
             <span style="font-size: 16px; flex-shrink: 0;">📍</span>
             <strong style="font-size: 13.5px; color: var(--app-text); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${isManual ? '지정된 내 위치' : '현재 내 위치'}</strong>
-            <span style="font-size: 9px; color: #38BDF8; background: rgba(56,189,248,0.15); padding: 1px 5px; border-radius: 4px; flex-shrink: 0;">${district}</span>
+            <span style="font-size: 9px; color: #38BDF8; background: rgba(56,189,248,0.15); padding: 1px 5px; border-radius: 4px; flex-shrink: 0;">${escapeHtml(district)}</span>
           </div>
           ${sourceBadge}
         </div>
@@ -2526,7 +2527,7 @@ export default function TransitMap({
         .setLngLat(f.geometry.coordinates as [number, number])
         .setHTML(`
           <div style="font-size: 11px; font-weight: 700; color: var(--app-text); padding: 2px 6px; white-space: nowrap; font-family: 'Outfit', 'Noto Sans KR', sans-serif;">
-            🚌 ${p.name || '버스정류장'} <span style="color: ${col}; font-weight: 800; margin-left: 3px;">${p.crowd || 45}% (${p.label || '보통'})</span>
+            🚌 ${escapeHtml(p.name || '버스정류장')} <span style="color: ${escapeHtml(col)}; font-weight: 800; margin-left: 3px;">${escapeHtml(p.crowd || 45)}% (${escapeHtml(p.label || '보통')})</span>
           </div>
         `)
         .addTo(map)
@@ -2989,7 +2990,7 @@ export default function TransitMap({
             transition: transform 0.15s ease, box-shadow 0.15s ease;
           ">
             <span style="font-size: 13px;">${typeIcon}</span>
-            <span style="font-size: 11px; font-weight: 700; color: var(--app-text); white-space: nowrap;">${stop.name}</span>
+            <span style="font-size: 11px; font-weight: 700; color: var(--app-text); white-space: nowrap;">${escapeHtml(stop.name)}</span>
             <span class="marker-crowd-badge" style="
               background: ${color};
               color: var(--app-text);
@@ -3044,7 +3045,7 @@ export default function TransitMap({
             pointer-events: none;
             z-index: 10000;
           ">
-            ${typeIcon} ${stop.name} <span class="marker-dot-tooltip-badge" style="color: ${color}; font-weight: 800; margin-left: 3px;">${crowd}% (${label})</span>
+            ${typeIcon} ${escapeHtml(stop.name)} <span class="marker-dot-tooltip-badge" style="color: ${color}; font-weight: 800; margin-left: 3px;">${crowd}% (${escapeHtml(label)})</span>
           </div>
         </div>
       `
@@ -3333,32 +3334,32 @@ export default function TransitMap({
       ">
         <div style="display: flex; align-items: center; gap: 5px;">
           <span>🟢 출발</span>
-          <span>${activeRoute.from}</span>
-          ${depTrain ? `<span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${depTrain.line}</span>` : ''}
+          <span>${escapeHtml(activeRoute.from)}</span>
+          ${depTrain ? `<span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${escapeHtml(depTrain.line)}</span>` : ''}
           <span style="background: rgba(0,0,0,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${startCrowd}%</span>
         </div>
         ${depTrain ? `
           <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-            <span>⏱️ ${depTrain.destinationOrNext} 방면</span>
-            <span style="background: #065F46; color: #6EE7B7; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${depTrain.remainingMinutes}분 후 도착</span>
+            <span>⏱️ ${escapeHtml(depTrain.destinationOrNext)} 방면</span>
+            <span style="background: #065F46; color: #6EE7B7; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${escapeHtml(depTrain.remainingMinutes)}분 후 도착</span>
           </div>
         ` : ''}
         ${matchedBikePickup ? `
           <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
             <span>🚲 따릉이 대여:</span>
-            <span>${matchedBikePickup.from_name || '대여소'}</span>
-            <span>(${matchedBikePickup.minutes || 10}분)</span>
+            <span>${escapeHtml(matchedBikePickup.from_name || '대여소')}</span>
+            <span>(${escapeHtml(matchedBikePickup.minutes || 10)}분)</span>
           </div>
         ` : (
           !isFirstModeSubway && firstSegment?.mode === 'walk' ? `
             <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-              <span>🚶 도보 ${firstSegment.minutes || 2}분</span>
-              <span>➔ ${firstSegment.to_name || '대여소/정류장'}</span>
+              <span>🚶 도보 ${escapeHtml(firstSegment.minutes || 2)}분</span>
+              <span>➔ ${escapeHtml(firstSegment.to_name || '대여소/정류장')}</span>
             </div>
           ` : (!isFirstModeSubway && firstSegment?.mode === 'bus' ? `
             <div style="font-size: 10px; color: #ECFDF5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.2); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-              <span>🚌 ${firstSegment.label || '버스'} 탑승</span>
-              <span>(${firstSegment.minutes || 10}분)</span>
+              <span>🚌 ${escapeHtml(firstSegment.label || '버스')} 탑승</span>
+              <span>(${escapeHtml(firstSegment.minutes || 10)}분)</span>
             </div>
           ` : '')
         )}
@@ -3413,7 +3414,7 @@ export default function TransitMap({
             pickupEl.innerHTML = `
               <div style="background: #10B981; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(16,185,129,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
                 <span>🚲 대여</span>
-                <span>${seg.from_name || '따릉이 대여소'}</span>
+                <span>${escapeHtml(seg.from_name || '따릉이 대여소')}</span>
               </div>
               <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #10B981;"></div>
             `
@@ -3444,7 +3445,7 @@ export default function TransitMap({
             dropEl.innerHTML = `
               <div style="background: #059669; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(5,150,105,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
                 <span>🚲 반납</span>
-                <span>${seg.to_name || '따릉이 반납소'}</span>
+                <span>${escapeHtml(seg.to_name || '따릉이 반납소')}</span>
               </div>
               <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #059669;"></div>
             `
@@ -3468,12 +3469,12 @@ export default function TransitMap({
             busPickupEl.style.alignItems = 'center'
             busPickupEl.style.cursor = 'pointer'
             busPickupEl.innerHTML = `
-              <div style="background: ${seg.color || '#3B82F6'}; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(59,130,246,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+              <div style="background: ${escapeHtml(seg.color || '#3B82F6')}; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(59,130,246,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
                 <span>🚌 승차</span>
-                <span>${seg.from_name || '버스 정류소'}</span>
-                ${seg.line_name ? `<span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${seg.line_name}</span>` : ''}
+                <span>${escapeHtml(seg.from_name || '버스 정류소')}</span>
+                ${seg.line_name ? `<span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${escapeHtml(seg.line_name)}</span>` : ''}
               </div>
-              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid ${seg.color || '#3B82F6'};"></div>
+              <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid ${escapeHtml(seg.color || '#3B82F6')};"></div>
             `
             const bMarker = new maplibregl.Marker({ element: busPickupEl }).setLngLat(busPickupCoord).addTo(map)
             routeMarkersRef.current.push(bMarker)
@@ -3499,7 +3500,7 @@ export default function TransitMap({
             busDropEl.innerHTML = `
               <div style="background: #F97316; color: #FFFFFF; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 9999px; box-shadow: 0 4px 14px rgba(249,115,22,0.6); border: 2px solid #FFFFFF; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
                 <span>🚌 하차</span>
-                <span>${seg.to_name || '버스 하차정류소'}</span>
+                <span>${escapeHtml(seg.to_name || '버스 하차정류소')}</span>
               </div>
               <div style="width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #F97316;"></div>
             `
@@ -3562,12 +3563,12 @@ export default function TransitMap({
                 ">
                   <div style="display: flex; align-items: center; gap: 5px;">
                     <span style="color: #FDA4AF; font-weight: 800;">${isPrevBus ? '🚌 버스 하차' : '🚇 지하철 하차'}</span>
-                    <span style="color: #FFFFFF; font-weight: 900; font-size: 12px;">${seg.from_name}</span>
-                    ${alightStop?.line ? `<span style="background: rgba(255,255,255,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${alightStop.line}</span>` : ''}
+                    <span style="color: #FFFFFF; font-weight: 900; font-size: 12px;">${escapeHtml(seg.from_name)}</span>
+                    ${alightStop?.line ? `<span style="background: rgba(255,255,255,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${escapeHtml(alightStop.line)}</span>` : ''}
                     ${alightCrowd ? `<span style="background: rgba(0,0,0,0.35); font-size: 9px; padding: 1px 5px; border-radius: 4px; color: #FCD34D;">${alightCrowd}%</span>` : ''}
                   </div>
                   <div style="font-size: 10px; color: #CBD5E1; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-                    <span>🚶 하차 후 도보 ${seg.minutes || 2}분 이동 (${walkDistM}m)</span>
+                    <span>🚶 하차 후 도보 ${escapeHtml(seg.minutes || 2)}분 이동 (${walkDistM}m)</span>
                   </div>
                 </div>
                 <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #F43F5E;"></div>
@@ -3646,12 +3647,12 @@ export default function TransitMap({
                 ">
                   <div style="display: flex; align-items: center; gap: 5px;">
                     <span style="color: #38BDF8; font-weight: 800;">${isNextBus ? '🚌 버스 탑승' : '🚇 지하철 탑승'}</span>
-                    <span style="color: #FFFFFF; font-weight: 900; font-size: 12px;">${seg.to_name}</span>
-                    ${boardStop?.line ? `<span style="background: rgba(255,255,255,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${boardStop.line}</span>` : ''}
+                    <span style="color: #FFFFFF; font-weight: 900; font-size: 12px;">${escapeHtml(seg.to_name)}</span>
+                    ${boardStop?.line ? `<span style="background: rgba(255,255,255,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${escapeHtml(boardStop.line)}</span>` : ''}
                     ${boardCrowd ? `<span style="background: rgba(0,0,0,0.35); font-size: 9px; padding: 1px 5px; border-radius: 4px; color: #FCD34D;">${boardCrowd}%</span>` : ''}
                   </div>
                   <div style="font-size: 10px; color: #BAE6FD; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-                    <span>🚶 도보 ${seg.minutes || 2}분 후 탑승 (${walkDistM}m)</span>
+                    <span>🚶 도보 ${escapeHtml(seg.minutes || 2)}분 후 탑승 (${walkDistM}m)</span>
                   </div>
                 </div>
                 <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #0284C7;"></div>
@@ -3728,17 +3729,17 @@ export default function TransitMap({
           ">
             <div style="display: flex; align-items: center; gap: 5px;">
               <span>🔄 환승</span>
-              <span>${tr.station}</span>
-              <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${tr.line}</span>
+              <span>${escapeHtml(tr.station)}</span>
+              <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${escapeHtml(tr.line)}</span>
               <span style="background: rgba(0,0,0,0.2); font-size: 9px; padding: 1px 5px; border-radius: 4px;">${trCrowd}%</span>
             </div>
             <div style="font-size: 10px; color: #FEF3C7; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-              <span>⏱️ ${tr.destinationOrNext} 방면</span>
-              <span style="background: #78350F; color: #FDE68A; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${tr.remainingMinutes}분 후 도착</span>
+              <span>⏱️ ${escapeHtml(tr.destinationOrNext)} 방면</span>
+              <span style="background: #78350F; color: #FDE68A; padding: 1px 5px; border-radius: 4px; font-weight: 800;">${escapeHtml(tr.remainingMinutes)}분 후 도착</span>
             </div>
             ${matchedBikeDropForTransfer ? `
               <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.25); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-                <span>🚲 따릉이 반납 ➔ 🚇 ${tr.line} 환승</span>
+                <span>🚲 따릉이 반납 ➔ 🚇 ${escapeHtml(tr.line)} 환승</span>
               </div>
             ` : ''}
           </div>
@@ -3802,12 +3803,12 @@ export default function TransitMap({
         ">
           <div style="display: flex; align-items: center; gap: 5px;">
             <span>🏁 도착</span>
-            <span>${activeRoute.to}</span>
+            <span>${escapeHtml(activeRoute.to)}</span>
             <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
           </div>
           <div style="font-size: 10px; color: #D1FAE5; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
             <span>🚲 따릉이 반납:</span>
-            <span>${mergedBikeDrop.to_name || '반납소'}</span>
+            <span>${escapeHtml(mergedBikeDrop.to_name || '반납소')}</span>
           </div>
         </div>
         <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #E11D48;"></div>
@@ -3831,12 +3832,12 @@ export default function TransitMap({
         ">
           <div style="display: flex; align-items: center; gap: 5px;">
             <span>🔴 도착</span>
-            <span>${activeRoute.to}</span>
+            <span>${escapeHtml(activeRoute.to)}</span>
             <span style="background: var(--color-card2); font-size: 9px; padding: 1px 5px; border-radius: 6px;">${endCrowd}%</span>
           </div>
           ${lastSegment?.mode === 'walk' ? `
             <div style="font-size: 10px; color: #FFE4E6; font-weight: 700; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.22); padding: 1px 7px; border-radius: 9999px; margin-top: 1px;">
-              <span>🚶 ${lastSegment.from_name}에서 도보 ${lastSegment.minutes}분</span>
+              <span>🚶 ${escapeHtml(lastSegment.from_name)}에서 도보 ${escapeHtml(lastSegment.minutes)}분</span>
             </div>
           ` : ''}
         </div>

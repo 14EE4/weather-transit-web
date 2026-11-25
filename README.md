@@ -161,6 +161,7 @@
 | **데이터검수** | 🔍 **목업·하드코딩·미검증 데이터 전수 조사** | 정적 상수, 근사 산식, 폴백 데이터 현황 및 실시간 API 전환 방안 | [`TODO_MOCK_AND_UNVERIFIED_DATA.md`](docs/TODO_MOCK_AND_UNVERIFIED_DATA.md) |
 | **아카이브** | 📦 **레거시 문서 보관소** | 구버전(v1/v2 단년도) 전처리 인수인계서 및 모델 성능 리포트 아카이브 | [`docs/archive/`](docs/archive/README.md) |
 | **로깅** | 📜 **전역 로깅 정책 및 정형화 가이드** | 백엔드 관제(/health/dashboard)·콘솔 로깅 규격 및 **주요 경고·폴백 로그(기상청·버스·LLM) 트러블슈팅 가이드** | [`LOGGING_POLICY.md`](docs/LOGGING_POLICY.md) |
+| **보안** | 🔒 **전사 보안 정책 및 감사 현황 가이드** | 다계층 방어 아키텍처, 미니 PC NPM 하드닝 규칙, 보안 감사(`SEC-01~SEC-14`) 조치 현황 및 `Phase 2~3` 로드맵 | [`SECURITY_POLICY.md`](docs/SECURITY_POLICY.md) |
 | **아키텍처** | 🧱 **SOLID 아키텍처 & 코드 설계 가이드** | 백엔드·프론트엔드 SOLID 5대 원칙 적용 규격, SSoT 경계, Phase `1~4` 리팩토링 내역 및 금지 패턴 | [`SOLID_ARCHITECTURE_GUIDE.md`](docs/SOLID_ARCHITECTURE_GUIDE.md) |
 | **캐싱** | ⚡ **전사 캐싱 정책 명세서** | 데이터별 TTL(기상 30분, 따릉이 60초, 교통 15초), 3계층 캐시 및 서킷 브레이커 연계 규격 | [`CACHING_POLICY.md`](docs/CACHING_POLICY.md) |
 | **트러블슈팅** | 🛠️ **캡스톤 발표·면접 트러블슈팅 가이드** | STAR 기법 기반 6대 핵심 기술적 난관 극복 과정 및 심사위원 예상 Q&A 모범 답변 | [`CAPSTONE_TROUBLESHOOTING.md`](docs/CAPSTONE_TROUBLESHOOTING.md) |
@@ -538,6 +539,7 @@ weather-transit-web/
 │   ├── TODO.md                         # 📋 향후 개발 백로그 및 고도화 과제
 │   ├── TODO_MOCK_AND_UNVERIFIED_DATA.md # 🔍 하드코딩·목업·미검증 데이터 전수 조사 및 수정 방안
 │   ├── SERVER_DEPLOYMENT_GUIDE.md      # 🚀 서버 배포 및 AWS 클라우드 확장 가이드 (Docker, AWS ECS)
+│   ├── SECURITY_POLICY.md              # 🔒 전사 보안 정책, NPM 하드닝 및 보안 감사(SEC-01~SEC-14) 통합 현황
 │   ├── AI_INFERENCE_MODEL_SPEC.md      # AI 추론 모델 개발 사양서 및 구축 가이드
 │   ├── BACKEND_INFERENCE_SERVER.md     # FastAPI AI 추론 백엔드 서버 구축 및 운영 가이드
 │   ├── MODEL_PERFORMANCE_REPORT.md     # ONNX 모델 성능 비교 분석 보고서 (v2: 실피처 32차원 vs 25차원)

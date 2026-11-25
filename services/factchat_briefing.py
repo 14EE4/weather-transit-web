@@ -11,6 +11,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
+from logging_utils import sanitize_exception
+
 logger = logging.getLogger("weather_transit_api.factchat_briefing")
 
 
@@ -260,9 +262,8 @@ class FactChatBriefingService:
             except Exception as exc:
                 fallback_reason = f"EXCEPTION_{type(exc).__name__}"
                 logger.warning(
-                    "[FactChat] LLM Gateway 호출 중 네트워크/시스템 예외 발생 (%s: %s) -> XAI 규칙 엔진으로 Fallback합니다.",
-                    type(exc).__name__,
-                    exc,
+                    "[FactChat] LLM Gateway 호출 중 네트워크/시스템 예외 발생 (%s) -> XAI 규칙 엔진으로 Fallback합니다.",
+                    sanitize_exception(exc),
                 )
 
         if briefing is None:

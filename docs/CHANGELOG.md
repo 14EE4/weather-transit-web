@@ -24,6 +24,8 @@
      - `[SEC-03]` `src/utils/htmlEscape.ts` 신설 및 `TransitMap.tsx` 팝업·마커·경로 핀 HTML 템플릿 전수 이스케이프 적용, `admin_dashboard.py` `escapeHtml()` 따옴표 보강 및 `rel="noopener noreferrer"` 추가.
      - `[SEC-13]` `src/utils/csvExport.ts` CSV 수식 인젝션(`=`, `+`, `-`, `@`, 탭/CR 시작) 방어 및 `Blob`+RFC 4180 이스케이프 적용(`EnterpriseView.tsx` 중복 따옴표 정리).
      - `[SEC-11]` `requirements.txt` 중복 `langgraph` 제거 및 프론트엔드 `npm audit fix` 적용(`npm audit` `0` 취약점, Vite 프로덕션 빌드·백엔드 테스트·Docker `/health` `32d×16d` 검증 통과).
+  4. **전사 보안 정책 통합 문서 신설 (`docs/SECURITY_POLICY.md`, `README.md`)**:
+     - 다계층 보안 아키텍처, 미니 PC NPM 엣지 하드닝 표준, 전사 보안 감사(`SEC-01~SEC-14`) 조치 현황 매트릭스, 개발자 보안 체크리스트 및 `Phase 2~3` 로드맵을 단일 문서로 통합하고 `README.md` 문서 색인에 등록.
 
 ---
 
